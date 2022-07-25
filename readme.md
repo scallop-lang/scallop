@@ -4,13 +4,20 @@
   <img width="240" height="240" src="docs/icons/scallop-logo-ws-512.png" />
 </p>
 
-Scallop is a declarative language designed to support rich symbolic reasoning in AI applications. It is based on Datalog, a logic rule-based query language for relational databases.
+Scallop is a declarative language designed to support rich symbolic reasoning
+in AI applications. It is based on Datalog, a logic rule-based query language
+for relational databases.
 
-Sallop is equipped with a scalable Datalog solver that supports discrete, probabilistic and differentiable modes of reasoning.
-These modes are configurable to suit the needs of different AI applications.
-These modes are implemented uniformly as instances of a generalized form of the [Provenance Semiring](https://repository.upenn.edu/cgi/viewcontent.cgi?article=1022&context=db_research) framework.
+Sallop is equipped with a scalable Datalog solver that supports discrete,
+probabilistic and differentiable modes of reasoning.  These modes are
+configurable to suit the needs of different AI applications, and they are
+implemented uniformly as instances of a generalized form of the [Provenance Semiring]
+(https://repository.upenn.edu/cgi/viewcontent.cgi?article=1022&context=db_research)
+framework.
 
-Scallop provides bindings to support logic reasoning modules within Python programs. As a result, Scallop can be deeply integrated with existing PyTorch machine learning pipelines.
+Scallop provides bindings to support logic reasoning modules within Python
+programs. As a result, Scallop can be deeply integrated with existing PyTorch
+machine learning pipelines.
 
 ## Example
 
