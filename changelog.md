@@ -1,3 +1,11 @@
+# v0.1.4, July 24, 2022
+
+`v0.1.4` introduces multiple bug fixes and new features
+- forall aggregator (`forall`)
+- implies operator (`=>`)
+- topkproofs supporting negation and aggregation
+- Multiple bugs fixed
+
 # v0.1.3, June 1, 2022
 
 `v0.1.3` introduces multiple bug fixes and few additional features
