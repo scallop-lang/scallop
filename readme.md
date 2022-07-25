@@ -48,8 +48,8 @@ $ rustup default nightly
 ### Download and Build
 
 ``` bash
-$ git clone https://github.com/Liby99/scallop-v2.git
-$ cd scallop-v2
+$ git clone https://github.com/scallop-lang/scallop.git
+$ cd scallop
 ```
 
 The following three binaries are available. Scroll down for more ways
@@ -231,10 +231,8 @@ rel path(a, c) :- path(a, b), edge(b, c)
 Alternatively, you can use a syntax similar to logic programming:
 
 ```
-rel path(a, c) = edge(a, c) \/ (path(a, b) /\ edge(b, c))
+rel path(a, c) = edge(a, c) or (path(a, b) and edge(b, c))
 ```
-
-Note that `/\` represents conjunction and `\/` represents disjunction.
 
 ### Probabilistic Rule
 
@@ -250,7 +248,7 @@ rel 0.5::path(b, c) = edge(c, b)
 Scallop supports stratified negation, with which you can write a rule like this:
 
 ```
-scl> rel numbers(x) = x == 0 \/ (numbers(x - 1) /\ x <= 10)
+scl> rel numbers(x) = x == 0 or (numbers(x - 1) and x <= 10)
 scl> rel odd(1) = numbers(1)
 scl> rel odd(x) = odd(x - 2), numbers(x)
 scl> rel even(y) = numbers(y), ~odd(y)
@@ -348,7 +346,6 @@ Scallop supports the following primitive types:
 - String:
   - `&str` (static string which could only be used in static Scallop compiler);
   - `String`
-  - `Rc<String>` (Reference counted strings, which is the most efficient)
 
 Some example type definition includes
 
@@ -384,20 +381,3 @@ When loading `.csv` files, we accept extra loading options:
 - has header: `@file("FILE.csv", has_header = true)`. It is default to `false`
 - has probability: `@file("FILE.csv", has_probability = true)`. When set to `true`, the first
   column of the CSV file will be treated as the probability of each tuple.
-
-### Demand Transformation (Magic-Set Transformation)
-
-Magic-set transformation allows some originally un-evaluable queries to be evaluable,
-and can potentially optimize the program.
-For example, a traditional fibonacci number program in Datalog will go to infinite.
-However, with demand transformation we can evaluate this program:
-
-```
-@demand("bf")
-def fib = {(0, 1), (1, 1)}
-def fib(x, a + b) = fib(x - 1, a), fib(x - 2, b), x > 1
-query fib(10, y)
-```
-
-Note that we have `@demand("bf")` specified on the `fib` relation.
-Since we are just curious the ten-th number of fibonacci, this program is evaluable.
