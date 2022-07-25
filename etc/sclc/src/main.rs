@@ -2,6 +2,7 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
+use std::env;
 use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
@@ -84,6 +85,7 @@ fn create_executable(opt: &Options, ram: &compiler::ram::Program, module: TokenS
   let program_name = opt.input.file_prefix().unwrap().to_str().unwrap();
   let parent_dir = opt.input.parent().unwrap();
   let tmp_dir = parent_dir.join(format!(".{}.sclcmpl", program_name));
+  let scallop_source_dir = env::var("SCALLOPDIR").expect("Please set envrionment variable `SCALLOPDIR` to be the root of Scallop source directory before using `sclc`.");
 
   // Create a temporary directory holding the cargo project
   fs::create_dir_all(&tmp_dir).unwrap();
@@ -100,13 +102,14 @@ fn create_executable(opt: &Options, ram: &compiler::ram::Program, module: TokenS
     version = "1.0.0"
     edition = "2018"
     [dependencies]
-    scallop-core = {{ path = "/Users/liby99/Local/Projects/scallop-v2/core" }}
+    scallop-core = {{ path = "{}/core" }}
     structopt = "0.3"
     proc-macro2 = "1.0"
     quote = "1.0"
     [workspace]
   "#,
-        program_name
+        program_name,
+        scallop_source_dir,
       )
       .as_bytes(),
     )
