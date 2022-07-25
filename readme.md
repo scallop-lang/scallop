@@ -11,8 +11,8 @@ for relational databases.
 Sallop is equipped with a scalable Datalog solver that supports discrete,
 probabilistic and differentiable modes of reasoning.  These modes are
 configurable to suit the needs of different AI applications, and they are
-implemented uniformly as instances of a generalized form of the [Provenance Semiring]
-(https://repository.upenn.edu/cgi/viewcontent.cgi?article=1022&context=db_research)
+implemented uniformly as instances of a generalized form of the
+[Provenance Semiring](https://repository.upenn.edu/cgi/viewcontent.cgi?article=1022&context=db_research)
 framework.
 
 Scallop provides bindings to support logic reasoning modules within Python
