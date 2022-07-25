@@ -1,0 +1,836 @@
+use std::str::FromStr;
+
+use super::ast::*;
+use crate::common::aggregate_op::AggregateOp;
+use crate::common::input_tag::InputTag;
+
+grammar;
+
+match {
+  // Symbols
+  "=",
+  ":-",
+  "(",
+  ")",
+  "[",
+  "]",
+  "{",
+  "}",
+  ";",
+  ":",
+  ",",
+  "|",
+  ".",
+  "<:",
+  "::",
+  "$",
+  "@",
+
+  // Formula Operators
+  "/\\", // /\
+  "\\/", // \/
+  "~",
+  "=>",
+  "∃",
+  "∀",
+
+  // Expression Operators
+  "&&",
+  "||",
+  "^",
+  "==",
+  "!=",
+  ">",
+  ">=",
+  "<",
+  "<=",
+  "+",
+  "-",
+  "*",
+  "/",
+  "%",
+  "!",
+  "as",
+  "?",
+
+  // Operators Keyword
+  "and",
+  "or",
+  "not",
+  "implies",
+  "where",
+  "if",
+  "then",
+  "else",
+
+  // Type
+  "i8",
+  "i16",
+  "i32",
+  "i64",
+  "i128",
+  "isize",
+  "u8",
+  "u16",
+  "u32",
+  "u64",
+  "u128",
+  "usize",
+  "f32",
+  "f64",
+  "char",
+  "bool",
+  "&str",
+  "String",
+  "Rc<String>",
+
+  // Boolean keywords
+  "true",
+  "false",
+
+  // Wildcard
+  "_",
+
+  // Keywords
+  "import",
+  "input",
+  "type",
+  "fact",
+  "relation",
+  "rel",
+  "query",
+  "output",
+
+  // Literals
+  r"[a-zA-Z][a-zA-Z_0-9]*" => name,
+  r"-?[0-9]+" => int,
+  r"-?\d+(\.\d+)(e-?\d+)?" => float,
+  r#""[^"]*""# => string,
+
+  // Comments and Whitespaces
+  r"\s*" => { },
+  r"//[^\n\r]*[\n\r]*" => { },
+  r"/\*([^\*]*\*+[^\*/])*([^\*]*\*+|[^\*])*\*/" => { },
+}
+
+/// ============================== ///
+/// ========= Attributes ========= ///
+/// ============================== ///
+
+AttributeArg: Result<Constant, (Identifier, Constant)> = {
+  <c: Constant> => Ok(c),
+  <n: Identifier> "=" <c: Constant> => Err((n, c)),
+}
+
+AttributeNode: AttributeNode = {
+  "@" <name: Identifier> => AttributeNode {
+    name,
+    pos_args: vec![],
+    kw_args: vec![],
+  },
+  "@" <name: Identifier> "(" <args: Separated<AttributeArg, ",">> ")" => {
+    AttributeNode {
+      name,
+      pos_args: args.iter().filter_map(|a| match a {
+        Ok(c) => Some(c.clone()),
+        _ => None,
+      }).collect(),
+      kw_args: args.iter().filter_map(|a| match a {
+        Err(a) => Some(a.clone()),
+        _ => None,
+      }).collect(),
+    }
+  }
+}
+
+Attribute: Attribute = Spanned<AttributeNode>;
+
+Attributes: Attributes = <Attribute*>;
+
+/// ==================================== ///
+/// ========= Type Declaration ========= ///
+/// ==================================== ///
+
+TypeNode: TypeNode = {
+  "i8" => TypeNode::I8,
+  "i16" => TypeNode::I16,
+  "i32" => TypeNode::I32,
+  "i64" => TypeNode::I64,
+  "i128" => TypeNode::I128,
+  "isize" => TypeNode::ISize,
+  "u8" => TypeNode::U8,
+  "u16" => TypeNode::U16,
+  "u32" => TypeNode::U32,
+  "u64" => TypeNode::U64,
+  "u128" => TypeNode::U128,
+  "usize" => TypeNode::USize,
+  "f32" => TypeNode::F32,
+  "f64" => TypeNode::F64,
+  "char" => TypeNode::Char,
+  "bool" => TypeNode::Bool,
+  "&str" => TypeNode::Str,
+  "String" => TypeNode::String,
+  // "Rc<String>" => TypeNode::RcString,
+  <n: Identifier> => TypeNode::Named(n),
+}
+
+Type: Type = Spanned<TypeNode>;
+
+SubtypeDeclNode: SubtypeDeclNode = {
+  <attrs: Attributes> "type" <n: Identifier> "<:" <t: Type> => {
+    SubtypeDeclNode {
+      attrs,
+      name: n,
+      subtype_of: t,
+    }
+  }
+}
+
+SubtypeDecl: SubtypeDecl = Spanned<SubtypeDeclNode>;
+
+AliasTypeDeclNode: AliasTypeDeclNode = {
+  <attrs: Attributes> "type" <n: Identifier> "=" <t: Type> => {
+    AliasTypeDeclNode {
+      attrs,
+      name: n,
+      alias_of: t,
+    }
+  }
+}
+
+AliasTypeDecl: AliasTypeDecl = Spanned<AliasTypeDeclNode>;
+
+ArgTypeBindingNode: ArgTypeBindingNode = {
+  <n: Identifier> ":" <t: Type> => {
+    ArgTypeBindingNode { name: Some(n), ty: t }
+  },
+  <t: Type> => {
+    ArgTypeBindingNode { name: None, ty: t }
+  }
+}
+
+ArgTypeBinding = Spanned<ArgTypeBindingNode>;
+
+pub RelationType: RelationType = {
+  <n: Identifier> "(" <ts: Separated<ArgTypeBinding, ",">> ")" => {
+    RelationType {
+      name: n,
+      arg_types: ts,
+    }
+  },
+}
+
+RelationTypeDeclNode: RelationTypeDeclNode = {
+  <attrs: Attributes> "type" <rt: RelationType> => {
+    RelationTypeDeclNode {
+      attrs,
+      rel_type: rt,
+    }
+  }
+}
+
+RelationTypeDecl = Spanned<RelationTypeDeclNode>;
+
+TypeDeclNode: TypeDeclNode = {
+  <s: SubtypeDecl> => TypeDeclNode::Subtype(s),
+  <a: AliasTypeDecl> => TypeDeclNode::Alias(a),
+  <r: RelationTypeDecl> => TypeDeclNode::Relation(r),
+}
+
+TypeDecl: TypeDecl = Spanned<TypeDeclNode>;
+
+/// ==================================== ///
+/// ========= Input Declaration ========= ///
+/// ==================================== ///
+
+InputDeclNode: InputDeclNode = {
+  <attrs: Attributes> "input" <n: Identifier> "(" <ts: Separated<ArgTypeBinding, ",">> ")" => {
+    InputDeclNode {
+      attrs,
+      name: n,
+      types: ts,
+    }
+  }
+}
+
+InputDecl: InputDecl = Spanned<InputDeclNode>;
+
+/// ======================================== ///
+/// ========= Relation Declaration ========= ///
+/// ======================================== ///
+
+DefineSymbol = { ":-", "=" }
+
+RelationKeyword = {
+  "rel",
+  "relation",
+}
+
+RelationDeclNode: RelationDeclNode = {
+  <s: ConstantSetDecl> => RelationDeclNode::Set(s),
+  <f: FactDecl> => RelationDeclNode::Fact(f),
+  <r: RuleDecl> => RelationDeclNode::Rule(r),
+}
+
+RelationDecl: RelationDecl = Spanned<RelationDeclNode>;
+
+TagNode: TagNode = {
+  <f: Float> => TagNode(InputTag::Float(f)),
+  <b: Bool> => TagNode(InputTag::Bool(b)),
+}
+
+Tag: Tag = Spanned<TagNode>;
+
+ConstantNode: ConstantNode = {
+  <b: Bool> => ConstantNode::Boolean(b),
+  <i: Int> => ConstantNode::Integer(i),
+  <f: Float> => ConstantNode::Float(f),
+  <s: StringLiteral> => ConstantNode::String(s),
+}
+
+Constant: Constant = Spanned<ConstantNode>;
+
+ConstantTupleNode: ConstantTupleNode = {
+  "(" <elems: Separated<Constant, ",">> ")" => ConstantTupleNode { elems },
+  <c: Constant> => ConstantTupleNode { elems: vec![c] },
+}
+
+ConstantTuple: ConstantTuple = Spanned<ConstantTupleNode>;
+
+ConstantSetTupleNode: ConstantSetTupleNode = {
+  <tag: Tag> "::" <tuple: ConstantTuple> => {
+    ConstantSetTupleNode { tag, tuple }
+  },
+  <tuple: ConstantTuple> => {
+    ConstantSetTupleNode { tag: Tag::default_none(), tuple }
+  }
+}
+
+ConstantSetTuple: ConstantSetTuple = Spanned<ConstantSetTupleNode>;
+
+ConstantSetNode: ConstantSetNode = {
+  "{" <tuples: Separated<ConstantSetTuple, ",">> "}" => {
+    ConstantSetNode { tuples, is_disjunction: false }
+  },
+  "{" <tuples: AtLeastTwoSeparated<ConstantSetTuple, ";">> "}" => {
+    ConstantSetNode { tuples, is_disjunction: true }
+  }
+}
+
+ConstantSet: ConstantSet = Spanned<ConstantSetNode>;
+
+ConstantSetDeclNode: ConstantSetDeclNode = {
+  <attrs: Attributes> RelationKeyword <name: Identifier> DefineSymbol <set: ConstantSet> => {
+    ConstantSetDeclNode { attrs, name, set }
+  }
+}
+
+ConstantSetDecl: ConstantSetDecl = Spanned<ConstantSetDeclNode>;
+
+FactDeclNode: FactDeclNode = {
+  <attrs: Attributes> RelationKeyword <tag: Tag> "::" <a: Atom> => {
+    FactDeclNode { attrs, tag, atom: a }
+  },
+  <attrs: Attributes> RelationKeyword <a: Atom> => {
+    FactDeclNode { attrs, tag: Tag::default_none(), atom: a }
+  }
+}
+
+FactDecl = Spanned<FactDeclNode>;
+
+WildcardNode: WildcardNode = {
+  "_" => WildcardNode
+}
+
+Wildcard = Spanned<WildcardNode>;
+
+VariableNode: VariableNode = {
+  <name: Identifier> => VariableNode { name },
+}
+
+Variable = Spanned<VariableNode>;
+
+AtomNode: AtomNode = {
+  <predicate: Identifier> "(" <args: Separated<Expr, ",">> ")" => {
+    AtomNode { predicate, args }
+  }
+}
+
+Atom = Spanned<AtomNode>;
+
+Formula = ConjDisjFormula;
+
+ConjDisjFormula = {
+  CommaConjunctionFormula,
+  ImpliesFormula,
+}
+
+CommaConjunctionNode: ConjunctionNode = {
+  <args: AtLeastTwoSeparatedStrict<NegAtomFormula, ",">> => ConjunctionNode { args }
+}
+
+CommaConjunction = Spanned<CommaConjunctionNode>;
+
+CommaConjunctionFormula: Formula = {
+  <c: CommaConjunction> => Formula::Conjunction(c),
+}
+
+ImpliesKeyword = { "=>", "implies" }
+
+ImpliesNode: ImpliesNode = {
+  <left: DisjunctionFormula> ImpliesKeyword <right: DisjunctionFormula> => {
+    ImpliesNode {
+      left: Box::new(left),
+      right: Box::new(right),
+    }
+  }
+}
+
+Implies = Spanned<ImpliesNode>;
+
+ImpliesFormula = {
+  <i: Implies> => Formula::Implies(i),
+  DisjunctionFormula,
+}
+
+DisjunctionKeyword = { "\\/", "or" }
+
+DisjunctionNode: DisjunctionNode = {
+  <args: AtLeastTwoSeparatedStrict<ConjunctionFormula, DisjunctionKeyword>> => {
+    DisjunctionNode { args }
+  }
+}
+
+Disjunction = Spanned<DisjunctionNode>;
+
+DisjunctionFormula = {
+  <d: Disjunction> => Formula::Disjunction(d),
+  ConjunctionFormula,
+}
+
+ConjunctionKeyword = { "/\\", "and" }
+
+ConjunctionNode: ConjunctionNode = {
+  <args: AtLeastTwoSeparatedStrict<NegAtomFormula, ConjunctionKeyword>> => {
+    ConjunctionNode { args }
+  }
+}
+
+Conjunction = Spanned<ConjunctionNode>;
+
+ConjunctionFormula: Formula = {
+  <c: Conjunction> => Formula::Conjunction(c),
+  NegAtomFormula,
+}
+
+NegAtomNode: NegAtomNode = {
+  "~" <a: Atom> => NegAtomNode { atom: a },
+  "not" <a: Atom> => NegAtomNode { atom: a },
+}
+
+NegAtom = Spanned<NegAtomNode>;
+
+NegAtomFormula: Formula = {
+  <n: NegAtom> => Formula::NegAtom(n),
+  UnitFormula,
+}
+
+ComplexFormula: Formula = {
+  CommaConjunctionFormula,
+  <i: Implies> => Formula::Implies(i),
+  <d: Disjunction> => Formula::Disjunction(d),
+  <c: Conjunction> => Formula::Conjunction(c),
+  <n: NegAtom> => Formula::NegAtom(n),
+}
+
+VariableOrWildcard: VariableOrWildcard = {
+  <v: Variable> => VariableOrWildcard::Variable(v),
+  <w: Wildcard> => VariableOrWildcard::Wildcard(w),
+}
+
+ReduceOpNode: ReduceOperatorNode = {
+  <n: Identifier> => {
+    match n.name() {
+      "count" => ReduceOperatorNode::Aggregator(AggregateOp::Count),
+      "sum" => ReduceOperatorNode::Aggregator(AggregateOp::Sum),
+      "prod" => ReduceOperatorNode::Aggregator(AggregateOp::Prod),
+      "min" => ReduceOperatorNode::Aggregator(AggregateOp::Min),
+      "max" => ReduceOperatorNode::Aggregator(AggregateOp::Max),
+      "exists" => ReduceOperatorNode::Aggregator(AggregateOp::Exists),
+      "forall" => ReduceOperatorNode::Aggregator(AggregateOp::Forall),
+      "unique" => ReduceOperatorNode::Aggregator(AggregateOp::Unique),
+      x => ReduceOperatorNode::Unknown(x.to_string()),
+    }
+  }
+}
+
+ReduceOp = Spanned<ReduceOpNode>;
+
+ReduceArgsFull: Vec<Variable> = {
+  "[" <args: Separated<Variable, ",">> "]" => args,
+}
+
+ReduceArgs: Vec<Variable> = {
+  <args: ReduceArgsFull?> => {
+    match args {
+      Some(args) => args,
+      None => vec![],
+    }
+  }
+}
+
+ReduceLeft: Vec<VariableOrWildcard> = {
+  <v: VariableOrWildcard> => vec![v],
+  "(" <vs: AtLeastTwoSeparated<VariableOrWildcard, ",">> ")" => vs,
+}
+
+ReduceGroupBy: (Vec<VariableBinding>, Box<Formula>) = {
+  "where" <bs: AtLeastOneSeparatedStrict<VariableBinding, ",">> ":" <f: Formula> => (bs, Box::new(f)),
+}
+
+ReduceNode: ReduceNode = {
+  <vs: ReduceLeft> "=" <op: ReduceOp> <args: ReduceArgs> "(" <bs: AtLeastOneSeparatedStrict<VariableBinding, ",">> ":" <f: Formula> <g: ReduceGroupBy?> ")" => {
+    ReduceNode {
+      left: vs,
+      operator: op,
+      args: args,
+      bindings: bs,
+      body: Box::new(f),
+      group_by: g,
+    }
+  }
+}
+
+Reduce = Spanned<ReduceNode>;
+
+UnitFormula: Formula = {
+  "(" <f: ComplexFormula> ")" => f,
+  <c: Constraint> => Formula::Constraint(c),
+  <a: Atom> => Formula::Atom(a),
+  <r: Reduce> => Formula::Reduce(r),
+}
+
+ConstraintNode: ConstraintNode = {
+  <c: Spanned<ComparisonBinaryExprNode>> => {
+    ConstraintNode { expr: Expr::Binary(c) }
+  },
+  <u: Spanned<UnaryExprNode>> => {
+    ConstraintNode { expr: Expr::Unary(u) }
+  }
+}
+
+Constraint = Spanned<ConstraintNode>;
+
+VariableBindingNode: VariableBindingNode = {
+  <name: Identifier> => VariableBindingNode { name, ty: None },
+  "(" <name: Identifier> ":" <ty: Type> ")" => VariableBindingNode { name, ty: Some(ty) },
+}
+
+VariableBinding = Spanned<VariableBindingNode>;
+
+Expr: Expr = IfThenElseExpr;
+
+IfThenElseExprNode: IfThenElseExprNode = {
+  "if" <cond: AndOrExpr> "then" <then_br: IfThenElseExpr> "else" <else_br: IfThenElseExpr> => {
+    IfThenElseExprNode {
+      cond: Box::new(cond),
+      then_br: Box::new(then_br),
+      else_br: Box::new(else_br),
+    }
+  },
+  <cond: AndOrExpr> "?" <then_br: IfThenElseExpr> ":" <else_br: IfThenElseExpr> => {
+    IfThenElseExprNode {
+      cond: Box::new(cond),
+      then_br: Box::new(then_br),
+      else_br: Box::new(else_br),
+    }
+  }
+}
+
+IfThenElseExpr: Expr = {
+  <i: Spanned<IfThenElseExprNode>> => Expr::IfThenElse(i),
+  AndOrExpr,
+}
+
+AndOrBinaryOpNode: BinaryOpNode = {
+  "&&" => BinaryOpNode::And,
+  "||" => BinaryOpNode::Or,
+  "^" => BinaryOpNode::Xor,
+}
+
+AndOrBinaryOp = Spanned<AndOrBinaryOpNode>;
+
+AndOrBinaryExprNode: BinaryExprNode = {
+  <op1: AndOrExpr> <op: AndOrBinaryOp> <op2: ComparisonExpr> => {
+    BinaryExprNode {
+      op,
+      op1: Box::new(op1),
+      op2: Box::new(op2),
+    }
+  }
+}
+
+AndOrExpr: Expr = {
+  <e: Spanned<AndOrBinaryExprNode>> => Expr::Binary(e),
+  ComparisonExpr,
+}
+
+ComparisonBinaryOpNode: BinaryOpNode = {
+  "==" => BinaryOpNode::Eq,
+  "!=" => BinaryOpNode::Neq,
+  "<" => BinaryOpNode::Lt,
+  "<=" => BinaryOpNode::Leq,
+  ">" => BinaryOpNode::Gt,
+  ">=" => BinaryOpNode::Geq,
+}
+
+ComparisonBinaryExprNode: BinaryExprNode = {
+  <op1: AddSubExpr> <op: Spanned<ComparisonBinaryOpNode>> <op2: AddSubExpr> => {
+    BinaryExprNode {
+      op,
+      op1: Box::new(op1),
+      op2: Box::new(op2),
+    }
+  }
+}
+
+ComparisonExpr: Expr = {
+  <c: Spanned<ComparisonBinaryExprNode>> => Expr::Binary(c),
+  <m: AddSubExpr> => m,
+}
+
+AddSubBinaryOpNode: BinaryOpNode = {
+  "+" => BinaryOpNode::Add,
+  "-" => BinaryOpNode::Sub,
+}
+
+AddSubBinaryExprNode: BinaryExprNode = {
+  <op1: AddSubExpr> <op: Spanned<AddSubBinaryOpNode>> <op2: MulDivModExpr> => {
+    BinaryExprNode {
+      op,
+      op1: Box::new(op1),
+      op2: Box::new(op2),
+    }
+  }
+}
+
+AddSubExpr: Expr = {
+  <a: Spanned<AddSubBinaryExprNode>> => Expr::Binary(a),
+  <u: MulDivModExpr> => u,
+}
+
+MulDivModBinaryOpNode: BinaryOpNode = {
+  "*" => BinaryOpNode::Mul,
+  "/" => BinaryOpNode::Div,
+  "%" => BinaryOpNode::Mod,
+}
+
+MulDivModBinaryExprNode: BinaryExprNode = {
+  <op1: MulDivModExpr> <op: Spanned<MulDivModBinaryOpNode>> <op2: UnaryExpr> => {
+    BinaryExprNode {
+      op,
+      op1: Box::new(op1),
+      op2: Box::new(op2),
+    }
+  }
+}
+
+MulDivModExpr: Expr = {
+  <m: Spanned<MulDivModBinaryExprNode>> => Expr::Binary(m),
+  <a: UnaryExpr> => a,
+}
+
+UnaryOpNode: UnaryOpNode = {
+  "+" => UnaryOpNode::Pos,
+  "-" => UnaryOpNode::Neg,
+  "!" => UnaryOpNode::Not,
+}
+
+UnaryOp = Spanned<UnaryOpNode>;
+
+TypeCastOpNode: UnaryOpNode = {
+  "as" <ty: Type> => UnaryOpNode::TypeCast(ty),
+}
+
+TypeCastOp = Spanned<TypeCastOpNode>;
+
+UnaryExprNode: UnaryExprNode = {
+  <op: UnaryOp> <op1: UnitExpr> => {
+    UnaryExprNode {
+      op,
+      op1: Box::new(op1),
+    }
+  },
+  <op1: UnitExpr> <op: TypeCastOp> => {
+    UnaryExprNode {
+      op,
+      op1: Box::new(op1),
+    }
+  }
+}
+
+UnaryExpr: Expr = {
+  <u: Spanned<UnaryExprNode>> => Expr::Unary(u),
+  <u: UnitExpr> => u,
+}
+
+ComplexExpr: Expr = {
+  <a: Spanned<AndOrBinaryExprNode>> => Expr::Binary(a),
+  <c: Spanned<ComparisonBinaryExprNode>> => Expr::Binary(c),
+  <a: Spanned<AddSubBinaryExprNode>> => Expr::Binary(a),
+  <m: Spanned<MulDivModBinaryExprNode>> => Expr::Binary(m),
+  <u: Spanned<UnaryExprNode>> => Expr::Unary(u),
+}
+
+UnitExpr: Expr = {
+  "(" <e: ComplexExpr> ")" => e,
+  <w: Wildcard> => Expr::Wildcard(w),
+  <c: Constant> => Expr::Constant(c),
+  <v: Variable> => Expr::Variable(v),
+}
+
+RuleNode: RuleNode = {
+  <head: Atom> DefineSymbol <body: Formula> => {
+    RuleNode { head, body }
+  }
+}
+
+pub Rule = Spanned<RuleNode>;
+
+RuleDeclNode: RuleDeclNode = {
+  <a: Attributes> RelationKeyword <tag: Tag> "::" <r: Rule> => {
+    RuleDeclNode { attrs: a, tag, rule: r }
+  },
+  <a: Attributes> RelationKeyword <r: Rule> => {
+    RuleDeclNode { attrs: a, tag: Tag::default_none(), rule: r }
+  },
+}
+
+RuleDecl: RuleDecl = Spanned<RuleDeclNode>;
+
+/// ====================================== ///
+/// ========= Import Declaration ========= ///
+/// ====================================== ///
+
+ImportFileNode: ImportFileNode = {
+  <s: StringLiteral> => {
+    ImportFileNode {
+      file_path: s,
+    }
+  }
+}
+
+ImportFile: ImportFile = Spanned<ImportFileNode>;
+
+ImportDeclNode: ImportDeclNode = {
+  <a: Attributes> "import" <f: ImportFile> => {
+    ImportDeclNode {
+      attrs: a,
+      import_file: f,
+    }
+  }
+}
+
+ImportDecl: ImportDecl = Spanned<ImportDeclNode>;
+
+/// ===================================== ///
+/// ========= Query Declaration ========= ///
+/// ===================================== ///
+
+QueryNode: QueryNode = {
+  <name: Identifier> => {
+    QueryNode::Predicate(name)
+  },
+  <atom: Atom> => {
+    QueryNode::Atom(atom)
+  }
+}
+
+pub Query: Query = Spanned<QueryNode>;
+
+QueryKeyword = {
+  "query",
+  "output"
+}
+
+QueryDeclNode: QueryDeclNode = {
+  <a: Attributes> QueryKeyword <q: Query> => {
+    QueryDeclNode {
+      attrs: a,
+      query: q,
+    }
+  },
+}
+
+QueryDecl: QueryDecl = Spanned<QueryDeclNode>;
+
+/// ==================================== ///
+/// ========= Item Declaration ========= ///
+/// ==================================== ///
+
+pub Item: Item = {
+  <i: ImportDecl> => Item::ImportDecl(i),
+  <i: InputDecl> => Item::InputDecl(i),
+  <t: TypeDecl> => Item::TypeDecl(t),
+  <r: RelationDecl> => Item::RelationDecl(r),
+  <q: QueryDecl> => Item::QueryDecl(q),
+}
+
+pub Items: Items = <Item*>;
+
+/// ============================== ///
+/// ========= Primitives ========= ///
+/// ============================== ///
+
+Name: String = name => (<>).to_string();
+
+IdentifierNode: IdentifierNode = <name: Name> => IdentifierNode { name };
+
+Identifier: Identifier = Spanned<IdentifierNode>;
+
+Int: i64 = int => i64::from_str(<>).unwrap();
+
+Float: f64 = float => f64::from_str(<>).unwrap();
+
+StringLiteral: String = <s: string> => {
+  s[1..s.len() - 1].replace("\\t", "\t").replace("\\n", "\n").replace("\\\\", "\\").into()
+};
+
+Bool: bool = {
+  "true" => true,
+  "false" => false,
+}
+
+/// =========================== ///
+/// ========= Helpers ========= ///
+/// =========================== ///
+
+Separated<E, S>: Vec<E> = {
+  <rs: (<E> S)*> <e: E?> => rs.into_iter().chain(e.into_iter()).collect()
+}
+
+SeparatedStrict<E, S>: Vec<E> = {
+  <rs: (<E> S)*> <e: E> => rs.into_iter().chain(vec![e].into_iter()).collect()
+}
+
+AtLeastOneSeparated<E, S>: Vec<E> = {
+  <r1: E> => vec![r1],
+  <r1: E> <rs: (S <E>)+> S? => vec![vec![r1], rs].concat(),
+}
+
+AtLeastOneSeparatedStrict<E, S>: Vec<E> = {
+  <r1: E> => vec![r1],
+  <r1: E> <rs: (S <E>)+> => vec![vec![r1], rs].concat(),
+}
+
+AtLeastTwoSeparated<E, S>: Vec<E> = {
+  <r1: E> <rs: (S <E>)+> S? => vec![vec![r1], rs].concat(),
+}
+
+AtLeastTwoSeparatedStrict<E, S>: Vec<E> = {
+  <r1: E> <rs: (S <E>)+> => vec![vec![r1], rs].concat(),
+}
+
+Spanned<T>: AstNode<T> = {
+  <start: @L> <t: T> <end: @R> => AstNode::from_span(start, end, t)
+}

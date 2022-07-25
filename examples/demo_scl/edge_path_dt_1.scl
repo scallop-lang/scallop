@@ -1,0 +1,9 @@
+rel edge = {
+  (0, 1),
+  (1, 2),
+  (2, 3),
+}
+
+@demand("bf")
+rel path(a, c) = edge(a, c) \/ path(a, b) /\ edge(b, c)
+query path(0, _)

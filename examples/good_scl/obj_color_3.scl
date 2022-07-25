@@ -1,0 +1,7 @@
+rel object_color = {
+  0.01::(0, "blue"), 0.99::(0, "green"),
+  0.99::(1, "blue"), 0.01::(1, "green"),
+  0.99::(2, "blue"), 0.01::(2, "green"),
+}
+
+rel num_blue_objects(n) :- n = count(o: object_color(o, "blue"))

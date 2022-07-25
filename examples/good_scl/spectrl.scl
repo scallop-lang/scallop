@@ -1,0 +1,31 @@
+/// eventually(start, end, goal)
+///            -----  ---  ----
+///              b     f    b
+///
+/// Check if starting from `start`, the event `goal` happens, and output
+/// the time into `end`.
+@demand("bfb")
+@hidden
+rel eventually(end, end, goal) = event(end, goal)
+rel eventually(start, end, goal) =
+  event(start, g) and
+  ~event(start, goal) and
+  event(next, _) and
+  eventually(next, end, goal) and
+  next == start + 1
+
+
+/// ensure(start, end, goal)
+///
+/// Ensure that the event `goal` happens between `start` and `end`
+@demand("bbb")
+@hidden
+rel ensure(start, end, goal) = event(i, goal), start <= i, i <= end
+
+
+/// avoid(start, end, goal)
+///
+/// Is true when there is no event `goal` happening between `start` and `end`
+@demand("bbb")
+@hidden
+rel avoid(start, end, goal) = ~ensure(start, end, goal)

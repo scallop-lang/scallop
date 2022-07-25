@@ -1,0 +1,18 @@
+type fib(i128, i128)
+type a__(i128, i128)
+
+@demand("bf")
+rel fib(x, a + b) = fib(x - 1, a), fib(x - 2, b), x > 1
+rel fib = {(0, 1), (1, 1)}
+
+rel a__ = {
+  (35, 24),
+  (91, 1),
+  (44, 91),
+  (48, 92),
+  (6, 85),
+}
+
+rel a__(a, a) = fib(a, a)
+rel a__(a, b) = a__(a, b), fib(b, b)
+query a__

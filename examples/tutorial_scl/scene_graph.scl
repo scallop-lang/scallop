@@ -1,0 +1,34 @@
+type obj_color(usize, String) // `obj_color(o, c)` means object `o` has color `c`
+type obj_shape(usize, String) // `obj_shape(o, s)` means object `o` has shape `s`
+type left(usize, usize)       // `left(a, b)` means object `a` is on the left of object `b`
+
+// Basic setups
+rel all_colors = {"red", "green", "blue", "yellow"}
+rel all_shapes = {"cube", "sphere", "cylinder"}
+
+// Practice *: Find the object id of the blue objects
+type blue_objs(usize)
+rel blue_objs(o) = obj_color(o, "blue")
+
+// Practice *: Find all the possible colors of cubes
+type color_of_cubes(String)
+rel color_of_cubes(s) = obj_shape(o, "cube") and obj_color(o, s)
+
+// Practice *: How many red objects are there in the scene?
+type num_red_objects(usize)
+rel num_red_objects(n) = n = count(o: obj_color(o, "red"))
+
+// Practice *: How many objects are there for each shape?
+type how_many_object_of_each_shape(String, usize)
+rel how_many_object_of_each_shape(s, n) = n = count(o: obj_shape(o, s) where s: all_shapes(s))
+
+// Practice *: Find whether an object is between two objects
+//   Definition: `between(a, b, c)` means `c` is in between object `a` and `b`
+type between(usize, usize, usize)
+rel between(a, b, c) = left(a, c), left(c, b)
+
+// Practice *: Is there a green object between a red and a blue object?
+type g_between_r_and_b(bool)
+rel r_and_b(p, q) = obj_color(p, "blue"), obj_color(q, "red")
+rel r_and_b(p, q) = obj_color(p, "red"), obj_color(q, "blue")
+rel g_between_r_and_b(v) = v = exists(o: between(p, q, o) and obj_color(o, "green") and r_and_b(p, q))

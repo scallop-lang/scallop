@@ -1,0 +1,4 @@
+rel symbols :- {(1, "x"); (1, "y"); (1, "z")}
+rel symbols :- {(2, "x"); (2, "y"); (2, "z")}
+
+rel ok(s1, s2, x, y) :- symbols(s1, x), symbols(s2, y)

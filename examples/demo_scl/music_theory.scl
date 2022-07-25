@@ -1,0 +1,27 @@
+rel half_step = {
+  ("A", "Bb"),
+  ("Bb", "B"),
+  ("B", "C"),
+  ("C", "Db"),
+  ("Db", "D"),
+  ("D", "Eb"),
+  ("Eb", "E"),
+  ("E", "F"),
+  ("F", "Gb"),
+  ("Gb", "G"),
+  ("G", "Ab"),
+  ("Ab", "A"),
+}
+
+rel accidental = {"Bb", "Db", "Eb", "Gb", "Ab"}
+
+type whole_step(String, String)
+type lower(String, String)
+
+type minor_third(String, String)
+type major_third(String, String)
+type major_fourth(String, String)
+type major_fifth(String, String)
+
+type major_chord(String, String, String)
+type minor_chord(String, String, String)

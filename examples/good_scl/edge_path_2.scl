@@ -1,0 +1,2 @@
+rel edge = {(0, 1), (1, 2), (2, 3)}
+rel path(a, c) = edge(a, c) \/ (path(a, b) /\ edge(b, c))

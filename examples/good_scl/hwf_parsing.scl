@@ -1,0 +1,47 @@
+// Inputs
+rel character = {
+  (0, "1"), (0, "2"), (0, "3"), (0, "+"), (0, "-"), (0, "*"), (0, "/"),
+  (1, "1"), (1, "2"), (1, "3"), (1, "+"), (1, "-"), (1, "*"), (1, "/"),
+  (2, "1"), (2, "2"), (2, "3"), (2, "+"), (2, "-"), (2, "*"), (2, "/"),
+  (3, "1"), (3, "2"), (3, "3"), (3, "+"), (3, "-"), (3, "*"), (3, "/"),
+  (4, "1"), (4, "2"), (4, "3"), (4, "+"), (4, "-"), (4, "*"), (4, "/"),
+}
+
+rel length(3)
+
+// Facts for lexing
+rel digit = {("0", 0.0), ("1", 1.0), ("2", 2.0), ("3", 3.0), ("4", 4.0), ("5", 5.0), ("6", 6.0), ("7", 7.0), ("8", 8.0), ("9", 9.0)}
+rel mult_div = {"*", "/"}
+rel plus_minus = {"+", "-"}
+
+// Parsing
+rel value_node(x, v) = character(x, d), digit(d, v)
+rel mult_div_node(x, "v", -1, -1, x, x, 0) = value_node(x, _)
+rel mult_div_node(x, s, l, r, l_begin, r, level + 1) =
+  character(x, s), mult_div(s),
+  mult_div_node(l, _, _, _, l_begin, l_end, level), l_end == x - 1,
+  value_node(r, _), r == x + 1
+rel plus_minus_node(x, t, l, r, begin, end, level) = mult_div_node(x, t, l, r, begin, end, level)
+rel plus_minus_node(x, s, l, r, l_b, r_e, l_level > r_level ? l_level + 1 : r_level + 1) =
+  character(x, s), plus_minus(s),
+  plus_minus_node(l, _, _, _, l_b, l_e, l_level), l_e == x - 1,
+  mult_div_node(r, _, _, _, r_b, r_e, r_level), r_b == x + 1
+rel root(e, l) = plus_minus_node(e, _, _, _, 0, n - 1, l), length(n)
+
+// Construct AST
+rel constant(x, y, 0) = value_node(x, y)
+rel mult(x, l, r, level) = mult_div_node(x, "*", l, r, _, _, level)
+rel div(x, l, r, level) = mult_div_node(x, "/", l, r, _, _, level)
+rel plus(x, l, r, level) = plus_minus_node(x, "+", l, r, _, _, level)
+rel minus(x, l, r, level) = plus_minus_node(x, "-", l, r, _, _, level)
+
+// Evaluate AST
+rel eval(x, y, 0) = constant(x, y, 0)
+rel eval(x, y1 + y2, level) = plus(x, l, r, level), eval(l, y1, l_level), l_level < level, eval(r, y2, r_level), r_level < level
+rel eval(x, y1 - y2, level) = minus(x, l, r, level), eval(l, y1, l_level), l_level < level, eval(r, y2, r_level), r_level < level
+rel eval(x, y1 * y2, level) = mult(x, l, r, level), eval(l, y1, l_level), l_level < level, eval(r, y2, r_level), r_level < level
+rel eval(x, y1 / y2, level) = div(x, l, r, level), eval(l, y1, l_level), l_level < level, eval(r, y2, r_level), y2 != 0.0, r_level < level
+
+// Compute result
+rel result(e, y) = root(e, l), eval(e, y, l)
+query result

@@ -1,0 +1,75 @@
+import "other_file.scl"
+
+// Subtype and builtin type `i8`
+type MyID <: i8
+
+// Alias type and builtin type `&str`
+type MyString <: &str
+type MyString2 <: String
+type MyString3 <: Rc<String>
+
+// Relation type declaration
+type digit(x: usize, y: i8)
+
+// Some constant set
+rel P = {(0, "something"), (1, 2, false)} // End of line comment
+
+// Multi line constant set
+rel Q = {
+  ("a", "b"),
+  (3, 5, 7, 9),
+  (true, false, 3, 8, 3.1415926)
+}
+
+// Constant set with probabilities
+rel R = {
+  0.1::(1, 2),
+  0.5::(1, 3),
+  0.1::(0, 2),
+}
+
+// Inline comment
+
+/* Block comment */
+
+/*
+ * Multiline
+ * Block
+ * comment
+ */
+
+// Using keyword and/or
+rel path(a, b) = edge(a, b) or path(a, c) and edge(c, b)
+
+// Using /\ and \/
+rel path2(a, b) = edge2(a, b) \/ path2(a, c) /\ edge2(c, b)
+
+// Using :- and ,
+rel path3(a, b) :- edge3(a, b)
+rel path3(a, b) :- path3(a, c), edge3(c, b)
+
+// With attribute
+@demand("bf")
+rel fib = {(0, 1), (1, 1)}
+rel fib(x, a + b) = fib(x - 1, a), fib(x - 2, b), x > 1
+
+// Reduce
+rel how_many_play_soccer(c) = c = count(n: plays_soccer(n))
+
+// Logical operators
+rel something(a && b) = b || c && !d && x == y || x != y
+
+// Probabilistic rule
+rel 0.88::rule(x) = rule2(y), rule3(x)
+
+// Probabilistic fact
+rel 0.55::fib(0, 1)
+
+// Simple fact
+rel fib(1, 1)
+
+// Query
+query fib
+
+// Query atom
+query fib(10, y)

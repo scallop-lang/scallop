@@ -1,0 +1,25 @@
+type RuleID <: usize
+type AtomListID <: usize
+type AtomID <: usize
+type VarListID <: usize
+type VarID <: usize
+
+type rule(RuleID, AtomID, AtomListID)
+type atom_list(AtomListID, usize, AtomID)
+type atom(AtomID, String, VarListID)
+type var_list(VarListID, usize, VarID)
+type var(VarID, String)
+
+// Rule 1: path(a, b) :- edge(a, b)
+rel rule = {(0, 0, 0)}
+rel atom_list = {(0, 0, 1)}
+rel atom = {(0, "path", 0), (1, "edge", 1)}
+rel var_list = {(0, 0, 0), (0, 1, 1), (1, 0, 2), (1, 1, 3)}
+rel var = {(0, "a"), (1, "b"), (2, "a"), (3, "b")}
+
+// Rule 2: path(a, b) :- path(a, c), edge(c, b)
+rel rule = {(1, 2, 1)}
+rel atom_list = {(1, 0, 3), (1, 1, 4)}
+rel atom = {(2, "path", 2), (3, "path", 3), (4, "edge", 4)}
+rel var_list = {(2, 0, 4), (2, 1, 5), (3, 0, 6), (3, 1, 7), (4, 0, 8), (4, 1, 9)}
+rel var = {(4, "a"), (5, "b"), (6, "a"), (7, "c"), (8, "c"), (9, "b")}

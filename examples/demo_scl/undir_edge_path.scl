@@ -1,0 +1,3 @@
+type edge(usize, usize)
+rel path(a, b) = edge(a, b) or (edge(a, c) and path(c, b))
+rel undir_path(a, b) = path(a, b) \/ path(b, a)

@@ -1,0 +1,5 @@
+rel c__ = {("lk", "tf")}
+
+rel d__(b, a) = c__(b, a), c__(h, h)
+
+query d__

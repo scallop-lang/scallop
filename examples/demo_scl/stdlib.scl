@@ -1,0 +1,8 @@
+@demand("bb")
+rel eq(x, y) = x == y
+
+@demand("bbf")
+rel add(x, y, z) = z == x + y
+
+@demand("bbf")
+rel sub(x, y, z) = z == x - y

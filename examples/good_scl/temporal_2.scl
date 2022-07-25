@@ -1,0 +1,20 @@
+import "spectrl.scl"
+
+rel event = {
+  (0, "V1"),
+  (1, "V1"),
+  (2, "V2"),
+  (3, "V2"),
+  (4, "V3"),
+  (5, "O"),
+  (6, "V3"),
+}
+
+rel start_end(0, 6)
+
+rel target(s, e) =
+  start_end(s, _),
+  eventually(s, i, "V1"),
+  eventually(i, j, "V2"),
+  eventually(j, e, "V3"),
+  avoid(s, e, "O")

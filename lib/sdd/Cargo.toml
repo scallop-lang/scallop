@@ -1,0 +1,10 @@
+[package]
+name = "sdd"
+version = "0.1.0"
+authors = ["Ziyang Li <liby99@icloud.com>"]
+edition = "2018"
+
+[dependencies]
+petgraph = "0.6"
+itertools = "0.10"
+rsat = { path = "../rsat" }

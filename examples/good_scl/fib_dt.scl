@@ -1,0 +1,8 @@
+rel d_fib :- {(10)}
+rel d_fib(x - 1) :- d_fib(x), x > 1
+rel d_fib(x - 2) :- d_fib(x), x > 1
+
+rel fib :- {(0, 1), (1, 1)}
+rel fib(x, a + b) :- d_fib(x), fib(x - 1, a), fib(x - 2, b), x > 1
+
+rel output(y) :- fib(10, y)

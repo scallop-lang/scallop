@@ -1,0 +1,9 @@
+rel all_colors = {"blue", "red", "green"}
+
+// Scene graph
+rel color = {(1, "blue"), (2, "red"), (3, "red")}
+rel shape = {(1, "cube"), (2, "sphere"), (3, "cube")}
+rel material = {(1, "metal"), (2, "metal"), (3, "rubber")}
+
+// For each color `c`, is all the cube of material rubber?
+rel answer(c, b) = b = forall(o: color(o, c) and shape(o, "cube") => material(o, "rubber") where c: all_colors(c))

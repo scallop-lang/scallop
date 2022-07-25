@@ -1,0 +1,2 @@
+input tuple(usize, &str)
+rel result(a, a) :- tuple(a, 1)

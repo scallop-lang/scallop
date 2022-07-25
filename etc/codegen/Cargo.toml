@@ -1,0 +1,12 @@
+[package]
+name = "scallop-codegen"
+version = "0.1.0"
+authors = ["Ziyang Li <liby99@icloud.com>"]
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "1.0"
+scallop-core = { path = "../../core" }

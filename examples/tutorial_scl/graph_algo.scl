@@ -1,0 +1,62 @@
+// Basic typing setup
+type node(usize)
+type edge(usize, usize)
+
+// Practice *: Write a `path` relationship
+//   Definition: `path(a, b)` is true if a can reach b by following edges
+type path(usize, usize)
+rel path(a, b) = edge(a, b) or (path(a, x) and edge(x, b))
+
+// Practice *: Find the triangle in this graph
+//   Definition: `triangle(a, b, c)` means the nodes a, b, and c form a triangle
+type triangle(usize, usize, usize)
+rel triangle(a, b, c) = edge(a, b) and edge(b, c) and edge(c, a)
+
+// Practice *: Write an `scc` relationship
+//   Definition: `scc(a, b)` means node `a` and `b` are in the same Strongly Connected Component
+//   Definition: Strongly Connected Component is a subgraph where any node can reach every node in such a component
+//   Note: A node is always in the same Strongly Connected Component as itself
+type scc(usize, usize)
+rel scc(a, a) = node(a)
+rel scc(a, b) = path(a, b) and path(b, a)
+
+// Practice *: Find the SCCs that are singleton
+//   Definition: `singleton_scc(a)` means node `a` stays in a Strongly Connected Component that only contains itself
+type singleton_scc(usize)
+rel non_singleton_scc(a, b) = scc(a, b), a != b
+rel singleton_scc(a) = scc(a, a) and ~non_singleton_scc(a, b)
+
+// Practice *: Does this graph contains at least cycle?
+//   Definition: `contains_cycle(true)` means the graph contains a cycle. false otherwise
+type contains_cycle(bool)
+rel contains_cycle(v) = v = exists(n: path(n, n))
+
+// Practice *: Count the number of nodes
+//   Definition: `num_nodes(n)` means there are in total `n` nodes in the graph
+type num_nodes(usize)
+rel num_nodes(x) = x = count(n: node(n))
+
+// Practice *: Write a `in_degree` relationship
+//   Definition: `in_degree(a, x)` means there are `x` edges going into node `a`
+type in_degree(usize, usize)
+rel in_degree(a, x) = x = count(b: edge(b, a) where a: node(a))
+
+// Practice *: Write a `out_degree` relationship
+//   Definition: `out_degree(a, x)` means there are `x` edges going out from node `a`
+type out_degree(usize, usize)
+rel out_degree(a, x) = x = count(b: edge(a, b) where a: node(a))
+
+// Practice *: Count number of nodes within 3 steps of node `n`
+//   Definition: `num_nodes_within_3(n, c)` means there are `c` nodes that are reachable from `n`
+type num_nodes_within_3(usize, usize)
+rel reachable_in_3(n, p, 1) = edge(n, p)
+rel reachable_in_3(n, p, k) = edge(n, q), reachable_in_3(q, p, k - 1), k <= 3
+rel num_nodes_within_3(n, c) = c = count(p: reachable_in_3(n, p, _) where n: node(n))
+
+// Practice *: Shortest Path Length
+//   Definition: shortest_path_length(a, b, n): n is the length of the shortest path between node `a` and `b`
+//   Note: Need to use the fact that any path length will be less than or equal to the total number of nodes in the graph
+type shortest_path_length(usize, usize, usize)
+rel path_length(a, b, 1) = edge(a, b)
+rel path_length(a, c, x) = edge(a, b), path_length(b, c, x - 1), num_nodes(n), x <= n
+rel shortest_path_length(a, b, x) = x = min(x: path_length(a, b, x) where a, b: path(a, b))

@@ -1,0 +1,4 @@
+rel node = {0, 1, 2, 3, 4}
+rel edge = {(0, 1), (1, 2), (2, 3), (3, 4)}
+
+rel no_incoming_edge(x) = n = count(y: edge(y, x) where x: node(x)) and n == 0

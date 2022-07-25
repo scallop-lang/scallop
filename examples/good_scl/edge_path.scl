@@ -1,0 +1,3 @@
+rel edge :- {(0, 1), (1, 2), (2, 3)}
+rel path(a, b) :- edge(a, b)
+rel path(a, c) :- path(a, b), edge(b, c)

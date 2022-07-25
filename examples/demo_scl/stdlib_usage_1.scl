@@ -1,0 +1,4 @@
+import "stdlib.scl"
+
+rel S = {(0, 1), (1, 2)}
+rel Q(c) = S(a, b), add(a, b, c)

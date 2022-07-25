@@ -1,0 +1,2 @@
+input color(o: usize, c: &str)
+rel S(a) :- a = count(a: color(_, a))

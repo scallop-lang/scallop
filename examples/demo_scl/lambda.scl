@@ -1,0 +1,24 @@
+// type expr(usize)
+
+// type var_expr(usize, String)
+// type lambda_expr(usize, String, usize)
+// type apply_expr(usize, usize, usize)
+
+// // 0
+// rel lambda_expr = {(0, "f", 1), (1, "x", 2)}
+// rel var_expr = {(2, "x")}
+
+// // 1
+// rel lambda_expr = {(3, "f", 4), (4, "x", 5)}
+// rel apply_expr = {(5, 6, 7)}
+// rel var_expr = {(6, "f"), (7, "x")}
+
+// // PLUS
+// rel lambda_expr = {(8, "m", 9), (9, "n", 10), (10, "f", 11), (11, "x", 12)}
+// rel var_expr = {(13, "m"), (14, "f"), (15, "n"), (16, "f"), (17, "x")}
+// rel apply_expr = {(12, 18, 19), (18, 13, 14), (19, 20, 17), (20, 15, 16)}
+
+// // PLUS 0 1
+// rel apply_expr = {(21, 22, 3), (22, 8, 0)}
+
+// rel  apply_expr(a, l, b), lambda_expr(l, v, e), subst(e, v, b)

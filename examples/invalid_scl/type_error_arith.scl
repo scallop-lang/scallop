@@ -1,0 +1,2 @@
+type R(i64, usize)
+rel S(b) :- R(b, c), Q(b + c)

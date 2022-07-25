@@ -1,0 +1,9 @@
+[package]
+name = "scli"
+version = "0.1.3"
+authors = ["Ziyang Li <liby99@icloud.com>"]
+edition = "2018"
+
+[dependencies]
+scallop-core = { path = "../../core" }
+structopt = "0.3"

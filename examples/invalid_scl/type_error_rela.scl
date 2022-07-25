@@ -1,0 +1,4 @@
+type R(usize, &str)
+type S(i64)
+
+rel S(i) :- i = count(o: R(o, _))

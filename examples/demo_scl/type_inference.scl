@@ -1,0 +1,52 @@
+// EXP ::= let V = EXP in EXP
+//       | if EXP then EXP else EXP
+//       | X + Y | X - Y
+//       | X and Y | X or Y | not X
+//       | X == Y | X != Y | X < Y | X <= Y | X > Y | X >= Y
+
+// Basic syntax constructs
+type number(usize, i32)
+type boolean(usize, bool)
+type variable(usize, String)
+type bexp(usize, String, usize, usize)
+type aexp(usize, String, usize, usize)
+type let_in(usize, String, usize, usize)
+type if_then_else(usize, usize, usize, usize)
+
+// Comparison operations
+rel comparison_op = {"==", "!=", ">=", "<=", ">", "<"}
+rel logical_op = {"&&", "||", "^"}
+rel arith_op = {"+", "-", "*", "/"}
+
+// A program with each number 0-4 denoting their index
+//   let x = 3 in x == 4
+//   -------------------0
+//           -1   ------2
+//                -3   -4
+rel let_in = {(0, "x", 1, 2)}
+rel number = {(1, 3), (4, 4)}
+rel bexp = {(2, "==", 3, 4)}
+rel variable = {(3, "x")}
+
+// Type Inference:
+
+// - Base case
+rel type_of(x, "bool") = boolean(x, _)
+rel type_of(x, "int") = number(x, _)
+rel type_of(x, t) = variable(x, v), env_type(x, v, t)
+rel type_of(e, "bool") = bexp(e, op, x, y), comparison_op(op), type_of(x, "int"), type_of(y, "int")
+rel type_of(e, "bool") = bexp(e, op, x, y), logical_op(op), type_of(x, "bool"), type_of(y, "bool")
+rel type_of(e, "int") = aexp(e, op, x, y), arith_op(op), type_of(x, "int"), type_of(y, "int")
+rel type_of(e, t) = let_in(e, v, b, c), env_type(c, v, tv), type_of(b, tv), type_of(c, t)
+rel type_of(e, t) = if_then_else(e, x, y, z), type_of(x, "bool"), type_of(y, t), type_of(z, t)
+
+// - Environment variable type
+rel env_type(x, v, t) = bexp(e, _, x, _), env_type(e, v, t)
+rel env_type(y, v, t) = bexp(e, _, _, y), env_type(e, v, t)
+rel env_type(x, v, t) = aexp(e, _, x, _), env_type(e, v, t)
+rel env_type(y, v, t) = aexp(e, _, _, y), env_type(e, v, t)
+rel env_type(z, v, t) = let_in(_, v, y, z), type_of(y, t)
+rel env_type(z, v2, t) = let_in(x, v1, _, z), env_type(x, v2, t), v1 != v2
+rel env_type(x, v, t) = env_type(e, v, t), if_then_else(e, x, _, _)
+rel env_type(y, v, t) = env_type(e, v, t), if_then_else(e, _, y, _)
+rel env_type(z, v, t) = env_type(e, v, t), if_then_else(e, _, _, z)

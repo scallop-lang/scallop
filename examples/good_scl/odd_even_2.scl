@@ -1,0 +1,7 @@
+rel tuple = {(0, 1), (1, 2), (2, 3)}
+
+rel num(x) = tuple(x, _)
+rel num(x) = tuple(_, x)
+rel even(0) = num(0)
+rel odd(x + 1) = even(x), num(x + 1)
+rel even(x + 1) = odd(x), num(x + 1)

@@ -1,0 +1,11 @@
+[package]
+name = "sclc"
+version = "0.1.1"
+authors = ["Ziyang Li <liby99@icloud.com>"]
+edition = "2018"
+
+[dependencies]
+scallop-core = { path = "../../core" }
+structopt = "0.3"
+proc-macro2 = "1.0"
+quote = "1.0"

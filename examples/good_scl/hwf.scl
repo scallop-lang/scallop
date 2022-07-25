@@ -1,0 +1,17 @@
+rel eval(e, y, 0) = constant(e, y)
+rel eval(e, a * b, level) = expr(e, "*", l, r, level),
+                            eval(l, a, l1), l1 < level,
+                            eval(r, b, l2), l2 < level
+rel eval(e, a + b, level) = expr(e, "+", l, r, level),
+                            eval(l, a, l1), l1 < level,
+                            eval(r, b, l2), l2 < level
+rel result(e, y) = root(e, level), eval(e, y, level)
+
+rel constant = {("A", 1), ("C", 2), ("E", 3)}
+rel expr = {
+  ("B", "+", "A", "D", 2), ("D", "*", "C", "E", 1),
+  ("D", "*", "B", "E", 2), ("B", "+", "A", "C", 1),
+}
+rel root = {("B", 2), ("D", 2)}
+
+query result

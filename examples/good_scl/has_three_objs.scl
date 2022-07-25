@@ -1,0 +1,2 @@
+rel obj = {1, 2, 3}
+rel answer(b) = b == (n == 3), n = count(o: obj(o))

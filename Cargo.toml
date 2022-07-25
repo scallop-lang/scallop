@@ -1,0 +1,21 @@
+[workspace]
+members = [
+  "core",
+  "etc/codegen",
+  "etc/sclc",
+  "etc/scli",
+  "etc/sclrepl",
+  "etc/scallopy",
+  # "etc/scallop-node",
+  "etc/scallop-wasm",
+  "lib/sdd",
+  "lib/rsat",
+]
+
+default-members = [
+  "core",
+  "etc/codegen",
+  "etc/sclc",
+  "etc/scli",
+  "etc/sclrepl",
+]

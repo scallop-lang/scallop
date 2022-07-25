@@ -1,0 +1,12 @@
+rel class_student_grade = {
+  (0, "tom", 50),
+  (0, "jerry", 70),
+  (0, "alice", 60),
+  (1, "bob", 80),
+  (1, "sherry", 90),
+  (1, "frank", 30),
+}
+
+rel avg_score((s as f32) / (n as f32)) =
+  s = sum(x: class_student_grade(_, _, x)),
+  n = count(a, b, c: class_student_grade(a, b, c))

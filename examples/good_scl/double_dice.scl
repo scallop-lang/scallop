@@ -1,0 +1,20 @@
+rel first_dice = {
+  0.1666::1,
+  0.1666::2,
+  0.1666::3,
+  0.1666::4,
+  0.1666::5,
+  0.1666::6,
+}
+
+rel second_dice = {
+  0.1666::1,
+  0.1666::2,
+  0.1666::3,
+  0.1666::4,
+  0.1666::5,
+  0.1666::6,
+}
+
+rel result(x) = first_dice(x), x > 3
+rel result(y > x ? y : x) = first_dice(x), x <= 3, second_dice(y)

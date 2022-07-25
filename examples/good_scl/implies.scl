@@ -1,0 +1,6 @@
+rel obj = {1, 2}
+rel color = {(1, "blue"), (2, "red")}
+rel shape = {(1, "cube"), (2, "cube")}
+
+// The object `o` such that `o` is cube implies that `o` is blue
+rel answer(o) = obj(o) and (shape(o, "cube") => color(o, "blue"))

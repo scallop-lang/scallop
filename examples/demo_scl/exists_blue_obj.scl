@@ -1,0 +1,13 @@
+// A set of all the shapes
+rel all_shapes = {"cube", "cylinder", "sphere"}
+
+// Each object has two attributes: color and shape
+rel color = {(0, "red"), (1, "green"), (2, "blue"), (3, "blue")}
+rel shape = {(0, "cube"), (1, "cylinder"), (2, "sphere"), (3, "cube")}
+
+// Is there a blue object?
+rel exists_blue_obj(b) = b = exists(o: color(o, "blue"))
+
+// For each shape, is there a blue object of that shape?
+rel exists_blue_obj_of_shape(s, b) :-
+  b = exists(o: color(o, "blue"), shape(o, s) where s: all_shapes(s))

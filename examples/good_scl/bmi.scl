@@ -1,0 +1,10 @@
+rel student = {
+  (1, 185, 80, "Mary"),
+  (2, 175, 70, "John"),
+  (3, 165, 55, "Maomao"),
+}
+
+rel height(id, h) = student(id, h, _, _)
+rel weight(id, w) = student(id, _, w, _)
+
+rel bmi(id, w as f32 / ((h * h) as f32 / 10000.0)) = height(id, h), weight(id, w)

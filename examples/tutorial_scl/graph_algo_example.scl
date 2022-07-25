@@ -1,0 +1,11 @@
+import "graph_algo.scl"
+
+// Our source graph
+//
+//  1 -- 0 -- 3    5
+//  |  /      |
+//  | /       |
+//  2         4
+//
+rel node = {0, 1, 2, 3, 4, 5}
+rel edge = {(0, 1), (1, 2), (2, 0), (0, 3), (3, 4)}

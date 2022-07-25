@@ -1,0 +1,235 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Scallop",
+  "scopeName": "source.scl",
+	"patterns": [
+		{
+			"include": "#comment"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#booleans"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#builtin_types"
+		},
+		{
+			"include": "#float"
+		},
+		{
+			"include": "#integer"
+		},
+		{
+			"comment": "As Operator",
+			"match": "(\\b(as)\\b)",
+			"name": "keyword.other.scallop"
+		},
+		{
+			"comment": "Aggregators",
+			"match": "\\b(count|sum|prod|min|max|exists|forall|unique)\\s*\\(",
+			"captures": {
+				"1": {
+					"name": "keyword.other.scallop"
+				}
+			}
+		},
+		{
+			"comment": "Atomic Relation",
+			"match": "[^\\@]\\b((?!((count|sum|prod|min|max|exists|forall|unique|and|or|not)\\b))[a-zA-Z][a-zA-Z0-9_]*)\\s*\\(",
+			"captures": {
+				"1": {
+					"name": "entity.name.function.scallop"
+				}
+			}
+		},
+		{
+			"include": "#constant_set_relation"
+		},
+		{
+			"include": "#query_relation"
+		},
+		{
+			"comment": "Attribute",
+			"name": "meta.attribute.scallop",
+			"begin": "\\@([a-zA-Z][a-zA-Z0-9_]*)\\(",
+			"end": "\\)",
+			"patterns": [
+				{
+					"include": "#float"
+				},
+				{
+					"include": "#integer"
+				},
+				{
+					"include": "#booleans"
+				},
+				{
+					"include": "#strings"
+				}
+			]
+		},
+		{
+			"comment": "Logical operator",
+			"name": "keyword.control.scallop",
+			"match": "(\\b(and|or|not|implies)\\b)"
+		},
+		{
+			"comment": "Logical operator",
+			"name": "keyword.operator.comparison.scallop",
+			"match": "(&&|\\|\\||==|!=|\\\\/|/\\\\)"
+		},
+		{
+			"comment": "Assignment operator",
+			"name": "keyword.operator.assignment.scallop",
+			"match": "(:-|=)"
+		},
+		{
+			"comment": "Arithmetic operator",
+			"name": "keyword.operator.arithmetic.scallop",
+			"match": "(!|\\+|-|/|\\*|%)"
+		},
+		{
+			"comment": "Other comparison operators",
+			"name": "keyword.operator.comparison.scallop",
+			"match": "(<=|>=|<|>)"
+		},
+		{
+			"comment": "Parameters",
+			"name": "variable.parameter.scallop",
+			"match": "([a-zA-Z][a-zA-Z0-9_]*)"
+		}
+	],
+	"repository": {
+		"strings": {
+			"name": "string.quoted.double.scallop",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.scallop",
+					"match": "\\\\."
+				}
+			]
+		},
+		"constant_set_relation": {
+			"comment": "Constant Set Relation",
+			"match": "\\b([a-zA-Z][a-zA-Z0-9_]*)\\s*(=|:-)\\s*\\{",
+			"captures": {
+				"1": {
+					"name": "entity.name.function.scallop"
+				},
+				"2": {
+					"name": "keyword.operator.assignment.scallop"
+				}
+			}
+		},
+		"query_relation": {
+			"comment": "Query relation",
+			"match": "\\b(query|output)\\s+([a-zA-Z][a-zA-Z0-9_]*)",
+			"captures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				},
+				"2": {
+					"name": "entity.name.function.scallop"
+				}
+			}
+		},
+		"builtin_types": {
+			"comment": "Built-in/core type",
+			"name": "storage.type.core.scallop",
+			"match": "\\b(i8|i16|i32|i64|i128|isize|u8|u16|u32|u64|u128|usize|f32|f64|char|bool|String)\\b|(\\&str|Rc\\<String\\>)"
+		},
+		"float": {
+			"comment": "Floating point literal (fraction)",
+			"name": "constant.numeric.float.scallop",
+			"match": "\\b[0-9][0-9_]*\\.[0-9][0-9_]*([eE][+-]?[0-9_]+)?\\b"
+		},
+		"integer": {
+			"comment": "Integer literal (decimal)",
+			"name": "constant.numeric.integer.decimal.scallop",
+			"match": "\\b[0-9][0-9_]*\\b"
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.scallop",
+					"match": "(\\b(import|type|input|rel|relation|if|then|else|where)\\b)"
+				}
+			]
+		},
+		"booleans": {
+			"patterns": [
+				{
+					"name": "constant.language.scallop",
+					"match": "(\\b(true|false)\\b)"
+				}
+			]
+		},
+		"comment": {
+			"patterns": [
+				{
+					"name": "comment.block.documentation.scallop",
+					"begin": "/\\*\\*(?!/)",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.comment.scallop"
+						}
+					},
+					"end": "\\*/",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.comment.scallop"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#docblock"
+						}
+					]
+				},
+				{
+					"name": "comment.block.scallop",
+					"begin": "/\\*",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.comment.scallop"
+						}
+					},
+					"end": "\\*/",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.comment.scallop"
+						}
+					}
+				},
+				{
+					"begin": "(^[ \\t]+)?(?=//)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.whitespace.comment.leading.scallop"
+						}
+					},
+					"end": "(?=$)",
+					"patterns": [
+						{
+							"name": "comment.line.double-slash.scallop",
+							"begin": "//",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.comment.scallop"
+								}
+							},
+							"end": "(?=$)"
+						}
+					]
+				}
+			]
+		}
+	}
+}

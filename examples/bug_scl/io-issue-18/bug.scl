@@ -1,0 +1,8 @@
+rel e__ = {
+  (49, 49, "ms"),
+  (74, 74, "bx"),
+}
+
+rel h__(d, e, e) = e__(d, b, e), not e__(d, d, e)
+
+query h__

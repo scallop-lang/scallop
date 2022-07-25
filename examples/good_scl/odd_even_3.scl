@@ -1,0 +1,4 @@
+rel numbers(x) = x == 0 \/ (numbers(x - 1) /\ x <= 10)
+rel odd(1) = numbers(1)
+rel odd(x) = odd(x - 2), numbers(x)
+rel even(y) = numbers(y), ~odd(y)

@@ -1,0 +1,31 @@
+{
+    "name": "scallop",
+    "displayName": "Scallop Language Syntax Highlight",
+    "description": "Scallop Language Support",
+    "version": "0.0.3",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/liby99/scallop-v2"
+    },
+    "publisher": "scallop-lang",
+    "icon": "images/scallop-logo-transp-128.png",
+    "engines": {
+        "vscode": "^1.63.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [{
+            "id": "scallop",
+            "aliases": ["Scallop", "scallop"],
+            "extensions": [".scl"],
+            "configuration": "./language-configuration.json"
+        }],
+        "grammars": [{
+            "language": "scallop",
+            "scopeName": "source.scl",
+            "path": "./syntaxes/scallop.tmLanguage.json"
+        }]
+    }
+}

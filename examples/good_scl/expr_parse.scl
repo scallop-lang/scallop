@@ -1,0 +1,46 @@
+// TODO
+
+// 5 * (1 + 4)
+rel symbol = {(0, "0"), (1, "*"), (2, "("), (3, "1"), (4, "+"), (5, "4"), (6, ")")}
+rel length(7)
+
+// Facts for lexing
+rel digit = {("0", 0.0), ("1", 1.0), ("2", 2.0), ("3", 3.0), ("4", 4.0), ("5", 5.0), ("6", 6.0), ("7", 7.0), ("8", 8.0), ("9", 9.0)}
+rel mult_div = {"*", "/"}
+rel plus_minus = {"+", "-"}
+
+// Symbol ID for node index calculation
+rel symbol_id = {("+", 1), ("-", 2), ("*", 3), ("/", 4)}
+
+// Node ID Hashing
+@demand("bbbbf")
+rel node_id_hash(x, s, l, r, x + sid * n + l * 4 * n + r * 4 * n * n) = symbol_id(s, sid), length(n)
+
+// Parsing
+rel value_node(x, v) =
+  symbol(x, d), digit(d, v), length(n), x < n
+rel mult_div_node(x, "v", x, x, x, x, x) =
+  value_node(x, _)
+rel mult_div_node(h, s, x, l, end, begin, end) =
+  symbol(x, s), mult_div(s), node_id_hash(x, s, l, end, h),
+  mult_div_node(l, _, _, _, _, begin, x - 1),
+  value_node(end, _), end == x + 1
+rel plus_minus_node(x, t, i, l, r, begin, end) =
+  mult_div_node(x, t, i, l, r, begin, end)
+rel plus_minus_node(h, s, x, l, r, begin, end) =
+  symbol(x, s), plus_minus(s), node_id_hash(x, s, l, r, h),
+  plus_minus_node(l, _, _, _, _, begin, x - 1),
+  mult_div_node(r, _, _, _, _, x + 1, end)
+rel plus_minus_node(h, s, x, l, r, begin, end) =
+  symbol(begin, "("), plus_minus_node(h, s, x, l, r, begin + 1, end - 1), symbol(end, ")")
+
+
+// Evaluate AST
+rel eval(x, y, x, x) = value_node(x, y)
+rel eval(x, y1 + y2, b, e) = plus_minus_node(x, "+", i, l, r, b, e), eval(l, y1, b, i - 1), eval(r, y2, i + 1, e)
+rel eval(x, y1 - y2, b, e) = plus_minus_node(x, "-", i, l, r, b, e), eval(l, y1, b, i - 1), eval(r, y2, i + 1, e)
+rel eval(x, y1 * y2, b, e) = mult_div_node(x, "*", i, l, r, b, e), eval(l, y1, b, i - 1), eval(r, y2, i + 1, e)
+rel eval(x, y1 / y2, b, e) = mult_div_node(x, "/", i, l, r, b, e), eval(l, y1, b, i - 1), eval(r, y2, i + 1, e), y2 != 0.0
+
+// Compute result
+rel result(y) = eval(e, y, 0, n - 1), length(n)

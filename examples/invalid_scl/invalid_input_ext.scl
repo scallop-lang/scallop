@@ -1,0 +1,5 @@
+@file("one.abc")
+input one(a: usize, b: usize)
+
+@file("two")
+input two(a: usize, b: usize)

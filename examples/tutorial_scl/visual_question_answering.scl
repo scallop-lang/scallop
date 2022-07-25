@@ -1,0 +1,59 @@
+type obj_color(usize, String) // `obj_color(o, c)` means object `o` has color `c`
+type obj_shape(usize, String) // `obj_shape(o, s)` means object `o` has shape `s`
+type obj_size(usize, String) // `obj_shape(o, s)` means object `o` has size `s`
+type obj_material(usize, String) // `obj_shape(o, m)` means object `o` has material `m`
+type left(usize, usize)       // `left(a, b)` means object `a` is on the left of object `b`
+
+// Practice *: Fill in the facts for the probabilistic scene graph
+// Note: You may construct mulitple sets of disjunctive relations
+rel all_colors = {/* Fill in the facts here */}
+rel all_shapes = {/* Fill in the facts here */}
+rel all_sizes = {/* Fill in the facts here */}
+rel all_material = {/* Fill in the facts here */}
+
+rel obj_color = {/* Fill in the probabilistic facts here */}
+rel obj_shape = {/* Fill in the probabilistic facts here */}
+rel obj_size = {/* Fill in the probabilistic facts here */}
+rel obj_material = {/* Fill in the probabilistic facts here */}
+rel left = {/* Fill in the discrete facts here */}
+
+// Practice *: `right` relation that can be derived from left relation
+// Definition: `right(a, b)` means `a` is on the right of `b`
+type right(usize, usize)
+
+// Practice *: Find the object id of the blue objects
+type blue_objs(usize)
+
+// Practice *: Find all the possible colors of cubes
+type color_of_cubes(String)
+
+// Practice *: How many red objects are there in the scene?
+type num_red_objects(usize)
+
+// Practice *: How many objects are there for each shape?
+type how_many_object_of_each_shape(String, usize)
+
+// Practice *: Find whether an object is between two objects
+//   Definition: `between(a, b, c)` means `c` is in between object `a` and `b`
+type between(usize, usize, usize)
+
+// Practice *: Is there a green object between a red and a blue object?
+type g_between_r_and_b(bool)
+
+// Practice *: What is the color of the other big object that is made of the same material as the yellow thing?
+type clevr_q(String)
+
+// Practice *:
+//   Write down the tags for `num_red_objects` with topbottomkclauses.
+//   Briefly explain how is the probability for the output fact num_red_objects(0) calculated.
+
+// Practice *:
+// Please rerun and fill in the table below with the query outputs' probability
+// | provenance semiring | minmaxprob | tbk k=1 | tbk k=3 | tbk k=10 |
+// -------------------------------------------------------
+// | `num_red_objects(1)` |  |  |  |  |
+// | `num_red_objects(2)` |  |  |  |  |
+// | `g_between_r_and_b(True)` |  |  |  | |
+// | `g_between_r_and_b(False)` |  |  |  | |
+// | `how_many_object_of_each_shape("cube", 2)` |  |  |  | |
+// | `how_many_object_of_each_shape("cylinder", 3)` | | | | |

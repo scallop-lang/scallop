@@ -1,0 +1,24 @@
+rel color = {
+  (1, "blue"),
+  (2, "green"), // Try changing this to something like (2, "white")
+  (3, "yellow"),
+}
+
+rel left = {
+  (1, 2),
+  (1, 3),
+  (2, 3),
+}
+
+// Z is between X and Y
+rel between(x, y, z) = left(x, z), left(z, y)
+
+// No green object between o and p means either
+// 1. there is no object between o and p, or
+// 2. if there is an object between o and p, that object is not green
+@demand("bb")
+rel no_green_between(o, p) = ~between(o, p, q)
+rel no_green_between(o, p) = between(o, p, q), ~color(q, "green")
+
+// Query
+rel result(v) = v = exists(o: color(o, "blue"), left(o, p), color(p, "yellow"), no_green_between(o, p))

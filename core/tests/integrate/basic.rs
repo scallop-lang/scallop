@@ -1,0 +1,798 @@
+use scallop_core::testing::*;
+
+#[test]
+fn basic_edge_path_left_recursion() {
+  expect_interpret_result(
+    r#"
+      rel edge = {(0, 2), (1, 2), (2, 3)}
+      rel path(a, b) = edge(a, b) \/ path(a, c) /\ edge(c, b)
+      query path
+    "#,
+    (
+      "path",
+      vec![(0usize, 2usize), (1, 2), (0, 3), (1, 3), (2, 3)],
+    ),
+  );
+}
+
+#[test]
+fn basic_edge_path_right_recursion() {
+  expect_interpret_result(
+    r#"
+      rel edge = {(0, 2), (1, 2), (2, 3)}
+      rel path(a, b) = edge(a, b) \/ edge(a, c) /\ path(c, b)
+      query path
+    "#,
+    (
+      "path",
+      vec![(0usize, 2usize), (1, 2), (0, 3), (1, 3), (2, 3)],
+    ),
+  );
+}
+
+#[test]
+fn basic_edge_path_binary_recursion() {
+  expect_interpret_result(
+    r#"
+      rel edge = {(0, 2), (1, 2), (2, 3)}
+      rel path(a, b) = edge(a, b) \/ path(a, c) /\ path(c, b)
+      query path
+    "#,
+    (
+      "path",
+      vec![(0usize, 2usize), (1, 2), (0, 3), (1, 3), (2, 3)],
+    ),
+  );
+}
+
+#[test]
+fn basic_odd_even() {
+  expect_interpret_multi_result(
+    r#"
+      rel even(0)
+      rel odd(x) = even(x - 1), x < 10
+      rel even(x) = odd(x - 1), x < 10
+    "#,
+    vec![
+      ("odd", vec![(1,), (3,), (5,), (7,), (9,)].into()),
+      ("even", vec![(0,), (2,), (4,), (6,), (8,)].into()),
+    ],
+  );
+}
+
+#[test]
+fn basic_difference_1() {
+  expect_interpret_result(
+    r#"
+      rel a = {(0, 1), (1, 2)}
+      rel b = {(1, 1), (1, 2)}
+      rel s(x, y) = a(x, y), ~b(x, y)
+      query s
+    "#,
+    ("s", vec![(0usize, 1usize)]),
+  );
+}
+
+#[test]
+fn bmi_test_1() {
+  expect_interpret_multi_result(
+    r#"
+      rel student = {
+        (1, 185, 80, "Mary"),
+        (2, 175, 70, "John"),
+        (3, 165, 55, "Maomao"),
+      }
+
+      rel height(id, h) = student(id, h, _, _)
+      rel weight(id, w) = student(id, _, w, _)
+
+      rel bmi(id, w as f32 / ((h * h) as f32 / 10000.0)) = height(id, h), weight(id, w)
+    "#,
+    vec![
+      ("height", vec![(1usize, 185i32), (2, 175), (3, 165)].into()),
+      ("weight", vec![(1usize, 80usize), (2, 70), (3, 55)].into()),
+      (
+        "bmi",
+        vec![(1usize, 23.374f32), (2, 22.857), (3, 20.202)].into(),
+      ),
+    ],
+  )
+}
+
+#[test]
+fn bmi_test_2() {
+  expect_interpret_multi_result(
+    r#"
+      type student(usize, f32, f32, String)
+
+      rel student = {
+        (1, 185, 80, "Mary"),
+        (2, 175, 70, "John"),
+        (3, 165, 55, "Maomao"),
+      }
+
+      rel height(id, h) = student(id, h, _, _)
+      rel weight(id, w) = student(id, _, w, _)
+
+      rel bmi(id, w / (h * h / 10000.0)) = height(id, h), weight(id, w)
+    "#,
+    vec![
+      (
+        "height",
+        vec![(1usize, 185f32), (2, 175.0), (3, 165.0)].into(),
+      ),
+      ("weight", vec![(1usize, 80f32), (2, 70.0), (3, 55.0)].into()),
+      (
+        "bmi",
+        vec![(1usize, 23.374f32), (2, 22.857), (3, 20.202)].into(),
+      ),
+    ],
+  )
+}
+
+#[test]
+fn const_fold_test_1() {
+  expect_interpret_result(
+    r#"
+      rel E(1)
+      rel R(s, a) = s == x + z, x == y + 1, y == z + 1, z == 1, E(a)
+    "#,
+    ("R", vec![(4i32, 1usize)]),
+  );
+}
+
+#[test]
+fn const_fold_test_2() {
+  expect_interpret_result(
+    r#"
+      rel R(s) = s == x + z, x == y + 1, y == z + 1, z == 1
+    "#,
+    ("R", vec![(4i32,)]),
+  );
+}
+
+#[test]
+fn count_test_1() {
+  expect_interpret_result(
+    r#"
+      type R(usize, String)
+      type S(usize)
+
+      rel R = {(0, "a"), (1, "b"), (1, "a"), (0, "c"), (0, "d")}
+      rel S(i) :- i = count(s: R(o, s))
+
+      rel O(o, i) :- i = count(s: R(o, s))
+    "#,
+    ("O", vec![(0usize, 3usize), (1, 2)]),
+  );
+}
+
+#[test]
+fn digit_sum_test_1() {
+  expect_interpret_result(
+    r#"
+      rel digit = {
+        (0, 0), (0, 1), (0, 2), (0, 3), (0, 4),
+        (1, 0), (1, 1), (1, 2), (1, 3), (1, 4),
+      }
+      rel sum_2(0, 1, x + y) = digit(0, x), digit(1, y)
+    "#,
+    (
+      "sum_2",
+      vec![
+        (0usize, 1usize, 0i32),
+        (0, 1, 1),
+        (0, 1, 2),
+        (0, 1, 3),
+        (0, 1, 4),
+        (0, 1, 5),
+        (0, 1, 6),
+        (0, 1, 7),
+        (0, 1, 8),
+      ],
+    ),
+  );
+}
+
+#[test]
+fn digit_sum_test_2() {
+  expect_interpret_result(
+    r#"
+      rel digit = {
+        (0, 0), (0, 1), (0, 2), (0, 3), (0, 4),
+        (1, 0), (1, 1), (1, 2), (1, 3), (1, 4),
+      }
+      rel sum_2(a, b, c) = digit(a, x), digit(b, y), c == x + y, a == 0, b == 1
+    "#,
+    (
+      "sum_2",
+      vec![
+        (0usize, 1usize, 0i32),
+        (0, 1, 1),
+        (0, 1, 2),
+        (0, 1, 3),
+        (0, 1, 4),
+        (0, 1, 5),
+        (0, 1, 6),
+        (0, 1, 7),
+        (0, 1, 8),
+      ],
+    ),
+  );
+}
+
+#[test]
+fn expr_test_1() {
+  expect_interpret_result(
+    r#"
+      rel eval(e, c) = constant(e, c)
+      rel eval(e, a + b) = binary(e, "+", l, r), eval(l, a), eval(r, b)
+      rel eval(e, a - b) = binary(e, "-", l, r), eval(l, a), eval(r, b)
+      rel result(y) = eval(e, y), goal(e)
+
+      rel constant = { (0, 1), (1, 2), (2, 3) }
+      rel binary = { (3, "+", 0, 1), (4, "-", 3, 2) }
+      rel goal(4)
+      query result
+    "#,
+    ("result", vec![(0i32,)]),
+  );
+}
+
+#[test]
+fn fib_test_1() {
+  expect_interpret_result(
+    r#"
+      rel fib :- {(0, 1), (1, 1)}
+      rel fib(x, a + b) :- fib(x - 1, a), fib(x - 2, b), x <= 7
+    "#,
+    (
+      "fib",
+      vec![
+        (0i32, 1i32),
+        (1, 1),
+        (2, 2),
+        (3, 3),
+        (4, 5),
+        (5, 8),
+        (6, 13),
+        (7, 21),
+      ],
+    ),
+  );
+}
+
+#[test]
+fn fib_dt_test_1() {
+  expect_interpret_result(
+    r#"
+      rel d_fib :- {(7)}
+      rel d_fib(x - 1) :- d_fib(x), x > 1
+      rel d_fib(x - 2) :- d_fib(x), x > 1
+
+      rel fib :- {(0, 1), (1, 1)}
+      rel fib(x, a + b) :- d_fib(x), fib(x - 1, a), fib(x - 2, b), x > 1
+
+      rel result(y) :- fib(7, y)
+    "#,
+    ("result", vec![(21,)]),
+  );
+}
+
+#[test]
+fn obj_color_test_1() {
+  expect_interpret_result(
+    r#"
+      rel object_color(0, "blue")
+      rel object_color(1, "green")
+      rel object_color(2, "blue")
+      rel object_color(3, "green")
+      rel object_color(4, "green")
+      rel object_color(5, "red")
+
+      rel color_count(c, n) :- n = count(o: object_color(o, c))
+      rel max_color(c) :- _ = max[c](n: color_count(c, n))
+    "#,
+    ("max_color", vec![("green".to_string(),)]),
+  );
+}
+
+#[test]
+fn obj_color_test_2() {
+  expect_interpret_result(
+    r#"
+      rel object_color = {
+        (0, "blue"),
+        (1, "green"),
+        (2, "blue"),
+        (3, "green"),
+        (4, "green"),
+        (5, "blue"),
+      }
+      rel max_color(c) = _ = max[c](n: n = count(o: object_color(o, c)))
+    "#,
+    (
+      "max_color",
+      vec![("blue".to_string(),), ("green".to_string(),)],
+    ),
+  );
+}
+
+#[test]
+fn simple_test_1() {
+  expect_interpret_result(
+    r#"
+      rel edge = {(0, 1), (1, 2)}
+      rel path(a, b) = edge(a, b)
+    "#,
+    ("path", vec![(0usize, 1usize), (1, 2)]),
+  );
+}
+
+#[test]
+fn simple_test_2() {
+  expect_interpret_result(
+    r#"
+      rel edge = {(0, 1), (1, 2), (2, 2)}
+      rel self_edge(a, a) :- edge(a, a)
+    "#,
+    ("self_edge", vec![(2usize, 2usize)]),
+  );
+}
+
+#[test]
+fn simple_test_3() {
+  expect_interpret_result(
+    r#"
+      rel edge = {(0, 1), (1, 2)}
+      rel something(a, 2) :- edge(a, b)
+    "#,
+    ("something", vec![(0usize, 2usize), (1, 2)]),
+  );
+}
+
+#[test]
+fn simple_test_4() {
+  expect_interpret_result(
+    r#"
+      rel edge = {(0, 1), (1, 2)}
+      rel something(a, 2) :- edge(a, b), b > 1
+    "#,
+    ("something", vec![(1usize, 2usize)]),
+  );
+}
+
+#[test]
+fn simple_test_5() {
+  expect_interpret_result(
+    r#"
+      rel S = {(1, 2), (2, 3), (3, 4)}
+      rel R = {(1, 2), (4, 3)}
+      rel O(a, b) = S(b, a), R(a, b)
+    "#,
+    ("O", vec![(4usize, 3usize)]),
+  );
+}
+
+#[test]
+fn simple_test_6() {
+  expect_interpret_result(
+    r#"
+      rel S = {(1, 2), (2, 3), (3, 4), (4, 3)}
+      rel R = {(1, 2), (3, 4), (4, 3)}
+      rel O(a, b) = S(b, a), S(a, b), R(a, b), R(b, a)
+    "#,
+    ("O", vec![(3usize, 4usize), (4, 3)]),
+  );
+}
+
+#[test]
+fn simple_test_7() {
+  expect_interpret_result(
+    r#"
+      rel S = {(0, 1), (1, 2), (2, 3)}
+      rel R = {(1), (2)}
+      rel O(a, b) = S(a, b), ~R(b)
+    "#,
+    ("O", vec![(2usize, 3usize)]),
+  );
+}
+
+#[test]
+fn simple_test_8() {
+  expect_interpret_result(
+    r#"
+      rel S = {(0, 1), (1, 2), (2, 3)}
+      rel R = {(1, 2), (2, 3)}
+      rel O(a, b) = S(a, b), ~R(b, c)
+    "#,
+    ("O", vec![(2usize, 3usize)]),
+  )
+}
+
+#[test]
+fn simple_test_9() {
+  expect_interpret_result(
+    r#"
+      rel S = {(0, 1), (1, 2), (2, 3)}
+      rel R = {(1, 2), (2, 3), (2, 2)}
+      rel O(a, b) = S(a, b), ~R(a, a)
+    "#,
+    ("O", vec![(0usize, 1usize), (1, 2)]),
+  )
+}
+
+#[test]
+fn srl_1() {
+  expect_interpret_result(
+    r#"
+      rel verb = {
+        (1, "play"),
+        (4, "play"),
+      }
+
+      rel noun = {
+        (2, "Tom", "Person"),
+        (3, "Jerry", "Person")
+      }
+
+      rel arg1 = {
+        (1, 2),
+        (1, 3),
+      }
+
+      rel synonym = {
+        (1, 4),
+      }
+
+      rel plays_soccer(n) =
+        verb(vid0, "play"),
+        arg1(vid, n),
+        noun(n, _, "Person"),
+        synonym(vid, vid0)
+
+      rel how_many_play_soccer(c) = c = count(n: plays_soccer(n))
+    "#,
+    ("how_many_play_soccer", vec![(2usize,)]),
+  );
+}
+
+#[test]
+fn class_student_grade_1() {
+  expect_interpret_result(
+    r#"
+      rel class_student_grade = {
+        (0, "tom", 50),
+        (0, "jerry", 70),
+        (0, "alice", 60),
+        (1, "bob", 80),
+        (1, "sherry", 90),
+        (1, "frank", 30),
+      }
+
+      rel class_top_student(c, s) = _ = max[s](g: class_student_grade(c, s, g))
+    "#,
+    (
+      "class_top_student",
+      vec![(0usize, "jerry".to_string()), (1, "sherry".to_string())],
+    ),
+  )
+}
+
+#[test]
+fn class_student_grade_2() {
+  expect_interpret_result(
+    r#"
+      rel class_student_grade = {
+        (0, "tom", 50),
+        (0, "jerry", 70),
+        (0, "alice", 60),
+        (1, "bob", 80),
+        (1, "sherry", 90),
+        (1, "frank", 30),
+      }
+
+      rel avg_score((s as f32) / (n as f32)) =
+        s = sum(x: class_student_grade(_, _, x)),
+        n = count(a, b, c: class_student_grade(a, b, c))
+    "#,
+    ("avg_score", vec![(63.333f32,)]),
+  )
+}
+
+#[test]
+fn unused_relation_1() {
+  expect_interpret_result(
+    r#"
+      rel A = {(0, 1), (1, 2)}
+      rel B = {("haha"), ("wow")}
+      rel S(b, 1) = B(b)
+      query S
+    "#,
+    (
+      "S",
+      vec![("haha".to_string(), 1usize), ("wow".to_string(), 1)],
+    ),
+  )
+}
+
+#[test]
+fn atomic_query_1() {
+  expect_interpret_multi_result(
+    r#"
+      rel S = {(0, 1), (1, 2), (0, 2)}
+      query S(0, _)
+      query S(_, 2)
+    "#,
+    vec![
+      ("S(0, _)", vec![(0usize, 1usize), (0, 2)].into()),
+      ("S(_, 2)", vec![(0usize, 2usize), (1, 2)].into()),
+    ],
+  )
+}
+
+#[test]
+fn atomic_query_2() {
+  expect_interpret_multi_result(
+    r#"
+      rel S = {(1, 2), (2, 4), (1, 1), (2, 2)}
+      query S(a, a * 2)
+    "#,
+    vec![("S(a, (a * 2))", vec![(1i32, 2i32), (2, 4)].into())],
+  )
+}
+
+#[test]
+fn negate_query_1() {
+  expect_interpret_multi_result(
+    r#"
+      rel A = {(0, 1)}
+      rel B = {(0, 1, "O")}
+      rel Q() = A(a, b), ~B(a, b, "O")
+    "#,
+    vec![("Q", TestCollection::empty())],
+  )
+}
+
+#[test]
+fn join_and_arith_1() {
+  expect_interpret_multi_result(
+    r#"
+      rel eventually(start, start, goal) = event(start, goal)
+      rel eventually(start, end, goal) =
+        event(next, _) and
+        eventually(next, end, goal) and
+        next == start + 1
+    "#,
+    vec![("eventually", TestCollection::empty())],
+  )
+}
+
+#[test]
+fn join_and_arith_2() {
+  expect_interpret_result(
+    r#"
+      rel event = {
+        (0, "V1"),
+        (1, "V1"),
+        (2, "V2"),
+        (3, "O"),
+      }
+      rel eventually(end, end, goal) = event(end, goal)
+      rel eventually(start, end, goal) =
+        event(start, g) and
+        ~event(start, goal) and
+        event(next, _) and
+        eventually(next, end, goal) and
+        next == start + 1
+    "#,
+    (
+      "eventually",
+      vec![
+        (0, 0, "V1".to_string()),
+        (1, 1, "V1".to_string()),
+        (0, 2, "V2".to_string()),
+        (1, 2, "V2".to_string()),
+        (2, 2, "V2".to_string()),
+        (0, 3, "O".to_string()),
+        (1, 3, "O".to_string()),
+        (2, 3, "O".to_string()),
+        (3, 3, "O".to_string()),
+      ],
+    ),
+  )
+}
+
+#[test]
+fn equal_v1_v2() {
+  expect_interpret_multi_result(
+    r#"
+      rel S = {(0, 1), (1, 2)}
+      rel Q(a, b) = S(a, b), a == a
+    "#,
+    vec![("Q", vec![(0usize, 1usize), (1, 2)].into())],
+  )
+}
+
+#[test]
+fn test_count_with_where_clause() {
+  expect_interpret_multi_result(
+    r#"
+      // There are three classes
+      rel classes = {0, 1, 2}
+
+      // There are 6 students, 2 in each class
+      rel student = {
+        (0, "tom"), (0, "jenny"), // Class 0
+        (1, "alice"), (1, "bob"), // Class 1
+        (2, "liby"), (2, "john"), // Class 2
+      }
+
+      // Each student is enrolled in a course (Math or CS)
+      rel enroll = {
+        ("tom", "CS"), ("jenny", "Math"), // Class 0
+        ("alice", "CS"), ("bob", "CS"), // Class 1
+        ("liby", "Math"), ("john", "Math"), // Class 2
+      }
+
+      // Count how many student enrolls in CS class in each class
+      rel count_enroll_cs_in_class(c, n) :- n = count(s: student(c, s), enroll(s, "CS") where c: classes(c))
+    "#,
+    vec![(
+      "count_enroll_cs_in_class",
+      vec![(0usize, 1usize), (1, 2), (2, 0)].into(),
+    )],
+  )
+}
+
+#[test]
+fn test_exists_with_where_clause() {
+  expect_interpret_multi_result(
+    r#"
+      // A set of all the shapes
+      rel all_shapes = {"cube", "cylinder", "sphere"}
+
+      // Each object has two attributes: color and shape
+      rel color = {(0, "red"), (1, "green"), (2, "blue"), (3, "blue")}
+      rel shape = {(0, "cube"), (1, "cylinder"), (2, "sphere"), (3, "cube")}
+
+      // Is there a blue object?
+      rel exists_blue_obj(b) = b = exists(o: color(o, "blue"))
+
+      // For each shape, is there a blue object of that shape?
+      rel exists_blue_obj_of_shape(s, b) :-
+        b = exists(o: color(o, "blue"), shape(o, s) where s: all_shapes(s))
+    "#,
+    vec![
+      ("exists_blue_obj", vec![(true,)].into()),
+      (
+        "exists_blue_obj_of_shape",
+        vec![
+          ("cube".to_string(), true),
+          ("cylinder".to_string(), false),
+          ("sphere".to_string(), true),
+        ]
+        .into(),
+      ),
+    ],
+  )
+}
+
+#[test]
+fn type_cast_to_string_1() {
+  expect_interpret_result(
+    r#"
+    rel r = {1, 2, 3}
+    rel s(x as String) = r(x)
+  "#,
+    (
+      "s",
+      vec![("1".to_string(),), ("2".to_string(),), ("3".to_string(),)],
+    ),
+  )
+}
+
+#[test]
+fn implies_1() {
+  expect_interpret_result(
+    r#"
+    rel obj = {1, 2}
+    rel color = {(1, "blue"), (2, "red")}
+    rel shape = {(1, "cube"), (2, "cube")}
+
+    // The object `o` such that `o` is cube implies that `o` is blue
+    rel answer(o) = obj(o) and (shape(o, "cube") => color(o, "blue"))
+    "#,
+    ("answer", vec![(1usize,)]),
+  )
+}
+
+#[test]
+fn implies_2() {
+  expect_interpret_result(
+    r#"
+    rel obj = {1, 2}
+    rel color = {(1, "blue"), (2, "red")}
+    rel shape = {(1, "cube"), (2, "sphere")}
+
+    // The object `o` such that `o` is cube implies that `o` is blue
+    rel answer(o) = obj(o) and (shape(o, "cube") => color(o, "blue"))
+    "#,
+    ("answer", vec![(1usize,), (2,)]),
+  )
+}
+
+#[test]
+fn has_three_objs_1() {
+  expect_interpret_result(
+    r#"
+    rel obj = {1, 2, 3}
+    rel answer(b) = b == (n == 3), n = count(o: obj(o))
+    "#,
+    ("answer", vec![(true,)]),
+  )
+}
+
+#[test]
+fn has_three_objs_2() {
+  expect_interpret_result(
+    r#"
+    rel obj = {1, 2, 3}
+    rel answer(n == 3) = n = count(o: obj(o))
+    "#,
+    ("answer", vec![(true,)]),
+  )
+}
+
+#[test]
+fn forall_1() {
+  expect_interpret_result(
+    r#"
+    rel color = {(1, "blue"), (2, "red")}
+    rel shape = {(1, "cube"), (2, "cube")}
+
+    // For all cube `o`, `o` is blue
+    rel answer(b) = b = forall(o: shape(o, "cube") => color(o, "blue"))
+    "#,
+    ("answer", vec![(false,)]),
+  )
+}
+
+#[test]
+fn forall_2() {
+  expect_interpret_result(
+    r#"
+    rel color = {(1, "blue"), (2, "red")}
+    rel shape = {(1, "cube"), (2, "sphere")}
+
+    // For all cube `o`, `o` is blue
+    rel answer(b) = b = forall(o: shape(o, "cube") => color(o, "blue"))
+    "#,
+    ("answer", vec![(true,)]),
+  )
+}
+
+#[test]
+fn forall_3() {
+  expect_interpret_result(
+    r#"
+    rel all_colors = {"blue", "red", "green"}
+
+    // Scene graph
+    rel color = {(1, "blue"), (2, "red"), (3, "red")}
+    rel shape = {(1, "cube"), (2, "sphere"), (3, "cube")}
+    rel material = {(1, "metal"), (2, "metal"), (3, "rubber")}
+
+    // For each color `c`, is all the cube of material rubber?
+    rel answer(c, b) = b = forall(o: color(o, c) and shape(o, "cube") => material(o, "rubber") where c: all_colors(c))
+    "#,
+    (
+      "answer",
+      vec![
+        ("blue".to_string(), false),
+        ("red".to_string(), true),
+        ("green".to_string(), true),
+      ],
+    ),
+  )
+}
