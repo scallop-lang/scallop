@@ -4,14 +4,24 @@
   <img width="240" height="240" src="docs/icons/scallop-logo-ws-512.png" />
 </p>
 
-Scallop is a language based on DataLog that supports differentiable logical and relational reasoning.
-Scallop program can be easily integrated in Python and even with a PyTorch learning module. You can also use it as another DataLog solver.
-Internally, Scallop is built on a generalized [Provenance Semiring](https://repository.upenn.edu/cgi/viewcontent.cgi?article=1022&context=db_research) framework.
-It allows arbitrary semirings to be configured, supporting Scallop to perform discrete logical reasoning, probabilistic reasoning, and differentiable reasoning.
+Scallop is a declarative language designed to support rich symbolic reasoning
+in AI applications. It is based on Datalog, a logic rule-based query language
+for relational databases.
+
+Sallop is equipped with a scalable Datalog solver that supports discrete,
+probabilistic and differentiable modes of reasoning.  These modes are
+configurable to suit the needs of different AI applications, and they are
+implemented uniformly as instances of a generalized form of the
+[Provenance Semiring](https://repository.upenn.edu/cgi/viewcontent.cgi?article=1022&context=db_research)
+framework.
+
+Scallop provides bindings to support logic reasoning modules within Python
+programs. As a result, Scallop can be deeply integrated with existing PyTorch
+machine learning pipelines.
 
 ## Example
 
-Here is a simple probabilistic DataLog program that is written in Scallop:
+Here is a simple probabilistic Datalog program that is written in Scallop:
 
 ```
 // Knowledge base facts
