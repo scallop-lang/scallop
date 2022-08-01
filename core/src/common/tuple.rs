@@ -166,6 +166,12 @@ pub trait AsTuple<T> {
   fn as_tuple(&self) -> T;
 }
 
+impl AsTuple<Tuple> for Tuple {
+  fn as_tuple(&self) -> Tuple {
+    self.clone()
+  }
+}
+
 impl AsTuple<i8> for Tuple {
   fn as_tuple(&self) -> i8 {
     match self {
@@ -269,7 +275,7 @@ impl AsTuple<usize> for Tuple {
   fn as_tuple(&self) -> usize {
     match self {
       Self::Value(Value::USize(i)) => *i,
-      _ => panic!("Cannot perform as_tuple<usize>"),
+      v => panic!("Cannot perform as_tuple<usize> on `{}`", v.tuple_type()),
     }
   }
 }
@@ -394,12 +400,7 @@ where
 {
   fn as_tuple(&self) -> (A, B, C, D) {
     match self {
-      Self::Tuple(l) if l.len() == 4 => (
-        l[0].as_tuple(),
-        l[1].as_tuple(),
-        l[2].as_tuple(),
-        l[3].as_tuple(),
-      ),
+      Self::Tuple(l) if l.len() == 4 => (l[0].as_tuple(), l[1].as_tuple(), l[2].as_tuple(), l[3].as_tuple()),
       _ => panic!("Cannot perform as_tuple<(A, B, C, D)>"),
     }
   }

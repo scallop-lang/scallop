@@ -218,18 +218,19 @@ class ScallopForward(torch.nn.Module):
       temp_ctx.add_facts(rela, facts, disjunctions=disjunctions)
 
     # Execute the context
-    temp_ctx.run(iter_limit=self.iter_limit, debug_input_provenance=self.debug_provenance)
+    if self.debug_provenance:
+      temp_ctx._internal.run_with_debug_tag(iter_limit=self.iter_limit)
+    else:
+      temp_ctx.run(iter_limit=self.iter_limit)
 
     # Get input tags
     input_tags = temp_ctx._internal.input_tags()
 
     # Get the internal collection for the target output
-    internal_collection = temp_ctx._internal.relation(output_relation)
-
-    # If we want to debug provenance information, we step in here to print the provenance
     if self.debug_provenance:
-      print(f"Output Relation: {output_relation}")
-      internal_collection.debug_provenance()
+      internal_collection = temp_ctx._internal.relation_with_debug_tag(output_relation)
+    else:
+      internal_collection = temp_ctx._internal.relation(output_relation)
 
     # Process the collection to get the output results
     output_results = self._process_single_output(internal_collection)

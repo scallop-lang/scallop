@@ -4,7 +4,6 @@ mod custom_tag;
 mod error;
 mod io;
 mod tuple;
-mod wmc;
 
 use pyo3::prelude::*;
 

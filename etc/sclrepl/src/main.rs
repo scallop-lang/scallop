@@ -87,9 +87,7 @@ where
     // Compile the source with the context
     match front_context.compile_source(source) {
       Ok(source_id) => {
-        let items = front_context
-          .items_of_source_id(source_id)
-          .collect::<Vec<_>>();
+        let items = front_context.items_of_source_id(source_id).collect::<Vec<_>>();
 
         // Debug
         if options.debug || options.debug_front {

@@ -145,7 +145,10 @@ where
 
   fn next(&mut self) -> Option<Self::Item> {
     match self.source_iter.next() {
-      Some(item) => Some(StaticElement::new((self.map_fn)(item.tuple.0), item.tag)),
+      Some(item) => {
+        let (tuple, tag) = item.into();
+        Some(StaticElement::new((self.map_fn)(tuple), tag))
+      }
       None => None,
     }
   }

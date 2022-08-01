@@ -32,9 +32,7 @@ impl Clone for Sources {
 
 impl std::fmt::Debug for Sources {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.debug_set()
-      .entries(self.sources.iter().map(|s| &*s))
-      .finish()
+    f.debug_set().entries(self.sources.iter().map(|s| &*s)).finish()
   }
 }
 

@@ -37,9 +37,7 @@ where
   Tup: StaticTupleTrait,
 {
   fn from(i: I) -> Self {
-    Self {
-      elements: i.collect(),
-    }
+    Self { elements: i.collect() }
   }
 }
 

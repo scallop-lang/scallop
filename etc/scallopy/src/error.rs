@@ -24,9 +24,7 @@ impl std::fmt::Display for BindingError {
       Self::InvalidCustomProvenance => f.write_str("Invalid custom provenance context"),
       Self::UnknownProvenance(p) => f.write_fmt(format_args!("Unknown provenance `{}`", p)),
       Self::UnknownRelation(r) => f.write_fmt(format_args!("Unknown relation `{}`", r)),
-      Self::RelationNotComputed(r) => {
-        f.write_fmt(format_args!("Relation `{}` has not been computed", r))
-      }
+      Self::RelationNotComputed(r) => f.write_fmt(format_args!("Relation `{}` has not been computed", r)),
       Self::InvalidLoadCSVArg => f.write_str("Invalid argument for `load_csv`"),
       Self::InvalidBatchSize => f.write_str("Invalid batch size"),
       Self::EmptyBatchInput => f.write_str("Empty batched input"),

@@ -85,25 +85,20 @@ impl Display for Update {
 }
 
 impl Dataflow {
-  pub fn pretty_print(
-    &self,
-    f: &mut Formatter<'_>,
-    base_indent: usize,
-    indent_size: usize,
-  ) -> Result {
+  pub fn pretty_print(&self, f: &mut Formatter<'_>, base_indent: usize, indent_size: usize) -> Result {
     let next_indent = base_indent + indent_size;
     let padding = vec![' '; next_indent].into_iter().collect::<String>();
     match self {
       Self::Unit => f.write_str("Unit"),
       Self::Relation(r) => f.write_fmt(format_args!("Relation {}", r)),
       Self::Reduce(r) => {
-        let group_by_predicate = if let ReduceGroupByType::Join(group_by_predicate) = &r.group_by {
-          format!(" where {}", group_by_predicate)
-        } else {
-          format!("")
+        let group_by_predicate = match &r.group_by {
+          ReduceGroupByType::Join(group_by_predicate) => format!(" where {}", group_by_predicate),
+          ReduceGroupByType::Implicit => format!(" implicit group"),
+          _ => format!(""),
         };
         f.write_fmt(format_args!(
-          "Aggregation {:?}({}{})",
+          "Aggregation {}({}{})",
           r.op, r.predicate, group_by_predicate
         ))
       }

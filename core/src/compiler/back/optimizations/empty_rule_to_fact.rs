@@ -15,10 +15,7 @@ pub fn empty_rule_to_fact(rules: &mut Vec<Rule>, facts: &mut Vec<Fact>) {
           .iter()
           .map(|arg| match arg {
             Term::Constant(c) => c.clone(),
-            Term::Variable(v) => panic!(
-              "[Internal Error] Invalid head variable `{}` in an empty rule",
-              v.name
-            ),
+            Term::Variable(v) => panic!("[Internal Error] Invalid head variable `{}` in an empty rule", v.name),
           })
           .collect(),
       };

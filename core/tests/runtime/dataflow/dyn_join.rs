@@ -20,13 +20,9 @@ fn test_dynamic_join_1() {
   while source_1.changed(&ctx) || source_2.changed(&ctx) || target.changed(&ctx) {
     target.insert_dataflow_recent(
       &ctx,
-      &DynamicDataflow::dynamic_relation(&source_1)
-        .join(DynamicDataflow::dynamic_relation(&source_2), &ctx),
+      &DynamicDataflow::dynamic_relation(&source_1).join(DynamicDataflow::dynamic_relation(&source_2), &ctx),
     )
   }
 
-  expect_collection(
-    &target.complete(&ctx),
-    vec![(0i8, 1i8, 2i8), (1i8, 2i8, 5i8)],
-  );
+  expect_collection(&target.complete(&ctx), vec![(0i8, 1i8, 2i8), (1i8, 2i8, 5i8)]);
 }

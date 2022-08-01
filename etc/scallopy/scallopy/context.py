@@ -57,7 +57,6 @@ class ScallopContext(Context):
     k: int = 3,
     train_k: Optional[int] = None,
     test_k: Optional[int] = None,
-    wmc_type: str = "bottom-up",
     fork_from: Optional[ScallopContext] = None
   ):
     super(ScallopContext, self).__init__()
@@ -89,9 +88,8 @@ class ScallopContext(Context):
       self._k = k
       self._train_k = train_k
       self._test_k = test_k
-      self._wmc_type = wmc_type
       self._history_actions: List[HistoryAction] = []
-      self._internal = InternalScallopContext(provenance=provenance, custom_provenance=custom_provenance, k=k, wmc_type=wmc_type)
+      self._internal = InternalScallopContext(provenance=provenance, custom_provenance=custom_provenance, k=k)
     else:
       # Fork from an existing context
       self.provenance = deepcopy(fork_from.provenance)
@@ -102,7 +100,6 @@ class ScallopContext(Context):
       self._k = deepcopy(fork_from._k)
       self._train_k = deepcopy(fork_from._train_k)
       self._test_k = deepcopy(fork_from._test_k)
-      self._wmc_type = deepcopy(fork_from._wmc_type)
       self._history_actions = deepcopy(fork_from._history_actions)
       self._internal = fork_from._internal.clone()
 

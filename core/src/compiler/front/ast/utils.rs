@@ -129,13 +129,7 @@ impl AstNodeLocation {
     for (line_num, line, highlight) in lines {
       let padding_len = padding_length - line_num.len();
       let padding_str = (0..padding_len).map(|_| " ").collect::<String>();
-      println!(
-        "{}{} {} {}",
-        padding_str,
-        line_num.yellow().bold(),
-        bar,
-        line
-      );
+      println!("{}{} {} {}", padding_str, line_num.yellow().bold(), bar, line);
       println!("{} {} {}", whole_padding_str, bar, highlight.red());
     }
   }
@@ -154,11 +148,7 @@ impl std::fmt::Debug for AstNodeLocation {
         write!(f, "[{}-{}]", self.offset_span.start, self.offset_span.end)
       }
       (Some(id), None) => {
-        write!(
-          f,
-          "[#{}, {}-{}]",
-          id, self.offset_span.start, self.offset_span.end
-        )
+        write!(f, "[#{}, {}-{}]", id, self.offset_span.start, self.offset_span.end)
       }
       (None, Some(loc_span)) => {
         write!(

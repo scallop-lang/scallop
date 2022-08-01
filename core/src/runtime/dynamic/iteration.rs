@@ -1,5 +1,6 @@
 use std::collections::*;
 
+use crate::compiler::ram::*;
 use crate::runtime::provenance::*;
 
 use super::dataflow::*;
@@ -87,9 +88,7 @@ impl<'a, T: Tag> DynamicIteration<'a, T> {
       // Perform updates
       for update in &self.updates {
         let dyn_update = self.build_dynamic_update(ctx, update);
-        dyn_update
-          .target
-          .insert_dataflow_recent(ctx, &dyn_update.dataflow);
+        dyn_update.target.insert_dataflow_recent(ctx, &dyn_update.dataflow);
       }
 
       // Update iteration number
@@ -138,11 +137,7 @@ impl<'a, T: Tag> DynamicIteration<'a, T> {
     }
   }
 
-  fn build_dynamic_dataflow(
-    &'a self,
-    ctx: &'a T::Context,
-    dataflow: &Dataflow,
-  ) -> DynamicDataflow<'a, T> {
+  fn build_dynamic_dataflow(&'a self, ctx: &'a T::Context, dataflow: &Dataflow) -> DynamicDataflow<'a, T> {
     match dataflow {
       Dataflow::Unit => {
         if self.is_first_iteration() {
@@ -151,14 +146,13 @@ impl<'a, T: Tag> DynamicIteration<'a, T> {
           DynamicDataflow::stable_unit(ctx)
         }
       }
-      Dataflow::DynamicCollection(c) => {
-        if self.is_first_iteration() {
-          DynamicDataflow::dynamic_recent_collection(self.unsafe_get_input_dynamic_collection(c))
+      Dataflow::Relation(c) => {
+        if self.input_dynamic_collections.contains_key(c) {
+          self.build_dynamic_collection(c)
         } else {
-          DynamicDataflow::dynamic_stable_collection(self.unsafe_get_input_dynamic_collection(c))
+          self.unsafe_get_dynamic_relation(c).into()
         }
       }
-      Dataflow::DynamicRelation(r) => self.unsafe_get_dynamic_relation(r).into(),
       Dataflow::Filter(d, e) => self.build_dynamic_dataflow(ctx, d).filter(e.clone()),
       Dataflow::Find(d, k) => self.build_dynamic_dataflow(ctx, d).find(k.clone()),
       Dataflow::Project(d, e) => self.build_dynamic_dataflow(ctx, d).project(e.clone()),
@@ -192,29 +186,30 @@ impl<'a, T: Tag> DynamicIteration<'a, T> {
         let r2 = self.build_dynamic_dataflow(ctx, d2);
         r1.antijoin(r2, ctx)
       }
-      Dataflow::Aggregation(g, agg) => {
-        let dg = self.build_dynamic_groups(g);
-        dg.aggregate(agg.clone(), ctx)
+      Dataflow::Reduce(a) => {
+        let op = a.op.clone().into();
+        match &a.group_by {
+          ReduceGroupByType::None => {
+            let c = self.build_dynamic_collection(&a.predicate);
+            DynamicAggregationDataflow::single(op, c, ctx).into()
+          }
+          ReduceGroupByType::Implicit => {
+            let c = self.build_dynamic_collection(&a.predicate);
+            DynamicAggregationDataflow::implicit(op, c, ctx).into()
+          }
+          ReduceGroupByType::Join(other) => {
+            let c = self.build_dynamic_collection(&a.predicate);
+            let g = self.build_dynamic_collection(&other);
+            DynamicAggregationDataflow::join(op, g, c, ctx).into()
+          }
+        }
       }
     }
   }
 
-  fn build_dynamic_groups(&'a self, groups: &Groups) -> DynamicGroups<'a, T> {
-    match groups {
-      Groups::SingleCollection(c) => {
-        let col = self.unsafe_get_input_dynamic_collection(c);
-        DynamicGroups::from_collection(col)
-      }
-      Groups::GroupedByKey(c) => {
-        let col = self.unsafe_get_input_dynamic_collection(c);
-        DynamicGroups::group_from_collection(col)
-      }
-      Groups::GroupByJoinCollection(key, main) => {
-        let key_c = self.unsafe_get_input_dynamic_collection(key);
-        let main_c = self.unsafe_get_input_dynamic_collection(main);
-        DynamicGroups::GroupByJoinCollection(key_c, main_c)
-      }
-    }
+  fn build_dynamic_collection(&self, r: &str) -> DynamicDataflow<T> {
+    let col = self.unsafe_get_input_dynamic_collection(r);
+    DynamicDataflow::dynamic_collection(col, self.is_first_iteration())
   }
 }
 

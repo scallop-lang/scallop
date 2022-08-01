@@ -21,12 +21,23 @@ pub enum EDBError {
 impl std::fmt::Debug for EDBError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      Self::RelationTypeError { relation, expected, found, actual } => {
-        f.write_fmt(format_args!("[Relation Type Error] Expected type `{}` for relation `{}`, but found a tuple `{}` of type `{}`", expected, relation, actual, found))
-      }
-      Self::TypeMismatch { expected, found, actual } => {
-        f.write_fmt(format_args!("[Type Mismatch] Expected type `{}`, but found a tuple `{}` of type `{}`", expected, found, actual))
-      }
+      Self::RelationTypeError {
+        relation,
+        expected,
+        found,
+        actual,
+      } => f.write_fmt(format_args!(
+        "[Relation Type Error] Expected type `{}` for relation `{}`, but found a tuple `{}` of type `{}`",
+        expected, relation, actual, found
+      )),
+      Self::TypeMismatch {
+        expected,
+        found,
+        actual,
+      } => f.write_fmt(format_args!(
+        "[Type Mismatch] Expected type `{}`, but found a tuple `{}` of type `{}`",
+        expected, found, actual
+      )),
     }
   }
 }

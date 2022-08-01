@@ -82,11 +82,7 @@ pub enum Attribute {
 }
 
 impl Attribute {
-  pub fn aggregate_body(
-    num_group_by_vars: usize,
-    num_arg_vars: usize,
-    num_key_vars: usize,
-  ) -> Self {
+  pub fn aggregate_body(num_group_by_vars: usize, num_arg_vars: usize, num_key_vars: usize) -> Self {
     Self::AggregateBody(AggregateBodyAttribute {
       num_group_by_vars,
       num_arg_vars,

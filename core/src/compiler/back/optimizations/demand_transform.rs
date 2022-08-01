@@ -13,8 +13,7 @@ impl Program {
     }
 
     // If there is non-empty adornment, we perform whole program transformation
-    let new_rules =
-      demand_transform_with_ctx(&self.rules, &adornments).map_err(BackCompileError::from)?;
+    let new_rules = demand_transform_with_ctx(&self.rules, &adornments).map_err(BackCompileError::from)?;
 
     // If success, update rules
     self.rules = new_rules;
@@ -33,9 +32,7 @@ impl Program {
   }
 }
 
-fn collect_adornments(
-  relations: &Vec<Relation>,
-) -> Result<HashMap<String, Adornment>, DemandTransformError> {
+fn collect_adornments(relations: &Vec<Relation>) -> Result<HashMap<String, Adornment>, DemandTransformError> {
   let mut adornments = HashMap::new();
   for relation in relations {
     if let Some(demand_attr) = relation.attributes.demand_attr() {
@@ -182,15 +179,9 @@ fn generate_demand_rule(base: &Vec<Literal>, goal: &Atom, adm: &Adornment) -> Op
   }
 }
 
-fn generate_sips(
-  sips_gen: &SIPSGenerator,
-  base: Vec<Literal>,
-  to_ground_atoms: Vec<OnDemandAtom>,
-) -> Option<Vec<Arc>> {
+fn generate_sips(sips_gen: &SIPSGenerator, base: Vec<Literal>, to_ground_atoms: Vec<OnDemandAtom>) -> Option<Vec<Arc>> {
   match sips_gen {
-    SIPSGenerator::MaxNumAtomsPerLayer => {
-      generate_sips_with_max_num_atoms_per_layer(base, to_ground_atoms)
-    }
+    SIPSGenerator::MaxNumAtomsPerLayer => generate_sips_with_max_num_atoms_per_layer(base, to_ground_atoms),
   }
 }
 
@@ -386,10 +377,7 @@ impl Pattern {
   }
 
   fn from_str(s: &str) -> Option<Self> {
-    s.chars()
-      .map(Boundness::from_char)
-      .collect::<Option<_>>()
-      .map(Self)
+    s.chars().map(Boundness::from_char).collect::<Option<_>>().map(Self)
   }
 }
 
@@ -456,9 +444,7 @@ impl From<DemandTransformError> for BackCompileError {
 impl std::fmt::Display for DemandTransformError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      Self::InvalidPattern { pattern } => {
-        f.write_fmt(format_args!("Invalid pattern `{}`", pattern))
-      }
+      Self::InvalidPattern { pattern } => f.write_fmt(format_args!("Invalid pattern `{}`", pattern)),
       Self::ArityMismatch {
         predicate,
         pattern,

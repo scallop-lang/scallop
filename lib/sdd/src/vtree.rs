@@ -175,12 +175,7 @@ impl VTree {
       };
     }
 
-    fn recurse(
-      tree: &mut Graph<VTreeNode, ()>,
-      vars: &Vec<usize>,
-      low: usize,
-      high: usize,
-    ) -> NodeIndex {
+    fn recurse(tree: &mut Graph<VTreeNode, ()>, vars: &Vec<usize>, low: usize, high: usize) -> NodeIndex {
       if low == high - 1 {
         tree.add_node(VTreeNode::Leaf { var_id: vars[low] })
       } else {
@@ -204,11 +199,7 @@ impl VTree {
 
   fn post_process(tree: Graph<VTreeNode, ()>, vars: Vec<usize>, root: NodeIndex) -> Self {
     // In order position
-    fn in_order_traversal<F: FnMut(NodeIndex, &VTreeNode)>(
-      tree: &Graph<VTreeNode, ()>,
-      node_id: NodeIndex,
-      f: &mut F,
-    ) {
+    fn in_order_traversal<F: FnMut(NodeIndex, &VTreeNode)>(tree: &Graph<VTreeNode, ()>, node_id: NodeIndex, f: &mut F) {
       match &tree[node_id] {
         VTreeNode::Branch {
           left: VTreeNodeIndex(left),
@@ -257,12 +248,7 @@ impl VTree {
     }
     let mut first_in_subtree_map = HashMap::new();
     let mut last_in_subtree_map = HashMap::new();
-    cache_min_max_in_subtree(
-      &tree,
-      root,
-      &mut first_in_subtree_map,
-      &mut last_in_subtree_map,
-    );
+    cache_min_max_in_subtree(&tree, root, &mut first_in_subtree_map, &mut last_in_subtree_map);
 
     Self {
       tree,
@@ -340,11 +326,7 @@ impl VTree {
       .map(VTreeNodeIndex)
   }
 
-  pub fn lowest_common_ancestor(
-    &self,
-    n1: VTreeNodeIndex,
-    n2: VTreeNodeIndex,
-  ) -> (AncestorType, VTreeNodeIndex) {
+  pub fn lowest_common_ancestor(&self, n1: VTreeNodeIndex, n2: VTreeNodeIndex) -> (AncestorType, VTreeNodeIndex) {
     if n1 == n2 {
       return (AncestorType::Equal, n1);
     }
@@ -555,12 +537,7 @@ impl VTree {
     let mut node_strs = vec![];
     let mut edge_strs = vec![];
 
-    traverse(
-      &self.tree,
-      self.root.clone(),
-      &mut node_strs,
-      &mut edge_strs,
-    );
+    traverse(&self.tree, self.root.clone(), &mut node_strs, &mut edge_strs);
 
     format!(
       "digraph vtree {{ node [shape=record margin=0.03 width=0 height=0]; {} {} }}",

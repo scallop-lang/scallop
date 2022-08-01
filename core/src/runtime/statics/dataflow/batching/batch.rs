@@ -16,7 +16,7 @@ where
   /// Search until the given comparison function returns true on a given element
   fn search_ahead<F>(&mut self, _: F) -> Option<StaticElement<Tup, T>>
   where
-    F: FnMut(&StaticTuple<Tup>) -> bool,
+    F: FnMut(&Tup) -> bool,
   {
     self.next()
   }

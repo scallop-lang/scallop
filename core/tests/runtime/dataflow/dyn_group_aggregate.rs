@@ -1,3 +1,4 @@
+use scallop_core::common::aggregate_op::AggregateOp;
 use scallop_core::common::expr::*;
 use scallop_core::runtime::dynamic::dataflow::*;
 use scallop_core::runtime::dynamic::*;
@@ -43,13 +44,16 @@ fn test_dynamic_group_and_count_1() {
   let mut first_time = true;
   let mut color_count = DynamicRelation::<unit::Unit>::new();
   while color_count.changed(&ctx) || first_time {
-    first_time = false;
-
     color_count.insert_dataflow_recent(
       &ctx,
-      &DynamicGroups::group_from_collection(&completed_rev_color)
-        .aggregate(DynamicAggregateOp::count(Expr::access(())), &ctx),
+      &DynamicAggregationDataflow::implicit(
+        AggregateOp::Count.into(),
+        DynamicDataflow::dynamic_collection(&completed_rev_color, first_time),
+        &ctx,
+      )
+      .into(),
     );
+    first_time = false;
   }
 
   expect_collection(
@@ -97,13 +101,16 @@ fn test_dynamic_group_count_max_1() {
   let mut iter_1_first_time = true;
   let mut color_count = DynamicRelation::<unit::Unit>::new();
   while color_count.changed(&ctx) || iter_1_first_time {
-    iter_1_first_time = false;
-
     color_count.insert_dataflow_recent(
       &ctx,
-      &DynamicGroups::group_from_collection(&completed_rev_color)
-        .aggregate(DynamicAggregateOp::count(Expr::access(())), &ctx),
+      &DynamicAggregationDataflow::implicit(
+        AggregateOp::Count.into(),
+        DynamicDataflow::dynamic_collection(&completed_rev_color, iter_1_first_time),
+        &ctx,
+      )
+      .into(),
     );
+    iter_1_first_time = false;
   }
 
   // Complete agg
@@ -113,15 +120,16 @@ fn test_dynamic_group_count_max_1() {
   let mut iter_2_first_time = true;
   let mut max_count_color = DynamicRelation::<unit::Unit>::new();
   while max_count_color.changed(&ctx) || iter_2_first_time {
-    iter_2_first_time = false;
-
     max_count_color.insert_dataflow_recent(
       &ctx,
-      &DynamicGroups::SingleCollection(&completed_color_count).aggregate(
-        DynamicAggregateOp::max(Some(Expr::access(0)), Expr::access(1)),
+      &DynamicAggregationDataflow::single(
+        AggregateOp::Argmax.into(),
+        DynamicDataflow::dynamic_collection(&completed_color_count, iter_2_first_time),
         &ctx,
-      ),
-    )
+      )
+      .into(),
+    );
+    iter_2_first_time = false;
   }
 
   expect_collection(&max_count_color.complete(&ctx), vec![("green", 3usize)]);

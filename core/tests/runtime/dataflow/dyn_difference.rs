@@ -35,10 +35,7 @@ where
   while source_1.changed(&ctx) || target.changed(&ctx) {
     target.insert_dataflow_recent(
       &ctx,
-      &DynamicDataflow::from(&source_1).difference(
-        DynamicDataflow::dynamic_recent_collection(&source_2_coll),
-        &ctx,
-      ),
+      &DynamicDataflow::from(&source_1).difference(DynamicDataflow::dynamic_recent_collection(&source_2_coll), &ctx),
     )
   }
 

@@ -139,7 +139,7 @@ where
     loop {
       match self.source_iter.next() {
         Some(item) => {
-          if (self.filter_fn)(&item.tuple.0) {
+          if (self.filter_fn)(item.tuple.get()) {
             return Some(item);
           }
         }

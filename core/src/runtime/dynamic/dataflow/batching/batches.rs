@@ -18,6 +18,10 @@ pub enum DynamicBatches<'a, T: Tag> {
 }
 
 impl<'a, T: Tag> DynamicBatches<'a, T> {
+  pub fn empty() -> Self {
+    Self::Empty
+  }
+
   pub fn single(batch: DynamicBatch<'a, T>) -> Self {
     Self::Single(Some(batch))
   }
@@ -51,11 +55,7 @@ impl<'a, T: Tag> DynamicBatches<'a, T> {
     })
   }
 
-  pub fn binary(
-    b1: DynamicBatches<'a, T>,
-    b2: DynamicBatches<'a, T>,
-    op: BatchBinaryOp<'a, T>,
-  ) -> Self {
+  pub fn binary(b1: DynamicBatches<'a, T>, b2: DynamicBatches<'a, T>, op: BatchBinaryOp<'a, T>) -> Self {
     Self::Binary(DynamicBatchesBinary::new(b1, b2, op))
   }
 }
@@ -125,11 +125,7 @@ pub struct DynamicBatchesBinary<'a, T: Tag> {
 }
 
 impl<'a, T: Tag> DynamicBatchesBinary<'a, T> {
-  pub fn new(
-    mut b1: DynamicBatches<'a, T>,
-    b2: DynamicBatches<'a, T>,
-    op: BatchBinaryOp<'a, T>,
-  ) -> Self {
+  pub fn new(mut b1: DynamicBatches<'a, T>, b2: DynamicBatches<'a, T>, op: BatchBinaryOp<'a, T>) -> Self {
     let b1_curr = b1.next();
     let b2_source = b2.clone();
     Self {

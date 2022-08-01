@@ -3,7 +3,9 @@ use std::marker::PhantomData;
 use itertools::Itertools;
 
 use super::*;
+use crate::common::element::*;
 use crate::runtime::dynamic::*;
+use crate::runtime::statics::*;
 use crate::utils::PointerFamily;
 
 #[derive(Clone, Debug)]
@@ -211,19 +213,18 @@ impl<T: Clone + 'static, P: PointerFamily> DiffAddMultProbContext<T, P> {
     self.storage.iter().cloned().collect()
   }
 
-  pub fn tag_of_chosen_set(
-    &self,
-    all: &Vec<DynamicElement<DiffProb<T, P>>>,
-    chosen_ids: &Vec<usize>,
-  ) -> DiffProb<T, P> {
+  pub fn tag_of_chosen_set<E>(&self, all: &Vec<E>, chosen_ids: &Vec<usize>) -> DiffProb<T, P>
+  where
+    E: Element<DiffProb<T, P>>,
+  {
     all
       .iter()
       .enumerate()
       .map(|(id, elem)| {
         if chosen_ids.contains(&id) {
-          elem.tag.clone()
+          elem.tag().clone()
         } else {
-          self.negate(&elem.tag).unwrap()
+          self.negate(&elem.tag()).unwrap()
         }
       })
       .fold(self.one(), |a, b| self.mult(&a, &b))
@@ -294,22 +295,21 @@ impl<T: Clone + 'static, P: PointerFamily> ProvenanceContext for DiffAddMultProb
     Some(-t)
   }
 
-  fn dynamic_count<'a>(&self, op: &DynamicCountOp, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
+  fn dynamic_count(&self, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
     let mut result = vec![];
-    let vec_batch = project_batch_helper(batch, &op.key, self);
-    if vec_batch.is_empty() {
-      result.push(DynamicElement::new(0usize.into(), self.one()));
+    if batch.is_empty() {
+      result.push(DynamicElement::new(0usize, self.one()));
     } else {
-      for chosen_set in (0..vec_batch.len()).powerset() {
+      for chosen_set in (0..batch.len()).powerset() {
         let count = chosen_set.len();
-        let tag = self.tag_of_chosen_set(&vec_batch, &chosen_set);
-        result.push(DynamicElement::new(count.into(), tag));
+        let tag = self.tag_of_chosen_set(&batch, &chosen_set);
+        result.push(DynamicElement::new(count, tag));
       }
     }
     result
   }
 
-  fn dynamic_exists<'a>(&self, _: &DynamicExistsOp, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
+  fn dynamic_exists(&self, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
     let mut max_prob = 0.0;
     let mut max_info = None;
     for elem in batch {
@@ -320,29 +320,81 @@ impl<T: Clone + 'static, P: PointerFamily> ProvenanceContext for DiffAddMultProb
       }
     }
     if let Some(tag) = max_info {
-      let f = DynamicElement::new(false.into(), -&tag);
-      let t = DynamicElement::new(true.into(), tag);
+      let f = DynamicElement::new(false, self.negate(&tag).unwrap());
+      let t = DynamicElement::new(true, tag);
       vec![f, t]
     } else {
-      let e = DynamicElement::new(false.into(), self.one());
+      let e = DynamicElement::new(false, self.one());
       vec![e]
     }
   }
 
-  fn dynamic_unique<'a>(&self, op: &DynamicUniqueOp, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
+  fn dynamic_unique(&self, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
     let mut max_prob = 0.0;
     let mut max_info = None;
     for elem in batch {
       let prob = elem.tag.prob;
       if prob > max_prob {
         max_prob = prob;
-        max_info = Some((op.key.eval(&elem.tuple), elem.tag.clone()));
+        max_info = Some(elem.clone());
       }
     }
-    if let Some((tuple, tag)) = max_info {
-      vec![DynamicElement::new(tuple, tag.clone())]
+    max_info.into_iter().collect()
+  }
+
+  fn static_count<Tup: StaticTupleTrait>(
+    &self,
+    batch: StaticElements<Tup, Self::Tag>,
+  ) -> StaticElements<usize, Self::Tag> {
+    let mut result = vec![];
+    if batch.is_empty() {
+      result.push(StaticElement::new(0usize, self.one()));
     } else {
-      vec![]
+      for chosen_set in (0..batch.len()).powerset() {
+        let count = chosen_set.len();
+        let tag = self.tag_of_chosen_set(&batch, &chosen_set);
+        result.push(StaticElement::new(count, tag));
+      }
     }
+    result
+  }
+
+  fn static_exists<Tup: StaticTupleTrait>(
+    &self,
+    batch: StaticElements<Tup, Self::Tag>,
+  ) -> StaticElements<bool, Self::Tag> {
+    let mut max_prob = 0.0;
+    let mut max_info = None;
+    for elem in batch {
+      let prob = elem.tag.prob;
+      if prob > max_prob {
+        max_prob = prob;
+        max_info = Some(elem.tag.clone());
+      }
+    }
+    if let Some(tag) = max_info {
+      let f = StaticElement::new(false, self.negate(&tag).unwrap());
+      let t = StaticElement::new(true, tag);
+      vec![f, t]
+    } else {
+      let e = StaticElement::new(false, self.one());
+      vec![e]
+    }
+  }
+
+  fn static_unique<Tup: StaticTupleTrait>(
+    &self,
+    batch: StaticElements<Tup, Self::Tag>,
+  ) -> StaticElements<Tup, Self::Tag> {
+    let mut max_prob = 0.0;
+    let mut max_info = None;
+    for elem in batch {
+      let prob = elem.tag.prob;
+      if prob > max_prob {
+        max_prob = prob;
+        max_info = Some(elem.clone());
+      }
+    }
+    max_info.into_iter().collect()
   }
 }

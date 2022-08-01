@@ -1,5 +1,6 @@
 // use std::rc::Rc;
 
+use super::tuple::*;
 use super::value::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -167,52 +168,24 @@ impl ValueType {
   pub fn parse(&self, s: &str) -> Result<Value, ValueParseError> {
     match self {
       // Signed
-      Self::I8 => Ok(Value::I8(
-        s.parse().map_err(|_| ValueParseError::new(s, self))?,
-      )),
-      Self::I16 => Ok(Value::I16(
-        s.parse().map_err(|_| ValueParseError::new(s, self))?,
-      )),
-      Self::I32 => Ok(Value::I32(
-        s.parse().map_err(|_| ValueParseError::new(s, self))?,
-      )),
-      Self::I64 => Ok(Value::I64(
-        s.parse().map_err(|_| ValueParseError::new(s, self))?,
-      )),
-      Self::I128 => Ok(Value::I128(
-        s.parse().map_err(|_| ValueParseError::new(s, self))?,
-      )),
-      Self::ISize => Ok(Value::ISize(
-        s.parse().map_err(|_| ValueParseError::new(s, self))?,
-      )),
+      Self::I8 => Ok(Value::I8(s.parse().map_err(|_| ValueParseError::new(s, self))?)),
+      Self::I16 => Ok(Value::I16(s.parse().map_err(|_| ValueParseError::new(s, self))?)),
+      Self::I32 => Ok(Value::I32(s.parse().map_err(|_| ValueParseError::new(s, self))?)),
+      Self::I64 => Ok(Value::I64(s.parse().map_err(|_| ValueParseError::new(s, self))?)),
+      Self::I128 => Ok(Value::I128(s.parse().map_err(|_| ValueParseError::new(s, self))?)),
+      Self::ISize => Ok(Value::ISize(s.parse().map_err(|_| ValueParseError::new(s, self))?)),
 
       // Unsigned
-      Self::U8 => Ok(Value::U8(
-        s.parse().map_err(|_| ValueParseError::new(s, self))?,
-      )),
-      Self::U16 => Ok(Value::U16(
-        s.parse().map_err(|_| ValueParseError::new(s, self))?,
-      )),
-      Self::U32 => Ok(Value::U32(
-        s.parse().map_err(|_| ValueParseError::new(s, self))?,
-      )),
-      Self::U64 => Ok(Value::U64(
-        s.parse().map_err(|_| ValueParseError::new(s, self))?,
-      )),
-      Self::U128 => Ok(Value::U128(
-        s.parse().map_err(|_| ValueParseError::new(s, self))?,
-      )),
-      Self::USize => Ok(Value::USize(
-        s.parse().map_err(|_| ValueParseError::new(s, self))?,
-      )),
+      Self::U8 => Ok(Value::U8(s.parse().map_err(|_| ValueParseError::new(s, self))?)),
+      Self::U16 => Ok(Value::U16(s.parse().map_err(|_| ValueParseError::new(s, self))?)),
+      Self::U32 => Ok(Value::U32(s.parse().map_err(|_| ValueParseError::new(s, self))?)),
+      Self::U64 => Ok(Value::U64(s.parse().map_err(|_| ValueParseError::new(s, self))?)),
+      Self::U128 => Ok(Value::U128(s.parse().map_err(|_| ValueParseError::new(s, self))?)),
+      Self::USize => Ok(Value::USize(s.parse().map_err(|_| ValueParseError::new(s, self))?)),
 
       // Floating point
-      Self::F32 => Ok(Value::F32(
-        s.parse().map_err(|_| ValueParseError::new(s, self))?,
-      )),
-      Self::F64 => Ok(Value::F64(
-        s.parse().map_err(|_| ValueParseError::new(s, self))?,
-      )),
+      Self::F32 => Ok(Value::F32(s.parse().map_err(|_| ValueParseError::new(s, self))?)),
+      Self::F64 => Ok(Value::F64(s.parse().map_err(|_| ValueParseError::new(s, self))?)),
 
       // Boolean
       Self::Bool => match s {
@@ -220,14 +193,64 @@ impl ValueType {
         "false" => Ok(Value::Bool(false)),
         _ => Err(ValueParseError::new(s, self)),
       },
-      Self::Char => Ok(Value::Char(
-        s.parse().map_err(|_| ValueParseError::new(s, self))?,
-      )),
+      Self::Char => Ok(Value::Char(s.parse().map_err(|_| ValueParseError::new(s, self))?)),
 
       // String
       Self::Str => panic!("Cannot parse into a static string"),
       Self::String => Ok(Value::String(s.to_string())),
       // Self::RcString => Ok(Value::RcString(Rc::new(s.to_string()))),
+    }
+  }
+
+  pub fn sum<'a, I: Iterator<Item = &'a Tuple>>(&self, i: I) -> Tuple {
+    match self {
+      Self::I8 => i.fold(0, |a, v| a + v.as_i8()).into(),
+      Self::I16 => i.fold(0, |a, v| a + v.as_i16()).into(),
+      Self::I32 => i.fold(0, |a, v| a + v.as_i32()).into(),
+      Self::I64 => i.fold(0, |a, v| a + v.as_i64()).into(),
+      Self::I128 => i.fold(0, |a, v| a + v.as_i128()).into(),
+      Self::ISize => i.fold(0, |a, v| a + v.as_isize()).into(),
+
+      // Unsigned
+      Self::U8 => i.fold(0, |a, v| a + v.as_u8()).into(),
+      Self::U16 => i.fold(0, |a, v| a + v.as_u16()).into(),
+      Self::U32 => i.fold(0, |a, v| a + v.as_u32()).into(),
+      Self::U64 => i.fold(0, |a, v| a + v.as_u64()).into(),
+      Self::U128 => i.fold(0, |a, v| a + v.as_u128()).into(),
+      Self::USize => i.fold(0, |a, v| a + v.as_usize()).into(),
+
+      // Floating point
+      Self::F32 => i.fold(0.0, |a, v| a + v.as_f32()).into(),
+      Self::F64 => i.fold(0.0, |a, v| a + v.as_f64()).into(),
+
+      // Others
+      _ => panic!("Cannot perform sum on type `{}`", self),
+    }
+  }
+
+  pub fn prod<'a, I: Iterator<Item = &'a Tuple>>(&self, i: I) -> Tuple {
+    match self {
+      Self::I8 => i.fold(1, |a, v| a * v.as_i8()).into(),
+      Self::I16 => i.fold(1, |a, v| a * v.as_i16()).into(),
+      Self::I32 => i.fold(1, |a, v| a * v.as_i32()).into(),
+      Self::I64 => i.fold(1, |a, v| a * v.as_i64()).into(),
+      Self::I128 => i.fold(1, |a, v| a * v.as_i128()).into(),
+      Self::ISize => i.fold(1, |a, v| a * v.as_isize()).into(),
+
+      // Unsigned
+      Self::U8 => i.fold(1, |a, v| a * v.as_u8()).into(),
+      Self::U16 => i.fold(1, |a, v| a * v.as_u16()).into(),
+      Self::U32 => i.fold(1, |a, v| a * v.as_u32()).into(),
+      Self::U64 => i.fold(1, |a, v| a * v.as_u64()).into(),
+      Self::U128 => i.fold(1, |a, v| a * v.as_u128()).into(),
+      Self::USize => i.fold(1, |a, v| a * v.as_usize()).into(),
+
+      // Floating point
+      Self::F32 => i.fold(1.0, |a, v| a * v.as_f32()).into(),
+      Self::F64 => i.fold(1.0, |a, v| a * v.as_f64()).into(),
+
+      // Others
+      _ => panic!("Cannot perform sum on type `{}`", self),
     }
   }
 }
@@ -249,10 +272,7 @@ impl ValueParseError {
 
 impl std::fmt::Display for ValueParseError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.write_fmt(format_args!(
-      "Cannot parse value `{}` as `{}`",
-      self.source, self.ty
-    ))
+    f.write_fmt(format_args!("Cannot parse value `{}` as `{}`", self.source, self.ty))
   }
 }
 

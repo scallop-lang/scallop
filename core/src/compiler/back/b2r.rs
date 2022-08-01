@@ -3,7 +3,6 @@ use std::collections::*;
 use itertools::Itertools;
 
 use super::*;
-use crate::common::aggregate_op::AggregateOp;
 use crate::common::binary_op::BinaryOp;
 use crate::common::expr::Expr;
 use crate::common::output_option::OutputOption;
@@ -12,7 +11,6 @@ use crate::common::tuple_access::TupleAccessor;
 use crate::common::tuple_type::TupleType;
 use crate::common::unary_op::UnaryOp;
 use crate::compiler::ram::{self, ReduceGroupByType};
-use crate::runtime::dynamic::DynamicAggregateOp;
 use crate::utils::IdAllocator;
 
 struct B2RContext<'a> {
@@ -81,12 +79,8 @@ impl Program {
       .enumerate()
       .map(|(_, s)| {
         // Compute the ram stratum
-        let ram_stratum = self.stratum_to_ram_stratum(
-          s,
-          &mut id_alloc,
-          &mut pred_permutations,
-          &mut negative_dataflows,
-        );
+        let ram_stratum =
+          self.stratum_to_ram_stratum(s, &mut id_alloc, &mut pred_permutations, &mut negative_dataflows);
 
         // Return the stratum
         ram_stratum
@@ -108,9 +102,7 @@ impl Program {
             perm_relations.insert(perm_pred.clone(), perm_relation);
 
             // Add permutation update
-            stratum
-              .updates
-              .push(self.perm_to_ram_update(perm_pred, pred, perm));
+            stratum.updates.push(self.perm_to_ram_update(perm_pred, pred, perm));
           }
         }
       }
@@ -207,15 +199,20 @@ impl Program {
         let ty = TupleType::from_types(&rel.arg_types[..num_group_by], true);
         elems.push(ty);
       }
+      let to_agg_elems = TupleType::from_types(&rel.arg_types[num_group_by + num_args..], true);
       if num_args > 0 {
         let start = num_group_by;
         let end = num_group_by + num_args;
         let ty = TupleType::from_types(&rel.arg_types[start..end], true);
-        elems.push(ty);
+        elems.push((ty, to_agg_elems).into());
+      } else {
+        elems.push(to_agg_elems);
       }
-      let start = num_group_by + num_args;
-      elems.push(TupleType::from_types(&rel.arg_types[start..], true));
-      TupleType::Tuple(elems.into())
+      if elems.len() == 1 {
+        elems[0].clone()
+      } else {
+        TupleType::Tuple(elems.into())
+      }
     } else if let Some(agg_group_by_attr) = rel.attributes.aggregate_group_by_attr() {
       let num_group_by = agg_group_by_attr.num_join_group_by_vars;
 
@@ -247,12 +244,7 @@ impl Program {
       .filter_map(|disjunction| {
         assert!(disjunction.len() > 1);
         if &disjunction[0].predicate == pred {
-          Some(
-            disjunction
-              .iter()
-              .map(|f| self.fact_to_ram_fact(f))
-              .collect(),
-          )
+          Some(disjunction.iter().map(|f| self.fact_to_ram_fact(f)).collect())
         } else {
           None
         }
@@ -267,11 +259,7 @@ impl Program {
     };
 
     // Check output file
-    let output = self
-      .outputs
-      .get(pred)
-      .cloned()
-      .unwrap_or(OutputOption::Hidden);
+    let output = self.outputs.get(pred).cloned().unwrap_or(OutputOption::Hidden);
 
     // The Final Relation
     let ram_relation = ram::Relation {
@@ -323,9 +311,7 @@ impl Program {
       HighRamNode::Filter(d, f) => self.filter_plan_to_ram_dataflow(ctx, goal, &*d, f, prop),
       HighRamNode::Project(d, p) => self.project_plan_to_ram_dataflow(ctx, goal, &*d, p, prop),
       HighRamNode::Join(d1, d2) => self.join_plan_to_ram_dataflow(ctx, goal, &*d1, &*d2, prop),
-      HighRamNode::Antijoin(d1, d2) => {
-        self.antijoin_plan_to_ram_dataflow(ctx, goal, &*d1, &*d2, prop)
-      }
+      HighRamNode::Antijoin(d1, d2) => self.antijoin_plan_to_ram_dataflow(ctx, goal, &*d1, &*d2, prop),
       HighRamNode::Reduce(r) => self.reduce_plan_to_ram_dataflow(ctx, goal, r, prop),
     }
   }
@@ -393,19 +379,13 @@ impl Program {
       let sub_goal = VariableTuple::from((constants_sub_goal, variables_sub_goal));
 
       // 1. Project it into (constants, variables) tuple
-      let project_1_dataflow =
-        self.ground_plan_to_ram_dataflow(ctx, &sub_goal, &sub_atom, prop.with_need_sorted(true));
+      let project_1_dataflow = self.ground_plan_to_ram_dataflow(ctx, &sub_goal, &sub_atom, prop.with_need_sorted(true));
 
       // 2. Find using the constants
       let find_tuple = if constants.len() == 1 {
         Tuple::Value(constants[0].1.clone())
       } else {
-        Tuple::Tuple(
-          constants
-            .into_iter()
-            .map(|(_, t)| Tuple::Value(t.clone()))
-            .collect(),
-        )
+        Tuple::Tuple(constants.into_iter().map(|(_, t)| Tuple::Value(t.clone())).collect())
       };
       let find_dataflow = ram::Dataflow::find(project_1_dataflow, find_tuple);
 
@@ -462,10 +442,7 @@ impl Program {
     );
     let sub_dataflow = self.plan_to_ram_dataflow(ctx, &sub_goal, subplan, prop.clone());
     let filter = self.constraints_to_ram_filter(&sub_goal, filters);
-    let project = ram::Dataflow::project(
-      ram::Dataflow::filter(sub_dataflow, filter),
-      sub_goal.projection(goal),
-    );
+    let project = ram::Dataflow::project(ram::Dataflow::filter(sub_dataflow, filter), sub_goal.projection(goal));
     // TODO: Optimize the case where sub_goal to goal preserves ordering
     Self::process_dataflow(ctx, goal, project, prop)
   }
@@ -482,37 +459,21 @@ impl Program {
     let bounded = goal_variables
       .intersection(&subplan.bounded_vars)
       .collect::<HashSet<_>>();
-    let to_bound = goal_variables
-      .difference(&subplan.bounded_vars)
-      .collect::<HashSet<_>>();
+    let to_bound = goal_variables.difference(&subplan.bounded_vars).collect::<HashSet<_>>();
     if to_bound.is_empty() {
       self.plan_to_ram_dataflow(ctx, goal, subplan, prop)
     } else if !assigns.is_empty() {
-      let (current_assigns, rest): (Vec<_>, Vec<_>) = assigns
-        .iter()
-        .cloned()
-        .partition(|a| to_bound.contains(&a.left));
+      let (current_assigns, rest): (Vec<_>, Vec<_>) = assigns.iter().cloned().partition(|a| to_bound.contains(&a.left));
       let sub_goal_vars = bounded.into_iter().cloned().chain(
         current_assigns
           .iter()
           .flat_map(|a| a.variable_args().into_iter().cloned()),
       );
       let sub_goal = VariableTuple::from_vars(sub_goal_vars, false.into());
-      let current_assigns = current_assigns
-        .into_iter()
-        .map(|a| (a.left, a.right))
-        .collect();
-      let sub_dataflow = self.project_plan_to_ram_dataflow(
-        ctx,
-        &sub_goal,
-        subplan,
-        &rest,
-        prop.with_need_sorted(false),
-      );
-      let dataflow = ram::Dataflow::project(
-        sub_dataflow,
-        sub_goal.projection_assigns(goal, &current_assigns),
-      );
+      let current_assigns = current_assigns.into_iter().map(|a| (a.left, a.right)).collect();
+      let sub_dataflow =
+        self.project_plan_to_ram_dataflow(ctx, &sub_goal, subplan, &rest, prop.with_need_sorted(false));
+      let dataflow = ram::Dataflow::project(sub_dataflow, sub_goal.projection_assigns(goal, &current_assigns));
       Self::process_dataflow(ctx, goal, dataflow, prop)
     } else {
       panic!("[Internal Error] Non-empty to_bound but with no more assign expressions");
@@ -624,10 +585,7 @@ impl Program {
       .intersection(&d1.bounded_vars)
       .cloned()
       .collect::<HashSet<_>>();
-    let d1_vars = d1_vars_set
-      .difference(&join_vars)
-      .sorted()
-      .collect::<Vec<_>>();
+    let d1_vars = d1_vars_set.difference(&join_vars).sorted().collect::<Vec<_>>();
     let d1_var_tuple = VariableTuple::from_vars(d1_vars.into_iter().cloned(), true);
     let d1_sub_goal = VariableTuple::from((joint_var_tuple.clone(), d1_var_tuple.clone()));
     let d1_dataflow = self.plan_to_ram_dataflow(ctx, &d1_sub_goal, d1, true.into());
@@ -638,23 +596,15 @@ impl Program {
       .intersection(&d2.bounded_vars)
       .cloned()
       .collect::<HashSet<_>>();
-    let d2_vars = d2_vars_set
-      .difference(&join_vars)
-      .sorted()
-      .collect::<Vec<_>>();
+    let d2_vars = d2_vars_set.difference(&join_vars).sorted().collect::<Vec<_>>();
     let d2_var_tuple = VariableTuple::from_vars(d2_vars.into_iter().cloned(), true);
     let d2_sub_goal = VariableTuple::from((joint_var_tuple.clone(), d2_var_tuple.clone()));
     let d2_dataflow = self.plan_to_ram_dataflow(ctx, &d2_sub_goal, d2, true.into());
 
     // 4. Join them
-    let joint_sub_goal = VariableTuple::from((
-      joint_var_tuple.clone(),
-      d1_var_tuple.clone(),
-      d2_var_tuple.clone(),
-    ));
+    let joint_sub_goal = VariableTuple::from((joint_var_tuple.clone(), d1_var_tuple.clone(), d2_var_tuple.clone()));
     let joint_dataflow = ram::Dataflow::join(d1_dataflow, d2_dataflow);
-    let projected_joint_dataflow =
-      ram::Dataflow::project(joint_dataflow, joint_sub_goal.projection(goal));
+    let projected_joint_dataflow = ram::Dataflow::project(joint_dataflow, joint_sub_goal.projection(goal));
 
     // 5. Create temporary relation if needed to be sorted
     Self::process_dataflow(ctx, goal, projected_joint_dataflow, prop)
@@ -702,10 +652,7 @@ impl Program {
       .intersection(&d1.bounded_vars)
       .cloned()
       .collect::<HashSet<_>>();
-    let d1_vars = d1_vars_set
-      .difference(&join_vars)
-      .sorted()
-      .collect::<Vec<_>>();
+    let d1_vars = d1_vars_set.difference(&join_vars).sorted().collect::<Vec<_>>();
     let d1_var_tuple = VariableTuple::from_vars(d1_vars.into_iter().cloned(), true);
     let d1_sub_goal = VariableTuple::from((joint_var_tuple.clone(), d1_var_tuple.clone()));
     let d1_dataflow = self.plan_to_ram_dataflow(ctx, &d1_sub_goal, d1, true.into());
@@ -762,67 +709,38 @@ impl Program {
     r: &Reduce,
     prop: DataflowProp,
   ) -> ram::Dataflow {
-    // Helper function to get the dynamic aggregate operation
-    let dyn_agg_op = |key_index: usize, arg_index: Option<usize>| -> DynamicAggregateOp {
-      match &r.op {
-        AggregateOp::Count => DynamicAggregateOp::count(Expr::access(key_index)),
-        AggregateOp::Max => {
-          DynamicAggregateOp::max(arg_index.map(|i| Expr::access(i)), Expr::access(key_index))
-        }
-        AggregateOp::Min => {
-          DynamicAggregateOp::min(arg_index.map(|i| Expr::access(i)), Expr::access(key_index))
-        }
-        AggregateOp::Sum => {
-          let res_ty = r.left_vars[0].ty.clone();
-          DynamicAggregateOp::sum(Expr::access(key_index), res_ty)
-        }
-        AggregateOp::Prod => {
-          let res_ty = r.left_vars[0].ty.clone();
-          DynamicAggregateOp::prod(Expr::access(key_index), res_ty)
-        }
-        AggregateOp::Exists => DynamicAggregateOp::exists(),
-        AggregateOp::Forall => {
-          panic!("Forall should be desugared during front transformation phase")
-        }
-        AggregateOp::Unique => DynamicAggregateOp::unique(Expr::access(key_index)),
-      }
-    };
-
     // Handle different versions of reduce...
     let lt = VariableTuple::from_vars(r.left_vars.iter().cloned(), true);
-    let (var_tuple, acc, arg_acc, has_group_by) = if !r.group_by_vars.is_empty() {
+    let (var_tuple, has_group_by) = if !r.group_by_vars.is_empty() {
       let gbt = VariableTuple::from_vars(r.group_by_vars.iter().cloned(), true);
-      if r.group_by_formula.is_some() {
+      let vt = if r.group_by_formula.is_some() {
         let ogbt = VariableTuple::from_vars(r.other_group_by_vars.iter().cloned(), true);
         if !r.arg_vars.is_empty() {
           let avt = VariableTuple::from_vars(r.arg_vars.iter().cloned(), true);
-          let var_tuple = VariableTuple::from((gbt, ogbt, (avt, lt)));
-          (var_tuple, 2, Some(1), true)
+          VariableTuple::from((gbt, ogbt, (avt, lt)))
         } else {
           // With group by, no arg
-          let var_tuple = VariableTuple::from((gbt, ogbt, lt));
-          (var_tuple, 1, None, true)
+          VariableTuple::from((gbt, ogbt, lt))
         }
       } else {
         if !r.arg_vars.is_empty() {
           let avt = VariableTuple::from_vars(r.arg_vars.iter().cloned(), true);
-          let var_tuple = VariableTuple::from((gbt, (avt, lt)));
-          (var_tuple, 2, Some(1), true)
+          VariableTuple::from((gbt, (avt, lt)))
         } else {
           // With group by, no arg
-          let var_tuple = VariableTuple::from((gbt, lt));
-          (var_tuple, 1, None, true)
+          VariableTuple::from((gbt, lt))
         }
-      }
+      };
+      (vt, true)
     } else {
       if !r.arg_vars.is_empty() {
         // No group by, with arg
         let avt = VariableTuple::from_vars(r.arg_vars.iter().cloned(), true);
         let var_tuple = VariableTuple::from((avt, lt));
-        (var_tuple, 1, Some(0), false)
+        (var_tuple, false)
       } else {
         // No group_by, no arg
-        (lt, 0, None, false)
+        (lt, false)
       }
     };
 
@@ -838,11 +756,7 @@ impl Program {
     };
 
     // Construct the reduce and the dataflow
-    let agg = ram::Dataflow::reduce(
-      dyn_agg_op(acc, arg_acc),
-      r.body_formula.predicate.clone(),
-      group_by,
-    );
+    let agg = ram::Dataflow::reduce(r.op.clone(), r.body_formula.predicate.clone(), group_by);
     let dataflow = ram::Dataflow::project(agg, var_tuple.projection(goal));
 
     // Check if we need to store into temporary variable
@@ -880,18 +794,23 @@ impl Program {
         let tuple_vars = VariableTuple::from_vars(head_args[..num_group_by].iter().cloned(), true);
         elems.push(tuple_vars);
       }
+      let start = num_group_by + num_args;
+      let to_agg_tuple = VariableTuple::from_vars(head_args[start..].iter().cloned(), true);
       if num_args > 0 {
         let start = num_group_by;
         let end = num_group_by + num_args;
         let tuple_args = VariableTuple::from_vars(head_args[start..end].iter().cloned(), true);
-        elems.push(tuple_args);
+        elems.push((tuple_args, to_agg_tuple).into());
+      } else {
+        elems.push(to_agg_tuple);
       }
-      let start = num_group_by + num_args;
-      elems.push(VariableTuple::from_vars(
-        head_args[start..].iter().cloned(),
-        true,
-      ));
-      let var_tuple = VariableTuple::Tuple(elems.into());
+
+      // Combine them into a var tuple
+      let var_tuple = if elems.len() == 1 {
+        elems[0].clone()
+      } else {
+        VariableTuple::Tuple(elems.into())
+      };
 
       // Aggregate relation does not need projection, as there is no constant in the head
       (var_tuple, false)
@@ -956,21 +875,13 @@ impl Program {
     goal.subtuple(sorted_vars.into_iter())
   }
 
-  fn constraints_to_ram_filter(
-    &self,
-    var_tuple: &VariableTuple,
-    constraints: &Vec<Constraint>,
-  ) -> Expr {
+  fn constraints_to_ram_filter(&self, var_tuple: &VariableTuple, constraints: &Vec<Constraint>) -> Expr {
     let term_to_expr = |t: &Term| match t {
       Term::Constant(c) => Expr::Constant(c.clone()),
       Term::Variable(v) => Expr::Access(var_tuple.accessor_of(v).unwrap()),
     };
     let constraint_to_expr = |c: &Constraint| match c {
-      Constraint::Binary(b) => Expr::binary(
-        BinaryOp::from(&b.op),
-        term_to_expr(&b.op1),
-        term_to_expr(&b.op2),
-      ),
+      Constraint::Binary(b) => Expr::binary(BinaryOp::from(&b.op), term_to_expr(&b.op1), term_to_expr(&b.op2)),
       Constraint::Unary(u) => Expr::unary(UnaryOp::from(&u.op), term_to_expr(&u.op1)),
     };
     let mut expr = constraint_to_expr(&constraints[0]);
@@ -991,11 +902,7 @@ impl Program {
     let relation = ram::Relation::new(relation_name.clone(), relation_type);
 
     // Get the sources
-    let sources = dataflow
-      .source_relations()
-      .into_iter()
-      .cloned()
-      .collect::<HashSet<_>>();
+    let sources = dataflow.source_relations().into_iter().cloned().collect::<HashSet<_>>();
 
     // Insert negative dataflow
     ctx.negative_dataflows.push(NegativeDataflow {
@@ -1008,11 +915,7 @@ impl Program {
     ram::Dataflow::Relation(relation_name)
   }
 
-  fn create_temp_relation(
-    ctx: &mut B2RContext,
-    goal: &VariableTuple,
-    dataflow: ram::Dataflow,
-  ) -> ram::Dataflow {
+  fn create_temp_relation(ctx: &mut B2RContext, goal: &VariableTuple, dataflow: ram::Dataflow) -> ram::Dataflow {
     // Create relation
     let relation_name = format!("#temp#{}", ctx.id_alloc.alloc());
     let relation_type = goal.tuple_type();
@@ -1067,12 +970,7 @@ impl Program {
     }
   }
 
-  fn perm_to_ram_update(
-    &self,
-    perm_pred_name: String,
-    pred_name: &String,
-    perm: &Permutation,
-  ) -> ram::Update {
+  fn perm_to_ram_update(&self, perm_pred_name: String, pred_name: &String, perm: &Permutation) -> ram::Update {
     ram::Update {
       target: perm_pred_name,
       dataflow: ram::Dataflow::project(ram::Dataflow::relation(pred_name.clone()), perm.expr()),

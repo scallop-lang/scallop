@@ -127,8 +127,7 @@ fn main() {
         dynamic::interpret_with_options(ram, &mut ctx, &interpret_options).expect("Runtime error");
       }
       "topbottomkclauses" => {
-        let mut ctx =
-          provenance::top_bottom_k_clauses::TopBottomKClausesContext::<RcFamily>::new(opt.top_k);
+        let mut ctx = provenance::top_bottom_k_clauses::TopBottomKClausesContext::<RcFamily>::new(opt.top_k);
         dynamic::interpret_with_options(ram, &mut ctx, &interpret_options).expect("Runtime error");
       }
       _ => {
@@ -142,39 +141,31 @@ fn main() {
     match opt.provenance.as_str() {
       "unit" => {
         let mut ctx = provenance::unit::UnitContext::default();
-        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m)
-          .expect("Runtime error");
+        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
       }
       "bool" => {
         let mut ctx = provenance::boolean::BooleanContext::default();
-        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m)
-          .expect("Runtime error");
+        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
       }
       "proofs" => {
         let mut ctx = provenance::proofs::ProofsContext::default();
-        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m)
-          .expect("Runtime error");
+        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
       }
       "minmaxprob" => {
         let mut ctx = provenance::min_max_prob::MinMaxProbContext::default();
-        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m)
-          .expect("Runtime error");
+        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
       }
       "addmultprob" => {
         let mut ctx = provenance::add_mult_prob::AddMultProbContext::default();
-        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m)
-          .expect("Runtime error");
+        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
       }
       "topkproofs" => {
         let mut ctx = provenance::top_k_proofs::TopKProofsContext::<RcFamily>::new(opt.top_k);
-        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m)
-          .expect("Runtime error");
+        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
       }
       "topbottomkclauses" => {
-        let mut ctx =
-          provenance::top_bottom_k_clauses::TopBottomKClausesContext::<RcFamily>::new(opt.top_k);
-        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m)
-          .expect("Runtime error");
+        let mut ctx = provenance::top_bottom_k_clauses::TopBottomKClausesContext::<RcFamily>::new(opt.top_k);
+        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
       }
       _ => {
         println!("Unknown provenance semiring `{}`", opt.provenance);

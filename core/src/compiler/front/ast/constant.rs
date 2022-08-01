@@ -58,10 +58,7 @@ impl Constant {
       (String(_), ValueType::Str) => panic!("Cannot cast dynamic string into static string"),
       (String(s), ValueType::String) => Value::String(s.clone()),
       // (String(s), ValueType::RcString) => Value::RcString(Rc::new(s.clone())),
-      _ => panic!(
-        "Cannot convert front Constant `{:?}` to Type `{}`",
-        self, ty
-      ),
+      _ => panic!("Cannot convert front Constant `{:?}` to Type `{}`", self, ty),
     }
   }
 

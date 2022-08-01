@@ -47,10 +47,7 @@ pub trait DNFContextTrait {
     } else if clauses.len() <= k {
       clauses
     } else {
-      let weights = clauses
-        .iter()
-        .map(|p| self.clause_probability(p))
-        .collect::<Vec<_>>();
+      let weights = clauses.iter().map(|p| self.clause_probability(p)).collect::<Vec<_>>();
       if weights.iter().fold(0.0, |a, w| a + w) == 0.0 {
         clauses.into_iter().take(k).collect()
       } else {
@@ -65,13 +62,7 @@ pub trait DNFContextTrait {
         clauses
           .into_iter()
           .enumerate()
-          .filter_map(|(i, p)| {
-            if sampled_ids.contains(&i) {
-              Some(p)
-            } else {
-              None
-            }
-          })
+          .filter_map(|(i, p)| if sampled_ids.contains(&i) { Some(p) } else { None })
           .collect()
       }
     }
@@ -135,11 +126,7 @@ pub trait DNFContextTrait {
       // Get the result
       let clause = Clause::new(literals);
       let prob = self.clause_probability(&clause);
-      Some(Element {
-        prob,
-        indices,
-        clause,
-      })
+      Some(Element { prob, indices, clause })
     };
 
     // A closure for getting the next elements of an element
@@ -185,8 +172,7 @@ pub trait DNFContextTrait {
             visited.insert(elem.indices.clone());
 
             // Check validity of the clause; if valid, put it in the result
-            if elem.clause.is_valid() && !self.has_disjunction_conflict(&elem.clause.pos_fact_ids())
-            {
+            if elem.clause.is_valid() && !self.has_disjunction_conflict(&elem.clause.pos_fact_ids()) {
               result_clauses.push(elem.clause);
             }
 

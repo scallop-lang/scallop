@@ -60,10 +60,7 @@ impl From<InvalidWildcardError> for FrontCompileError {
 impl InvalidWildcardError {
   pub fn report(&self, src: &Sources) {
     match self {
-      Self::InvalidWildcard {
-        wildcard_loc,
-        position,
-      } => {
+      Self::InvalidWildcard { wildcard_loc, position } => {
         println!("Invalid wildcard in the {}:", position);
         wildcard_loc.report(src);
       }

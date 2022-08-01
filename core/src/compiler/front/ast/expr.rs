@@ -81,9 +81,7 @@ pub type Variable = AstNode<VariableNode>;
 
 impl Variable {
   pub fn default_with_name(name: String) -> Self {
-    Self::default(VariableNode::new(Identifier::default(IdentifierNode::new(
-      name,
-    ))))
+    Self::default(VariableNode::new(Identifier::default(IdentifierNode::new(name))))
   }
 
   pub fn name(&self) -> &str {

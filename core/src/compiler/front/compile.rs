@@ -46,10 +46,7 @@ impl FrontContext {
     }
   }
 
-  pub fn compile_source<S: Source>(
-    &mut self,
-    s: S,
-  ) -> Result<SourceId, FrontErrorReportingContext> {
+  pub fn compile_source<S: Source>(&mut self, s: S) -> Result<SourceId, FrontErrorReportingContext> {
     self.compile_source_with_parser(s, parser::str_to_items)
   }
 
@@ -110,11 +107,7 @@ impl FrontContext {
     self.compile_source_with_parser_and_annotator(s, parser::str_to_query, Some(annotator))
   }
 
-  pub fn compile_source_with_parser<S, P>(
-    &mut self,
-    s: S,
-    p: P,
-  ) -> Result<SourceId, FrontErrorReportingContext>
+  pub fn compile_source_with_parser<S, P>(&mut self, s: S, p: P) -> Result<SourceId, FrontErrorReportingContext>
   where
     S: Source,
     P: FnOnce(&str) -> Result<Vec<Item>, parser::ParserError>,
@@ -181,11 +174,7 @@ impl FrontContext {
 
     // Annotate it
     let node_id_annotator = &mut dup_ctx.node_id_annotator;
-    let mut annotators = (
-      node_id_annotator,
-      &mut loc_annotator,
-      &mut source_id_annotator,
-    );
+    let mut annotators = (node_id_annotator, &mut loc_annotator, &mut source_id_annotator);
     annotators.walk_items(&mut ast);
 
     // Use external annotator to annotate each item
@@ -224,11 +213,7 @@ impl FrontContext {
     Ok(SourceId(source_id))
   }
 
-  fn process_imports<S: Source>(
-    &mut self,
-    s: &S,
-    ast: &Vec<Item>,
-  ) -> Result<(), FrontErrorReportingContext> {
+  fn process_imports<S: Source>(&mut self, s: &S, ast: &Vec<Item>) -> Result<(), FrontErrorReportingContext> {
     let mut error_ctx = FrontErrorReportingContext::new();
     for item in ast {
       if let Item::ImportDecl(id) = item {

@@ -11,10 +11,7 @@ impl<C: ProvenanceContext> Monitor<C> for DebugTagsMonitor {
   }
 
   fn observe_tagging(&self, tup: &Tuple, input_tag: &Option<C::InputTag>, tag: &C::Tag) {
-    println!(
-      "[Tagging] Tuple: {}, Input Tag: {:?} -> Tag: {:?}",
-      tup, input_tag, tag
-    )
+    println!("[Tagging] Tuple: {}, Input Tag: {:?} -> Tag: {:?}", tup, input_tag, tag)
   }
 
   fn observe_recovering_relation(&self, relation: &str) {

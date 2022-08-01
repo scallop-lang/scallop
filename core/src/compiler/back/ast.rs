@@ -25,10 +25,7 @@ impl Program {
   }
 
   pub fn rules_of_predicate(&self, pred: String) -> impl Iterator<Item = &Rule> {
-    self
-      .rules
-      .iter()
-      .filter(move |r| r.head_predicate() == &pred)
+    self.rules.iter().filter(move |r| r.head_predicate() == &pred)
   }
 }
 
@@ -193,11 +190,7 @@ impl Literal {
   pub fn if_then_else_expr(left: Variable, cond: Term, then_br: Term, else_br: Term) -> Self {
     Self::Assign(Assign {
       left,
-      right: AssignExpr::IfThenElse(IfThenElseAssignExpr {
-        cond,
-        then_br,
-        else_br,
-      }),
+      right: AssignExpr::IfThenElse(IfThenElseAssignExpr { cond, then_br, else_br }),
     })
   }
 
@@ -253,11 +246,7 @@ impl Atom {
   }
 
   pub fn unique_variable_args(&self) -> impl Iterator<Item = Variable> {
-    self
-      .variable_args()
-      .cloned()
-      .collect::<BTreeSet<_>>()
-      .into_iter()
+    self.variable_args().cloned().collect::<BTreeSet<_>>().into_iter()
   }
 
   pub fn has_constant_arg(&self) -> bool {
@@ -265,11 +254,7 @@ impl Atom {
   }
 
   pub fn const_var_partition(&self) -> (Vec<(usize, &Constant)>, Vec<(usize, &Variable)>) {
-    let (constants, variables): (Vec<_>, Vec<_>) = self
-      .args
-      .iter()
-      .enumerate()
-      .partition(|(_, t)| t.is_constant());
+    let (constants, variables): (Vec<_>, Vec<_>) = self.args.iter().enumerate().partition(|(_, t)| t.is_constant());
     let constants = constants
       .into_iter()
       .map(|(i, c)| match c {
@@ -373,11 +358,7 @@ impl Constraint {
   }
 
   pub fn unique_variable_args(&self) -> impl Iterator<Item = &Variable> {
-    self
-      .variable_args()
-      .into_iter()
-      .collect::<BTreeSet<_>>()
-      .into_iter()
+    self.variable_args().into_iter().collect::<BTreeSet<_>>().into_iter()
   }
 }
 

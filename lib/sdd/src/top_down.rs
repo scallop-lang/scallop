@@ -63,9 +63,7 @@ impl SDDBuilder {
         (
           var_id.clone(),
           sdd_nodes.add_node(SDDNode::Literal {
-            literal: SDDLiteral::PosVar {
-              var_id: var_id.clone(),
-            },
+            literal: SDDLiteral::PosVar { var_id: var_id.clone() },
           }),
         )
       })
@@ -78,9 +76,7 @@ impl SDDBuilder {
         (
           var_id.clone(),
           sdd_nodes.add_node(SDDNode::Literal {
-            literal: SDDLiteral::NegVar {
-              var_id: var_id.clone(),
-            },
+            literal: SDDLiteral::NegVar { var_id: var_id.clone() },
           }),
         )
       })
@@ -107,9 +103,11 @@ impl SDDBuilder {
     let sdd_node_to_vtree_node_map = pos_var_nodes
       .iter()
       .map(|(var_id, pos_node_id)| (pos_node_id.clone(), config.vtree.var_to_node_id_map[var_id]))
-      .chain(neg_var_nodes.iter().map(|(var_id, neg_node_id)| {
-        (neg_node_id.clone(), config.vtree.var_to_node_id_map[var_id])
-      }))
+      .chain(
+        neg_var_nodes
+          .iter()
+          .map(|(var_id, neg_node_id)| (neg_node_id.clone(), config.vtree.var_to_node_id_map[var_id])),
+      )
       .collect::<HashMap<_, _>>();
 
     // Result
@@ -144,11 +142,7 @@ impl SDDBuilder {
     }
   }
 
-  pub fn c2s(
-    &mut self,
-    v: VTreeNodeIndex,
-    state: SATState,
-  ) -> Result<(SATState, SDDNodeIndex), rsat::Clause> {
+  pub fn c2s(&mut self, v: VTreeNodeIndex, state: SATState) -> Result<(SATState, SDDNodeIndex), rsat::Clause> {
     // TODO: see if there is cached result
 
     let result = if let Some(var_id) = self.config.vtree.leaf(v) {
@@ -164,11 +158,7 @@ impl SDDBuilder {
     result
   }
 
-  fn c2s_leaf(
-    &mut self,
-    var_id: usize,
-    state: SATState,
-  ) -> Result<(SATState, SDDNodeIndex), rsat::Clause> {
+  fn c2s_leaf(&mut self, var_id: usize, state: SATState) -> Result<(SATState, SDDNodeIndex), rsat::Clause> {
     match state.variable_status(rsat::Variable::new(var_id)) {
       rsat::VariableStatus::None => Ok((state, self.true_node.clone())),
       rsat::VariableStatus::Pos => Ok((state, self.pos_var_nodes[&var_id])),
@@ -205,20 +195,13 @@ impl SDDBuilder {
     return Ok((s_state, self.add_or_node(children, v)));
   }
 
-  fn c2s_shannon(
-    &mut self,
-    v: VTreeNodeIndex,
-    state: SATState,
-  ) -> Result<(SATState, SDDNodeIndex), rsat::Clause> {
+  fn c2s_shannon(&mut self, v: VTreeNodeIndex, state: SATState) -> Result<(SATState, SDDNodeIndex), rsat::Clause> {
     let shannon_var = self.config.vtree.shannon_variable(v).unwrap();
     let var = rsat::Variable::new(shannon_var);
 
     // Create the pos/neg of the shannon var
     let (has_plit, has_nlit) = (state.implied_positive(var), state.implied_negative(var));
-    let (pn, nn) = (
-      self.pos_var_nodes[&shannon_var],
-      self.neg_var_nodes[&shannon_var],
-    );
+    let (pn, nn) = (self.pos_var_nodes[&shannon_var], self.neg_var_nodes[&shannon_var]);
     if has_plit || has_nlit {
       let primes = if has_plit { (pn, nn) } else { (nn, pn) };
       match self.c2s(self.config.vtree.right(v).unwrap(), state) {
@@ -243,15 +226,11 @@ impl SDDBuilder {
     let (l_state, s1) = match state.clone().decide_literal(rsat::Literal::positive(var)) {
       Ok(new_state) => (
         state,
-        self
-          .c2s(self.config.vtree.right(v).unwrap(), new_state)
-          .map(|r| r.1)?,
+        self.c2s(self.config.vtree.right(v).unwrap(), new_state).map(|r| r.1)?,
       ),
       Err(c) => {
         if state.at_assertion_level(&c) {
-          return state
-            .assert_clause(c)
-            .and_then(|new| self.c2s_shannon(v, new));
+          return state.assert_clause(c).and_then(|new| self.c2s_shannon(v, new));
         } else {
           return Err(c);
         }
@@ -262,15 +241,11 @@ impl SDDBuilder {
     let (r_state, s2) = match l_state.clone().decide_literal(rsat::Literal::negative(var)) {
       Ok(new_state) => (
         l_state,
-        self
-          .c2s(self.config.vtree.right(v).unwrap(), new_state)
-          .map(|r| r.1)?,
+        self.c2s(self.config.vtree.right(v).unwrap(), new_state).map(|r| r.1)?,
       ),
       Err(c) => {
         if l_state.at_assertion_level(&c) {
-          return l_state
-            .assert_clause(c)
-            .and_then(|new| self.c2s_shannon(v, new));
+          return l_state.assert_clause(c).and_then(|new| self.c2s_shannon(v, new));
         } else {
           return Err(c);
         }
@@ -278,10 +253,7 @@ impl SDDBuilder {
     };
 
     // Return an or node
-    let children = vec![
-      SDDElement { prime: pn, sub: s1 },
-      SDDElement { prime: nn, sub: s2 },
-    ];
+    let children = vec![SDDElement { prime: pn, sub: s1 }, SDDElement { prime: nn, sub: s2 }];
     Ok((r_state, self.add_or_node(children, v)))
   }
 
@@ -325,10 +297,7 @@ impl SDDBuilder {
     if let SDDNode::Or { children } = self.sdd_nodes[n].clone() {
       for SDDElement { prime, sub } in children {
         let sub_neg = self.negate_node(sub.clone());
-        neg_children.push(SDDElement {
-          prime,
-          sub: sub_neg,
-        });
+        neg_children.push(SDDElement { prime, sub: sub_neg });
       }
     }
 

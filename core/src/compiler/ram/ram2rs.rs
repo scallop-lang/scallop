@@ -2,10 +2,16 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::collections::*;
 
-use super::ast;
+use super::*;
+use crate::common::aggregate_op::*;
+use crate::common::binary_op::*;
+use crate::common::expr::*;
 use crate::common::output_option::OutputOption;
+use crate::common::tuple::*;
+use crate::common::tuple_type::*;
 use crate::common::unary_op::UnaryOp;
-use crate::common::{binary_op::*, expr::*, tuple::*, tuple_type::*, value::*, value_type::*};
+use crate::common::value::*;
+use crate::common::value_type::*;
 use crate::compiler::options::CompileOptions;
 
 impl ast::Program {
@@ -211,7 +217,8 @@ impl ast::Stratum {
         };
 
         // 1.3. Load from edb
-        let load_from_edb_stmt = quote! { edb.load_into_static_relation(#predicate, iter.provenance_context, &#rs_rel_name); };
+        let load_from_edb_stmt =
+          quote! { edb.load_into_static_relation(#predicate, iter.provenance_context, &#rs_rel_name); };
 
         // Ensemble statements
         quote! { #create_stmt #add_one_fact_stmt #load_from_edb_stmt }
@@ -270,25 +277,15 @@ impl ast::Relation {
 }
 
 impl ast::Update {
-  pub fn to_rs_insert(
-    &self,
-    curr_strat_id: usize,
-    rel_to_strat_map: &RelationToStratumMap,
-  ) -> TokenStream {
+  pub fn to_rs_insert(&self, curr_strat_id: usize, rel_to_strat_map: &RelationToStratumMap) -> TokenStream {
     let rs_rel_name = relation_name_to_rs_field_name(&self.target);
-    let rs_dataflow = self
-      .dataflow
-      .to_rs_dataflow(curr_strat_id, rel_to_strat_map);
+    let rs_dataflow = self.dataflow.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
     quote! { iter.insert_dataflow(&#rs_rel_name, #rs_dataflow); }
   }
 }
 
 impl ast::Dataflow {
-  pub fn to_rs_dataflow(
-    &self,
-    curr_strat_id: usize,
-    rel_to_strat_map: &RelationToStratumMap,
-  ) -> TokenStream {
+  pub fn to_rs_dataflow(&self, curr_strat_id: usize, rel_to_strat_map: &RelationToStratumMap) -> TokenStream {
     match self {
       Self::Unit => {
         unimplemented!()
@@ -338,7 +335,44 @@ impl ast::Dataflow {
         let rs_tuple = tuple_to_rs_tuple(tuple);
         quote! { dataflow::find(#rs_d1, #rs_tuple) }
       }
-      Self::Reduce(_) => unimplemented!(),
+      Self::Reduce(r) => {
+        let get_col = |r| {
+          let rel_ident = relation_name_to_rs_field_name(r);
+          let stratum_id = rel_to_strat_map[r];
+          let stratum_result = format_ident!("stratum_{}_result", stratum_id);
+          quote! { dataflow::collection(&#stratum_result.#rel_ident, iter.is_first_iteration()) }
+        };
+
+        // Get the to_aggregate collection
+        let to_agg_col = get_col(&r.predicate);
+
+        // Get the aggregator
+        let agg = match &r.op {
+          AggregateOp::Count => quote! { CountAggregator::new() },
+          AggregateOp::Sum(_) => quote! { SumAggregator::new() },
+          AggregateOp::Prod(_) => quote! { ProdAggregator::new() },
+          AggregateOp::Max => quote! { MaxAggregator::new() },
+          AggregateOp::Min => quote! { MinAggregator::new() },
+          AggregateOp::Argmax => quote! { ArgmaxAggregator::new() },
+          AggregateOp::Argmin => quote! { ArgminAggregator::new() },
+          AggregateOp::Exists => quote! { ExistsAggregator::new() },
+          AggregateOp::Unique => quote! { UniqueAggregator::new() },
+        };
+
+        // Get the dataflow
+        match &r.group_by {
+          ReduceGroupByType::None => {
+            quote! { iter.aggregate(#agg, #to_agg_col) }
+          }
+          ReduceGroupByType::Implicit => {
+            quote! { iter.aggregate_implicit_group(#agg, #to_agg_col) }
+          }
+          ReduceGroupByType::Join(group_by_rel) => {
+            let group_by_col = get_col(&group_by_rel);
+            quote! { iter.aggregate_join_group(#agg, #group_by_col, #to_agg_col) }
+          }
+        }
+      }
       Self::Relation(r) => {
         let rel_ident = relation_name_to_rs_field_name(r);
         let stratum_id = rel_to_strat_map[r];
@@ -373,10 +407,7 @@ fn tuple_type_to_rs_type(ty: &TupleType) -> TokenStream {
   match ty {
     TupleType::Tuple(t) if t.len() == 0 => quote! { () },
     TupleType::Tuple(t) => {
-      let elems = t
-        .iter()
-        .map(|vt| tuple_type_to_rs_type(vt))
-        .collect::<Vec<_>>();
+      let elems = t.iter().map(|vt| tuple_type_to_rs_type(vt)).collect::<Vec<_>>();
       quote! { (#(#elems),*,) }
     }
     TupleType::Value(v) => value_type_to_rs_type(v),
@@ -523,17 +554,11 @@ fn compute_relation_to_stratum_map(ast: &ast::Program) -> RelationToStratumMap {
 
 type StratumDependency = HashMap<usize, BTreeSet<usize>>;
 
-fn compute_stratum_dependency(
-  ast: &ast::Program,
-  rel_to_strat_map: &RelationToStratumMap,
-) -> StratumDependency {
+fn compute_stratum_dependency(ast: &ast::Program, rel_to_strat_map: &RelationToStratumMap) -> StratumDependency {
   let mut dep = StratumDependency::new();
   for (i, stratum) in ast.strata.iter().enumerate() {
     let dep_rels = stratum.dependency();
-    let dep_strats = dep_rels
-      .into_iter()
-      .map(|r| rel_to_strat_map[&r].clone())
-      .collect();
+    let dep_strats = dep_rels.into_iter().map(|r| rel_to_strat_map[&r].clone()).collect();
     dep.insert(i, dep_strats);
   }
   dep
@@ -545,11 +570,7 @@ fn compute_interstratum_dependency(ast: &ast::Program) -> InterStratumDependency
   let mut dep = HashSet::new();
   for stratum in &ast.strata {
     let dep_rels = stratum.dependency();
-    dep.extend(
-      dep_rels
-        .into_iter()
-        .filter(|r| !stratum.relations.contains_key(r)),
-    );
+    dep.extend(dep_rels.into_iter().filter(|r| !stratum.relations.contains_key(r)));
   }
   dep
 }

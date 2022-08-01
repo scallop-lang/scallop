@@ -56,9 +56,7 @@ pub struct LocationSpanAnnotator {
 impl LocationSpanAnnotator {
   pub fn new<S: Source>(source: &S) -> Self {
     Self {
-      row_offset_length: (0..source.num_rows())
-        .map(|i| source.row_offset_length(i))
-        .collect(),
+      row_offset_length: (0..source.num_rows()).map(|i| source.row_offset_length(i)).collect(),
     }
   }
 

@@ -4,6 +4,7 @@ use itertools::Itertools;
 
 use super::*;
 use crate::runtime::dynamic::*;
+use crate::runtime::statics::*;
 use crate::utils::{PointerFamily, RcFamily};
 
 #[derive(Clone, PartialEq)]
@@ -126,7 +127,7 @@ impl<P: PointerFamily> ProvenanceContext for TopKProofsContext<P> {
   }
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
-    let s = semirings::real::RealSemiring;
+    let s = RealSemiring;
     let v = |i: &usize| -> f64 { self.probs[*i] };
     t.formula.wmc(&s, &v)
   }
@@ -147,11 +148,7 @@ impl<P: PointerFamily> ProvenanceContext for TopKProofsContext<P> {
     self.top_k_add(&t1.formula, &t2.formula, self.k).into()
   }
 
-  fn add_with_proceeding(
-    &self,
-    stable_tag: &Self::Tag,
-    recent_tag: &Self::Tag,
-  ) -> (Self::Tag, Proceeding) {
+  fn add_with_proceeding(&self, stable_tag: &Self::Tag, recent_tag: &Self::Tag) -> (Self::Tag, Proceeding) {
     let new_tag = self.top_k_add(&stable_tag.formula, &recent_tag.formula, self.k);
     let proceeding = if new_tag == recent_tag.formula || new_tag == stable_tag.formula {
       Proceeding::Stable
@@ -169,72 +166,115 @@ impl<P: PointerFamily> ProvenanceContext for TopKProofsContext<P> {
     Some(self.top_k_negate(&t.formula, self.k).into())
   }
 
-  fn dynamic_count(&self, op: &DynamicCountOp, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
-    let vec_batch = project_batch_helper(batch, &op.key, self);
-    if vec_batch.is_empty() {
-      vec![DynamicElement::new(0usize.into(), self.one())]
+  fn dynamic_count(&self, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
+    if batch.is_empty() {
+      vec![DynamicElement::new(0usize, self.one())]
     } else {
       let mut elems = vec![];
-      for chosen_set in (0..vec_batch.len()).powerset() {
+      for chosen_set in (0..batch.len()).powerset() {
         let count = chosen_set.len();
-        let tag = self.top_k_tag_of_chosen_set(
-          vec_batch.iter().map(|e| &e.tag.formula),
-          &chosen_set,
-          self.k,
-        );
-        elems.push(DynamicElement::new(count.into(), tag.into()));
+        let tag = self.top_k_tag_of_chosen_set(batch.iter().map(|e| &e.tag.formula), &chosen_set, self.k);
+        elems.push(DynamicElement::new(count, tag.into()));
       }
       elems
     }
   }
 
-  fn dynamic_min(&self, op: &DynamicMinOp, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
+  fn dynamic_min(&self, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
     let mut elems = vec![];
-    for chosen_set in (0..batch.len()).powerset() {
-      let chosen_elements = collect_chosen_elements(&batch, &chosen_set);
-      let min_values = op.min(chosen_elements);
-      for v in min_values {
-        let prob = self.top_k_tag_of_chosen_set(
-          batch.iter().map(|e| &e.tag.formula),
-          &chosen_set,
-          self.k,
-        );
-        elems.push(DynamicElement::new(v, prob.into()));
+    for i in 0..batch.len() {
+      let min_elem = batch[i].tuple.clone();
+      let mut agg_tag = self.one();
+      for j in 0..i {
+        agg_tag = self.mult(&agg_tag, &self.negate(&batch[j].tag).unwrap());
       }
+      agg_tag = self.mult(&agg_tag, &batch[i].tag);
+      elems.push(DynamicElement::new(min_elem, agg_tag));
     }
     elems
   }
 
-  fn dynamic_max(&self, op: &DynamicMaxOp, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
+  fn dynamic_max(&self, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
     let mut elems = vec![];
-    for chosen_set in (0..batch.len()).powerset() {
-      let chosen_elements = collect_chosen_elements(&batch, &chosen_set);
-      let max_values = op.max(chosen_elements);
-      for v in max_values {
-        let prob = self.top_k_tag_of_chosen_set(
-          batch.iter().map(|e| &e.tag.formula),
-          &chosen_set,
-          self.k,
-        );
-        elems.push(DynamicElement::new(v, prob.into()));
+    for i in 0..batch.len() {
+      let max_elem = batch[i].tuple.clone();
+      let mut agg_tag = batch[i].tag.clone();
+      for j in i + 1..batch.len() {
+        agg_tag = self.mult(&agg_tag, &self.negate(&batch[j].tag).unwrap());
       }
+      elems.push(DynamicElement::new(max_elem, agg_tag));
     }
     elems
   }
 
-  fn dynamic_exists(&self, _: &DynamicExistsOp, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
+  fn dynamic_exists(&self, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
     let mut exists_tag = self.zero();
     let mut not_exists_tag = self.one();
     for elem in batch {
-      exists_tag = ProvenanceContext::add(self, &exists_tag, &elem.tag);
-      not_exists_tag = ProvenanceContext::mult(
-        self,
-        &not_exists_tag,
-        &self.top_k_negate(&elem.tag.formula, self.k).into(),
-      );
+      exists_tag = self.add(&exists_tag, &elem.tag);
+      not_exists_tag = self.mult(&not_exists_tag, &self.negate(&elem.tag).unwrap());
     }
-    let t = DynamicElement::new(true.into(), exists_tag);
-    let f = DynamicElement::new(false.into(), not_exists_tag);
+    let t = DynamicElement::new(true, exists_tag);
+    let f = DynamicElement::new(false, not_exists_tag);
+    vec![t, f]
+  }
+
+  fn static_count<Tup: StaticTupleTrait>(
+    &self,
+    batch: StaticElements<Tup, Self::Tag>,
+  ) -> StaticElements<usize, Self::Tag> {
+    if batch.is_empty() {
+      vec![StaticElement::new(0, self.one())]
+    } else {
+      let mut elems = vec![];
+      for chosen_set in (0..batch.len()).powerset() {
+        let count = chosen_set.len();
+        let tag = self.top_k_tag_of_chosen_set(batch.iter().map(|e| &e.tag.formula), &chosen_set, self.k);
+        elems.push(StaticElement::new(count, tag.into()));
+      }
+      elems
+    }
+  }
+
+  fn static_min<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self::Tag>) -> StaticElements<Tup, Self::Tag> {
+    let mut elems = vec![];
+    for i in 0..batch.len() {
+      let min_elem = batch[i].tuple.get().clone();
+      let mut agg_tag = self.one();
+      for j in 0..i {
+        agg_tag = self.mult(&agg_tag, &self.negate(&batch[j].tag).unwrap());
+      }
+      agg_tag = self.mult(&agg_tag, &batch[i].tag);
+      elems.push(StaticElement::new(min_elem, agg_tag));
+    }
+    elems
+  }
+
+  fn static_max<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self::Tag>) -> StaticElements<Tup, Self::Tag> {
+    let mut elems = vec![];
+    for i in 0..batch.len() {
+      let max_elem = batch[i].tuple.get().clone();
+      let mut agg_tag = batch[i].tag.clone();
+      for j in i + 1..batch.len() {
+        agg_tag = self.mult(&agg_tag, &self.negate(&batch[j].tag).unwrap());
+      }
+      elems.push(StaticElement::new(max_elem, agg_tag));
+    }
+    elems
+  }
+
+  fn static_exists<Tup: StaticTupleTrait>(
+    &self,
+    batch: StaticElements<Tup, Self::Tag>,
+  ) -> StaticElements<bool, Self::Tag> {
+    let mut exists_tag = self.zero();
+    let mut not_exists_tag = self.one();
+    for elem in batch {
+      exists_tag = self.add(&exists_tag, &elem.tag);
+      not_exists_tag = self.mult(&not_exists_tag, &self.negate(&elem.tag).unwrap());
+    }
+    let t = StaticElement::new(true, exists_tag);
+    let f = StaticElement::new(false, not_exists_tag);
     vec![t, f]
   }
 }

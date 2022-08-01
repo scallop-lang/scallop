@@ -444,10 +444,7 @@ pub struct UnaryExpr {
 
 impl UnaryExpr {
   pub fn new(op: UnaryOp, op1: Expr) -> Self {
-    Self {
-      op,
-      op1: Box::new(op1),
-    }
+    Self { op, op1: Box::new(op1) }
   }
 
   pub fn eval(&self, v: &Tuple) -> Tuple {
@@ -464,10 +461,7 @@ impl UnaryExpr {
       (Neg, Tuple::Value(ISize(i))) => Tuple::Value(ISize(-i)),
       (Neg, Tuple::Value(F32(i))) => Tuple::Value(F32(-i)),
       (Neg, Tuple::Value(F64(i))) => Tuple::Value(F64(-i)),
-      (Neg, v) => panic!(
-        "Negate operation cannot be operating on value of type {:?}",
-        v
-      ),
+      (Neg, v) => panic!("Negate operation cannot be operating on value of type {:?}", v),
 
       // Positive
       (Pos, x) => x,
@@ -545,11 +539,7 @@ impl UnaryExpr {
           (Tuple::Value(String(s)), T::String) => Tuple::Value(String(s.clone())),
 
           // Not implemented
-          (v, t) => unimplemented!(
-            "Unimplemented type cast from `{:?}` to `{}`",
-            v.tuple_type(),
-            t
-          ),
+          (v, t) => unimplemented!("Unimplemented type cast from `{:?}` to `{}`", v.tuple_type(), t),
         }
       }
     }

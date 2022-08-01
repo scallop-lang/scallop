@@ -4,11 +4,7 @@ use std::marker::PhantomData;
 use super::*;
 use crate::runtime::provenance::*;
 
-pub fn difference<'b, D1, D2, Tup, T>(
-  d1: D1,
-  d2: D2,
-  semiring_ctx: &'b T::Context,
-) -> Difference<'b, D1, D2, Tup, T>
+pub fn difference<'b, D1, D2, Tup, T>(d1: D1, d2: D2, semiring_ctx: &'b T::Context) -> Difference<'b, D1, D2, Tup, T>
 where
   Tup: StaticTupleTrait,
   T: Tag,
@@ -80,16 +76,8 @@ where
     let d1_recent = self.d1.iter_recent();
     let d2_recent = self.d2.iter_recent();
     Self::Recent::chain_3(
-      BatchesJoin::join(
-        d1_recent.clone(),
-        d2_stable,
-        DifferenceOp::new(self.semiring_ctx),
-      ),
-      BatchesJoin::join(
-        d1_stable,
-        d2_recent.clone(),
-        DifferenceOp::new(self.semiring_ctx),
-      ),
+      BatchesJoin::join(d1_recent.clone(), d2_stable, DifferenceOp::new(self.semiring_ctx)),
+      BatchesJoin::join(d1_stable, d2_recent.clone(), DifferenceOp::new(self.semiring_ctx)),
       BatchesJoin::join(d1_recent, d2_recent, DifferenceOp::new(self.semiring_ctx)),
     )
   }
@@ -232,7 +220,7 @@ where
           Ordering::Equal => {
             let maybe_tag = self.semiring_ctx.minus(&i1_curr.tag, &i2_curr.tag);
             if let Some(tag) = maybe_tag {
-              let result = StaticElement::new(i1_curr.tuple.0.clone(), tag);
+              let result = StaticElement::new(i1_curr.tuple.get().clone(), tag);
               self.i1_curr = self.i1.next();
               self.i2_curr = self.i2.next();
               return Some(result);

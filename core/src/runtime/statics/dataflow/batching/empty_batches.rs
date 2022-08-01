@@ -18,9 +18,7 @@ where
   I: Iterator + Clone,
 {
   fn default() -> Self {
-    Self {
-      phantom: PhantomData,
-    }
+    Self { phantom: PhantomData }
   }
 }
 

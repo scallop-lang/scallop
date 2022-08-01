@@ -48,11 +48,7 @@ impl TupleAccessor {
   }
 
   pub fn iter(&self) -> impl Iterator<Item = usize> + '_ {
-    self
-      .indices
-      .iter()
-      .take(self.len as usize)
-      .map(|i| *i as usize)
+    self.indices.iter().take(self.len as usize).map(|i| *i as usize)
   }
 }
 
@@ -88,8 +84,6 @@ impl From<(usize, usize, usize)> for TupleAccessor {
 
 impl std::fmt::Debug for TupleAccessor {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.debug_list()
-      .entries(&self.indices[0..self.len as usize])
-      .finish()
+    f.debug_list().entries(&self.indices[0..self.len as usize]).finish()
   }
 }

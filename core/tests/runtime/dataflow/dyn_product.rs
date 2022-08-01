@@ -20,8 +20,7 @@ fn test_dynamic_product_1() {
   while source_1.changed(&ctx) || source_2.changed(&ctx) || target.changed(&ctx) {
     target.insert_dataflow_recent(
       &ctx,
-      &DynamicDataflow::dynamic_relation(&source_1)
-        .product(DynamicDataflow::dynamic_relation(&source_2), &ctx),
+      &DynamicDataflow::dynamic_relation(&source_1).product(DynamicDataflow::dynamic_relation(&source_2), &ctx),
     )
   }
 

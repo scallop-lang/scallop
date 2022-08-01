@@ -88,9 +88,7 @@ impl<'a> FlattenExprContext<'a> {
         FlattenedNode::Binary { left, op, op1, op2 } => {
           self.collect_flattened_literals_of_binary_op(left, op, op1, op2)
         }
-        FlattenedNode::Unary { left, op, op1 } => {
-          self.collect_flattened_literals_of_unary_op(left, op, op1)
-        }
+        FlattenedNode::Unary { left, op, op1 } => self.collect_flattened_literals_of_unary_op(left, op, op1),
         FlattenedNode::IfThenElse {
           left,
           cond,
@@ -115,8 +113,7 @@ impl<'a> FlattenExprContext<'a> {
     // First generate the `left = op1 (*) op2` literal
     let op1_term = self.get_loc_term(op1);
     let op2_term = self.get_loc_term(op2);
-    let literal =
-      back::Literal::binary_expr(left.clone(), op.clone(), op1_term.clone(), op2_term.clone());
+    let literal = back::Literal::binary_expr(left.clone(), op.clone(), op1_term.clone(), op2_term.clone());
     curr_literals.push(literal);
 
     // For +/-, generate op1 = left (-/+) op2, if op1 is a variable
@@ -132,12 +129,8 @@ impl<'a> FlattenExprContext<'a> {
         curr_literals.push(op1_literal);
       }
       if let back::Term::Variable(op2_var) = &op2_term {
-        let op2_literal = back::Literal::binary_expr(
-          op2_var.clone(),
-          inv_op,
-          back::Term::Variable(left.clone()),
-          op1_term,
-        );
+        let op2_literal =
+          back::Literal::binary_expr(op2_var.clone(), inv_op, back::Term::Variable(left.clone()), op1_term);
         curr_literals.push(op2_literal);
       }
     }
@@ -183,8 +176,7 @@ impl<'a> FlattenExprContext<'a> {
     let cond_term = self.get_loc_term(cond);
     let then_br_term = self.get_loc_term(then_br);
     let else_br_term = self.get_loc_term(else_br);
-    let literal =
-      back::Literal::if_then_else_expr(left.clone(), cond_term, then_br_term, else_br_term);
+    let literal = back::Literal::if_then_else_expr(left.clone(), cond_term, then_br_term, else_br_term);
     curr_literals.push(literal);
 
     // Collect flattened literals from cond, then_br, and else_br
@@ -200,10 +192,7 @@ impl<'a> FlattenExprContext<'a> {
     let mut literals = vec![];
 
     // First get the atom
-    let back_atom_args = atom
-      .iter_arguments()
-      .map(|a| self.get_expr_term(a))
-      .collect();
+    let back_atom_args = atom.iter_arguments().map(|a| self.get_expr_term(a)).collect();
     let back_atom = back::Literal::Atom(back::Atom {
       predicate: atom.predicate().clone(),
       args: back_atom_args,
@@ -259,10 +248,7 @@ impl<'a> FlattenExprContext<'a> {
 
       curr_literals
     } else {
-      panic!(
-        "[Internal Error] Cannot use `{}` for binary constraint",
-        b.op().node
-      );
+      panic!("[Internal Error] Cannot use `{}` for binary constraint", b.op().node);
     }
   }
 
@@ -280,10 +266,7 @@ impl<'a> FlattenExprContext<'a> {
 
       curr_literals
     } else {
-      panic!(
-        "[Internal Error] Cannot use `{}` for unary constraint",
-        u.op().node
-      );
+      panic!("[Internal Error] Cannot use `{}` for unary constraint", u.op().node);
     }
   }
 
@@ -302,10 +285,7 @@ impl<'a> FlattenExprContext<'a> {
       Formula::Atom(atom) => self.atom_to_back_literals(atom),
       Formula::NegAtom(neg_atom) => self.neg_atom_to_back_literals(neg_atom),
       Formula::Constraint(c) => self.constraint_to_back_literal(c),
-      Formula::Conjunction(_)
-      | Formula::Disjunction(_)
-      | Formula::Implies(_)
-      | Formula::Reduce(_) => {
+      Formula::Conjunction(_) | Formula::Disjunction(_) | Formula::Implies(_) | Formula::Reduce(_) => {
         panic!("[Internal Error] Should not contain conjunction, disjunction, implies, or reduce");
       }
     }
@@ -322,9 +302,7 @@ impl<'a> FlattenExprContext<'a> {
 
 impl<'a> NodeVisitor for FlattenExprContext<'a> {
   fn visit_constraint(&mut self, constraint: &Constraint) {
-    self
-      .ignore_exprs
-      .insert(constraint.expr().location().clone());
+    self.ignore_exprs.insert(constraint.expr().location().clone());
   }
 
   fn visit_binary_expr(&mut self, b: &BinaryExpr) {
@@ -352,9 +330,7 @@ impl<'a> NodeVisitor for FlattenExprContext<'a> {
         UnaryOpNode::Neg => back::UnaryExprOp::Neg,
         UnaryOpNode::Pos => back::UnaryExprOp::Pos,
         UnaryOpNode::Not => back::UnaryExprOp::Not,
-        UnaryOpNode::TypeCast(t) => {
-          back::UnaryExprOp::TypeCast(self.type_inference.find_value_type(t).unwrap())
-        }
+        UnaryOpNode::TypeCast(t) => back::UnaryExprOp::TypeCast(self.type_inference.find_value_type(t).unwrap()),
       };
       self.internal.insert(
         u.location().clone(),
@@ -409,9 +385,8 @@ impl<'a> NodeVisitor for FlattenExprContext<'a> {
 
   fn visit_constant(&mut self, c: &Constant) {
     let ty = self.type_inference.expr_types[c.location()].to_default_value_type();
-    self.leaf.insert(
-      c.location().clone(),
-      FlattenedLeaf::Constant(c.to_value(&ty)),
-    );
+    self
+      .leaf
+      .insert(c.location().clone(), FlattenedLeaf::Constant(c.to_value(&ty)));
   }
 }

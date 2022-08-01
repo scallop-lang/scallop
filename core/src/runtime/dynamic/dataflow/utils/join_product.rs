@@ -11,12 +11,7 @@ pub struct JoinProductIterator<T: Tag> {
 
 impl<T: Tag> JoinProductIterator<T> {
   pub fn new(v1: Vec<DynamicElement<T>>, v2: Vec<DynamicElement<T>>) -> Self {
-    Self {
-      v1,
-      v2,
-      i1: 0,
-      i2: 0,
-    }
+    Self { v1, v2, i1: 0, i2: 0 }
   }
 }
 

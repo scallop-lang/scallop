@@ -22,10 +22,7 @@ fn dt_range_1() {
       rel range(a, b, i) = range(a, b, i - 1), i < b
       query range(1, 4, x)
     "#,
-    (
-      "range(1, 4, x)",
-      vec![(1i32, 4i32, 1i32), (1, 4, 2), (1, 4, 3)],
-    ),
+    ("range(1, 4, x)", vec![(1i32, 4i32, 1i32), (1, 4, 2), (1, 4, 3)]),
   );
 }
 

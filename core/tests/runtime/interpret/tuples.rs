@@ -13,9 +13,6 @@ fn test_tuples_2() {
   println!("{:?}", tuple);
   assert_eq!(
     tuple,
-    Tuple::Tuple(Box::new([
-      Tuple::Value(Value::I8(3)),
-      Tuple::Value(Value::Str("1234"))
-    ]))
+    Tuple::Tuple(Box::new([Tuple::Value(Value::I8(3)), Tuple::Value(Value::Str("1234"))]))
   );
 }

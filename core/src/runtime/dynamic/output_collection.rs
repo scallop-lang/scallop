@@ -36,9 +36,7 @@ where
   I: Iterator<Item = (OutputTagOf<T::Context>, Tuple)>,
 {
   fn from(i: I) -> Self {
-    Self {
-      elements: i.collect(),
-    }
+    Self { elements: i.collect() }
   }
 }
 

@@ -64,12 +64,7 @@ impl DependencyGraph {
     self.predicate_to_node_id.get(predicate).unwrap().clone()
   }
 
-  pub fn add_dependency(
-    &mut self,
-    src: &String,
-    dst: &String,
-    edge: DependencyGraphEdge,
-  ) -> EdgeIndex {
+  pub fn add_dependency(&mut self, src: &String, dst: &String, edge: DependencyGraphEdge) -> EdgeIndex {
     let src_id = self.predicate_to_node_id[src];
     let dst_id = self.predicate_to_node_id[dst];
     self.graph.add_edge(src_id, dst_id, edge)
@@ -77,10 +72,7 @@ impl DependencyGraph {
 
   pub fn unused_relations(&self, targets: &HashSet<String>) -> HashSet<String> {
     let mut unrelated = HashSet::new();
-    let output_ids = targets
-      .iter()
-      .map(|r| self.predicate_node(r))
-      .collect::<Vec<_>>();
+    let output_ids = targets.iter().map(|r| self.predicate_node(r)).collect::<Vec<_>>();
     for (predicate, rid) in &self.predicate_to_node_id {
       if !targets.contains(predicate) {
         let connected_to_output = output_ids
@@ -194,11 +186,7 @@ pub enum SCCError {
 impl std::fmt::Display for SCCError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      Self::CannotStratify {
-        pred_1,
-        pred_2,
-        edge,
-      } => f.write_fmt(format_args!(
+      Self::CannotStratify { pred_1, pred_2, edge } => f.write_fmt(format_args!(
         "{} Cannot stratify program: {} cycle detected between predicate `{}` and `{}`",
         "[Error]".red(),
         edge,

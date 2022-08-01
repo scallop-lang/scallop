@@ -141,16 +141,10 @@ impl DemandAttributeError {
         loc.report(src);
       }
       Self::InvalidArgumentType { found, loc } => {
-        println!(
-          "Invalid argument type. Expected `string`, found `{}`",
-          found
-        );
+        println!("Invalid argument type. Expected `string`, found `{}`", found);
         loc.report(src);
       }
-      Self::ConflictingPattern {
-        first_loc,
-        second_loc,
-      } => {
+      Self::ConflictingPattern { first_loc, second_loc } => {
         println!("Conflicting demand pattern. First defined here:");
         first_loc.report(src);
         println!("re-defined here:");

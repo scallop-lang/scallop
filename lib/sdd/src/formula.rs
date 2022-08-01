@@ -106,9 +106,7 @@ impl std::ops::Not for BooleanFormula {
   fn not(self) -> Self {
     match self {
       Self::Pos { var_id } => Self::Neg { var_id },
-      other => Self::Not {
-        form: Box::new(other),
-      },
+      other => Self::Not { form: Box::new(other) },
     }
   }
 }

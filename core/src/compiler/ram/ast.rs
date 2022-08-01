@@ -1,13 +1,12 @@
 use std::collections::*;
 
+use crate::common::aggregate_op::AggregateOp;
 use crate::common::expr::*;
 use crate::common::input_file::InputFile;
 use crate::common::input_tag::InputTag;
 use crate::common::output_option::OutputOption;
-use crate::common::tuple::Tuple;
+use crate::common::tuple::{AsTuple, Tuple};
 use crate::common::tuple_type::TupleType;
-
-use crate::runtime::dynamic::DynamicAggregateOp;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
@@ -29,11 +28,7 @@ impl Program {
 
   pub fn relation_tuple_type(&self, predicate: &str) -> Option<TupleType> {
     if let Some(stratum_id) = self.relation_to_stratum.get(predicate) {
-      Some(
-        self.strata[*stratum_id].relations[predicate]
-          .tuple_type
-          .clone(),
-      )
+      Some(self.strata[*stratum_id].relations[predicate].tuple_type.clone())
     } else {
       None
     }
@@ -141,52 +136,52 @@ impl Dataflow {
     Self::Unit
   }
 
-  pub fn union(d1: Dataflow, d2: Dataflow) -> Self {
-    Self::Union(Box::new(d1), Box::new(d2))
+  pub fn union(self, d2: Dataflow) -> Self {
+    Self::Union(Box::new(self), Box::new(d2))
   }
 
-  pub fn join(d1: Dataflow, d2: Dataflow) -> Self {
-    Self::Join(Box::new(d1), Box::new(d2))
+  pub fn join(self, d2: Dataflow) -> Self {
+    Self::Join(Box::new(self), Box::new(d2))
   }
 
-  pub fn intersect(d1: Dataflow, d2: Dataflow) -> Self {
-    Self::Intersect(Box::new(d1), Box::new(d2))
+  pub fn intersect(self, d2: Dataflow) -> Self {
+    Self::Intersect(Box::new(self), Box::new(d2))
   }
 
-  pub fn product(d1: Dataflow, d2: Dataflow) -> Self {
-    Self::Product(Box::new(d1), Box::new(d2))
+  pub fn product(self, d2: Dataflow) -> Self {
+    Self::Product(Box::new(self), Box::new(d2))
   }
 
-  pub fn antijoin(d1: Dataflow, d2: Dataflow) -> Self {
-    Self::Antijoin(Box::new(d1), Box::new(d2))
+  pub fn antijoin(self, d2: Dataflow) -> Self {
+    Self::Antijoin(Box::new(self), Box::new(d2))
   }
 
-  pub fn difference(d1: Dataflow, d2: Dataflow) -> Self {
-    Self::Difference(Box::new(d1), Box::new(d2))
+  pub fn difference(self, d2: Dataflow) -> Self {
+    Self::Difference(Box::new(self), Box::new(d2))
   }
 
-  pub fn project(d: Dataflow, expr: Expr) -> Self {
-    Self::Project(Box::new(d), expr)
+  pub fn project<E: Into<Expr>>(self, expr: E) -> Self {
+    Self::Project(Box::new(self), expr.into())
   }
 
-  pub fn filter(d: Dataflow, expr: Expr) -> Self {
-    Self::Filter(Box::new(d), expr)
+  pub fn filter<E: Into<Expr>>(self, expr: E) -> Self {
+    Self::Filter(Box::new(self), expr.into())
   }
 
-  pub fn find(d: Dataflow, t: Tuple) -> Self {
-    Self::Find(Box::new(d), t)
+  pub fn find<T: AsTuple<Tuple>>(self, t: T) -> Self {
+    Self::Find(Box::new(self), AsTuple::as_tuple(&t))
   }
 
-  pub fn reduce(op: DynamicAggregateOp, predicate: String, group_by: ReduceGroupByType) -> Self {
+  pub fn reduce<S: ToString>(op: AggregateOp, predicate: S, group_by: ReduceGroupByType) -> Self {
     Self::Reduce(Reduce {
       op,
-      predicate,
+      predicate: predicate.to_string(),
       group_by,
     })
   }
 
-  pub fn relation(r: String) -> Self {
-    Self::Relation(r)
+  pub fn relation<S: ToString>(r: S) -> Self {
+    Self::Relation(r.to_string())
   }
 
   pub fn source_relations(&self) -> HashSet<&String> {
@@ -197,11 +192,7 @@ impl Dataflow {
       | Self::Intersect(d1, d2)
       | Self::Product(d1, d2)
       | Self::Antijoin(d1, d2)
-      | Self::Difference(d1, d2) => d1
-        .source_relations()
-        .union(&d2.source_relations())
-        .cloned()
-        .collect(),
+      | Self::Difference(d1, d2) => d1.source_relations().union(&d2.source_relations()).cloned().collect(),
       Self::Project(d, _) | Self::Filter(d, _) | Self::Find(d, _) => d.source_relations(),
       Self::Reduce(r) => std::iter::once(r.source_relation()).collect(),
       Self::Relation(r) => std::iter::once(r).collect(),
@@ -216,9 +207,23 @@ pub enum ReduceGroupByType {
   Join(String),
 }
 
+impl ReduceGroupByType {
+  pub fn none() -> Self {
+    Self::None
+  }
+
+  pub fn implicit() -> Self {
+    Self::Implicit
+  }
+
+  pub fn join<S: ToString>(s: S) -> Self {
+    Self::Join(s.to_string())
+  }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Reduce {
-  pub op: DynamicAggregateOp,
+  pub op: AggregateOp,
   pub predicate: String,
   pub group_by: ReduceGroupByType,
 }

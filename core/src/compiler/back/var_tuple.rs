@@ -14,10 +14,7 @@ impl std::fmt::Debug for VariableTuple {
       Self::Value(v) => f.write_fmt(format_args!("{:?}", v)),
       Self::Tuple(t) => f.write_fmt(format_args!(
         "({})",
-        t.iter()
-          .map(|e| { format!("{:?}", e) })
-          .collect::<Vec<_>>()
-          .join(", ")
+        t.iter().map(|e| { format!("{:?}", e) }).collect::<Vec<_>>().join(", ")
       )),
     }
   }
@@ -50,23 +47,14 @@ impl VariableTuple {
       }
     });
     match self {
-      Self::Value(v) => Self::Tuple(
-        std::iter::once(Self::Value(v.clone()))
-          .chain(filtered_vars)
-          .collect(),
-      ),
+      Self::Value(v) => Self::Tuple(std::iter::once(Self::Value(v.clone())).chain(filtered_vars).collect()),
       Self::Tuple(t) => Self::Tuple(t.iter().cloned().chain(filtered_vars).collect()),
     }
   }
 
   pub fn subtuple<T: Iterator<Item = Variable>>(&self, var_set: T) -> Self {
     let self_vars = self.variables();
-    Self::Tuple(
-      var_set
-        .filter(|v| self_vars.contains(v))
-        .map(Self::Value)
-        .collect(),
-    )
+    Self::Tuple(var_set.filter(|v| self_vars.contains(v)).map(Self::Value).collect())
   }
 
   pub fn dedup(&self) -> Self {
@@ -156,11 +144,7 @@ impl VariableTuple {
 
   pub fn projection_assigns(&self, args: &Self, assigns: &HashMap<Variable, AssignExpr>) -> Expr {
     match args {
-      Self::Tuple(ts) => Expr::Tuple(
-        ts.iter()
-          .map(|e| self.projection_assigns(e, assigns))
-          .collect(),
-      ),
+      Self::Tuple(ts) => Expr::Tuple(ts.iter().map(|e| self.projection_assigns(e, assigns)).collect()),
       Self::Value(v) => {
         if let Some(acc) = self.accessor_of(v) {
           Expr::Access(acc)
@@ -188,11 +172,7 @@ impl VariableTuple {
 
   pub fn projection_from_var_access(&self, var_access: &HashMap<&Variable, TupleAccessor>) -> Expr {
     match self {
-      Self::Tuple(ts) => Expr::Tuple(
-        ts.iter()
-          .map(|e| e.projection_from_var_access(var_access))
-          .collect(),
-      ),
+      Self::Tuple(ts) => Expr::Tuple(ts.iter().map(|e| e.projection_from_var_access(var_access)).collect()),
       Self::Value(v) => Expr::Access(var_access[v]),
     }
   }

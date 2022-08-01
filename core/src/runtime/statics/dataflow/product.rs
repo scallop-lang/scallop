@@ -3,11 +3,7 @@ use std::marker::PhantomData;
 use super::*;
 use crate::runtime::provenance::*;
 
-pub fn product<'b, D1, D2, T1, T2, T>(
-  d1: D1,
-  d2: D2,
-  semiring_ctx: &'b T::Context,
-) -> Product<'b, D1, D2, T1, T2, T>
+pub fn product<'b, D1, D2, T1, T2, T>(d1: D1, d2: D2, semiring_ctx: &'b T::Context) -> Product<'b, D1, D2, T1, T2, T>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
@@ -63,8 +59,7 @@ where
   D1: Dataflow<T1, T>,
   D2: Dataflow<T2, T>,
 {
-  type Stable =
-    BatchesJoin<D1::Stable, D2::Stable, StableStableOp<'b, D1, D2, T1, T2, T>, T1, T2, (T1, T2), T>;
+  type Stable = BatchesJoin<D1::Stable, D2::Stable, StableStableOp<'b, D1, D2, T1, T2, T>, T1, T2, (T1, T2), T>;
 
   type Recent = BatchesChain3<
     BatchesJoin<D1::Recent, D2::Stable, RecentStableOp<'b, D1, D2, T1, T2, T>, T1, T2, (T1, T2), T>,
@@ -85,16 +80,8 @@ where
     let d1_recent = self.d1.iter_recent();
     let d2_recent = self.d2.iter_recent();
     Self::Recent::chain_3(
-      BatchesJoin::join(
-        d1_recent.clone(),
-        d2_stable,
-        ProductOp::new(self.semiring_ctx),
-      ),
-      BatchesJoin::join(
-        d1_stable,
-        d2_recent.clone(),
-        ProductOp::new(self.semiring_ctx),
-      ),
+      BatchesJoin::join(d1_recent.clone(), d2_stable, ProductOp::new(self.semiring_ctx)),
+      BatchesJoin::join(d1_stable, d2_recent.clone(), ProductOp::new(self.semiring_ctx)),
       BatchesJoin::join(d1_recent, d2_recent, ProductOp::new(self.semiring_ctx)),
     )
   }
@@ -254,7 +241,7 @@ where
       match &self.i1_curr {
         Some(i1_curr) => match self.i2_clone.next() {
           Some(i2_curr) => {
-            let tup = (i1_curr.tuple.0.clone(), i2_curr.tuple.0);
+            let tup = (i1_curr.tuple.get().clone(), i2_curr.tuple.get().clone());
             let tag = self.semiring_ctx.mult(&i1_curr.tag, &i2_curr.tag);
             let elem = StaticElement::new(tup, tag);
             return Some(elem);

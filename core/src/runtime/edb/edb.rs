@@ -64,11 +64,7 @@ impl<C: ProvenanceContext> EDB<C> {
       .collect::<Result<Vec<_>, _>>()
   }
 
-  pub fn add_facts<F>(
-    &mut self,
-    relation: &str,
-    facts: Vec<(Option<C::InputTag>, F)>,
-  ) -> Result<(), EDBError>
+  pub fn add_facts<F>(&mut self, relation: &str, facts: Vec<(Option<C::InputTag>, F)>) -> Result<(), EDBError>
   where
     F: Clone + Into<Tuple>,
   {
@@ -119,11 +115,7 @@ impl<C: ProvenanceContext> EDB<C> {
     Ok(())
   }
 
-  pub fn add_tagged_facts<F>(
-    &mut self,
-    relation: &str,
-    facts: Vec<(C::InputTag, F)>,
-  ) -> Result<(), EDBError>
+  pub fn add_tagged_facts<F>(&mut self, relation: &str, facts: Vec<(C::InputTag, F)>) -> Result<(), EDBError>
   where
     F: Clone + Into<Tuple>,
   {
@@ -229,11 +221,7 @@ impl<C: ProvenanceContext> EDB<C> {
     Ok(())
   }
 
-  pub fn add_annotated_disjunction<F>(
-    &mut self,
-    relation: &str,
-    facts: Vec<(C::InputTag, F)>,
-  ) -> Result<(), EDBError>
+  pub fn add_annotated_disjunction<F>(&mut self, relation: &str, facts: Vec<(C::InputTag, F)>) -> Result<(), EDBError>
   where
     F: Clone + Into<Tuple>,
   {

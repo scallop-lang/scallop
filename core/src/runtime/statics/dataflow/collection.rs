@@ -8,10 +8,7 @@ where
   Tup: StaticTupleTrait,
   T: Tag,
 {
-  StaticCollectionDataflow {
-    collection,
-    first_time,
-  }
+  StaticCollectionDataflow { collection, first_time }
 }
 
 pub struct StaticCollectionDataflow<'a, Tup: StaticTupleTrait, T: Tag> {

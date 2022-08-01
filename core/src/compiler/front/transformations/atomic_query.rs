@@ -7,9 +7,7 @@ pub struct TransformAtomicQuery {
 
 impl TransformAtomicQuery {
   pub fn new() -> Self {
-    Self {
-      to_add_rules: vec![],
-    }
+    Self { to_add_rules: vec![] }
   }
 }
 

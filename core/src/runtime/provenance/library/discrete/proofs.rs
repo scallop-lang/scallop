@@ -4,7 +4,6 @@ use itertools::iproduct;
 
 use super::disjunction::Disjunctions;
 use super::*;
-use crate::runtime::dynamic::*;
 use crate::utils::IdAllocator;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -46,9 +45,7 @@ impl Proofs {
 
   pub fn one() -> Self {
     Self {
-      proofs: vec![Proof {
-        facts: BTreeSet::new(),
-      }],
+      proofs: vec![Proof { facts: BTreeSet::new() }],
     }
   }
 
@@ -117,10 +114,7 @@ impl ProvenanceContext for ProofsContext {
   }
 
   fn tagging_disjunction_fn(&mut self, tags: Vec<Self::InputTag>) -> Vec<Self::Tag> {
-    let ids = tags
-      .into_iter()
-      .map(|_| self.id_allocator.alloc())
-      .collect::<Vec<_>>();
+    let ids = tags.into_iter().map(|_| self.id_allocator.alloc()).collect::<Vec<_>>();
     self.disjunctions.add_disjunction(ids.clone().into_iter());
     ids.into_iter().map(Self::Tag::singleton).collect()
   }
@@ -158,14 +152,6 @@ impl ProvenanceContext for ProofsContext {
   }
 
   fn minus(&self, _: &Self::Tag, _: &Self::Tag) -> Option<Self::Tag> {
-    panic!("Not implemented")
-  }
-
-  fn dynamic_aggregate<'a>(
-    &self,
-    _: &DynamicAggregateOp,
-    _: DynamicElements<Self::Tag>,
-  ) -> DynamicElements<Self::Tag> {
     panic!("Not implemented")
   }
 }

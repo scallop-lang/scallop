@@ -9,10 +9,7 @@ impl std::fmt::Debug for TupleType {
     match self {
       Self::Tuple(ts) => f.write_fmt(format_args!(
         "({})",
-        ts.iter()
-          .map(|t| format!("{t:?}"))
-          .collect::<Vec<_>>()
-          .join(", ")
+        ts.iter().map(|t| format!("{t:?}")).collect::<Vec<_>>().join(", ")
       )),
       Self::Value(v) => std::fmt::Debug::fmt(v, f),
     }
@@ -24,10 +21,7 @@ impl std::fmt::Display for TupleType {
     match self {
       Self::Tuple(ts) => f.write_fmt(format_args!(
         "({})",
-        ts.iter()
-          .map(|t| format!("{}", t))
-          .collect::<Vec<_>>()
-          .join(", ")
+        ts.iter().map(|t| format!("{}", t)).collect::<Vec<_>>().join(", ")
       )),
       Self::Value(v) => std::fmt::Debug::fmt(v, f),
     }
@@ -71,6 +65,12 @@ where
 {
   fn from_type() -> Self {
     Self::Value(<ValueType as FromType<A>>::from_type())
+  }
+}
+
+impl FromType<()> for TupleType {
+  fn from_type() -> Self {
+    Self::Tuple(Box::new([]))
   }
 }
 

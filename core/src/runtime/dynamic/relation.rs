@@ -31,10 +31,7 @@ impl<T: Tag> DynamicRelation<T> {
   where
     Tup: Into<Tuple>,
   {
-    let elements = data
-      .into_iter()
-      .map(|tuple| (None, tuple))
-      .collect::<Vec<_>>();
+    let elements = data.into_iter().map(|tuple| (None, tuple)).collect::<Vec<_>>();
     self.insert_tagged(ctx, elements);
   }
 
@@ -43,19 +40,12 @@ impl<T: Tag> DynamicRelation<T> {
     Tup: Into<Tuple>,
     M: Monitor<T::Context>,
   {
-    let elements = data
-      .into_iter()
-      .map(|tuple| (None, tuple))
-      .collect::<Vec<_>>();
+    let elements = data.into_iter().map(|tuple| (None, tuple)).collect::<Vec<_>>();
     self.insert_tagged_with_monitor(ctx, elements, m);
   }
 
-  pub fn insert_one_tagged<Tup>(
-    &self,
-    ctx: &mut T::Context,
-    input_tag: Option<InputTagOf<T::Context>>,
-    tuple: Tup,
-  ) where
+  pub fn insert_one_tagged<Tup>(&self, ctx: &mut T::Context, input_tag: Option<InputTagOf<T::Context>>, tuple: Tup)
+  where
     Tup: Into<Tuple>,
   {
     self.insert_tagged(ctx, vec![(input_tag, tuple)]);
@@ -88,12 +78,8 @@ impl<T: Tag> DynamicRelation<T> {
     self.insert_tagged(ctx, elements);
   }
 
-  pub fn insert_dynamically_tagged_with_monitor<Tup, M>(
-    &self,
-    ctx: &mut T::Context,
-    data: Vec<(InputTag, Tup)>,
-    m: &M,
-  ) where
+  pub fn insert_dynamically_tagged_with_monitor<Tup, M>(&self, ctx: &mut T::Context, data: Vec<(InputTag, Tup)>, m: &M)
+  where
     Tup: Into<Tuple>,
     M: Monitor<T::Context>,
   {
@@ -107,11 +93,8 @@ impl<T: Tag> DynamicRelation<T> {
     self.insert_tagged_with_monitor(ctx, elements, m);
   }
 
-  pub fn insert_tagged<Tup>(
-    &self,
-    ctx: &mut T::Context,
-    data: Vec<(Option<InputTagOf<T::Context>>, Tup)>,
-  ) where
+  pub fn insert_tagged<Tup>(&self, ctx: &mut T::Context, data: Vec<(Option<InputTagOf<T::Context>>, Tup)>)
+  where
     Tup: Into<Tuple>,
   {
     let elements = data
@@ -188,11 +171,7 @@ impl<T: Tag> DynamicRelation<T> {
   }
 
   pub fn num_stable(&self) -> usize {
-    self
-      .stable
-      .borrow()
-      .iter()
-      .fold(0, |a, rela| a + rela.len())
+    self.stable.borrow().iter().fold(0, |a, rela| a + rela.len())
   }
 
   pub fn num_recent(&self) -> usize {
@@ -202,15 +181,8 @@ impl<T: Tag> DynamicRelation<T> {
   pub fn changed(&mut self, ctx: &T::Context) -> bool {
     // 1. Merge self.recent into self.stable.
     if !self.recent.borrow().is_empty() {
-      let mut recent =
-        ::std::mem::replace(&mut (*self.recent.borrow_mut()), DynamicCollection::empty());
-      while self
-        .stable
-        .borrow()
-        .last()
-        .map(|x| x.len() <= 2 * recent.len())
-        == Some(true)
-      {
+      let mut recent = ::std::mem::replace(&mut (*self.recent.borrow_mut()), DynamicCollection::empty());
+      while self.stable.borrow().last().map(|x| x.len() <= 2 * recent.len()) == Some(true) {
         let last = self.stable.borrow_mut().pop().unwrap();
         recent = recent.merge(last, ctx);
       }
@@ -248,8 +220,7 @@ impl<T: Tag> DynamicRelation<T> {
             } else {
               // If the two elements are equal, then we need to compute a new tag, while deciding where
               // to put the new element: stable or recent
-              let (new_tag, proceeding) =
-                ctx.add_with_proceeding(&stable_elem.tag, &to_add_elem.tag);
+              let (new_tag, proceeding) = ctx.add_with_proceeding(&stable_elem.tag, &to_add_elem.tag);
               match proceeding {
                 Proceeding::Recent => {
                   // If we put the new element in recent, then we will not retain the stable element,
@@ -302,20 +273,14 @@ impl<T: Tag> DynamicRelation<T> {
   pub fn insert_dataflow_recent<'a>(&self, ctx: &T::Context, d: &DynamicDataflow<'a, T>) {
     for batch in d.iter_recent() {
       let data = batch.filter(|e| !ctx.discard(&e.tag)).collect::<Vec<_>>();
-      self
-        .to_add
-        .borrow_mut()
-        .push(DynamicCollection::from_vec(data, ctx));
+      self.to_add.borrow_mut().push(DynamicCollection::from_vec(data, ctx));
     }
   }
 
   pub fn insert_dataflow_stable<'a>(&self, ctx: &T::Context, d: &DynamicDataflow<'a, T>) {
     for batch in d.iter_stable() {
       let data = batch.filter(|e| ctx.discard(&e.tag)).collect::<Vec<_>>();
-      self
-        .to_add
-        .borrow_mut()
-        .push(DynamicCollection::from_vec(data, ctx));
+      self.to_add.borrow_mut().push(DynamicCollection::from_vec(data, ctx));
     }
   }
 

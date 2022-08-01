@@ -1,4 +1,6 @@
+use scallop_core::common::aggregate_op::AggregateOp;
 use scallop_core::common::expr::*;
+use scallop_core::compiler::ram::*;
 use scallop_core::runtime::dynamic::*;
 use scallop_core::runtime::provenance::*;
 use scallop_core::testing::*;
@@ -24,11 +26,11 @@ where
       .insert_untagged(&mut ctx, vec![("blue",), ("green",), ("red",)]);
     strata_1.add_update_dataflow(
       "_color_rev",
-      Dataflow::dynamic_relation("color").project((Expr::access(1), Expr::access(0))),
+      Dataflow::relation("color".to_string()).project((Expr::access(1), Expr::access(0))),
     );
     strata_1.add_update_dataflow(
       "_colors_key",
-      Dataflow::dynamic_relation("colors").project((Expr::access(0), ())),
+      Dataflow::relation("colors".to_string()).project((Expr::access(0), ())),
     );
     strata_1.add_output_relation("_color_rev");
     strata_1.add_output_relation("_colors_key");
@@ -42,8 +44,7 @@ where
     strata_2.add_input_dynamic_collection("_colors_key", &result_1["_colors_key"]);
     strata_2.add_update_dataflow(
       "color_count",
-      Groups::group_by_join_collection("_colors_key", "_color_rev")
-        .aggregate(DynamicAggregateOp::count(Expr::access(1)))
+      Dataflow::reduce(AggregateOp::Count, "_color_rev", ReduceGroupByType::join("_colors_key"))
         .project((Expr::access(0), Expr::access(2))),
     );
     strata_2.add_output_relation("color_count");
@@ -56,8 +57,5 @@ where
 #[test]
 fn test_group_by_key_1_unit() {
   let color_count = test_group_by_key_1::<unit::Unit>();
-  expect_collection(
-    &color_count,
-    vec![("blue", 2usize), ("green", 1usize), ("red", 0usize)],
-  )
+  expect_collection(&color_count, vec![("blue", 2usize), ("green", 1usize), ("red", 0usize)])
 }

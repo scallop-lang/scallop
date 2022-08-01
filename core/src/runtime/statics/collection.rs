@@ -92,7 +92,7 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticCollection<Tup, T> {
       self
         .elements
         .into_iter()
-        .map(move |elem| (ctx.recover_fn(&elem.tag), elem.tuple.0)),
+        .map(move |elem| (ctx.recover_fn(&elem.tag), elem.tuple.get().clone())),
     )
   }
 
@@ -106,15 +106,11 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticCollection<Tup, T> {
 
     // If one of the element lists is zero-length, we don't need to do any work
     if elements1.is_empty() {
-      return Self {
-        elements: elements2,
-      };
+      return Self { elements: elements2 };
     }
 
     if elements2.is_empty() {
-      return Self {
-        elements: elements1,
-      };
+      return Self { elements: elements1 };
     }
 
     // Make sure that elements1 starts with the lower element
@@ -126,9 +122,7 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticCollection<Tup, T> {
     // Fast path for when all the new elements are after the exiting ones
     if elements1[elements1.len() - 1] < elements2[0] {
       elements1.extend(elements2.into_iter());
-      return Self {
-        elements: elements1,
-      };
+      return Self { elements: elements1 };
     }
 
     let mut elements = Vec::with_capacity(elements1.len() + elements2.len());

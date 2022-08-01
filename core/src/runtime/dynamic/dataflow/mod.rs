@@ -1,4 +1,4 @@
-pub mod aggregate;
+pub mod aggregation;
 pub mod batching;
 mod utils;
 
@@ -22,7 +22,7 @@ use crate::runtime::dynamic::*;
 use crate::runtime::provenance::*;
 
 // Submodules
-pub use aggregate::*;
+pub use aggregation::*;
 use batching::*;
 
 // Dataflows

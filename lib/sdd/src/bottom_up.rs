@@ -10,10 +10,7 @@ pub struct SDDBuilderConfig {
 impl SDDBuilderConfig {
   pub fn new(vars: Vec<usize>, vtree_type: VTreeType, garbage_collect: bool) -> Self {
     let vtree = VTree::new_with_type(vars, vtree_type);
-    Self {
-      vtree,
-      garbage_collect,
-    }
+    Self { vtree, garbage_collect }
   }
 
   pub fn vars(&self) -> &Vec<usize> {
@@ -91,9 +88,7 @@ impl SDDBuilder {
         (
           var_id.clone(),
           sdd_nodes.add_node(SDDNode::Literal {
-            literal: SDDLiteral::PosVar {
-              var_id: var_id.clone(),
-            },
+            literal: SDDLiteral::PosVar { var_id: var_id.clone() },
           }),
         )
       })
@@ -106,9 +101,7 @@ impl SDDBuilder {
         (
           var_id.clone(),
           sdd_nodes.add_node(SDDNode::Literal {
-            literal: SDDLiteral::NegVar {
-              var_id: var_id.clone(),
-            },
+            literal: SDDLiteral::NegVar { var_id: var_id.clone() },
           }),
         )
       })
@@ -135,9 +128,11 @@ impl SDDBuilder {
     let sdd_node_to_vtree_node_map = pos_var_nodes
       .iter()
       .map(|(var_id, pos_node_id)| (pos_node_id.clone(), config.vtree.var_to_node_id_map[var_id]))
-      .chain(neg_var_nodes.iter().map(|(var_id, neg_node_id)| {
-        (neg_node_id.clone(), config.vtree.var_to_node_id_map[var_id])
-      }))
+      .chain(
+        neg_var_nodes
+          .iter()
+          .map(|(var_id, neg_node_id)| (neg_node_id.clone(), config.vtree.var_to_node_id_map[var_id])),
+      )
       .collect::<HashMap<_, _>>();
     let apply_cache = HashMap::new();
 
@@ -327,26 +322,12 @@ impl SDDBuilder {
     return node_id;
   }
 
-  fn cache_apply_result(
-    &mut self,
-    lhs: SDDNodeIndex,
-    rhs: SDDNodeIndex,
-    op: ApplyOp,
-    result_node: SDDNodeIndex,
-  ) {
+  fn cache_apply_result(&mut self, lhs: SDDNodeIndex, rhs: SDDNodeIndex, op: ApplyOp, result_node: SDDNodeIndex) {
     self.apply_cache.insert((lhs, rhs, op), result_node);
   }
 
-  fn lookup_apply_cache(
-    &self,
-    lhs: SDDNodeIndex,
-    rhs: SDDNodeIndex,
-    op: ApplyOp,
-  ) -> Option<SDDNodeIndex> {
-    self
-      .apply_cache
-      .get(&(lhs, rhs, op))
-      .map(SDDNodeIndex::clone)
+  fn lookup_apply_cache(&self, lhs: SDDNodeIndex, rhs: SDDNodeIndex, op: ApplyOp) -> Option<SDDNodeIndex> {
+    self.apply_cache.get(&(lhs, rhs, op)).map(SDDNodeIndex::clone)
   }
 
   fn negate_node(&mut self, n: SDDNodeIndex) -> SDDNodeIndex {
@@ -360,10 +341,7 @@ impl SDDBuilder {
     if let SDDNode::Or { children } = self.sdd_nodes[n].clone() {
       for SDDElement { prime, sub } in children {
         let sub_neg = self.negate_node(sub.clone());
-        neg_children.push(SDDElement {
-          prime,
-          sub: sub_neg,
-        });
+        neg_children.push(SDDElement { prime, sub: sub_neg });
       }
     }
 
@@ -377,13 +355,7 @@ impl SDDBuilder {
     neg
   }
 
-  fn apply_equal(
-    &mut self,
-    n1: SDDNodeIndex,
-    n2: SDDNodeIndex,
-    op: ApplyOp,
-    lca: VTreeNodeIndex,
-  ) -> SDDNodeIndex {
+  fn apply_equal(&mut self, n1: SDDNodeIndex, n2: SDDNodeIndex, op: ApplyOp, lca: VTreeNodeIndex) -> SDDNodeIndex {
     let mut new_children = Vec::new();
 
     // Get the children; they should both have children
@@ -418,13 +390,7 @@ impl SDDBuilder {
     self.add_or_node(new_children, lca)
   }
 
-  fn apply_left(
-    &mut self,
-    n1: SDDNodeIndex,
-    n2: SDDNodeIndex,
-    op: ApplyOp,
-    lca: VTreeNodeIndex,
-  ) -> SDDNodeIndex {
+  fn apply_left(&mut self, n1: SDDNodeIndex, n2: SDDNodeIndex, op: ApplyOp, lca: VTreeNodeIndex) -> SDDNodeIndex {
     let n1_neg = self.negate_node(n1);
     let n = match op {
       ApplyOp::Conjoin => n1,
@@ -458,13 +424,7 @@ impl SDDBuilder {
     self.add_or_node(new_children, lca)
   }
 
-  fn apply_right(
-    &mut self,
-    n1: SDDNodeIndex,
-    n2: SDDNodeIndex,
-    op: ApplyOp,
-    lca: VTreeNodeIndex,
-  ) -> SDDNodeIndex {
+  fn apply_right(&mut self, n1: SDDNodeIndex, n2: SDDNodeIndex, op: ApplyOp, lca: VTreeNodeIndex) -> SDDNodeIndex {
     // n1 has to be an OR node as n2 tree is a subtree of n1 tree
     match self.sdd_nodes[n1].clone() {
       SDDNode::Or { children } => {
@@ -484,22 +444,13 @@ impl SDDBuilder {
     }
   }
 
-  fn apply_disjoint(
-    &mut self,
-    n1: SDDNodeIndex,
-    n2: SDDNodeIndex,
-    op: ApplyOp,
-    lca: VTreeNodeIndex,
-  ) -> SDDNodeIndex {
+  fn apply_disjoint(&mut self, n1: SDDNodeIndex, n2: SDDNodeIndex, op: ApplyOp, lca: VTreeNodeIndex) -> SDDNodeIndex {
     let n1_neg = self.negate_node(n1);
     let n1_sub = self.apply(n2, self.true_node, op);
     let n1_neg_sub = self.apply(n2, self.false_node, op);
 
     // Construct the new OR node
-    let e1 = SDDElement {
-      prime: n1,
-      sub: n1_sub,
-    };
+    let e1 = SDDElement { prime: n1, sub: n1_sub };
     let e2 = SDDElement {
       prime: n1_neg,
       sub: n1_neg_sub,

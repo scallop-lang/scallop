@@ -196,7 +196,7 @@ where
 
   fn search_ahead<F>(&mut self, mut cmp: F) -> Option<StaticElement<Tup, T>>
   where
-    F: FnMut(&StaticTuple<Tup>) -> bool,
+    F: FnMut(&Tup) -> bool,
   {
     assert!(self.elem_id > 0);
     let mut curr = self.elem_id - 1;

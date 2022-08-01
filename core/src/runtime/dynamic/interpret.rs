@@ -23,7 +23,6 @@ pub struct InterpretOptions {
 pub fn interpret<C>(ram: compiler::ram::Program, ctx: &mut C) -> InterpretResult<C::Tag>
 where
   C: ProvenanceContext,
-  C::InputTag: Default,
 {
   let opt = InterpretOptions::default();
   interpret_with_options(ram, ctx, &opt)
@@ -62,30 +61,23 @@ where
 
       // Add facts
       if !relation.facts.is_empty() {
-        iter
-          .get_dynamic_relation_unsafe(predicate)
-          .insert_dynamically_tagged(
-            ctx,
-            relation
-              .facts
-              .iter()
-              .map(|f| (f.tag.clone(), f.tuple.clone()))
-              .collect(),
-          );
+        iter.get_dynamic_relation_unsafe(predicate).insert_dynamically_tagged(
+          ctx,
+          relation
+            .facts
+            .iter()
+            .map(|f| (f.tag.clone(), f.tuple.clone()))
+            .collect(),
+        );
       }
 
       // Add disjunctive facts
       if !relation.disjunctive_facts.is_empty() {
         for disjunction in &relation.disjunctive_facts {
-          iter
-            .get_dynamic_relation_unsafe(predicate)
-            .insert_dynamically_tagged(
-              ctx,
-              disjunction
-                .iter()
-                .map(|f| (f.tag.clone(), f.tuple.clone()))
-                .collect(),
-            );
+          iter.get_dynamic_relation_unsafe(predicate).insert_dynamically_tagged(
+            ctx,
+            disjunction.iter().map(|f| (f.tag.clone(), f.tuple.clone())).collect(),
+          );
         }
       }
     }
@@ -106,7 +98,7 @@ where
 
     // Add updates
     for update in &stratum.updates {
-      iter.add_update(Update::from_ram(update, &dyn_relas));
+      iter.add_update(update.clone());
     }
 
     // Run!
@@ -196,10 +188,7 @@ where
             .get_dynamic_relation_unsafe(predicate)
             .insert_dynamically_tagged_with_monitor(
               ctx,
-              disjunction
-                .iter()
-                .map(|f| (f.tag.clone(), f.tuple.clone()))
-                .collect(),
+              disjunction.iter().map(|f| (f.tag.clone(), f.tuple.clone())).collect(),
               monitor,
             );
         }
@@ -222,7 +211,7 @@ where
 
     // Add updates
     for update in &stratum.updates {
-      iter.add_update(Update::from_ram(update, &dyn_relas));
+      iter.add_update(update.clone());
     }
 
     // Run!
@@ -269,23 +258,14 @@ fn stratum_inputs_outputs(ram: &compiler::ram::Program) -> (StratumInputs, Strat
     // With dependency, add to input/output
     for dep in stratum.dependency() {
       let dep_stratum = ram.relation_to_stratum[&dep];
-      stratum_outputs
-        .entry(dep_stratum)
-        .or_default()
-        .insert(dep.clone());
-      stratum_inputs
-        .entry(i)
-        .or_default()
-        .insert((dep.clone(), dep_stratum));
+      stratum_outputs.entry(dep_stratum).or_default().insert(dep.clone());
+      stratum_inputs.entry(i).or_default().insert((dep.clone(), dep_stratum));
     }
 
     // Regular user requested outputs
     for (predicate, relation) in &stratum.relations {
       if relation.output.is_not_hidden() {
-        stratum_outputs
-          .entry(i)
-          .or_default()
-          .insert(predicate.clone());
+        stratum_outputs.entry(i).or_default().insert(predicate.clone());
       }
     }
   }

@@ -27,21 +27,9 @@ impl<'a, T: Tag> DynamicJoinDataflow<'a, T> {
   pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
     let op = JoinOp { ctx: self.ctx };
     DynamicBatches::chain(vec![
-      DynamicBatches::binary(
-        self.d1.iter_stable(),
-        self.d2.iter_recent(),
-        op.clone().into(),
-      ),
-      DynamicBatches::binary(
-        self.d1.iter_recent(),
-        self.d2.iter_stable(),
-        op.clone().into(),
-      ),
-      DynamicBatches::binary(
-        self.d1.iter_recent(),
-        self.d2.iter_recent(),
-        op.clone().into(),
-      ),
+      DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_recent(), op.clone().into()),
+      DynamicBatches::binary(self.d1.iter_recent(), self.d2.iter_stable(), op.clone().into()),
+      DynamicBatches::binary(self.d1.iter_recent(), self.d2.iter_recent(), op.clone().into()),
     ])
   }
 }
@@ -63,11 +51,7 @@ impl<'a, T: Tag> From<JoinOp<'a, T>> for BatchBinaryOp<'a, T> {
 }
 
 impl<'a, T: Tag> JoinOp<'a, T> {
-  pub fn apply(
-    &self,
-    mut i1: DynamicBatch<'a, T>,
-    mut i2: DynamicBatch<'a, T>,
-  ) -> DynamicBatch<'a, T> {
+  pub fn apply(&self, mut i1: DynamicBatch<'a, T>, mut i2: DynamicBatch<'a, T>) -> DynamicBatch<'a, T> {
     let i1_curr = i1.next();
     let i2_curr = i2.next();
     DynamicBatch::Join(DynamicJoinBatch {
@@ -111,11 +95,7 @@ impl<'a, T: Tag> Iterator for DynamicJoinBatch<'a, T> {
     loop {
       if let Some(curr_prod_iter) = &mut self.curr_iter {
         if let Some((e1, e2)) = curr_prod_iter.next() {
-          let tuple = Tuple::from((
-            e1.tuple[0].clone(),
-            e1.tuple[1].clone(),
-            e2.tuple[1].clone(),
-          ));
+          let tuple = Tuple::from((e1.tuple[0].clone(), e1.tuple[1].clone(), e2.tuple[1].clone()));
           let tag = self.ctx.mult(&e1.tag, &e2.tag);
           let result = DynamicElement::new(tuple, tag);
           return Some(result);
@@ -129,31 +109,21 @@ impl<'a, T: Tag> Iterator for DynamicJoinBatch<'a, T> {
       }
 
       match (&self.i1_curr, &self.i2_curr) {
-        (Some(i1_curr_elem), Some(i2_curr_elem)) => {
-          match i1_curr_elem.tuple[0].cmp(&i2_curr_elem.tuple[0]) {
-            Ordering::Less => {
-              self.i1_curr = self
-                .i1
-                .search_ahead(|i1_next| i1_next[0] < i2_curr_elem.tuple[0])
-            }
-            Ordering::Equal => {
-              let key = &i1_curr_elem.tuple[0];
-              let v1 = std::iter::once(i1_curr_elem.clone())
-                .chain(self.i1.clone().take_while(|x| &x.tuple[0] == key))
-                .collect::<Vec<_>>();
-              let v2 = std::iter::once(i2_curr_elem.clone())
-                .chain(self.i2.clone().take_while(|x| &x.tuple[0] == key))
-                .collect::<Vec<_>>();
-              let iter = JoinProductIterator::new(v1, v2);
-              self.curr_iter = Some(iter);
-            }
-            Ordering::Greater => {
-              self.i2_curr = self
-                .i2
-                .search_ahead(|i2_next| i2_next[0] < i1_curr_elem.tuple[0])
-            }
+        (Some(i1_curr_elem), Some(i2_curr_elem)) => match i1_curr_elem.tuple[0].cmp(&i2_curr_elem.tuple[0]) {
+          Ordering::Less => self.i1_curr = self.i1.search_ahead(|i1_next| i1_next[0] < i2_curr_elem.tuple[0]),
+          Ordering::Equal => {
+            let key = &i1_curr_elem.tuple[0];
+            let v1 = std::iter::once(i1_curr_elem.clone())
+              .chain(self.i1.clone().take_while(|x| &x.tuple[0] == key))
+              .collect::<Vec<_>>();
+            let v2 = std::iter::once(i2_curr_elem.clone())
+              .chain(self.i2.clone().take_while(|x| &x.tuple[0] == key))
+              .collect::<Vec<_>>();
+            let iter = JoinProductIterator::new(v1, v2);
+            self.curr_iter = Some(iter);
           }
-        }
+          Ordering::Greater => self.i2_curr = self.i2.search_ahead(|i2_next| i2_next[0] < i1_curr_elem.tuple[0]),
+        },
         _ => break None,
       }
     }

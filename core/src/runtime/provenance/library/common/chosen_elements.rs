@@ -1,10 +1,7 @@
-use crate::runtime::dynamic::DynamicElement;
+use crate::common::element::Element;
 use crate::runtime::provenance::Tag;
 
-pub fn collect_chosen_elements<T: Tag>(
-  all: &Vec<DynamicElement<T>>,
-  chosen_ids: &Vec<usize>,
-) -> Vec<DynamicElement<T>> {
+pub fn collect_chosen_elements<'a, T: Tag, E: Element<T>>(all: &'a Vec<E>, chosen_ids: &Vec<usize>) -> Vec<&'a E> {
   all
     .iter()
     .enumerate()

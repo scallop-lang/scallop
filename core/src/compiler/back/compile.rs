@@ -59,9 +59,7 @@ impl Program {
     self.relations.retain(|r| !to_remove.contains(&r.predicate));
 
     // Remove rules
-    self
-      .rules
-      .retain(|r| !to_remove.contains(r.head_predicate()));
+    self.rules.retain(|r| !to_remove.contains(r.head_predicate()));
 
     // Remove facts
     self.facts.retain(|f| !to_remove.contains(&f.predicate));

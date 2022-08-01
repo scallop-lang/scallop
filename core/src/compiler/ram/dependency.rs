@@ -28,16 +28,9 @@ impl Program {
         for dep_pred in update.dependency() {
           let source = relation_node_ids[&dep_pred];
           if let Some(edge_id) = edge_ids.get(&(source.clone(), target.clone())) {
-            graph
-              .edge_weight_mut(edge_id.clone())
-              .unwrap()
-              .insert(update);
+            graph.edge_weight_mut(edge_id.clone()).unwrap().insert(update);
           } else {
-            let edge_id = graph.add_edge(
-              source,
-              target,
-              std::iter::once(update).collect::<BTreeSet<_>>(),
-            );
+            let edge_id = graph.add_edge(source, target, std::iter::once(update).collect::<BTreeSet<_>>());
             edge_ids.insert((source, target), edge_id);
           }
         }

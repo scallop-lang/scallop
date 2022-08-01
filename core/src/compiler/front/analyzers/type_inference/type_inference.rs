@@ -34,10 +34,7 @@ impl TypeInference {
   where
     T: WithLocation,
   {
-    self
-      .expr_types
-      .get(t.location())
-      .map(TypeSet::to_default_value_type)
+    self.expr_types.get(t.location()).map(TypeSet::to_default_value_type)
   }
 
   pub fn num_relations(&self) -> usize {
@@ -52,13 +49,7 @@ impl TypeInference {
     self
       .inferred_relation_types
       .iter()
-      .filter_map(|(n, _)| {
-        if !n.contains("#") {
-          Some(n.clone())
-        } else {
-          None
-        }
-      })
+      .filter_map(|(n, _)| if !n.contains("#") { Some(n.clone()) } else { None })
       .collect()
   }
 
@@ -69,12 +60,7 @@ impl TypeInference {
   pub fn relation_arg_types(&self, relation: &str) -> Option<Vec<ValueType>> {
     let inferred_relation_types = &self.inferred_relation_types;
     if let Some((tys, _)) = &inferred_relation_types.get(relation) {
-      Some(
-        tys
-          .iter()
-          .map(type_inference::TypeSet::to_default_value_type)
-          .collect(),
-      )
+      Some(tys.iter().map(type_inference::TypeSet::to_default_value_type).collect())
     } else {
       None
     }
@@ -115,9 +101,7 @@ impl TypeInference {
     } else {
       match self.find_value_type(ty) {
         Ok(base_ty) => {
-          self
-            .custom_types
-            .insert(name.to_string(), (base_ty, loc.clone()));
+          self.custom_types.insert(name.to_string(), (base_ty, loc.clone()));
         }
         Err(err) => {
           self.errors.push(err);
@@ -126,29 +110,20 @@ impl TypeInference {
     }
   }
 
-  pub fn check_and_add_relation_type<'a>(
-    &mut self,
-    predicate: &str,
-    tys: impl Iterator<Item = &'a Type>,
-    loc: &Loc,
-  ) {
+  pub fn check_and_add_relation_type<'a>(&mut self, predicate: &str, tys: impl Iterator<Item = &'a Type>, loc: &Loc) {
     // Check if the relation has been declared
     if self.relation_type_decl_loc.contains_key(predicate) {
       let source_loc = &self.relation_type_decl_loc[predicate];
-      self
-        .errors
-        .push(TypeInferenceError::DuplicateRelationTypeDecl {
-          predicate: predicate.to_string(),
-          source_decl_loc: source_loc.clone(),
-          duplicate_decl_loc: loc.clone(),
-        });
+      self.errors.push(TypeInferenceError::DuplicateRelationTypeDecl {
+        predicate: predicate.to_string(),
+        source_decl_loc: source_loc.clone(),
+        duplicate_decl_loc: loc.clone(),
+      });
       return;
     }
 
     // Add the declaration
-    self
-      .relation_type_decl_loc
-      .insert(predicate.to_string(), loc.clone());
+    self.relation_type_decl_loc.insert(predicate.to_string(), loc.clone());
 
     // Add the declaration to the inferred types
     let tys = tys.collect::<Vec<_>>();
@@ -258,11 +233,7 @@ impl TypeInference {
 
 impl NodeVisitor for TypeInference {
   fn visit_subtype_decl(&mut self, subtype_decl: &SubtypeDecl) {
-    self.check_and_add_custom_type(
-      subtype_decl.name(),
-      subtype_decl.subtype_of(),
-      subtype_decl.location(),
-    );
+    self.check_and_add_custom_type(subtype_decl.name(), subtype_decl.subtype_of(), subtype_decl.location());
   }
 
   fn visit_alias_type_decl(&mut self, alias_type_decl: &AliasTypeDecl) {
@@ -282,11 +253,7 @@ impl NodeVisitor for TypeInference {
   }
 
   fn visit_input_decl(&mut self, input_decl: &InputDecl) {
-    self.check_and_add_relation_type(
-      input_decl.predicate(),
-      input_decl.arg_types(),
-      input_decl.location(),
-    );
+    self.check_and_add_relation_type(input_decl.predicate(), input_decl.arg_types(), input_decl.location());
   }
 
   fn visit_constant_set_decl(&mut self, constant_set_decl: &ConstantSetDecl) {
@@ -300,27 +267,25 @@ impl NodeVisitor for TypeInference {
     // First get the arity of the constant set.
     let arity = {
       // Compute the arity from the set
-      let maybe_arity = constant_set_decl
-        .iter_tuples()
-        .fold(Ok(None), |acc, tuple| match acc {
-          Ok(maybe_arity) => {
-            let current_arity = tuple.arity();
-            if let Some(previous_arity) = &maybe_arity {
-              if previous_arity != &current_arity {
-                return Err(TypeInferenceError::ConstantSetArityMismatch {
-                  predicate: pred.clone(),
-                  decl_loc: constant_set_decl.location().clone(),
-                  mismatch_tuple_loc: tuple.location().clone(),
-                });
-              } else {
-                Ok(Some(current_arity))
-              }
+      let maybe_arity = constant_set_decl.iter_tuples().fold(Ok(None), |acc, tuple| match acc {
+        Ok(maybe_arity) => {
+          let current_arity = tuple.arity();
+          if let Some(previous_arity) = &maybe_arity {
+            if previous_arity != &current_arity {
+              return Err(TypeInferenceError::ConstantSetArityMismatch {
+                predicate: pred.clone(),
+                decl_loc: constant_set_decl.location().clone(),
+                mismatch_tuple_loc: tuple.location().clone(),
+              });
             } else {
               Ok(Some(current_arity))
             }
+          } else {
+            Ok(Some(current_arity))
           }
-          Err(err) => Err(err),
-        });
+        }
+        Err(err) => Err(err),
+      });
 
       // If there is arity mismatch inside the set, add the error and stop
       match maybe_arity {
@@ -375,9 +340,7 @@ impl NodeVisitor for TypeInference {
     if self.inferred_relation_types.contains_key(pred) {
       self.inferred_relation_types.get_mut(pred).unwrap().0 = type_sets;
     } else {
-      self
-        .inferred_relation_types
-        .insert(pred.clone(), (type_sets, loc));
+      self.inferred_relation_types.insert(pred.clone(), (type_sets, loc));
     }
   }
 
@@ -472,12 +435,10 @@ impl NodeVisitor for TypeInference {
       }
       QueryNode::Predicate(p) => {
         if !self.inferred_relation_types.contains_key(p.name()) {
-          self
-            .errors
-            .push(TypeInferenceError::UnknownQueryRelationType {
-              predicate: p.name().to_string(),
-              loc: p.location().clone(),
-            })
+          self.errors.push(TypeInferenceError::UnknownQueryRelationType {
+            predicate: p.name().to_string(),
+            loc: p.location().clone(),
+          })
         }
       }
     }

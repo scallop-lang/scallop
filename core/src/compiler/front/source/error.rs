@@ -3,10 +3,7 @@ use std::path::PathBuf;
 
 #[derive(Clone, Debug)]
 pub enum SourceError {
-  CannotOpenFile {
-    file_name: PathBuf,
-    std_io_error: String,
-  },
+  CannotOpenFile { file_name: PathBuf, std_io_error: String },
 }
 
 impl From<SourceError> for FrontCompileError {

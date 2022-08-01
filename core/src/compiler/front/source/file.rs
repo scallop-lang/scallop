@@ -15,11 +15,10 @@ impl FileSource {
     let file_name = String::from(file_path.to_str().unwrap());
 
     // 2. Load the file content
-    let file_content =
-      std::fs::read_to_string(file_path).map_err(|e| SourceError::CannotOpenFile {
-        file_name: file_path.clone(),
-        std_io_error: format!("{}", e),
-      })?;
+    let file_content = std::fs::read_to_string(file_path).map_err(|e| SourceError::CannotOpenFile {
+      file_name: file_path.clone(),
+      std_io_error: format!("{}", e),
+    })?;
 
     // 3. Compute the line/row offsets
     let line_offset_len = collect_line_offset_length(&file_content);

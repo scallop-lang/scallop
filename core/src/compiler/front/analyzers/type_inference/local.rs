@@ -1,7 +1,6 @@
 use std::collections::*;
 
 use super::*;
-use crate::common::aggregate_op::AggregateOp;
 use crate::common::value_type::*;
 use crate::compiler::front::*;
 
@@ -129,10 +128,7 @@ impl LocalTypeInferenceContext {
       .or_default()
       .iter()
       .map(|(var, exprs)| {
-        let tys = exprs
-          .iter()
-          .filter_map(|e| inferred_expr_types.get(e))
-          .collect();
+        let tys = exprs.iter().filter_map(|e| inferred_expr_types.get(e)).collect();
         match TypeSet::unify_type_sets(tys) {
           Ok(ty) => Ok((var.clone(), ty)),
           Err(err) => Err(err),
@@ -147,15 +143,13 @@ impl LocalTypeInferenceContext {
       match v1_ty.unify(v2_ty) {
         Err(err) => {
           let new_err = match err {
-            TypeInferenceError::CannotUnifyTypes { t1, t2, .. } => {
-              TypeInferenceError::CannotUnifyVariables {
-                v1: v1.clone(),
-                t1,
-                v2: v2.clone(),
-                t2,
-                loc: self.rule_loc.clone(),
-              }
-            }
+            TypeInferenceError::CannotUnifyTypes { t1, t2, .. } => TypeInferenceError::CannotUnifyVariables {
+              v1: v1.clone(),
+              t1,
+              v2: v2.clone(),
+              t2,
+              loc: self.rule_loc.clone(),
+            },
             err => err,
           };
           return Err(new_err);
@@ -232,10 +226,7 @@ impl LocalTypeInferenceContext {
     Ok(())
   }
 
-  pub fn check_constraint(
-    &self,
-    inferred_expr_types: &HashMap<Loc, TypeSet>,
-  ) -> Result<(), TypeInferenceError> {
+  pub fn check_constraint(&self, inferred_expr_types: &HashMap<Loc, TypeSet>) -> Result<(), TypeInferenceError> {
     // Check if constraints are all boolean
     for constraint_expr in &self.constraints {
       let ty = &inferred_expr_types[constraint_expr];
@@ -256,12 +247,7 @@ impl LocalTypeInferenceContext {
   ) -> HashMap<String, TypeSet> {
     inferred_var_expr[&self.rule_loc]
       .iter()
-      .map(|(var, exprs)| {
-        (
-          var.clone(),
-          inferred_expr_types[exprs.first().unwrap()].clone(),
-        )
-      })
+      .map(|(var, exprs)| (var.clone(), inferred_expr_types[exprs.first().unwrap()].clone()))
       .collect::<HashMap<_, _>>()
   }
 }
@@ -275,11 +261,9 @@ impl NodeVisitor for LocalTypeInferenceContext {
       .or_default()
       .push((atom.arity(), atom.location().clone()));
     for (i, arg) in atom.iter_arguments().enumerate() {
-      self.unifications.push(Unification::IthArgOfRelation(
-        arg.location().clone(),
-        pred.clone(),
-        i,
-      ));
+      self
+        .unifications
+        .push(Unification::IthArgOfRelation(arg.location().clone(), pred.clone(), i));
     }
   }
 
@@ -307,111 +291,103 @@ impl NodeVisitor for LocalTypeInferenceContext {
     let bindings = r.bindings();
     if let Some(num_bindings) = maybe_num_bindings {
       if bindings.len() != num_bindings {
-        self
-          .errors
-          .push(TypeInferenceError::InvalidReduceBindingVar {
-            op: r.operator().to_str().to_string(),
-            expected: num_bindings,
-            found: bindings.len(),
-            loc: r.location().clone(),
-          });
+        self.errors.push(TypeInferenceError::InvalidReduceBindingVar {
+          op: r.operator().to_str().to_string(),
+          expected: num_bindings,
+          found: bindings.len(),
+          loc: r.location().clone(),
+        });
         return;
       }
     }
 
     // Then propagate the variables
     match &r.operator().node {
-      ReduceOperatorNode::Aggregator(a) => match a {
-        AggregateOp::Count => {
-          if let Some(n) = vars[0].name() {
-            let loc = vars[0].location();
-            let ty = TypeSet::BaseType(ValueType::USize, loc.clone());
-            self.var_types.insert(n.to_string(), (ty, loc.clone()));
-          }
+      ReduceOperatorNode::Count => {
+        if let Some(n) = vars[0].name() {
+          let loc = vars[0].location();
+          let ty = TypeSet::BaseType(ValueType::USize, loc.clone());
+          self.var_types.insert(n.to_string(), (ty, loc.clone()));
         }
-        AggregateOp::Sum => {
-          if let Some(n) = vars[0].name() {
-            let loc = vars[0].location();
-            let ty = TypeSet::Numeric(loc.clone());
-            self.var_types.insert(n.to_string(), (ty, loc.clone()));
+      }
+      ReduceOperatorNode::Sum => {
+        if let Some(n) = vars[0].name() {
+          let loc = vars[0].location();
+          let ty = TypeSet::Numeric(loc.clone());
+          self.var_types.insert(n.to_string(), (ty, loc.clone()));
 
-            // Result var and binding var should have the same type
-            self
-              .vars_of_same_type
-              .push((n.to_string(), bindings[0].name().to_string()));
-          }
+          // Result var and binding var should have the same type
+          self
+            .vars_of_same_type
+            .push((n.to_string(), bindings[0].name().to_string()));
         }
-        AggregateOp::Prod => {
-          if let Some(n) = vars[0].name() {
-            let loc = vars[0].location();
-            let ty = TypeSet::Numeric(loc.clone());
-            self.var_types.insert(n.to_string(), (ty, loc.clone()));
+      }
+      ReduceOperatorNode::Prod => {
+        if let Some(n) = vars[0].name() {
+          let loc = vars[0].location();
+          let ty = TypeSet::Numeric(loc.clone());
+          self.var_types.insert(n.to_string(), (ty, loc.clone()));
 
-            // Result var and binding var should have the same type
-            self
-              .vars_of_same_type
-              .push((n.to_string(), bindings[0].name().to_string()));
-          }
+          // Result var and binding var should have the same type
+          self
+            .vars_of_same_type
+            .push((n.to_string(), bindings[0].name().to_string()));
         }
-        AggregateOp::Min => {
-          if let Some(n) = vars[0].name() {
-            let loc = vars[0].location();
-            let ty = TypeSet::Numeric(loc.clone());
-            self.var_types.insert(n.to_string(), (ty, loc.clone()));
+      }
+      ReduceOperatorNode::Min => {
+        if let Some(n) = vars[0].name() {
+          let loc = vars[0].location();
+          let ty = TypeSet::Numeric(loc.clone());
+          self.var_types.insert(n.to_string(), (ty, loc.clone()));
 
-            // Result var and binding var should have the same type
-            self
-              .vars_of_same_type
-              .push((n.to_string(), bindings[0].name().to_string()));
-          }
+          // Result var and binding var should have the same type
+          self
+            .vars_of_same_type
+            .push((n.to_string(), bindings[0].name().to_string()));
         }
-        AggregateOp::Max => {
-          if let Some(n) = vars[0].name() {
-            let loc = vars[0].location();
-            let ty = TypeSet::Numeric(loc.clone());
-            self.var_types.insert(n.to_string(), (ty, loc.clone()));
+      }
+      ReduceOperatorNode::Max => {
+        if let Some(n) = vars[0].name() {
+          let loc = vars[0].location();
+          let ty = TypeSet::Numeric(loc.clone());
+          self.var_types.insert(n.to_string(), (ty, loc.clone()));
 
-            // Result var and binding var should have the same type
-            self
-              .vars_of_same_type
-              .push((n.to_string(), bindings[0].name().to_string()));
-          }
+          // Result var and binding var should have the same type
+          self
+            .vars_of_same_type
+            .push((n.to_string(), bindings[0].name().to_string()));
         }
-        AggregateOp::Exists => {
-          if let Some(n) = vars[0].name() {
-            let loc = vars[0].location();
-            let ty = TypeSet::BaseType(ValueType::Bool, loc.clone());
-            self.var_types.insert(n.to_string(), (ty, loc.clone()));
-          }
+      }
+      ReduceOperatorNode::Exists => {
+        if let Some(n) = vars[0].name() {
+          let loc = vars[0].location();
+          let ty = TypeSet::BaseType(ValueType::Bool, loc.clone());
+          self.var_types.insert(n.to_string(), (ty, loc.clone()));
         }
-        AggregateOp::Forall => {
-          if let Some(n) = vars[0].name() {
-            let loc = vars[0].location();
-            let ty = TypeSet::BaseType(ValueType::Bool, loc.clone());
-            self.var_types.insert(n.to_string(), (ty, loc.clone()));
-          }
+      }
+      ReduceOperatorNode::Forall => {
+        if let Some(n) = vars[0].name() {
+          let loc = vars[0].location();
+          let ty = TypeSet::BaseType(ValueType::Bool, loc.clone());
+          self.var_types.insert(n.to_string(), (ty, loc.clone()));
         }
-        AggregateOp::Unique => {
-          if vars.len() == bindings.len() {
-            for (var, binding) in vars.iter().zip(bindings.iter()) {
-              if let Some(n) = var.name() {
-                self
-                  .vars_of_same_type
-                  .push((n.to_string(), binding.name().to_string()));
-              }
+      }
+      ReduceOperatorNode::Unique => {
+        if vars.len() == bindings.len() {
+          for (var, binding) in vars.iter().zip(bindings.iter()) {
+            if let Some(n) = var.name() {
+              self.vars_of_same_type.push((n.to_string(), binding.name().to_string()));
             }
-          } else {
-            self
-              .errors
-              .push(TypeInferenceError::InvalidUniqueNumParams {
-                num_output_vars: vars.len(),
-                num_binding_vars: bindings.len(),
-                loc: r.location().clone(),
-              });
-            return;
           }
+        } else {
+          self.errors.push(TypeInferenceError::InvalidUniqueNumParams {
+            num_output_vars: vars.len(),
+            num_binding_vars: bindings.len(),
+            loc: r.location().clone(),
+          });
+          return;
         }
-      },
+      }
       ReduceOperatorNode::Unknown(_) => {}
     }
   }

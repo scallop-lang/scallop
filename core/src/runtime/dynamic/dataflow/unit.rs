@@ -19,7 +19,7 @@ impl<'a, T: Tag> DynamicStableUnitDataflow<'a, T> {
   }
 
   pub fn iter_stable(&self) -> DynamicBatches<'a, T> {
-    let elem = DynamicElement::new(().into(), self.ctx.one());
+    let elem = DynamicElement::new((), self.ctx.one());
     let batch = DynamicBatch::SourceVec(vec![elem].into_iter());
     DynamicBatches::Single(Some(batch))
   }
@@ -49,7 +49,7 @@ impl<'a, T: Tag> DynamicRecentUnitDataflow<'a, T> {
   }
 
   pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
-    let elem = DynamicElement::new(().into(), self.ctx.one());
+    let elem = DynamicElement::new((), self.ctx.one());
     let batch = DynamicBatch::SourceVec(vec![elem].into_iter());
     DynamicBatches::Single(Some(batch))
   }

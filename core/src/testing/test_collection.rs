@@ -22,12 +22,27 @@ impl<T: Into<Tuple>> From<Vec<T>> for TestCollection {
   }
 }
 
+pub struct TestCollectionWithTag<T: Tag> {
+  pub elements: Vec<(OutputTagOf<T::Context>, Tuple)>,
+}
+
+impl<T: Tag> TestCollectionWithTag<T> {
+  pub fn empty() -> Self {
+    Self { elements: vec![] }
+  }
+}
+
+impl<T: Tag, Tup: Into<Tuple>> From<Vec<(OutputTagOf<T::Context>, Tup)>> for TestCollectionWithTag<T> {
+  fn from(v: Vec<(OutputTagOf<T::Context>, Tup)>) -> Self {
+    Self {
+      elements: v.into_iter().map(|(tag, tup)| (tag, tup.into())).collect(),
+    }
+  }
+}
+
 pub fn test_equals(t1: &Tuple, t2: &Tuple) -> bool {
   match (t1, t2) {
-    (Tuple::Tuple(ts1), Tuple::Tuple(ts2)) => ts1
-      .iter()
-      .zip(ts2.iter())
-      .all(|(s1, s2)| test_equals(s1, s2)),
+    (Tuple::Tuple(ts1), Tuple::Tuple(ts2)) => ts1.iter().zip(ts2.iter()).all(|(s1, s2)| test_equals(s1, s2)),
     (Tuple::Value(Value::F32(f1)), Tuple::Value(Value::F32(f2))) => (f1 - f2).abs() < 0.001,
     (Tuple::Value(Value::F64(f1)), Tuple::Value(Value::F64(f2))) => (f1 - f2).abs() < 0.001,
     _ => t1 == t2,
@@ -45,12 +60,7 @@ where
   for e in &expected.elements {
     let te = e.clone().into();
     let pos = actual.iter().position(|elem| test_equals(&elem.tuple, &te));
-    assert!(
-      pos.is_some(),
-      "Tuple {:?} not found in collection {:?}",
-      te,
-      actual
-    )
+    assert!(pos.is_some(), "Tuple {:?} not found in collection {:?}", te, actual)
   }
 
   // Then check everything in actual is in expected
@@ -77,15 +87,8 @@ where
   // First check everything in expected is in actual
   for e in &expected.elements {
     let te = e.clone().into();
-    let pos = actual
-      .iter()
-      .position(|(_, tuple)| test_equals(&tuple, &te));
-    assert!(
-      pos.is_some(),
-      "Tuple {:?} not found in collection {:?}",
-      te,
-      actual
-    )
+    let pos = actual.iter().position(|(_, tuple)| test_equals(&tuple, &te));
+    assert!(pos.is_some(), "Tuple {:?} not found in collection {:?}", te, actual)
   }
 
   // Then check everything in actual is in expected
@@ -102,6 +105,42 @@ where
   }
 }
 
+pub fn expect_output_collection_with_tag<T, C, F>(actual: &DynamicOutputCollection<T>, expected: C, cmp: F)
+where
+  T: Tag + std::fmt::Debug,
+  C: Into<TestCollectionWithTag<T>>,
+  F: Fn(&OutputTagOf<T::Context>, &OutputTagOf<T::Context>) -> bool,
+{
+  let expected = Into::<TestCollectionWithTag<T>>::into(expected);
+
+  // First check everything in expected is in actual
+  for e in &expected.elements {
+    let (tage, te) = e.clone();
+    let pos = actual
+      .iter()
+      .position(|(tag, tuple)| test_equals(&tuple, &te) && cmp(&tage, tag));
+    assert!(
+      pos.is_some(),
+      "Tagged Tuple {:?} not found in collection {:?}",
+      (tage, te),
+      actual
+    )
+  }
+
+  // Then check everything in actual is in expected
+  for elem in &actual.elements {
+    let pos = expected
+      .elements
+      .iter()
+      .position(|(tag, tup)| test_equals(&tup.clone().into(), &elem.1) && cmp(tag, &elem.0));
+    assert!(
+      pos.is_some(),
+      "Tagged Tuple {:?} is derived in collection but not found in expected set",
+      elem
+    )
+  }
+}
+
 pub fn expect_static_collection<Tup, T>(actual: &StaticCollection<Tup, T>, expected: Vec<Tup>)
 where
   Tup: StaticTupleTrait + StaticEquals,
@@ -112,20 +151,15 @@ where
     let pos = actual
       .elements
       .iter()
-      .position(|elem| StaticEquals::test_static_equals(&elem.tuple.0, e));
-    assert!(
-      pos.is_some(),
-      "Tuple {:?} not found in collection {:?}",
-      e,
-      actual
-    )
+      .position(|elem| StaticEquals::test_static_equals(elem.tuple.get(), e));
+    assert!(pos.is_some(), "Tuple {:?} not found in collection {:?}", e, actual)
   }
 
   // Then check everything in actual is in expected
   for elem in &actual.elements {
     let pos = expected
       .iter()
-      .position(|e| StaticEquals::test_static_equals(e, &elem.tuple.0));
+      .position(|e| StaticEquals::test_static_equals(e, elem.tuple.get()));
     assert!(
       pos.is_some(),
       "Tuple {:?} is derived in collection but not found in expected set",
@@ -134,10 +168,8 @@ where
   }
 }
 
-pub fn expect_static_output_collection<Tup, T>(
-  actual: &StaticOutputCollection<Tup, T>,
-  expected: Vec<Tup>,
-) where
+pub fn expect_static_output_collection<Tup, T>(actual: &StaticOutputCollection<Tup, T>, expected: Vec<Tup>)
+where
   Tup: StaticTupleTrait + StaticEquals,
   T: Tag + std::fmt::Debug,
 {
@@ -147,12 +179,7 @@ pub fn expect_static_output_collection<Tup, T>(
       .elements
       .iter()
       .position(|elem| StaticEquals::test_static_equals(&elem.1, e));
-    assert!(
-      pos.is_some(),
-      "Tuple {:?} not found in collection {:?}",
-      e,
-      actual
-    )
+    assert!(pos.is_some(), "Tuple {:?} not found in collection {:?}", e, actual)
   }
 
   // Then check everything in actual is in expected

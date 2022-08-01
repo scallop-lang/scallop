@@ -1,4 +1,4 @@
-mod aggregate;
+mod aggregator;
 mod collection;
 pub mod dataflow;
 mod element;
@@ -9,9 +9,8 @@ pub mod io;
 mod iteration;
 mod output_collection;
 mod relation;
-mod update;
 
-pub use aggregate::*;
+pub use aggregator::*;
 pub use collection::*;
 pub use element::*;
 pub use error::*;
@@ -20,4 +19,3 @@ pub use interpret::*;
 pub use iteration::*;
 pub use output_collection::*;
 pub use relation::*;
-pub use update::*;

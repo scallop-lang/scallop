@@ -38,12 +38,7 @@ impl DNFFormula {
 
   pub fn or(&self, t2: &Self) -> Self {
     Self {
-      clauses: self
-        .clauses
-        .iter()
-        .chain(t2.clauses.iter())
-        .cloned()
-        .collect(),
+      clauses: self.clauses.iter().chain(t2.clauses.iter()).cloned().collect(),
     }
   }
 

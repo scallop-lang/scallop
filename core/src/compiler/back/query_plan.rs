@@ -44,12 +44,11 @@ impl<'a> QueryPlanContext<'a> {
 
   pub fn bounded_args_from_pos_atoms_set(&self, set: &Vec<&usize>) -> HashSet<Variable> {
     let mut base_bounded_args = HashSet::new();
-    for atom in
-      self
-        .pos_atoms
-        .iter()
-        .enumerate()
-        .filter_map(|(i, m)| if set.contains(&&i) { Some(m) } else { None })
+    for atom in self
+      .pos_atoms
+      .iter()
+      .enumerate()
+      .filter_map(|(i, m)| if set.contains(&&i) { Some(m) } else { None })
     {
       for var in atom.args.iter().filter_map(|a| match a {
         Term::Variable(a) => Some(a),
@@ -138,10 +137,7 @@ impl<'a> QueryPlanContext<'a> {
       let mut to_apply_constraints = vec![];
       for (i, constraint) in self.constraints.iter().enumerate() {
         if !applied_constraints.contains(&i) {
-          let can_apply = constraint
-            .variable_args()
-            .iter()
-            .all(|v| node.bounded_vars.contains(v));
+          let can_apply = constraint.variable_args().iter().all(|v| node.bounded_vars.contains(v));
           if can_apply {
             applied_constraints.insert(i);
             to_apply_constraints.push(constraint.clone());
@@ -172,10 +168,7 @@ impl<'a> QueryPlanContext<'a> {
         for (i, assign) in self.assigns.iter().enumerate() {
           if !applied_assigns.contains(&i)
             && !bounded_vars.contains(&assign.left)
-            && assign
-              .variable_args()
-              .into_iter()
-              .all(|v| bounded_vars.contains(v))
+            && assign.variable_args().into_iter().all(|v| bounded_vars.contains(v))
           {
             applied_assigns.insert(i);
             new_projections.push(assign.clone());
@@ -209,10 +202,7 @@ impl<'a> QueryPlanContext<'a> {
         // If there is no reduce, get it from the first arc
         let first_arc = &arcs[0];
         let node = Plan {
-          bounded_vars: self.pos_atoms[first_arc.right]
-            .variable_args()
-            .cloned()
-            .collect(),
+          bounded_vars: self.pos_atoms[first_arc.right].variable_args().cloned().collect(),
           ram_node: HighRamNode::Ground(self.pos_atoms[first_arc.right].clone()),
         };
         (try_apply_constraint(try_apply_assigns(node)), 1)
@@ -234,11 +224,7 @@ impl<'a> QueryPlanContext<'a> {
           ram_node: HighRamNode::Reduce(reduce.clone()),
         };
         node = Plan {
-          bounded_vars: left
-            .bounded_vars
-            .union(&right_bounded_vars)
-            .cloned()
-            .collect(),
+          bounded_vars: left.bounded_vars.union(&right_bounded_vars).cloned().collect(),
           ram_node: HighRamNode::Join(Box::new(left), Box::new(right)),
         };
       }
@@ -256,11 +242,7 @@ impl<'a> QueryPlanContext<'a> {
           bounded_vars: self.pos_atoms[arc.right].variable_args().cloned().collect(),
           ram_node: HighRamNode::Ground(self.pos_atoms[arc.right].clone()),
         };
-        let new_bounded_vars = left
-          .bounded_vars
-          .union(&right.bounded_vars)
-          .cloned()
-          .collect();
+        let new_bounded_vars = left.bounded_vars.union(&right.bounded_vars).cloned().collect();
         let new_ram_node = HighRamNode::Join(Box::new(left), Box::new(right));
         fringe = Plan {
           bounded_vars: new_bounded_vars,
@@ -281,11 +263,7 @@ impl<'a> QueryPlanContext<'a> {
 
         // Create joined node
         fringe = Plan {
-          bounded_vars: left
-            .bounded_vars
-            .union(&right.bounded_vars)
-            .cloned()
-            .collect(),
+          bounded_vars: left.bounded_vars.union(&right.bounded_vars).cloned().collect(),
           ram_node: HighRamNode::Join(Box::new(left), Box::new(right)),
         };
       }
@@ -330,9 +308,7 @@ struct State {
 
 impl std::cmp::PartialOrd for State {
   fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-    self
-      .aggregated_weight()
-      .partial_cmp(&other.aggregated_weight())
+    self.aggregated_weight().partial_cmp(&other.aggregated_weight())
   }
 }
 
@@ -401,11 +377,7 @@ struct Arc {
 impl Arc {
   pub fn weight(&self) -> i32 {
     let num_bounded_vars = self.bounded_vars.len() as i32;
-    let edb_weight = if self.left.is_empty() && self.is_edb {
-      1
-    } else {
-      0
-    };
+    let edb_weight = if self.left.is_empty() && self.is_edb { 1 } else { 0 };
     num_bounded_vars + edb_weight
   }
 }
@@ -437,10 +409,7 @@ impl Plan {
         println!(
           "{}Project {{{}}}",
           prefix,
-          y.iter()
-            .map(|a| format!("{}", a))
-            .collect::<Vec<_>>()
-            .join(", ")
+          y.iter().map(|a| format!("{}", a)).collect::<Vec<_>>().join(", ")
         );
         x.pretty_print_helper(depth + 1);
       }
@@ -448,10 +417,7 @@ impl Plan {
         println!(
           "{}Filter {{{}}}",
           prefix,
-          y.iter()
-            .map(|a| format!("{}", a))
-            .collect::<Vec<_>>()
-            .join(", ")
+          y.iter().map(|a| format!("{}", a)).collect::<Vec<_>>().join(", ")
         );
         x.pretty_print_helper(depth + 1);
       }

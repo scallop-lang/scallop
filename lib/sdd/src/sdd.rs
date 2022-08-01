@@ -10,10 +10,7 @@ pub struct SDDElement {
 
 impl std::fmt::Debug for SDDElement {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.write_fmt(format_args!(
-      "Elem {{ p: {:?}, s: {:?} }}",
-      self.prime, self.sub
-    ))
+    f.write_fmt(format_args!("Elem {{ p: {:?}, s: {:?} }}", self.prime, self.sub))
   }
 }
 
@@ -167,15 +164,11 @@ impl SDD {
     V: Fn(&usize) -> T::Element,
   {
     match &self.sdd_nodes[node_id] {
-      SDDNode::Or { children } => {
-        children
-          .iter()
-          .fold(semiring.zero(), |acc, SDDElement { prime, sub }| {
-            let prime_res = self.eval_node_t(prime.clone(), var_assign, semiring);
-            let sub_res = self.eval_node_t(sub.clone(), var_assign, semiring);
-            semiring.add(acc, semiring.mult(prime_res, sub_res))
-          })
-      }
+      SDDNode::Or { children } => children.iter().fold(semiring.zero(), |acc, SDDElement { prime, sub }| {
+        let prime_res = self.eval_node_t(prime.clone(), var_assign, semiring);
+        let sub_res = self.eval_node_t(sub.clone(), var_assign, semiring);
+        semiring.add(acc, semiring.mult(prime_res, sub_res))
+      }),
       SDDNode::Literal { literal } => match literal {
         SDDLiteral::PosVar { var_id } => var_assign(var_id),
         SDDLiteral::NegVar { var_id } => semiring.negate(var_assign(var_id).clone()),

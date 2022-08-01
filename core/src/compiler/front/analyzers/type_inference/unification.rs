@@ -79,14 +79,8 @@ impl Unification {
 
         // The two operators are of the same type
         let op_ty = TypeSet::Any(op1.clone());
-        let old_op1_ty = inferred_expr_types
-          .entry(op1.clone())
-          .or_insert(op_ty.clone())
-          .clone();
-        let old_op2_ty = inferred_expr_types
-          .entry(op2.clone())
-          .or_insert(op_ty)
-          .clone();
+        let old_op1_ty = inferred_expr_types.entry(op1.clone()).or_insert(op_ty.clone()).clone();
+        let old_op2_ty = inferred_expr_types.entry(op2.clone()).or_insert(op_ty).clone();
         match old_op1_ty.unify(&old_op2_ty) {
           Ok(new_op_ty) => {
             inferred_expr_types.insert(op1.clone(), new_op_ty.clone());
@@ -220,26 +214,17 @@ fn unify_ty(
   }
 }
 
-fn unify_any(
-  e: &Loc,
-  inferred_expr_types: &mut HashMap<Loc, TypeSet>,
-) -> Result<TypeSet, TypeInferenceError> {
+fn unify_any(e: &Loc, inferred_expr_types: &mut HashMap<Loc, TypeSet>) -> Result<TypeSet, TypeInferenceError> {
   let e_ty = TypeSet::Any(e.clone());
   unify_ty(e, e_ty, inferred_expr_types)
 }
 
-fn unify_arith(
-  e: &Loc,
-  inferred_expr_types: &mut HashMap<Loc, TypeSet>,
-) -> Result<TypeSet, TypeInferenceError> {
+fn unify_arith(e: &Loc, inferred_expr_types: &mut HashMap<Loc, TypeSet>) -> Result<TypeSet, TypeInferenceError> {
   let e_ty = TypeSet::Arith(e.clone());
   unify_ty(e, e_ty, inferred_expr_types)
 }
 
-fn unify_boolean(
-  e: &Loc,
-  inferred_expr_types: &mut HashMap<Loc, TypeSet>,
-) -> Result<TypeSet, TypeInferenceError> {
+fn unify_boolean(e: &Loc, inferred_expr_types: &mut HashMap<Loc, TypeSet>) -> Result<TypeSet, TypeInferenceError> {
   let e_ty = TypeSet::BaseType(ValueType::Bool, e.clone());
   unify_ty(e, e_ty, inferred_expr_types)
 }

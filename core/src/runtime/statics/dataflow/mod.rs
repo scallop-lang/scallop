@@ -1,3 +1,4 @@
+mod aggregation;
 mod antijoin;
 pub mod batching;
 mod collection;
@@ -13,6 +14,7 @@ mod union;
 mod utils;
 mod vec;
 
+pub use aggregation::*;
 pub use antijoin::*;
 pub use collection::*;
 pub use difference::*;

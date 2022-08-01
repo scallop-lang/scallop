@@ -26,21 +26,9 @@ impl<'a, T: Tag> DynamicProductDataflow<'a, T> {
   pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
     let op = ProductOp { ctx: self.ctx };
     DynamicBatches::chain(vec![
-      DynamicBatches::binary(
-        self.d1.iter_stable(),
-        self.d2.iter_recent(),
-        op.clone().into(),
-      ),
-      DynamicBatches::binary(
-        self.d1.iter_recent(),
-        self.d2.iter_stable(),
-        op.clone().into(),
-      ),
-      DynamicBatches::binary(
-        self.d1.iter_recent(),
-        self.d2.iter_recent(),
-        op.clone().into(),
-      ),
+      DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_recent(), op.clone().into()),
+      DynamicBatches::binary(self.d1.iter_recent(), self.d2.iter_stable(), op.clone().into()),
+      DynamicBatches::binary(self.d1.iter_recent(), self.d2.iter_recent(), op.clone().into()),
     ])
   }
 }

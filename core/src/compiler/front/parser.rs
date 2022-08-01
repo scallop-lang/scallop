@@ -62,9 +62,7 @@ impl ParserError {
       if let Some(offset_span) = offset_span {
         let source = &sources[self.source_id];
         let annotator = LocationSpanAnnotator {
-          row_offset_length: (0..source.num_rows())
-            .map(|i| source.row_offset_length(i))
-            .collect(),
+          row_offset_length: (0..source.num_rows()).map(|i| source.row_offset_length(i)).collect(),
         };
         let ast_loc = AstNodeLocation {
           offset_span: Span::new(offset_span.0, offset_span.1),
@@ -86,10 +84,7 @@ impl ParserError {
 impl std::fmt::Display for ParserError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     if let Some(source_name) = &self.source_name {
-      f.write_fmt(format_args!(
-        "Syntax error in {}: {}",
-        source_name, self.message
-      ))
+      f.write_fmt(format_args!("Syntax error in {}: {}", source_name, self.message))
     } else {
       f.write_fmt(format_args!("Syntax error: {}", self.message))
     }

@@ -184,19 +184,12 @@ impl Solver {
   }
 
   pub fn boolean_constraint_propagation(mut self) -> Result<Self, Clause> {
-    for clause in self
-      .original_clauses
-      .iter()
-      .chain(self.learned_clauses.iter())
-    {
+    for clause in self.original_clauses.iter().chain(self.learned_clauses.iter()) {
       // First go through the whole clause
       let mut clause_sat = false;
       let mut possible_literal = PossibleLiteral::None;
       for literal in clause.literals() {
-        match (
-          literal.is_positive(),
-          self.variable_status(literal.variable()),
-        ) {
+        match (literal.is_positive(), self.variable_status(literal.variable())) {
           (true, VariableStatus::Pos) | (false, VariableStatus::Neg) => {
             // Has one positive; the whole clause is now sat
             clause_sat = true;
@@ -308,9 +301,7 @@ impl Solver {
             .decide_literal(literal)
             .and_then(|new| new.solve_with_variable_order(&var_order[1..]))
         }
-        VariableStatus::Pos | VariableStatus::Neg => {
-          self.clone().solve_with_variable_order(&var_order[1..])
-        }
+        VariableStatus::Pos | VariableStatus::Neg => self.clone().solve_with_variable_order(&var_order[1..]),
       };
       if let Err(asserting_clause) = result {
         if asserting_clause.assertion_level == self.decisions.len() {
@@ -330,18 +321,13 @@ impl Solver {
     }
   }
 
-  pub fn model_counting_with_variable_order(
-    &self,
-    var_order: &[Variable],
-  ) -> Result<usize, Clause> {
+  pub fn model_counting_with_variable_order(&self, var_order: &[Variable]) -> Result<usize, Clause> {
     if var_order.len() == 0 {
       Ok(1)
     } else {
       let first_variable = var_order[0].clone();
       match self.variable_status(first_variable) {
-        VariableStatus::Pos | VariableStatus::Neg => {
-          self.model_counting_with_variable_order(&var_order[1..])
-        }
+        VariableStatus::Pos | VariableStatus::Neg => self.model_counting_with_variable_order(&var_order[1..]),
         _ => {
           let plit = Literal::positive(first_variable);
           let pcount = match self.clone().decide_literal(plit) {

@@ -4,7 +4,6 @@ use itertools::iproduct;
 
 use super::disjunction::Disjunctions;
 use super::*;
-use crate::runtime::dynamic::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProbProof {
@@ -51,9 +50,7 @@ impl ProbProofs {
 
   pub fn one() -> Self {
     Self {
-      proofs: vec![ProbProof {
-        facts: BTreeSet::new(),
-      }],
+      proofs: vec![ProbProof { facts: BTreeSet::new() }],
     }
   }
 
@@ -147,7 +144,7 @@ impl ProvenanceContext for ProbProofsContext {
   }
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
-    let s = semirings::real::RealSemiring;
+    let s = RealSemiring;
     let v = |i: &usize| -> f64 { self.probabilities[*i] };
     AsBooleanFormula::wmc(t, &s, &v)
   }
@@ -181,14 +178,6 @@ impl ProvenanceContext for ProbProofsContext {
   }
 
   fn minus(&self, _: &Self::Tag, _: &Self::Tag) -> Option<Self::Tag> {
-    panic!("Not implemented")
-  }
-
-  fn dynamic_aggregate<'a>(
-    &self,
-    _: &DynamicAggregateOp,
-    _: DynamicElements<Self::Tag>,
-  ) -> DynamicElements<Self::Tag> {
     panic!("Not implemented")
   }
 }

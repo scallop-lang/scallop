@@ -11,10 +11,7 @@ impl std::fmt::Display for Permutation {
       Self::Value(i) => f.write_fmt(format_args!("{}", i)),
       Self::Tuple(t) => f.write_fmt(format_args!(
         "({})",
-        t.iter()
-          .map(|e| { format!("{}", e) })
-          .collect::<Vec<_>>()
-          .join(",")
+        t.iter().map(|e| { format!("{}", e) }).collect::<Vec<_>>().join(",")
       )),
     }
   }

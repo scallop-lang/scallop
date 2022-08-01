@@ -1,6 +1,5 @@
 mod disjunction;
 mod library;
-pub mod semirings;
 mod tag;
 
 pub use disjunction::*;

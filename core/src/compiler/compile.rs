@@ -19,13 +19,7 @@ pub fn compile_source_to_ram_with_options<S: front::Source>(
         error_ctx.report_errors();
         return Err(vec![]);
       } else {
-        return Err(
-          error_ctx
-            .errors
-            .into_iter()
-            .map(CompileError::Front)
-            .collect(),
-        );
+        return Err(error_ctx.errors.into_iter().map(CompileError::Front).collect());
       }
     }
   }
@@ -92,9 +86,7 @@ pub fn compile_file_to_ram_with_options(
   let source = match front::FileSource::new(file_name) {
     Ok(source) => source,
     Err(err) => {
-      return Err(vec![CompileError::Front(
-        front::FrontCompileError::SourceError(err),
-      )]);
+      return Err(vec![CompileError::Front(front::FrontCompileError::SourceError(err))]);
     }
   };
 

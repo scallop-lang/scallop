@@ -18,11 +18,7 @@ impl InputFilesAnalysis {
     }
   }
 
-  pub fn add_input_file(
-    &mut self,
-    relation: String,
-    input_file: InputFile,
-  ) -> Result<(), InputFilesError> {
+  pub fn add_input_file(&mut self, relation: String, input_file: InputFile) -> Result<(), InputFilesError> {
     self.input_files.insert(relation, input_file);
     Ok(())
   }
@@ -31,10 +27,7 @@ impl InputFilesAnalysis {
     self.input_files.get(relation)
   }
 
-  pub fn process_deliminator(
-    &self,
-    attr_arg: Option<&Constant>,
-  ) -> Result<Option<u8>, InputFilesError> {
+  pub fn process_deliminator(&self, attr_arg: Option<&Constant>) -> Result<Option<u8>, InputFilesError> {
     match attr_arg {
       Some(v) => match &v.node {
         ConstantNode::String(s) => {
@@ -61,10 +54,7 @@ impl InputFilesAnalysis {
     }
   }
 
-  pub fn process_has_header(
-    &self,
-    attr_arg: Option<&Constant>,
-  ) -> Result<Option<bool>, InputFilesError> {
+  pub fn process_has_header(&self, attr_arg: Option<&Constant>) -> Result<Option<bool>, InputFilesError> {
     match attr_arg {
       Some(v) => match &v.node {
         ConstantNode::Boolean(b) => Ok(Some(*b)),
@@ -76,10 +66,7 @@ impl InputFilesAnalysis {
     }
   }
 
-  pub fn process_has_probability(
-    &self,
-    attr_arg: Option<&Constant>,
-  ) -> Result<Option<bool>, InputFilesError> {
+  pub fn process_has_probability(&self, attr_arg: Option<&Constant>) -> Result<Option<bool>, InputFilesError> {
     match attr_arg {
       Some(v) => match &v.node {
         ConstantNode::Boolean(b) => Ok(Some(*b)),
@@ -103,8 +90,7 @@ impl InputFilesAnalysis {
               let deliminator = self.process_deliminator(attr.kw_arg("deliminator"))?;
               let has_header = self.process_has_header(attr.kw_arg("has_header"))?;
               let has_probability = self.process_has_probability(attr.kw_arg("has_probability"))?;
-              let input_file =
-                InputFile::csv_with_options(path, deliminator, has_header, has_probability);
+              let input_file = InputFile::csv_with_options(path, deliminator, has_header, has_probability);
               Ok(input_file)
             }
             Some(s) if s == "txt" => Ok(InputFile::Txt(path)),
@@ -149,10 +135,7 @@ impl NodeVisitor for InputFilesAnalysis {
   }
 
   fn visit_relation_type_decl(&mut self, relation_type_decl: &RelationTypeDecl) {
-    self.process_attrs(
-      relation_type_decl.predicate(),
-      relation_type_decl.attributes(),
-    );
+    self.process_attrs(relation_type_decl.predicate(), relation_type_decl.attributes());
   }
 }
 

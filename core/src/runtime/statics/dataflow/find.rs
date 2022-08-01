@@ -137,9 +137,9 @@ where
     let key = self.key.clone();
     loop {
       match &self.curr_elem {
-        Some(curr_elem) => match curr_elem.tuple.0 .0.partial_cmp(&self.key).unwrap() {
+        Some(curr_elem) => match curr_elem.tuple.0.partial_cmp(&self.key).unwrap() {
           Ordering::Less => {
-            self.curr_elem = self.source_iter.search_ahead(|x| x.0 .0 < key);
+            self.curr_elem = self.source_iter.search_ahead(|x| x.0 < key);
           }
           Ordering::Equal => {
             let result = curr_elem.clone();

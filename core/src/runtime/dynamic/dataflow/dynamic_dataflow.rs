@@ -38,6 +38,14 @@ impl<'a, T: Tag> DynamicDataflow<'a, T> {
     Self::StableUnit(DynamicStableUnitDataflow::new(ctx))
   }
 
+  pub fn dynamic_collection(col: &'a DynamicCollection<T>, recent: bool) -> Self {
+    if recent {
+      Self::dynamic_recent_collection(col)
+    } else {
+      Self::dynamic_stable_collection(col)
+    }
+  }
+
   pub fn dynamic_stable_collection(col: &'a DynamicCollection<T>) -> Self {
     Self::DynamicStableCollection(DynamicStableCollectionDataflow(col))
   }
@@ -114,18 +122,6 @@ impl<'a, T: Tag> DynamicDataflow<'a, T> {
     Self::Antijoin(DynamicAntijoinDataflow {
       d1: Box::new(self),
       d2: Box::new(d2),
-      ctx,
-    })
-  }
-
-  pub fn aggregate(
-    groups: DynamicGroups<'a, T>,
-    aggregator: DynamicAggregateOp,
-    ctx: &'a T::Context,
-  ) -> Self {
-    DynamicDataflow::Aggregate(DynamicAggregationDataflow {
-      source: groups,
-      aggregator,
       ctx,
     })
   }

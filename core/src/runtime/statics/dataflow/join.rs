@@ -5,11 +5,7 @@ use super::utils::*;
 use super::*;
 use crate::runtime::provenance::*;
 
-pub fn join<'b, D1, D2, K, T1, T2, T>(
-  d1: D1,
-  d2: D2,
-  semiring_ctx: &'b T::Context,
-) -> Join<'b, D1, D2, K, T1, T2, T>
+pub fn join<'b, D1, D2, K, T1, T2, T>(d1: D1, d2: D2, semiring_ctx: &'b T::Context) -> Join<'b, D1, D2, K, T1, T2, T>
 where
   K: StaticTupleTrait,
   T1: StaticTupleTrait,
@@ -69,44 +65,13 @@ where
   D1: Dataflow<(K, T1), T>,
   D2: Dataflow<(K, T2), T>,
 {
-  type Stable = BatchesJoin<
-    D1::Stable,
-    D2::Stable,
-    StableStableOp<'b, D1, D2, K, T1, T2, T>,
-    (K, T1),
-    (K, T2),
-    (K, T1, T2),
-    T,
-  >;
+  type Stable =
+    BatchesJoin<D1::Stable, D2::Stable, StableStableOp<'b, D1, D2, K, T1, T2, T>, (K, T1), (K, T2), (K, T1, T2), T>;
 
   type Recent = BatchesChain3<
-    BatchesJoin<
-      D1::Recent,
-      D2::Stable,
-      RecentStableOp<'b, D1, D2, K, T1, T2, T>,
-      (K, T1),
-      (K, T2),
-      (K, T1, T2),
-      T,
-    >,
-    BatchesJoin<
-      D1::Stable,
-      D2::Recent,
-      StableRecentOp<'b, D1, D2, K, T1, T2, T>,
-      (K, T1),
-      (K, T2),
-      (K, T1, T2),
-      T,
-    >,
-    BatchesJoin<
-      D1::Recent,
-      D2::Recent,
-      RecentRecentOp<'b, D1, D2, K, T1, T2, T>,
-      (K, T1),
-      (K, T2),
-      (K, T1, T2),
-      T,
-    >,
+    BatchesJoin<D1::Recent, D2::Stable, RecentStableOp<'b, D1, D2, K, T1, T2, T>, (K, T1), (K, T2), (K, T1, T2), T>,
+    BatchesJoin<D1::Stable, D2::Recent, StableRecentOp<'b, D1, D2, K, T1, T2, T>, (K, T1), (K, T2), (K, T1, T2), T>,
+    BatchesJoin<D1::Recent, D2::Recent, RecentRecentOp<'b, D1, D2, K, T1, T2, T>, (K, T1), (K, T2), (K, T1, T2), T>,
     (K, T1, T2),
     T,
   >;
@@ -295,8 +260,8 @@ where
       // First go through curr joint product iterator
       if let Some(curr_iter) = &mut self.curr_iter {
         if let Some((e1, e2)) = curr_iter.next() {
-          let (k, t1) = e1.tuple.0;
-          let (_, t2) = e2.tuple.0;
+          let (k, t1) = e1.tuple.get().clone();
+          let (_, t2) = e2.tuple.get().clone();
           let tup = (k, t1, t2);
           let tag = self.semiring_ctx.mult(&e1.tag, &e2.tag);
           let result = StaticElement::new(tup, tag);
@@ -315,31 +280,21 @@ where
 
       // Then continue
       match (&self.i1_curr, &self.i2_curr) {
-        (Some(i1_curr), Some(i2_curr)) => {
-          match i1_curr.tuple.0 .0.partial_cmp(&i2_curr.tuple.0 .0).unwrap() {
-            Ordering::Less => {
-              self.i1_curr = self
-                .i1
-                .search_ahead(|i1_next| i1_next.0 .0 < i2_curr.tuple.0 .0)
-            }
-            Ordering::Equal => {
-              let key = &i1_curr.tuple.0 .0;
-              let v1 = std::iter::once(i1_curr.clone())
-                .chain(self.i1.clone().take_while(|x| &x.tuple.0 .0 == key))
-                .collect::<Vec<_>>();
-              let v2 = std::iter::once(i2_curr.clone())
-                .chain(self.i2.clone().take_while(|x| &x.tuple.0 .0 == key))
-                .collect::<Vec<_>>();
-              let iter = JoinProductIterator::new(v1, v2);
-              self.curr_iter = Some(iter);
-            }
-            Ordering::Greater => {
-              self.i2_curr = self
-                .i2
-                .search_ahead(|i2_next| i2_next.0 .0 < i1_curr.tuple.0 .0)
-            }
+        (Some(i1_curr), Some(i2_curr)) => match i1_curr.tuple.0.partial_cmp(&i2_curr.tuple.0).unwrap() {
+          Ordering::Less => self.i1_curr = self.i1.search_ahead(|i1_next| i1_next.0 < i2_curr.tuple.0),
+          Ordering::Equal => {
+            let key = &i1_curr.tuple.0;
+            let v1 = std::iter::once(i1_curr.clone())
+              .chain(self.i1.clone().take_while(|x| &x.tuple.0 == key))
+              .collect::<Vec<_>>();
+            let v2 = std::iter::once(i2_curr.clone())
+              .chain(self.i2.clone().take_while(|x| &x.tuple.0 == key))
+              .collect::<Vec<_>>();
+            let iter = JoinProductIterator::new(v1, v2);
+            self.curr_iter = Some(iter);
           }
-        }
+          Ordering::Greater => self.i2_curr = self.i2.search_ahead(|i2_next| i2_next.0 < i1_curr.tuple.0),
+        },
         _ => break None,
       }
     }

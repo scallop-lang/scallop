@@ -105,19 +105,15 @@ pub fn constant_prop(rule: &mut Rule) {
               Literal::True
             }
           }
-          Literal::Constraint(Constraint::Binary(b)) => {
-            Literal::Constraint(Constraint::Binary(BinaryConstraint {
-              op: b.op.clone(),
-              op1: substitute_term(&b.op1),
-              op2: substitute_term(&b.op2),
-            }))
-          }
-          Literal::Constraint(Constraint::Unary(u)) => {
-            Literal::Constraint(Constraint::Unary(UnaryConstraint {
-              op: u.op.clone(),
-              op1: substitute_term(&u.op1),
-            }))
-          }
+          Literal::Constraint(Constraint::Binary(b)) => Literal::Constraint(Constraint::Binary(BinaryConstraint {
+            op: b.op.clone(),
+            op1: substitute_term(&b.op1),
+            op2: substitute_term(&b.op2),
+          })),
+          Literal::Constraint(Constraint::Unary(u)) => Literal::Constraint(Constraint::Unary(UnaryConstraint {
+            op: u.op.clone(),
+            op1: substitute_term(&u.op1),
+          })),
           Literal::NegAtom(n) => Literal::NegAtom(NegAtom {
             atom: Atom {
               predicate: n.atom.predicate.clone(),

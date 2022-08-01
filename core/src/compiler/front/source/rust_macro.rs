@@ -103,10 +103,7 @@ fn token_stream_to_src_lines(tokens: TokenStream) -> (usize, Vec<String>) {
   (first_line_num, src_lines)
 }
 
-fn populate_str_tokens(
-  str_tokens: &mut Vec<(String, proc_macro2::LineColumn, i32)>,
-  tokens: TokenStream,
-) {
+fn populate_str_tokens(str_tokens: &mut Vec<(String, proc_macro2::LineColumn, i32)>, tokens: TokenStream) {
   let mut tokens_iter = tokens.into_iter();
   loop {
     if let Some(token) = tokens_iter.next() {

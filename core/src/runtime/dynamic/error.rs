@@ -13,10 +13,7 @@ impl std::fmt::Display for RuntimeError {
     match self {
       Self::IO(e) => std::fmt::Display::fmt(e, f),
       Self::UnknownRelation(r) => f.write_fmt(format_args!("Unknown relation `{}`", r)),
-      Self::TypeError(tup, ty) => f.write_fmt(format_args!(
-        "Type mismatch in tuple `{}` against type `{}`",
-        tup, ty
-      )),
+      Self::TypeError(tup, ty) => f.write_fmt(format_args!("Type mismatch in tuple `{}` against type `{}`", tup, ty)),
     }
   }
 }

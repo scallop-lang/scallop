@@ -78,7 +78,5 @@ impl Attribute {
 }
 
 fn string_to_front_identifier(s: &str) -> front::Identifier {
-  front::Identifier::default(front::IdentifierNode {
-    name: s.to_string(),
-  })
+  front::Identifier::default(front::IdentifierNode { name: s.to_string() })
 }

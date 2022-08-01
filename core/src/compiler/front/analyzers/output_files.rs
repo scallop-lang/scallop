@@ -22,10 +22,7 @@ impl OutputFilesAnalysis {
     self.output_files.get(relation)
   }
 
-  pub fn process_deliminator(
-    &self,
-    attr_arg: Option<&Constant>,
-  ) -> Result<Option<u8>, OutputFilesError> {
+  pub fn process_deliminator(&self, attr_arg: Option<&Constant>) -> Result<Option<u8>, OutputFilesError> {
     match attr_arg {
       Some(v) => match &v.node {
         ConstantNode::String(s) => {

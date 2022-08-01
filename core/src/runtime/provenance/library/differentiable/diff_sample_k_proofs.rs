@@ -4,7 +4,6 @@ use rand::prelude::*;
 use rand::rngs::StdRng;
 
 use super::*;
-use crate::runtime::dynamic::*;
 use crate::utils::PointerFamily;
 
 #[derive(Clone)]
@@ -136,7 +135,7 @@ impl<T: Clone + 'static, P: PointerFamily> ProvenanceContext for DiffSampleKProo
   }
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
-    let s = semirings::dual_number::DualNumberSemiring::new(self.diff_probs.len());
+    let s = DualNumberSemiring::new(self.diff_probs.len());
     let v = |i: &usize| {
       let (real, _) = &self.diff_probs[i.clone()];
       s.singleton(real.clone(), i.clone())
@@ -174,11 +173,7 @@ impl<T: Clone + 'static, P: PointerFamily> ProvenanceContext for DiffSampleKProo
     })
   }
 
-  fn add_with_proceeding(
-    &self,
-    stable_tag: &Self::Tag,
-    recent_tag: &Self::Tag,
-  ) -> (Self::Tag, Proceeding) {
+  fn add_with_proceeding(&self, stable_tag: &Self::Tag, recent_tag: &Self::Tag) -> (Self::Tag, Proceeding) {
     let new_tag = self.add(stable_tag, recent_tag);
     let proceeding = if &new_tag == recent_tag || &new_tag == stable_tag {
       Proceeding::Stable
@@ -205,14 +200,6 @@ impl<T: Clone + 'static, P: PointerFamily> ProvenanceContext for DiffSampleKProo
   }
 
   fn minus(&self, _: &Self::Tag, _: &Self::Tag) -> Option<Self::Tag> {
-    panic!("Not implemented")
-  }
-
-  fn dynamic_aggregate<'a>(
-    &self,
-    _: &DynamicAggregateOp,
-    _: DynamicElements<Self::Tag>,
-  ) -> DynamicElements<Self::Tag> {
     panic!("Not implemented")
   }
 }

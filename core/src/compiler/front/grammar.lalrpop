@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use super::ast::*;
-use crate::common::aggregate_op::AggregateOp;
 use crate::common::input_tag::InputTag;
 
 grammar;
@@ -451,14 +450,14 @@ VariableOrWildcard: VariableOrWildcard = {
 ReduceOpNode: ReduceOperatorNode = {
   <n: Identifier> => {
     match n.name() {
-      "count" => ReduceOperatorNode::Aggregator(AggregateOp::Count),
-      "sum" => ReduceOperatorNode::Aggregator(AggregateOp::Sum),
-      "prod" => ReduceOperatorNode::Aggregator(AggregateOp::Prod),
-      "min" => ReduceOperatorNode::Aggregator(AggregateOp::Min),
-      "max" => ReduceOperatorNode::Aggregator(AggregateOp::Max),
-      "exists" => ReduceOperatorNode::Aggregator(AggregateOp::Exists),
-      "forall" => ReduceOperatorNode::Aggregator(AggregateOp::Forall),
-      "unique" => ReduceOperatorNode::Aggregator(AggregateOp::Unique),
+      "count" => ReduceOperatorNode::Count,
+      "sum" => ReduceOperatorNode::Sum,
+      "prod" => ReduceOperatorNode::Prod,
+      "min" => ReduceOperatorNode::Min,
+      "max" => ReduceOperatorNode::Max,
+      "exists" => ReduceOperatorNode::Exists,
+      "forall" => ReduceOperatorNode::Forall,
+      "unique" => ReduceOperatorNode::Unique,
       x => ReduceOperatorNode::Unknown(x.to_string()),
     }
   }

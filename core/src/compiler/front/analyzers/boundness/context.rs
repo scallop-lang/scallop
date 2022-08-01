@@ -2,7 +2,6 @@ use itertools::Itertools;
 use std::collections::*;
 
 use super::*;
-use crate::common::aggregate_op::AggregateOp;
 use crate::compiler::front::ast::*;
 use crate::compiler::front::visitor::*;
 
@@ -19,11 +18,7 @@ impl RuleContext {
     Self { head_vars, body }
   }
 
-  pub fn from_qualified(
-    bindings: &Vec<VariableBinding>,
-    args: &Vec<Variable>,
-    body: &Formula,
-  ) -> Self {
+  pub fn from_qualified(bindings: &Vec<VariableBinding>, args: &Vec<Variable>, body: &Formula) -> Self {
     let bindings = bindings
       .iter()
       .map(|b| (b.name().to_string(), b.location().clone()))
@@ -37,16 +32,11 @@ impl RuleContext {
     Self { head_vars, body }
   }
 
-  pub fn compute_boundness(
-    &self,
-    bounded_exprs: &Vec<Expr>,
-  ) -> Result<BTreeSet<String>, Vec<BoundnessAnalysisError>> {
+  pub fn compute_boundness(&self, bounded_exprs: &Vec<Expr>) -> Result<BTreeSet<String>, Vec<BoundnessAnalysisError>> {
     let bounded_vars = self.body.compute_boundness(bounded_exprs)?;
     for (var_name, var_loc) in &self.head_vars {
       if !bounded_vars.contains(var_name) {
-        let err = BoundnessAnalysisError::HeadExprUnbound {
-          loc: var_loc.clone(),
-        };
+        let err = BoundnessAnalysisError::HeadExprUnbound { loc: var_loc.clone() };
         return Err(vec![err]);
       }
     }
@@ -62,11 +52,7 @@ pub struct DisjunctionContext {
 impl DisjunctionContext {
   pub fn from_formula(formula: &Formula) -> Self {
     let conjuncts: Vec<ConjunctionContext> = match formula {
-      Formula::Disjunction(d) => d
-        .args()
-        .map(|a| Self::from_formula(a).conjuncts)
-        .flatten()
-        .collect(),
+      Formula::Disjunction(d) => d.args().map(|a| Self::from_formula(a).conjuncts).flatten().collect(),
       Formula::Conjunction(c) => {
         let ctxs = c.args().map(|a| Self::from_formula(a).conjuncts);
         let cp = ctxs.multi_cartesian_product();
@@ -83,10 +69,7 @@ impl DisjunctionContext {
     Self { conjuncts }
   }
 
-  pub fn compute_boundness(
-    &self,
-    bounded_exprs: &Vec<Expr>,
-  ) -> Result<BTreeSet<String>, Vec<BoundnessAnalysisError>> {
+  pub fn compute_boundness(&self, bounded_exprs: &Vec<Expr>) -> Result<BTreeSet<String>, Vec<BoundnessAnalysisError>> {
     if self.conjuncts.is_empty() {
       Ok(BTreeSet::new())
     } else if self.conjuncts.len() == 1 {
@@ -155,10 +138,7 @@ impl ConjunctionContext {
     }
   }
 
-  pub fn compute_boundness(
-    &self,
-    bounded_exprs: &Vec<Expr>,
-  ) -> Result<BTreeSet<String>, Vec<BoundnessAnalysisError>> {
+  pub fn compute_boundness(&self, bounded_exprs: &Vec<Expr>) -> Result<BTreeSet<String>, Vec<BoundnessAnalysisError>> {
     let mut local_ctx = LocalBoundnessAnalysisContext::new();
 
     // First check if the aggregation's boundness is okay
@@ -176,9 +156,7 @@ impl ConjunctionContext {
     // Walk the bounded expressions
     for expr in bounded_exprs {
       local_ctx.walk_expr(expr);
-      local_ctx
-        .expr_boundness
-        .insert(expr.location().clone(), true);
+      local_ctx.expr_boundness.insert(expr.location().clone(), true);
     }
 
     // Compute boundness
@@ -201,16 +179,12 @@ pub struct AggregationContext {
   pub joined_body: Box<RuleContext>,
   pub joined_body_formula: Formula,
   pub group_by: Option<(Box<RuleContext>, Vec<Variable>, Formula)>,
-  pub aggregate_op: AggregateOp,
+  pub aggregate_op: ReduceOperatorNode,
 }
 
 impl AggregationContext {
   pub fn left_variable_names(&self) -> BTreeSet<String> {
-    self
-      .result_vars
-      .iter()
-      .map(|v| v.name().to_string())
-      .collect()
+    self.result_vars.iter().map(|v| v.name().to_string()).collect()
   }
 
   pub fn binding_variable_names(&self) -> BTreeSet<String> {
@@ -240,8 +214,7 @@ impl AggregationContext {
     } else {
       reduce.body().clone()
     };
-    let joined_body =
-      RuleContext::from_qualified(reduce.bindings(), reduce.args(), &joined_body_formula);
+    let joined_body = RuleContext::from_qualified(reduce.bindings(), reduce.args(), &joined_body_formula);
 
     // Get the group_by context
     let group_by = reduce.group_by().map(|(bindings, formula)| {
@@ -260,14 +233,11 @@ impl AggregationContext {
       joined_body: Box::new(joined_body),
       joined_body_formula,
       group_by,
-      aggregate_op: reduce.operator().unwrap().clone(),
+      aggregate_op: reduce.operator().node.clone(),
     }
   }
 
-  pub fn compute_boundness(
-    &self,
-    bounded_exprs: &Vec<Expr>,
-  ) -> Result<HashSet<String>, Vec<BoundnessAnalysisError>> {
+  pub fn compute_boundness(&self, bounded_exprs: &Vec<Expr>) -> Result<HashSet<String>, Vec<BoundnessAnalysisError>> {
     // Construct the bounded
     let mut bounded = HashSet::new();
 
@@ -303,11 +273,7 @@ impl AggregationContext {
 }
 
 fn collect_vars_in_atom(atom: &Atom) -> Vec<(String, Loc)> {
-  atom
-    .iter_arguments()
-    .map(collect_vars_in_expr)
-    .flatten()
-    .collect()
+  atom.iter_arguments().map(collect_vars_in_expr).flatten().collect()
 }
 
 fn collect_vars_in_expr(expr: &Expr) -> Vec<(String, Loc)> {

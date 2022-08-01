@@ -10,7 +10,6 @@ use scallop_core::utils::ArcFamily;
 
 use super::custom_tag;
 use super::tuple::*;
-use super::wmc::WMCType;
 
 #[derive(Clone)]
 pub enum CollectionEnum {
@@ -35,30 +34,23 @@ pub enum CollectionEnum {
     tags: Arc<Vec<f64>>,
   },
   DiffMinMaxProb {
-    collection:
-      Arc<dynamic::DynamicOutputCollection<diff_min_max_prob::Prob<Py<PyAny>, ArcFamily>>>,
+    collection: Arc<dynamic::DynamicOutputCollection<diff_min_max_prob::Prob<Py<PyAny>, ArcFamily>>>,
     tags: Arc<Vec<(f64, diff_min_max_prob::Derivative<Py<PyAny>>)>>,
   },
   DiffAddMultProb {
-    collection:
-      Arc<dynamic::DynamicOutputCollection<diff_add_mult_prob::DiffProb<Py<PyAny>, ArcFamily>>>,
+    collection: Arc<dynamic::DynamicOutputCollection<diff_add_mult_prob::DiffProb<Py<PyAny>, ArcFamily>>>,
     tags: Arc<Vec<Py<PyAny>>>,
   },
   DiffSampleKProofs {
-    collection:
-      Arc<dynamic::DynamicOutputCollection<diff_sample_k_proofs::Proofs<Py<PyAny>, ArcFamily>>>,
+    collection: Arc<dynamic::DynamicOutputCollection<diff_sample_k_proofs::Proofs<Py<PyAny>, ArcFamily>>>,
     tags: Arc<Vec<(f64, Py<PyAny>)>>,
   },
   DiffTopKProofs {
-    collection:
-      Arc<dynamic::DynamicOutputCollection<diff_top_k_proofs::Proofs<Py<PyAny>, ArcFamily>>>,
+    collection: Arc<dynamic::DynamicOutputCollection<diff_top_k_proofs::Proofs<Py<PyAny>, ArcFamily>>>,
     tags: Arc<Vec<(f64, Py<PyAny>)>>,
-    wmc_type: WMCType,
   },
   DiffTopBottomKClauses {
-    collection: Arc<
-      dynamic::DynamicOutputCollection<diff_top_bottom_k_clauses::Formula<Py<PyAny>, ArcFamily>>,
-    >,
+    collection: Arc<dynamic::DynamicOutputCollection<diff_top_bottom_k_clauses::Formula<Py<PyAny>, ArcFamily>>>,
     tags: Arc<Vec<(f64, Py<PyAny>)>>,
   },
   Custom {
@@ -75,16 +67,65 @@ impl CollectionEnum {
     Self::Proofs { collection }
   }
 
-  pub fn min_max_prob(
-    collection: Arc<dynamic::DynamicOutputCollection<min_max_prob::Prob>>,
-  ) -> Self {
+  pub fn min_max_prob(collection: Arc<dynamic::DynamicOutputCollection<min_max_prob::Prob>>) -> Self {
     Self::MinMaxProb { collection }
   }
 
-  pub fn add_mult_prob(
-    collection: Arc<dynamic::DynamicOutputCollection<add_mult_prob::Prob>>,
-  ) -> Self {
+  pub fn add_mult_prob(collection: Arc<dynamic::DynamicOutputCollection<add_mult_prob::Prob>>) -> Self {
     Self::AddMultProb { collection }
+  }
+
+  pub fn top_k_proofs(
+    collection: Arc<dynamic::DynamicOutputCollection<top_k_proofs::Proofs<ArcFamily>>>,
+    tags: Arc<Vec<f64>>,
+  ) -> Self {
+    Self::TopKProofs { collection, tags }
+  }
+
+  pub fn top_bottom_k_clauses(
+    collection: Arc<dynamic::DynamicOutputCollection<top_bottom_k_clauses::Formula<ArcFamily>>>,
+    tags: Arc<Vec<f64>>,
+  ) -> Self {
+    Self::TopBottomKClauses { collection, tags }
+  }
+
+  pub fn diff_min_max_prob(
+    collection: Arc<dynamic::DynamicOutputCollection<diff_min_max_prob::Prob<Py<PyAny>, ArcFamily>>>,
+    tags: Arc<Vec<(f64, diff_min_max_prob::Derivative<Py<PyAny>>)>>,
+  ) -> Self {
+    Self::DiffMinMaxProb { collection, tags }
+  }
+
+  pub fn diff_add_mult_prob(
+    collection: Arc<dynamic::DynamicOutputCollection<diff_add_mult_prob::DiffProb<Py<PyAny>, ArcFamily>>>,
+    tags: Arc<Vec<Py<PyAny>>>,
+  ) -> Self {
+    Self::DiffAddMultProb { collection, tags }
+  }
+
+  pub fn diff_sample_k_proofs(
+    collection: Arc<dynamic::DynamicOutputCollection<diff_sample_k_proofs::Proofs<Py<PyAny>, ArcFamily>>>,
+    tags: Arc<Vec<(f64, Py<PyAny>)>>,
+  ) -> Self {
+    Self::DiffSampleKProofs { collection, tags }
+  }
+
+  pub fn diff_top_k_proofs(
+    collection: Arc<dynamic::DynamicOutputCollection<diff_top_k_proofs::Proofs<Py<PyAny>, ArcFamily>>>,
+    tags: Arc<Vec<(f64, Py<PyAny>)>>,
+  ) -> Self {
+    Self::DiffTopKProofs { collection, tags }
+  }
+
+  pub fn diff_top_bottom_k_clauses(
+    collection: Arc<dynamic::DynamicOutputCollection<diff_top_bottom_k_clauses::Formula<Py<PyAny>, ArcFamily>>>,
+    tags: Arc<Vec<(f64, Py<PyAny>)>>,
+  ) -> Self {
+    Self::DiffTopBottomKClauses { collection, tags }
+  }
+
+  pub fn custom(collection: Arc<dynamic::DynamicOutputCollection<custom_tag::CustomTag>>) -> Self {
+    Self::Custom { collection }
   }
 
   pub fn num_input_facts(&self) -> Option<usize> {
@@ -116,9 +157,7 @@ impl CollectionEnum {
       Self::DiffAddMultProb { tags, .. } => Some(tags.iter().cloned().collect()),
       Self::DiffSampleKProofs { tags, .. } => Some(tags.iter().map(|(_, t)| t.clone()).collect()),
       Self::DiffTopKProofs { tags, .. } => Some(tags.iter().map(|(_, t)| t.clone()).collect()),
-      Self::DiffTopBottomKClauses { tags, .. } => {
-        Some(tags.iter().map(|(_, t)| t.clone()).collect())
-      }
+      Self::DiffTopBottomKClauses { tags, .. } => Some(tags.iter().map(|(_, t)| t.clone()).collect()),
       Self::Custom { .. } => None,
     }
   }
@@ -169,12 +208,8 @@ impl CollectionEnum {
     match self {
       Self::Unit { .. } => Python::with_gil(|py| ().to_object(py)),
       Self::Proofs { .. } => Python::with_gil(|py| ().to_object(py)),
-      Self::MinMaxProb { collection } => {
-        Python::with_gil(|py| collection.ith_tag(i).unwrap().to_object(py))
-      }
-      Self::AddMultProb { collection } => {
-        Python::with_gil(|py| collection.ith_tag(i).unwrap().to_object(py))
-      }
+      Self::MinMaxProb { collection } => Python::with_gil(|py| collection.ith_tag(i).unwrap().to_object(py)),
+      Self::AddMultProb { collection } => Python::with_gil(|py| collection.ith_tag(i).unwrap().to_object(py)),
       Self::TopKProofs { collection, .. } => {
         let output_tag: f64 = *collection.ith_tag(i).unwrap();
         Python::with_gil(|py| output_tag.to_object(py))

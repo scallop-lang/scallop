@@ -93,10 +93,7 @@ impl<T: Tag> DynamicCollection<T> {
   where
     F: FnMut(T) -> S,
   {
-    self
-      .elements
-      .into_iter()
-      .map(move |elem| (f(elem.tag), elem.tuple))
+    self.elements.into_iter().map(move |elem| (f(elem.tag), elem.tuple))
   }
 
   pub fn recover(self, ctx: &T::Context) -> DynamicOutputCollection<T> {
@@ -129,15 +126,11 @@ impl<T: Tag> DynamicCollection<T> {
 
     // If one of the element lists is zero-length, we don't need to do any work
     if elements1.is_empty() {
-      return Self {
-        elements: elements2,
-      };
+      return Self { elements: elements2 };
     }
 
     if elements2.is_empty() {
-      return Self {
-        elements: elements1,
-      };
+      return Self { elements: elements1 };
     }
 
     // Make sure that elements1 starts with the lower element
@@ -149,9 +142,7 @@ impl<T: Tag> DynamicCollection<T> {
     // Fast path for when all the new elements are after the exiting ones
     if elements1[elements1.len() - 1] < elements2[0] {
       elements1.extend(elements2.into_iter());
-      return Self {
-        elements: elements1,
-      };
+      return Self { elements: elements1 };
     }
 
     let mut elements = Vec::with_capacity(elements1.len() + elements2.len());

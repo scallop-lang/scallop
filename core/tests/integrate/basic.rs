@@ -8,10 +8,7 @@ fn basic_edge_path_left_recursion() {
       rel path(a, b) = edge(a, b) \/ path(a, c) /\ edge(c, b)
       query path
     "#,
-    (
-      "path",
-      vec![(0usize, 2usize), (1, 2), (0, 3), (1, 3), (2, 3)],
-    ),
+    ("path", vec![(0usize, 2usize), (1, 2), (0, 3), (1, 3), (2, 3)]),
   );
 }
 
@@ -23,10 +20,7 @@ fn basic_edge_path_right_recursion() {
       rel path(a, b) = edge(a, b) \/ edge(a, c) /\ path(c, b)
       query path
     "#,
-    (
-      "path",
-      vec![(0usize, 2usize), (1, 2), (0, 3), (1, 3), (2, 3)],
-    ),
+    ("path", vec![(0usize, 2usize), (1, 2), (0, 3), (1, 3), (2, 3)]),
   );
 }
 
@@ -38,10 +32,7 @@ fn basic_edge_path_binary_recursion() {
       rel path(a, b) = edge(a, b) \/ path(a, c) /\ path(c, b)
       query path
     "#,
-    (
-      "path",
-      vec![(0usize, 2usize), (1, 2), (0, 3), (1, 3), (2, 3)],
-    ),
+    ("path", vec![(0usize, 2usize), (1, 2), (0, 3), (1, 3), (2, 3)]),
   );
 }
 
@@ -91,10 +82,7 @@ fn bmi_test_1() {
     vec![
       ("height", vec![(1usize, 185i32), (2, 175), (3, 165)].into()),
       ("weight", vec![(1usize, 80usize), (2, 70), (3, 55)].into()),
-      (
-        "bmi",
-        vec![(1usize, 23.374f32), (2, 22.857), (3, 20.202)].into(),
-      ),
+      ("bmi", vec![(1usize, 23.374f32), (2, 22.857), (3, 20.202)].into()),
     ],
   )
 }
@@ -117,15 +105,9 @@ fn bmi_test_2() {
       rel bmi(id, w / (h * h / 10000.0)) = height(id, h), weight(id, w)
     "#,
     vec![
-      (
-        "height",
-        vec![(1usize, 185f32), (2, 175.0), (3, 165.0)].into(),
-      ),
+      ("height", vec![(1usize, 185f32), (2, 175.0), (3, 165.0)].into()),
       ("weight", vec![(1usize, 80f32), (2, 70.0), (3, 55.0)].into()),
-      (
-        "bmi",
-        vec![(1usize, 23.374f32), (2, 22.857), (3, 20.202)].into(),
-      ),
+      ("bmi", vec![(1usize, 23.374f32), (2, 22.857), (3, 20.202)].into()),
     ],
   )
 }
@@ -160,7 +142,19 @@ fn count_test_1() {
 
       rel R = {(0, "a"), (1, "b"), (1, "a"), (0, "c"), (0, "d")}
       rel S(i) :- i = count(s: R(o, s))
+    "#,
+    ("S", vec![(4usize,)]),
+  );
+}
 
+#[test]
+fn count_test_2() {
+  expect_interpret_result(
+    r#"
+      type R(usize, String)
+      type S(usize)
+
+      rel R = {(0, "a"), (1, "b"), (1, "a"), (0, "c"), (0, "d")}
       rel O(o, i) :- i = count(s: R(o, s))
     "#,
     ("O", vec![(0usize, 3usize), (1, 2)]),
@@ -248,16 +242,7 @@ fn fib_test_1() {
     "#,
     (
       "fib",
-      vec![
-        (0i32, 1i32),
-        (1, 1),
-        (2, 2),
-        (3, 3),
-        (4, 5),
-        (5, 8),
-        (6, 13),
-        (7, 21),
-      ],
+      vec![(0i32, 1i32), (1, 1), (2, 2), (3, 3), (4, 5), (5, 8), (6, 13), (7, 21)],
     ),
   );
 }
@@ -311,10 +296,7 @@ fn obj_color_test_2() {
       }
       rel max_color(c) = _ = max[c](n: n = count(o: object_color(o, c)))
     "#,
-    (
-      "max_color",
-      vec![("blue".to_string(),), ("green".to_string(),)],
-    ),
+    ("max_color", vec![("blue".to_string(),), ("green".to_string(),)]),
   );
 }
 
@@ -509,10 +491,7 @@ fn unused_relation_1() {
       rel S(b, 1) = B(b)
       query S
     "#,
-    (
-      "S",
-      vec![("haha".to_string(), 1usize), ("wow".to_string(), 1)],
-    ),
+    ("S", vec![("haha".to_string(), 1usize), ("wow".to_string(), 1)]),
   )
 }
 
@@ -685,10 +664,7 @@ fn type_cast_to_string_1() {
     rel r = {1, 2, 3}
     rel s(x as String) = r(x)
   "#,
-    (
-      "s",
-      vec![("1".to_string(),), ("2".to_string(),), ("3".to_string(),)],
-    ),
+    ("s", vec![("1".to_string(),), ("2".to_string(),), ("3".to_string(),)]),
   )
 }
 

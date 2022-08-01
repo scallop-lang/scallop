@@ -27,17 +27,11 @@ impl NodeVisitor for LocalBoundnessAnalysisContext {
     // First put that into a location
     let name = variable.name().to_string();
     let loc = variable.location().clone();
-    self
-      .variable_locations
-      .entry(name.clone())
-      .or_default()
-      .push(loc);
+    self.variable_locations.entry(name.clone()).or_default().push(loc);
 
     // If the variable is already bounded, we say the expression is bounded
     if self.bounded_variables.contains(&name) {
-      self
-        .expr_boundness
-        .insert(variable.location().clone(), true);
+      self.expr_boundness.insert(variable.location().clone(), true);
     }
   }
 
@@ -54,10 +48,7 @@ impl NodeVisitor for LocalBoundnessAnalysisContext {
     match constraint.expr() {
       Expr::Binary(b) => {
         if b.op().is_eq() {
-          let dep = BoundnessDependency::ConstraintEquality(
-            b.op1().location().clone(),
-            b.op2().location().clone(),
-          );
+          let dep = BoundnessDependency::ConstraintEquality(b.op1().location().clone(), b.op2().location().clone());
           self.dependencies.push(dep);
         }
       }
@@ -84,10 +75,7 @@ impl NodeVisitor for LocalBoundnessAnalysisContext {
   }
 
   fn visit_unary_expr(&mut self, unary_expr: &UnaryExpr) {
-    let dep = BoundnessDependency::UnaryOp(
-      unary_expr.op1().location().clone(),
-      unary_expr.location().clone(),
-    );
+    let dep = BoundnessDependency::UnaryOp(unary_expr.op1().location().clone(), unary_expr.location().clone());
     self.dependencies.push(dep);
   }
 }
@@ -109,12 +97,10 @@ impl LocalBoundnessAnalysisContext {
     let update = |expr_boundness: &mut HashMap<Loc, bool>, l: &Loc, b: bool| {
       *expr_boundness.entry(l.clone()).or_default() |= b;
     };
-    let get_mut = |expr_boundness: &mut HashMap<Loc, bool>, l: &Loc| -> bool {
-      *expr_boundness.entry(l.clone()).or_default()
-    };
-    let get = |expr_boundness: &HashMap<Loc, bool>, l: &Loc| -> bool {
-      expr_boundness.get(l).cloned().unwrap_or(false)
-    };
+    let get_mut =
+      |expr_boundness: &mut HashMap<Loc, bool>, l: &Loc| -> bool { *expr_boundness.entry(l.clone()).or_default() };
+    let get =
+      |expr_boundness: &HashMap<Loc, bool>, l: &Loc| -> bool { expr_boundness.get(l).cloned().unwrap_or(false) };
 
     // Fixpoint iteration
     let mut old_expr_boundness = HashMap::new();
@@ -167,11 +153,7 @@ impl LocalBoundnessAnalysisContext {
             let b_cond = get_mut(&mut self.expr_boundness, cond);
             let b_then_br = get_mut(&mut self.expr_boundness, then_br);
             let b_else_br = get_mut(&mut self.expr_boundness, else_br);
-            update(
-              &mut self.expr_boundness,
-              e,
-              b_cond && b_then_br && b_else_br,
-            );
+            update(&mut self.expr_boundness, e, b_cond && b_then_br && b_else_br);
           }
         }
       }

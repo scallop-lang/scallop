@@ -1,5 +1,5 @@
 use pyo3::{Py, PyAny, Python};
-use scallop_core::runtime::dynamic;
+// use scallop_core::runtime::dynamic;
 use scallop_core::runtime::provenance;
 
 #[derive(Clone, Debug)]
@@ -83,42 +83,17 @@ impl provenance::ProvenanceContext for CustomTagContext {
   }
 
   fn zero(&self) -> Self::Tag {
-    Python::with_gil(|py| {
-      Self::Tag::new(
-        self
-          .0
-          .call_method(py, "zero", (), None)
-          .unwrap()
-          .extract(py)
-          .unwrap(),
-      )
-    })
+    Python::with_gil(|py| Self::Tag::new(self.0.call_method(py, "zero", (), None).unwrap().extract(py).unwrap()))
   }
 
   fn one(&self) -> Self::Tag {
-    Python::with_gil(|py| {
-      Self::Tag::new(
-        self
-          .0
-          .call_method(py, "one", (), None)
-          .unwrap()
-          .extract(py)
-          .unwrap(),
-      )
-    })
+    Python::with_gil(|py| Self::Tag::new(self.0.call_method(py, "one", (), None).unwrap().extract(py).unwrap()))
   }
 
   fn add(&self, t1: &Self::Tag, t2: &Self::Tag) -> Self::Tag {
     Python::with_gil(|py| {
       let input = (t1.0.clone(), t2.0.clone());
-      Self::Tag::new(
-        self
-          .0
-          .call_method(py, "add", input, None)
-          .unwrap()
-          .extract(py)
-          .unwrap(),
-      )
+      Self::Tag::new(self.0.call_method(py, "add", input, None).unwrap().extract(py).unwrap())
     })
   }
 
@@ -134,87 +109,5 @@ impl provenance::ProvenanceContext for CustomTagContext {
           .unwrap(),
       )
     })
-  }
-
-  fn dynamic_aggregate<'a>(
-    &self,
-    _: &dynamic::DynamicAggregateOp,
-    _: dynamic::DynamicElements<Self::Tag>,
-  ) -> Vec<scallop_core::runtime::dynamic::DynamicElement<Self::Tag>> {
-    unimplemented!()
-    // match op {
-    //   dynamic::DynamicAggregateOp::Count(expr) => Python::with_gil(|py| {
-    //     let projected_batch = dynamic::DynamicAggregateOp::project_batch_helper(batch, expr, self);
-    //     let vectorized_batch = projected_batch
-    //       .into_iter()
-    //       .map(|e| (e.tag.0.clone(), to_python_tuple(&e.tuple)))
-    //       .collect::<Vec<_>>();
-    //     let result: Vec<(Py<PyAny>, Py<PyAny>)> = self
-    //       .0
-    //       .call_method(py, "aggregate_count", (vectorized_batch,), None)
-    //       .unwrap()
-    //       .extract(py)
-    //       .unwrap();
-    //     result
-    //       .into_iter()
-    //       .map(|(tag, tuple)| {
-    //         let tuple = from_python_tuple(
-    //           tuple.as_ref(py),
-    //           &<TupleType as FromType<usize>>::from_type(),
-    //         )
-    //         .unwrap();
-    //         dynamic::DynamicElement::new(tuple, Self::Tag::new(tag))
-    //       })
-    //       .collect()
-    //   }),
-    //   dynamic::DynamicAggregateOp::Exists => Python::with_gil(|py| {
-    //     let vectorized_batch = batch
-    //       .map(|e| (e.tag.0.clone(), to_python_tuple(&e.tuple)))
-    //       .collect::<Vec<_>>();
-    //     let result: Vec<(Py<PyAny>, Py<PyAny>)> = self
-    //       .0
-    //       .call_method(py, "aggregate_exists", (vectorized_batch,), None)
-    //       .unwrap()
-    //       .extract(py)
-    //       .unwrap();
-    //     result
-    //       .into_iter()
-    //       .map(|(tag, tuple)| {
-    //         let tuple = from_python_tuple(
-    //           tuple.as_ref(py),
-    //           &<TupleType as FromType<usize>>::from_type(),
-    //         )
-    //         .unwrap();
-    //         dynamic::DynamicElement::new(tuple, Self::Tag::new(tag))
-    //       })
-    //       .collect()
-    //   }),
-    //   dynamic::DynamicAggregateOp::Unique(expr) => Python::with_gil(|py| {
-    //     let projected_batch = dynamic::DynamicAggregateOp::project_batch_helper(batch, expr, self);
-    //     let ty = projected_batch.get(0).map(|elem| elem.tuple.tuple_type());
-    //     if let Some(ty) = ty {
-    //       let vectorized_batch = projected_batch
-    //         .into_iter()
-    //         .map(|e| (e.tag.0.clone(), to_python_tuple(&e.tuple)))
-    //         .collect::<Vec<_>>();
-    //       let result: Vec<(Py<PyAny>, Py<PyAny>)> = self
-    //         .0
-    //         .call_method(py, "aggregate_unique", (vectorized_batch,), None)
-    //         .unwrap()
-    //         .extract(py)
-    //         .unwrap();
-    //       result
-    //         .into_iter()
-    //         .map(|(tag, tuple)| {
-    //           let tuple = from_python_tuple(tuple.as_ref(py), &ty).unwrap();
-    //           dynamic::DynamicElement::new(tuple, Self::Tag::new(tag))
-    //         })
-    //         .collect()
-    //     } else {
-    //       vec![]
-    //     }
-    //   }),
-    //   _ => unimplemented!(),
-    // }
   }
 }

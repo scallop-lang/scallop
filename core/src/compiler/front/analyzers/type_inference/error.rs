@@ -194,10 +194,7 @@ impl TypeInferenceError {
         expr_loc.report(src);
       }
       Self::ConstantTypeMismatch { expected, found } => {
-        println!(
-          "Type mismatch for constant. Expected `{}`, found `{}`",
-          expected, found
-        );
+        println!("Type mismatch for constant. Expected `{}`, found `{}`", expected, found);
         found.location().report(src);
       }
       Self::CannotUnifyTypes { t1, t2, loc } => match loc {
@@ -219,14 +216,11 @@ impl TypeInferenceError {
           t2.location().report(src);
         }
       },
-      Self::CannotUnifyVariables {
-        v1,
-        t1,
-        v2,
-        t2,
-        loc,
-      } => {
-        println!("Cannot unify variable types: `{}` has `{}` type, `{}` has `{}` type, but they should be unified", v1, t1, v2, t2);
+      Self::CannotUnifyVariables { v1, t1, v2, t2, loc } => {
+        println!(
+          "Cannot unify variable types: `{}` has `{}` type, `{}` has `{}` type, but they should be unified",
+          v1, t1, v2, t2
+        );
         loc.report(src);
       }
       Self::CannotTypeCast { t1, t2, loc } => {

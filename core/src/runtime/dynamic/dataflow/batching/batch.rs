@@ -2,7 +2,6 @@ use crate::common::tuple::Tuple;
 use crate::runtime::dynamic::*;
 use crate::runtime::provenance::*;
 
-use super::super::aggregate::*;
 use super::super::*;
 
 #[derive(Clone)]
@@ -19,7 +18,6 @@ pub enum DynamicBatch<'a, T: Tag> {
   Product(DynamicProductBatch<'a, T>),
   Difference(DynamicDifferenceBatch<'a, T>),
   Antijoin(DynamicAntijoinBatch<'a, T>),
-  Aggregation(DynamicAggregationBatch<'a, T>),
 }
 
 impl<'a, T: Tag> DynamicBatch<'a, T> {
@@ -31,13 +29,13 @@ impl<'a, T: Tag> DynamicBatch<'a, T> {
     Self::SourceVec(v.into_iter())
   }
 
-  pub fn aggregate(
-    source: DynamicGroupsIterator<T>,
-    agg: DynamicAggregateOp,
-    ctx: &'a T::Context,
-  ) -> Self {
-    Self::Aggregation(DynamicAggregationBatch::new(source, agg, ctx))
-  }
+  // pub fn aggregate(
+  //   source: DynamicGroupsIterator<T>,
+  //   agg: DynamicAggregateOp,
+  //   ctx: &'a T::Context,
+  // ) -> Self {
+  //   Self::Aggregation(DynamicAggregationBatch::new(source, agg, ctx))
+  // }
 
   pub fn step(&mut self, u: usize) {
     match self {
@@ -55,11 +53,7 @@ impl<'a, T: Tag> DynamicBatch<'a, T> {
   where
     F: FnMut(&Tuple) -> bool,
   {
-    fn search_ahead_variable_helper_1<T, F>(
-      collection: &DynamicCollection<T>,
-      elem_id: &mut usize,
-      mut cmp: F,
-    ) -> bool
+    fn search_ahead_variable_helper_1<T, F>(collection: &DynamicCollection<T>, elem_id: &mut usize, mut cmp: F) -> bool
     where
       T: Tag,
       F: FnMut(&Tuple) -> bool,
@@ -124,7 +118,6 @@ impl<'a, T: Tag> Iterator for DynamicBatch<'a, T> {
       Self::Product(p) => p.next(),
       Self::Difference(d) => d.next(),
       Self::Antijoin(a) => a.next(),
-      Self::Aggregation(a) => a.next(),
     }
   }
 }

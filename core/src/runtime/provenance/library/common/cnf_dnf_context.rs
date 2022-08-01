@@ -16,9 +16,7 @@ pub trait CNFDNFContextTrait {
   }
 
   fn conjunction_probability(&self, c: &Clause) -> f64 {
-    c.literals
-      .iter()
-      .fold(1.0, |acc, l| acc * self.literal_probability(l))
+    c.literals.iter().fold(1.0, |acc, l| acc * self.literal_probability(l))
   }
 
   fn disjunction_probability(&self, c: &Clause) -> f64 {
@@ -234,10 +232,7 @@ pub trait CNFDNFContextTrait {
 
     impl std::cmp::PartialOrd for Element {
       fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self
-          .prob
-          .partial_cmp(&other.prob)
-          .map(std::cmp::Ordering::reverse)
+        self.prob.partial_cmp(&other.prob).map(std::cmp::Ordering::reverse)
       }
     }
 
@@ -366,11 +361,7 @@ pub trait CNFDNFContextTrait {
       // Get the result
       let clause = Clause::new(literals);
       let prob = self.conjunction_probability(&clause);
-      Some(Element {
-        prob,
-        indices,
-        clause,
-      })
+      Some(Element { prob, indices, clause })
     };
 
     // A closure for getting the next elements of an element
@@ -416,8 +407,7 @@ pub trait CNFDNFContextTrait {
             visited.insert(elem.indices.clone());
 
             // Check validity of the clause; if valid, put it in the result
-            if elem.clause.is_valid() && !self.has_disjunction_conflict(&elem.clause.pos_fact_ids())
-            {
+            if elem.clause.is_valid() && !self.has_disjunction_conflict(&elem.clause.pos_fact_ids()) {
               result_clauses.push(elem.clause);
             }
 
@@ -450,10 +440,7 @@ pub trait CNFDNFContextTrait {
 
     impl std::cmp::PartialOrd for Element {
       fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self
-          .prob
-          .partial_cmp(&other.prob)
-          .map(std::cmp::Ordering::reverse)
+        self.prob.partial_cmp(&other.prob).map(std::cmp::Ordering::reverse)
       }
     }
 
@@ -499,11 +486,7 @@ pub trait CNFDNFContextTrait {
       // Get the result
       let clause = Clause::new(literals);
       let prob = self.disjunction_probability(&clause);
-      Some(Element {
-        prob,
-        indices,
-        clause,
-      })
+      Some(Element { prob, indices, clause })
     };
 
     // A closure for getting the next elements of an element
@@ -585,12 +568,8 @@ pub trait CNFDNFContextTrait {
     match (&t1.kind, &t2.kind) {
       (CNF, CNF) => self.add_formula_bottom_k(&t1.clauses, &t2.clauses, k),
       (DNF, DNF) => self.mult_formula_top_k(&t1.clauses, &t2.clauses, k),
-      (CNF, DNF) => {
-        self.add_formula_bottom_k(&t1.clauses, &self.dnf2cnf_k(&t2.clauses, k).clauses, k)
-      }
-      (DNF, CNF) => {
-        self.add_formula_bottom_k(&self.dnf2cnf_k(&t1.clauses, k).clauses, &t2.clauses, k)
-      }
+      (CNF, DNF) => self.add_formula_bottom_k(&t1.clauses, &self.dnf2cnf_k(&t2.clauses, k).clauses, k),
+      (DNF, CNF) => self.add_formula_bottom_k(&self.dnf2cnf_k(&t1.clauses, k).clauses, &t2.clauses, k),
     }
   }
 
@@ -598,12 +577,7 @@ pub trait CNFDNFContextTrait {
     t.negate()
   }
 
-  fn top_bottom_k_tag_of_chosen_set<'a, I>(
-    &self,
-    all: I,
-    chosen_ids: &Vec<usize>,
-    k: usize,
-  ) -> CNFDNFFormula
+  fn top_bottom_k_tag_of_chosen_set<'a, I>(&self, all: I, chosen_ids: &Vec<usize>, k: usize) -> CNFDNFFormula
   where
     I: Iterator<Item = &'a CNFDNFFormula>,
   {
@@ -616,9 +590,7 @@ pub trait CNFDNFContextTrait {
           self.base_negate(f)
         }
       })
-      .fold(CNFDNFFormula::dnf_one(), |a, b| {
-        self.top_bottom_k_mult(&a, &b, k)
-      })
+      .fold(CNFDNFFormula::dnf_one(), |a, b| self.top_bottom_k_mult(&a, &b, k))
   }
 }
 
@@ -628,9 +600,7 @@ pub struct BasicCNFDNFClausesContext {
 
 impl BasicCNFDNFClausesContext {
   pub fn new() -> Self {
-    Self {
-      probabilities: vec![],
-    }
+    Self { probabilities: vec![] }
   }
 }
 

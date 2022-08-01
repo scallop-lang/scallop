@@ -25,21 +25,9 @@ impl<'a, T: Tag> DynamicIntersectDataflow<'a, T> {
   pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
     let op = IntersectOp { ctx: self.ctx };
     DynamicBatches::chain(vec![
-      DynamicBatches::binary(
-        self.d1.iter_stable(),
-        self.d2.iter_recent(),
-        op.clone().into(),
-      ),
-      DynamicBatches::binary(
-        self.d1.iter_recent(),
-        self.d2.iter_stable(),
-        op.clone().into(),
-      ),
-      DynamicBatches::binary(
-        self.d1.iter_recent(),
-        self.d2.iter_recent(),
-        op.clone().into(),
-      ),
+      DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_recent(), op.clone().into()),
+      DynamicBatches::binary(self.d1.iter_recent(), self.d2.iter_stable(), op.clone().into()),
+      DynamicBatches::binary(self.d1.iter_recent(), self.d2.iter_recent(), op.clone().into()),
     ])
   }
 }
@@ -61,11 +49,7 @@ impl<'a, T: Tag> From<IntersectOp<'a, T>> for BatchBinaryOp<'a, T> {
 }
 
 impl<'a, T: Tag> IntersectOp<'a, T> {
-  pub fn apply(
-    &self,
-    mut i1: DynamicBatch<'a, T>,
-    mut i2: DynamicBatch<'a, T>,
-  ) -> DynamicBatch<'a, T> {
+  pub fn apply(&self, mut i1: DynamicBatch<'a, T>, mut i2: DynamicBatch<'a, T>) -> DynamicBatch<'a, T> {
     let i1_curr = i1.next();
     let i2_curr = i2.next();
     DynamicBatch::Intersect(DynamicIntersectBatch {
@@ -105,27 +89,21 @@ impl<'a, T: Tag> Iterator for DynamicIntersectBatch<'a, T> {
     use std::cmp::Ordering;
     loop {
       match (&self.i1_curr, &self.i2_curr) {
-        (Some(i1_curr_elem), Some(i2_curr_elem)) => {
-          match i1_curr_elem.tuple.cmp(&i2_curr_elem.tuple) {
-            Ordering::Less => {
-              self.i1_curr = self
-                .i1
-                .search_ahead(|i1_next| i1_next < &i2_curr_elem.tuple);
-            }
-            Ordering::Equal => {
-              let tag = self.ctx.mult(&i1_curr_elem.tag, &i2_curr_elem.tag);
-              let result = DynamicElement::new(i1_curr_elem.tuple.clone(), tag);
-              self.i1_curr = self.i1.next();
-              self.i2_curr = self.i2.next();
-              return Some(result);
-            }
-            Ordering::Greater => {
-              self.i2_curr = self
-                .i2
-                .search_ahead(|i2_next| i2_next < &i1_curr_elem.tuple);
-            }
+        (Some(i1_curr_elem), Some(i2_curr_elem)) => match i1_curr_elem.tuple.cmp(&i2_curr_elem.tuple) {
+          Ordering::Less => {
+            self.i1_curr = self.i1.search_ahead(|i1_next| i1_next < &i2_curr_elem.tuple);
           }
-        }
+          Ordering::Equal => {
+            let tag = self.ctx.mult(&i1_curr_elem.tag, &i2_curr_elem.tag);
+            let result = DynamicElement::new(i1_curr_elem.tuple.clone(), tag);
+            self.i1_curr = self.i1.next();
+            self.i2_curr = self.i2.next();
+            return Some(result);
+          }
+          Ordering::Greater => {
+            self.i2_curr = self.i2.search_ahead(|i2_next| i2_next < &i1_curr_elem.tuple);
+          }
+        },
         _ => return None,
       }
     }

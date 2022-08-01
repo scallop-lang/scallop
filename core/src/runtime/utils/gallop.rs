@@ -21,11 +21,7 @@
 //   slice
 // }
 
-pub(crate) fn gallop_index<T>(
-  slice: &[T],
-  mut begin: usize,
-  mut cmp: impl FnMut(&T) -> bool,
-) -> usize {
+pub(crate) fn gallop_index<T>(slice: &[T], mut begin: usize, mut cmp: impl FnMut(&T) -> bool) -> usize {
   // if empty slice, or already >= element, return
   if !slice.is_empty() && cmp(&slice[0]) {
     let mut step = 1;

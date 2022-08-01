@@ -1,12 +1,10 @@
 use std::fmt::{Debug, Display};
 
 use super::unit::Unit;
+use crate::common::tuples::*;
+use crate::common::value_type::*;
 use crate::runtime::dynamic::*;
-
-pub enum Proceeding {
-  Stable,
-  Recent,
-}
+use crate::runtime::statics::*;
 
 pub trait ProvenanceContext: Clone {
   type Tag: Tag<Context = Self>;
@@ -30,10 +28,7 @@ pub trait ProvenanceContext: Clone {
     tags.into_iter().map(|t| self.tagging_fn(t)).collect()
   }
 
-  fn tagging_disjunction_optional_fn(
-    &mut self,
-    tags: Vec<Option<Self::InputTag>>,
-  ) -> Vec<Self::Tag> {
+  fn tagging_disjunction_optional_fn(&mut self, tags: Vec<Option<Self::InputTag>>) -> Vec<Self::Tag> {
     // First generate disjunctive tags for those with a tag
     let disj_tags = self.tagging_disjunction_fn(tags.iter().filter_map(|t| t.clone()).collect());
 
@@ -75,104 +70,118 @@ pub trait ProvenanceContext: Clone {
     self.negate(t2).map(|neg_t2| self.mult(t1, &neg_t2))
   }
 
-  /// Aggregate dynamically on a set of elements
-  ///
-  /// Precondition:
-  /// - the batch elements are normalized (no duplicate tuples)
-  /// - the batch elements are sorted
-  fn dynamic_aggregate(
-    &self,
-    op: &DynamicAggregateOp,
-    batch: DynamicElements<Self::Tag>,
-  ) -> DynamicElements<Self::Tag> {
-    use DynamicAggregateOp::*;
-    match op {
-      Count(c) => self.dynamic_count(c, batch),
-      Sum(c) => self.dynamic_sum(c, batch),
-      Prod(c) => self.dynamic_prod(c, batch),
-      Min(c) => self.dynamic_min(c, batch),
-      Max(c) => self.dynamic_max(c, batch),
-      Exists(c) => self.dynamic_exists(c, batch),
-      Unique(c) => self.dynamic_unique(c, batch),
-    }
+  fn dynamic_count(&self, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
+    vec![DynamicElement::new(batch.len(), self.one())]
   }
 
-  fn dynamic_count<'a>(
-    &self,
-    op: &DynamicCountOp,
-    batch: DynamicElements<Self::Tag>,
-  ) -> DynamicElements<Self::Tag> {
-    op.aggregate(batch, self)
+  fn dynamic_sum(&self, ty: &ValueType, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
+    let s = ty.sum(batch.iter_tuples());
+    vec![DynamicElement::new(s, self.one())]
+  }
+
+  fn dynamic_prod(&self, ty: &ValueType, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
+    let p = ty.prod(batch.iter_tuples());
+    vec![DynamicElement::new(p, self.one())]
+  }
+
+  fn dynamic_min(&self, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
+    batch.first().into_iter().cloned().collect()
+  }
+
+  fn dynamic_max(&self, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
+    batch.last().into_iter().cloned().collect()
+  }
+
+  fn dynamic_argmin(&self, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
+    batch
+      .iter_tuples()
+      .arg_minimum()
       .into_iter()
-      .map(|tuple| DynamicElement::new(tuple, self.one()))
+      .map(|t| DynamicElement::new(t, self.one()))
       .collect()
   }
 
-  fn dynamic_sum<'a>(
-    &self,
-    op: &DynamicSumOp,
-    batch: DynamicElements<Self::Tag>,
-  ) -> DynamicElements<Self::Tag> {
-    op.aggregate(batch, self)
+  fn dynamic_argmax(&self, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
+    batch
+      .iter_tuples()
+      .arg_maximum()
       .into_iter()
-      .map(|tuple| DynamicElement::new(tuple, self.one()))
+      .map(|t| DynamicElement::new(t, self.one()))
       .collect()
   }
 
-  fn dynamic_prod<'a>(
+  fn dynamic_exists(&self, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
+    vec![DynamicElement::new(!batch.is_empty(), self.one())]
+  }
+
+  fn dynamic_unique(&self, batch: DynamicElements<Self::Tag>) -> DynamicElements<Self::Tag> {
+    batch.first().into_iter().cloned().collect()
+  }
+
+  fn static_count<T: StaticTupleTrait>(&self, batch: StaticElements<T, Self::Tag>) -> StaticElements<usize, Self::Tag> {
+    vec![StaticElement::new(batch.len(), self.one())]
+  }
+
+  fn static_sum<T: StaticTupleTrait + SumType>(
     &self,
-    op: &DynamicProdOp,
-    batch: DynamicElements<Self::Tag>,
-  ) -> DynamicElements<Self::Tag> {
-    op.aggregate(batch, self)
+    batch: StaticElements<T, Self::Tag>,
+  ) -> StaticElements<T, Self::Tag> {
+    vec![StaticElement::new(
+      <T as SumType>::sum(batch.iter_tuples().cloned()),
+      self.one(),
+    )]
+  }
+
+  fn static_prod<T: StaticTupleTrait + ProdType>(
+    &self,
+    batch: StaticElements<T, Self::Tag>,
+  ) -> StaticElements<T, Self::Tag> {
+    vec![StaticElement::new(
+      <T as ProdType>::prod(batch.iter_tuples().cloned()),
+      self.one(),
+    )]
+  }
+
+  fn static_max<T: StaticTupleTrait>(&self, batch: StaticElements<T, Self::Tag>) -> StaticElements<T, Self::Tag> {
+    batch.last().into_iter().cloned().collect()
+  }
+
+  fn static_min<T: StaticTupleTrait>(&self, batch: StaticElements<T, Self::Tag>) -> StaticElements<T, Self::Tag> {
+    batch.first().into_iter().cloned().collect()
+  }
+
+  fn static_argmax<T1: StaticTupleTrait, T2: StaticTupleTrait>(
+    &self,
+    batch: StaticElements<(T1, T2), Self::Tag>,
+  ) -> StaticElements<(T1, T2), Self::Tag> {
+    static_argmax(batch.into_iter().map(|e| e.tuple()))
       .into_iter()
-      .map(|tuple| DynamicElement::new(tuple, self.one()))
+      .map(|t| StaticElement::new(t, self.one()))
       .collect()
   }
 
-  fn dynamic_min<'a>(
+  fn static_argmin<T1: StaticTupleTrait, T2: StaticTupleTrait>(
     &self,
-    op: &DynamicMinOp,
-    batch: DynamicElements<Self::Tag>,
-  ) -> DynamicElements<Self::Tag> {
-    op.aggregate(batch, self)
+    batch: StaticElements<(T1, T2), Self::Tag>,
+  ) -> StaticElements<(T1, T2), Self::Tag> {
+    static_argmin(batch.into_iter().map(|e| e.tuple()))
       .into_iter()
-      .map(|tuple| DynamicElement::new(tuple, self.one()))
+      .map(|t| StaticElement::new(t, self.one()))
       .collect()
   }
 
-  fn dynamic_max<'a>(
-    &self,
-    op: &DynamicMaxOp,
-    batch: DynamicElements<Self::Tag>,
-  ) -> DynamicElements<Self::Tag> {
-    op.aggregate(batch, self)
-      .into_iter()
-      .map(|tuple| DynamicElement::new(tuple, self.one()))
-      .collect()
+  fn static_exists<T: StaticTupleTrait>(&self, batch: StaticElements<T, Self::Tag>) -> StaticElements<bool, Self::Tag> {
+    vec![StaticElement::new(!batch.is_empty(), self.one())]
   }
 
-  fn dynamic_exists<'a>(
-    &self,
-    op: &DynamicExistsOp,
-    batch: DynamicElements<Self::Tag>,
-  ) -> DynamicElements<Self::Tag> {
-    op.aggregate(batch, self)
-      .into_iter()
-      .map(|tuple| DynamicElement::new(tuple, self.one()))
-      .collect()
+  fn static_unique<T: StaticTupleTrait>(&self, batch: StaticElements<T, Self::Tag>) -> StaticElements<T, Self::Tag> {
+    batch.first().into_iter().cloned().collect()
   }
+}
 
-  fn dynamic_unique<'a>(
-    &self,
-    op: &DynamicUniqueOp,
-    batch: DynamicElements<Self::Tag>,
-  ) -> DynamicElements<Self::Tag> {
-    op.aggregate(batch, self)
-      .into_iter()
-      .map(|tuple| DynamicElement::new(tuple, self.one()))
-      .collect()
-  }
+pub enum Proceeding {
+  Stable,
+  Recent,
 }
 
 pub type OutputTagOf<C> = <C as ProvenanceContext>::OutputTag;
@@ -215,10 +224,7 @@ where
   T: Tag,
 {
   default fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.debug_tuple("")
-      .field(&self.tuple)
-      .field(&self.tag)
-      .finish()
+    f.debug_tuple("").field(&self.tuple).field(&self.tag).finish()
   }
 }
 

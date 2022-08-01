@@ -50,9 +50,7 @@ impl Analysis {
   pub fn post_analysis(&mut self) {
     self.type_inference.infer_types();
     self.demand_attr_analysis.check_arity(&self.type_inference);
-    self
-      .boundness_analysis
-      .check_boundness(&self.demand_attr_analysis);
+    self.boundness_analysis.check_boundness(&self.demand_attr_analysis);
   }
 
   pub fn dump_errors(&mut self, error_ctx: &mut FrontErrorReportingContext) {

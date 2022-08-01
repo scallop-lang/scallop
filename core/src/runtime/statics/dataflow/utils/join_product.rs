@@ -21,12 +21,7 @@ where
   T: Tag,
 {
   pub fn new(v1: Vec<StaticElement<T1, T>>, v2: Vec<StaticElement<T2, T>>) -> Self {
-    Self {
-      v1,
-      v2,
-      i1: 0,
-      i2: 0,
-    }
+    Self { v1, v2, i1: 0, i2: 0 }
   }
 }
 

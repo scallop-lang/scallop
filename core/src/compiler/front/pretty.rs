@@ -132,11 +132,7 @@ impl Display for SubtypeDecl {
     for attr in self.attributes() {
       f.write_fmt(format_args!("{} ", attr))?;
     }
-    f.write_fmt(format_args!(
-      "type {} <: {}",
-      self.name(),
-      self.subtype_of()
-    ))
+    f.write_fmt(format_args!("type {} <: {}", self.name(), self.subtype_of()))
   }
 }
 
@@ -287,11 +283,7 @@ impl Display for Disjunction {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     f.write_fmt(format_args!(
       "({})",
-      self
-        .args()
-        .map(|a| format!("{}", a))
-        .collect::<Vec<_>>()
-        .join(" \\/ ")
+      self.args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(" \\/ ")
     ))
   }
 }
@@ -300,11 +292,7 @@ impl Display for Conjunction {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     f.write_fmt(format_args!(
       "({})",
-      self
-        .args()
-        .map(|a| format!("{}", a))
-        .collect::<Vec<_>>()
-        .join(" /\\ ")
+      self.args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(" /\\ ")
     ))
   }
 }
@@ -337,7 +325,7 @@ impl Display for Reduce {
       Display::fmt(self.left().iter().next().unwrap(), f)?;
     }
     f.write_str(" = ")?;
-    f.write_str(self.operator().to_str())?;
+    self.operator().fmt(f)?;
     if !self.args().is_empty() {
       f.write_fmt(format_args!(
         "[{}]",
@@ -359,6 +347,12 @@ impl Display for Reduce {
         .join(", "),
       self.body()
     ))
+  }
+}
+
+impl Display for ReduceOperator {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    f.write_str(self.to_str())
   }
 }
 
@@ -413,12 +407,7 @@ impl std::fmt::Display for BinaryOp {
 
 impl std::fmt::Display for BinaryExpr {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.write_fmt(format_args!(
-      "({} {} {})",
-      self.op1(),
-      self.op(),
-      self.op2()
-    ))
+    f.write_fmt(format_args!("({} {} {})", self.op1(), self.op(), self.op2()))
   }
 }
 

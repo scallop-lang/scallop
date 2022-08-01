@@ -1,5 +1,5 @@
-use crate::runtime::provenance::*;
 use crate::common::tuple::*;
+use crate::runtime::provenance::*;
 
 #[derive(Clone)]
 pub struct EDBFact<C: ProvenanceContext> {

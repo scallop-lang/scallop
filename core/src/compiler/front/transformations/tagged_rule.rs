@@ -7,9 +7,7 @@ pub struct TransformTaggedRule {
 
 impl TransformTaggedRule {
   pub fn new() -> Self {
-    Self {
-      to_add_tags: vec![],
-    }
+    Self { to_add_tags: vec![] }
   }
 
   pub fn has_prob_attr(rule_decl: &RuleDecl) -> bool {

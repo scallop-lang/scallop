@@ -54,9 +54,9 @@ pub fn from_python_tuple(v: &PyAny, ty: &TupleType) -> PyResult<Tuple> {
 
 pub fn to_python_tuple(tup: &Tuple) -> Py<PyAny> {
   match tup {
-    Tuple::Tuple(t) => Python::with_gil(|py| {
-      PyTuple::new(py, t.iter().map(to_python_tuple).collect::<Vec<_>>()).into()
-    }),
+    Tuple::Tuple(t) => {
+      Python::with_gil(|py| PyTuple::new(py, t.iter().map(to_python_tuple).collect::<Vec<_>>()).into())
+    }
     Tuple::Value(v) => {
       use Value::*;
       match v {

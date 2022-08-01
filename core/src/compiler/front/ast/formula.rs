@@ -1,5 +1,4 @@
 use super::*;
-use crate::common::aggregate_op::AggregateOp;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Formula {
@@ -19,10 +18,7 @@ impl Formula {
 
   pub fn negate(&self) -> Self {
     match self {
-      Self::Atom(a) => Self::NegAtom(NegAtom::new(
-        a.location().clone(),
-        NegAtomNode { atom: a.clone() },
-      )),
+      Self::Atom(a) => Self::NegAtom(NegAtom::new(a.location().clone(), NegAtomNode { atom: a.clone() })),
       Self::NegAtom(n) => Self::Atom(n.atom().clone()),
       Self::Disjunction(d) => Self::Conjunction(Conjunction::new(
         d.location().clone(),
@@ -224,71 +220,65 @@ impl Reduce {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ReduceOperatorNode {
-  Aggregator(AggregateOp),
+  Count,
+  Sum,
+  Prod,
+  Min,
+  Max,
+  Exists,
+  Forall,
+  Unique,
   Unknown(String),
 }
 
 pub type ReduceOperator = AstNode<ReduceOperatorNode>;
 
 impl ReduceOperator {
-  pub fn unwrap(&self) -> AggregateOp {
-    match &self.node {
-      ReduceOperatorNode::Aggregator(a) => a.clone(),
-      ReduceOperatorNode::Unknown(u) => panic!("Cannot unwrap an unknown aggregator `{}`", u),
-    }
-  }
-
   pub fn is_forall(&self) -> bool {
     match &self.node {
-      ReduceOperatorNode::Aggregator(AggregateOp::Forall) => true,
+      ReduceOperatorNode::Forall => true,
       _ => false,
     }
   }
 
   pub fn output_arity(&self) -> Option<usize> {
     match &self.node {
-      ReduceOperatorNode::Aggregator(n) => match n {
-        AggregateOp::Count => Some(1),
-        AggregateOp::Sum => Some(1),
-        AggregateOp::Prod => Some(1),
-        AggregateOp::Min => Some(1),
-        AggregateOp::Max => Some(1),
-        AggregateOp::Exists => Some(1),
-        AggregateOp::Forall => Some(1),
-        AggregateOp::Unique => None,
-      },
+      ReduceOperatorNode::Count => Some(1),
+      ReduceOperatorNode::Sum => Some(1),
+      ReduceOperatorNode::Prod => Some(1),
+      ReduceOperatorNode::Min => Some(1),
+      ReduceOperatorNode::Max => Some(1),
+      ReduceOperatorNode::Exists => Some(1),
+      ReduceOperatorNode::Forall => Some(1),
+      ReduceOperatorNode::Unique => None,
       _ => None,
     }
   }
 
   pub fn num_bindings(&self) -> Option<usize> {
     match &self.node {
-      ReduceOperatorNode::Aggregator(n) => match n {
-        AggregateOp::Count => None,
-        AggregateOp::Sum => Some(1),
-        AggregateOp::Prod => Some(1),
-        AggregateOp::Min => Some(1),
-        AggregateOp::Max => Some(1),
-        AggregateOp::Exists => None,
-        AggregateOp::Forall => None,
-        AggregateOp::Unique => None,
-      },
+      ReduceOperatorNode::Count => None,
+      ReduceOperatorNode::Sum => Some(1),
+      ReduceOperatorNode::Prod => Some(1),
+      ReduceOperatorNode::Min => Some(1),
+      ReduceOperatorNode::Max => Some(1),
+      ReduceOperatorNode::Exists => None,
+      ReduceOperatorNode::Forall => None,
+      ReduceOperatorNode::Unique => None,
       _ => None,
     }
   }
 
   pub fn to_str(&self) -> &'static str {
     match &self.node {
-      ReduceOperatorNode::Aggregator(n) => match n {
-        AggregateOp::Count => "count",
-        AggregateOp::Sum => "sum",
-        AggregateOp::Prod => "prod",
-        AggregateOp::Min => "min",
-        AggregateOp::Max => "max",
-        AggregateOp::Exists => "exists",
-        AggregateOp::Forall => "forall",
-        AggregateOp::Unique => "unique",
-      },
+      ReduceOperatorNode::Count => "count",
+      ReduceOperatorNode::Sum => "sum",
+      ReduceOperatorNode::Prod => "prod",
+      ReduceOperatorNode::Min => "min",
+      ReduceOperatorNode::Max => "max",
+      ReduceOperatorNode::Exists => "exists",
+      ReduceOperatorNode::Forall => "forall",
+      ReduceOperatorNode::Unique => "unique",
       _ => "unknown",
     }
   }

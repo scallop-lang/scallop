@@ -6,6 +6,7 @@ use super::super::ast::{AstNodeLocation, WithLocation};
 use super::super::compile::*;
 use super::super::visitor::*;
 use super::FlattenExprContext;
+use crate::common::aggregate_op::*;
 use crate::common::output_option::OutputOption;
 use crate::common::value_type::ValueType;
 use crate::compiler::back;
@@ -27,12 +28,7 @@ impl FrontContext {
         // Make sure that the predicate is not a temporary relation we've created
         if r.predicate.contains('#') {
           None
-        } else if self
-          .analysis
-          .borrow()
-          .hidden_analysis
-          .contains(&r.predicate)
-        {
+        } else if self.analysis.borrow().hidden_analysis.contains(&r.predicate) {
           Some((r.predicate.clone(), OutputOption::Hidden))
         } else {
           Some((r.predicate.clone(), OutputOption::default()))
@@ -57,12 +53,7 @@ impl FrontContext {
       .filter_map(|item| match item {
         front::Item::QueryDecl(q) => {
           let name = q.node.query.relation_name().clone();
-          if let Some(file) = self
-            .analysis
-            .borrow()
-            .output_files_analysis
-            .output_file(&name)
-          {
+          if let Some(file) = self.analysis.borrow().output_files_analysis.output_file(&name) {
             Some((name, OutputOption::File(file.clone())))
           } else {
             Some((name, OutputOption::default()))
@@ -81,10 +72,7 @@ impl FrontContext {
       .inferred_relation_types
       .iter()
       .map(|(pred, (tys, _))| {
-        let arg_types = tys
-          .iter()
-          .map(|type_set| type_set.to_default_value_type())
-          .collect();
+        let arg_types = tys.iter().map(|type_set| type_set.to_default_value_type()).collect();
         back::Relation {
           attributes: self.back_relation_attributes(pred),
           predicate: pred.clone(),
@@ -130,11 +118,7 @@ impl FrontContext {
         front::RelationDeclNode::Fact(f) => {
           let pred = f.predicate();
           let tys = self.relation_arg_types(pred).unwrap();
-          let args = f
-            .iter_constants()
-            .zip(tys.iter())
-            .map(|(c, t)| c.to_value(t))
-            .collect();
+          let args = f.iter_constants().zip(tys.iter()).map(|(c, t)| c.to_value(t)).collect();
           let back_fact = back::Fact {
             tag: f.tag().input_tag().clone(),
             predicate: pred.clone(),
@@ -192,11 +176,7 @@ impl FrontContext {
       .concat()
   }
 
-  fn rule_decl_to_back_rules(
-    &self,
-    rd: &front::RuleDecl,
-    temp_relations: &mut Vec<back::Relation>,
-  ) -> Vec<back::Rule> {
+  fn rule_decl_to_back_rules(&self, rd: &front::RuleDecl, temp_relations: &mut Vec<back::Relation>) -> Vec<back::Rule> {
     let analysis = self.analysis.borrow();
 
     // Basic information
@@ -289,27 +269,15 @@ impl FrontContext {
         .collect::<Vec<_>>();
 
       // Create a context and visit all atoms
-      conj_ctx
-        .pos_atoms
-        .iter()
-        .for_each(|a| flatten_expr.walk_formula(a));
-      conj_ctx
-        .neg_atoms
-        .iter()
-        .for_each(|a| flatten_expr.walk_formula(a));
+      conj_ctx.pos_atoms.iter().for_each(|a| flatten_expr.walk_formula(a));
+      conj_ctx.neg_atoms.iter().for_each(|a| flatten_expr.walk_formula(a));
 
       // Add positive/negative atoms
       let pos_formulas = flatten_expr.to_back_literals(&conj_ctx.pos_atoms);
       let neg_formulas = flatten_expr.to_back_literals(&conj_ctx.neg_atoms);
 
       // Merge all formulas
-      let all_body_formulas = vec![
-        pos_formulas,
-        neg_formulas,
-        reduce_formulas,
-        additional.clone(),
-      ]
-      .concat();
+      let all_body_formulas = vec![pos_formulas, neg_formulas, reduce_formulas, additional.clone()].concat();
       let body_conj = back::Conjunction {
         args: all_body_formulas,
       };
@@ -336,16 +304,9 @@ impl FrontContext {
   ) -> back::Literal {
     // unwrap is ok because the success of compute boundness is checked already
     let body_bounded_vars = agg_ctx.body.compute_boundness(&vec![]).unwrap();
-    let group_by_bounded_vars = agg_ctx
-      .group_by
-      .as_ref()
-      .map_or(BTreeSet::new(), |(ctx, _, _)| {
-        ctx
-          .compute_boundness(&vec![])
-          .unwrap()
-          .into_iter()
-          .collect()
-      });
+    let group_by_bounded_vars = agg_ctx.group_by.as_ref().map_or(BTreeSet::new(), |(ctx, _, _)| {
+      ctx.compute_boundness(&vec![]).unwrap().into_iter().collect()
+    });
     let all_bounded_vars = body_bounded_vars
       .union(&group_by_bounded_vars)
       .cloned()
@@ -356,9 +317,7 @@ impl FrontContext {
     let arg_var_names = agg_ctx.argument_variable_names();
 
     // check if there is group-by formula
-    let (group_by_vars, other_group_by_vars, group_by_atom) = if let Some((group_by_ctx, _, _)) =
-      &agg_ctx.group_by
-    {
+    let (group_by_vars, other_group_by_vars, group_by_atom) = if let Some((group_by_ctx, _, _)) = &agg_ctx.group_by {
       // We need a set of group-by variables for the formula head
       let joined_vars = group_by_bounded_vars
         .intersection(&body_bounded_vars)
@@ -376,14 +335,11 @@ impl FrontContext {
         .chain(other_group_by_vars.iter())
         .cloned()
         .collect::<Vec<_>>();
-      let group_by_types = self
-        .type_inference()
-        .variable_types(src_rule_loc, group_by_vars.iter());
+      let group_by_types = self.type_inference().variable_types(src_rule_loc, group_by_vars.iter());
       let group_by_terms = self.back_terms_with_types(group_by_vars, group_by_types.clone());
 
       // Create a temporary relation for group_by
-      let group_by_relation_attr =
-        back::AggregateGroupByAttribute::new(joined_vars.len(), other_group_by_vars.len());
+      let group_by_relation_attr = back::AggregateGroupByAttribute::new(joined_vars.len(), other_group_by_vars.len());
       let group_by_relation_attrs = back::Attributes::singleton(group_by_relation_attr);
       let group_by_relation = back::Relation::new_with_attrs(
         group_by_relation_attrs,
@@ -441,20 +397,13 @@ impl FrontContext {
       .chain(to_agg_var_names.iter())
       .cloned()
       .collect::<Vec<_>>();
-    let body_tys = self
-      .type_inference()
-      .variable_types(src_rule_loc, body_args.iter());
+    let body_tys = self.type_inference().variable_types(src_rule_loc, body_args.iter());
     let body_terms = self.back_terms_with_types(body_args.clone(), body_tys.clone());
 
     // Get the body to-aggregate relation
-    let body_attr = back::AggregateBodyAttribute::new(
-      group_by_vars.len(),
-      arg_var_names.len(),
-      to_agg_var_names.len(),
-    );
+    let body_attr = back::AggregateBodyAttribute::new(group_by_vars.len(), arg_var_names.len(), to_agg_var_names.len());
     let body_attrs = back::Attributes::singleton(body_attr);
-    let body_relation =
-      back::Relation::new_with_attrs(body_attrs, body_predicate.clone(), body_tys.clone());
+    let body_relation = back::Relation::new_with_attrs(body_attrs, body_predicate.clone(), body_tys.clone());
     temp_relations.push(body_relation);
 
     // Get the rules for body
@@ -473,16 +422,38 @@ impl FrontContext {
 
     // Get the reduce literal
     let body_atom = back::Atom::new(body_predicate.clone(), body_terms);
-    let left_vars = self.back_vars(
-      src_rule_loc,
-      agg_ctx.left_variable_names().into_iter().collect(),
-    );
+    let left_vars = self.back_vars(src_rule_loc, agg_ctx.left_variable_names().into_iter().collect());
     let group_by_vars = self.back_vars(src_rule_loc, group_by_vars.into_iter().collect());
     let other_group_by_vars = self.back_vars(src_rule_loc, other_group_by_vars);
     let arg_vars = self.back_vars(src_rule_loc, arg_var_names.into_iter().collect());
     let to_agg_vars = self.back_vars(src_rule_loc, to_agg_var_names.into_iter().collect());
+
+    // Generate the internal aggregate operator
+    let op = match &agg_ctx.aggregate_op {
+      front::ReduceOperatorNode::Count => AggregateOp::Count,
+      front::ReduceOperatorNode::Sum => {
+        assert_eq!(left_vars.len(), 1, "There should be only one var for summation");
+        AggregateOp::Sum(left_vars[0].ty.clone())
+      }
+      front::ReduceOperatorNode::Prod => {
+        assert_eq!(left_vars.len(), 1, "There should be only one var for production");
+        AggregateOp::Prod(left_vars[0].ty.clone())
+      }
+      front::ReduceOperatorNode::Min => AggregateOp::min(!arg_vars.is_empty()),
+      front::ReduceOperatorNode::Max => AggregateOp::max(!arg_vars.is_empty()),
+      front::ReduceOperatorNode::Exists => AggregateOp::Exists,
+      front::ReduceOperatorNode::Unique => AggregateOp::Unique,
+      front::ReduceOperatorNode::Forall => {
+        panic!("There should be no forall aggregator op. This is a bug");
+      }
+      front::ReduceOperatorNode::Unknown(_) => {
+        panic!("There should be no unknown aggregator op. This is a bug");
+      }
+    };
+
+    // Get the literal
     let reduce_literal = back::Reduce::new(
-      agg_ctx.aggregate_op.clone(),
+      op,
       left_vars,
       group_by_vars,
       other_group_by_vars,
@@ -496,11 +467,7 @@ impl FrontContext {
     back::Literal::Reduce(reduce_literal)
   }
 
-  fn back_terms_with_types(
-    &self,
-    var_names: Vec<String>,
-    var_tys: Vec<ValueType>,
-  ) -> Vec<back::Term> {
+  fn back_terms_with_types(&self, var_names: Vec<String>, var_tys: Vec<ValueType>) -> Vec<back::Term> {
     var_names
       .into_iter()
       .zip(var_tys.into_iter())
@@ -513,11 +480,7 @@ impl FrontContext {
   //   self.back_terms_with_types(var_names, var_tys)
   // }
 
-  fn back_vars_with_types(
-    &self,
-    var_names: Vec<String>,
-    var_tys: Vec<ValueType>,
-  ) -> Vec<back::Variable> {
+  fn back_vars_with_types(&self, var_names: Vec<String>, var_tys: Vec<ValueType>) -> Vec<back::Variable> {
     var_names
       .into_iter()
       .zip(var_tys.into_iter())
@@ -525,14 +488,8 @@ impl FrontContext {
       .collect()
   }
 
-  fn back_vars(
-    &self,
-    src_rule_loc: &AstNodeLocation,
-    var_names: Vec<String>,
-  ) -> Vec<back::Variable> {
-    let var_tys = self
-      .type_inference()
-      .variable_types(src_rule_loc, var_names.iter());
+  fn back_vars(&self, src_rule_loc: &AstNodeLocation, var_names: Vec<String>) -> Vec<back::Variable> {
+    let var_tys = self.type_inference().variable_types(src_rule_loc, var_names.iter());
     self.back_vars_with_types(var_names, var_tys)
   }
 }

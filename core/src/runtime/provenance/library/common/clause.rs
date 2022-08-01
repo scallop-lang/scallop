@@ -74,9 +74,7 @@ impl Clause {
   }
 
   pub fn empty() -> Self {
-    Self {
-      literals: Vec::new(),
-    }
+    Self { literals: Vec::new() }
   }
 
   pub fn len(&self) -> usize {

@@ -6,7 +6,6 @@ use rand::prelude::*;
 use rand::rngs::StdRng;
 
 use super::*;
-use crate::runtime::dynamic::*;
 
 #[derive(Clone, PartialEq)]
 pub struct Proofs {
@@ -121,7 +120,7 @@ impl ProvenanceContext for SampleKProofsContext {
   }
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
-    let s = semirings::real::RealSemiring;
+    let s = RealSemiring;
     let v = |i: &usize| -> f64 { self.probs[*i] };
     t.formula.wmc(&s, &v)
   }
@@ -140,19 +139,14 @@ impl ProvenanceContext for SampleKProofsContext {
 
   fn add(&self, t1: &Self::Tag, t2: &Self::Tag) -> Self::Tag {
     let tag = t1.formula.or(&t2.formula);
-    let sampled_clauses =
-      self.sample_k_clauses(tag.clauses, self.k, &mut self.sampler.borrow_mut());
+    let sampled_clauses = self.sample_k_clauses(tag.clauses, self.k, &mut self.sampler.borrow_mut());
     DNFFormula {
       clauses: sampled_clauses,
     }
     .into()
   }
 
-  fn add_with_proceeding(
-    &self,
-    stable_tag: &Self::Tag,
-    recent_tag: &Self::Tag,
-  ) -> (Self::Tag, Proceeding) {
+  fn add_with_proceeding(&self, stable_tag: &Self::Tag, recent_tag: &Self::Tag) -> (Self::Tag, Proceeding) {
     let new_tag = self.add(stable_tag, recent_tag);
     let proceeding = if &new_tag == recent_tag || &new_tag == stable_tag {
       Proceeding::Stable
@@ -165,8 +159,7 @@ impl ProvenanceContext for SampleKProofsContext {
   fn mult(&self, t1: &Self::Tag, t2: &Self::Tag) -> Self::Tag {
     let mut tag = t1.formula.or(&t2.formula);
     self.retain_no_conflict(&mut tag.clauses);
-    let sampled_clauses =
-      self.sample_k_clauses(tag.clauses, self.k, &mut self.sampler.borrow_mut());
+    let sampled_clauses = self.sample_k_clauses(tag.clauses, self.k, &mut self.sampler.borrow_mut());
     DNFFormula {
       clauses: sampled_clauses,
     }
@@ -178,14 +171,6 @@ impl ProvenanceContext for SampleKProofsContext {
   }
 
   fn minus(&self, _: &Self::Tag, _: &Self::Tag) -> Option<Self::Tag> {
-    panic!("Not implemented")
-  }
-
-  fn dynamic_aggregate<'a>(
-    &self,
-    _: &DynamicAggregateOp,
-    _: DynamicElements<Self::Tag>,
-  ) -> Vec<DynamicElement<Self::Tag>> {
     panic!("Not implemented")
   }
 }

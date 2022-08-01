@@ -24,21 +24,9 @@ impl<'a, T: Tag> DynamicDifferenceDataflow<'a, T> {
   pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
     let op = DifferenceOp { ctx: self.ctx };
     DynamicBatches::chain(vec![
-      DynamicBatches::binary(
-        self.d1.iter_stable(),
-        self.d2.iter_recent(),
-        op.clone().into(),
-      ),
-      DynamicBatches::binary(
-        self.d1.iter_recent(),
-        self.d2.iter_stable(),
-        op.clone().into(),
-      ),
-      DynamicBatches::binary(
-        self.d1.iter_recent(),
-        self.d2.iter_recent(),
-        op.clone().into(),
-      ),
+      DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_recent(), op.clone().into()),
+      DynamicBatches::binary(self.d1.iter_recent(), self.d2.iter_stable(), op.clone().into()),
+      DynamicBatches::binary(self.d1.iter_recent(), self.d2.iter_recent(), op.clone().into()),
     ])
   }
 }
@@ -60,11 +48,7 @@ impl<'a, T: Tag> From<DifferenceOp<'a, T>> for BatchBinaryOp<'a, T> {
 }
 
 impl<'a, T: Tag> DifferenceOp<'a, T> {
-  pub fn apply(
-    &self,
-    mut i1: DynamicBatch<'a, T>,
-    mut i2: DynamicBatch<'a, T>,
-  ) -> DynamicBatch<'a, T> {
+  pub fn apply(&self, mut i1: DynamicBatch<'a, T>, mut i2: DynamicBatch<'a, T>) -> DynamicBatch<'a, T> {
     let i1_curr = i1.next();
     let i2_curr = i2.next();
     DynamicBatch::Difference(DynamicDifferenceBatch {
@@ -104,32 +88,28 @@ impl<'a, T: Tag> Iterator for DynamicDifferenceBatch<'a, T> {
     use std::cmp::Ordering;
     loop {
       match (&self.i1_curr, &self.i2_curr) {
-        (Some(i1_curr_elem), Some(i2_curr_elem)) => {
-          match i1_curr_elem.tuple.cmp(&i2_curr_elem.tuple) {
-            Ordering::Less => {
-              let result = i1_curr_elem.clone();
+        (Some(i1_curr_elem), Some(i2_curr_elem)) => match i1_curr_elem.tuple.cmp(&i2_curr_elem.tuple) {
+          Ordering::Less => {
+            let result = i1_curr_elem.clone();
+            self.i1_curr = self.i1.next();
+            return Some(result);
+          }
+          Ordering::Equal => {
+            let maybe_tag = self.ctx.minus(&i1_curr_elem.tag, &i2_curr_elem.tag);
+            if let Some(tag) = maybe_tag {
+              let result = DynamicElement::new(i1_curr_elem.tuple.clone(), tag);
               self.i1_curr = self.i1.next();
+              self.i2_curr = self.i2.next();
               return Some(result);
-            }
-            Ordering::Equal => {
-              let maybe_tag = self.ctx.minus(&i1_curr_elem.tag, &i2_curr_elem.tag);
-              if let Some(tag) = maybe_tag {
-                let result = DynamicElement::new(i1_curr_elem.tuple.clone(), tag);
-                self.i1_curr = self.i1.next();
-                self.i2_curr = self.i2.next();
-                return Some(result);
-              } else {
-                self.i1_curr = self.i1.next();
-                self.i2_curr = self.i2.next();
-              }
-            }
-            Ordering::Greater => {
-              self.i2_curr = self
-                .i2
-                .search_ahead(|i2_next| i2_next < &i1_curr_elem.tuple);
+            } else {
+              self.i1_curr = self.i1.next();
+              self.i2_curr = self.i2.next();
             }
           }
-        }
+          Ordering::Greater => {
+            self.i2_curr = self.i2.search_ahead(|i2_next| i2_next < &i1_curr_elem.tuple);
+          }
+        },
         (Some(i1_curr_elem), None) => {
           let result = i1_curr_elem.clone();
           self.i1_curr = self.i1.next();

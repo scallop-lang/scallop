@@ -11,12 +11,13 @@ use scallop_core::common::tuple::Tuple;
 use scallop_core::common::tuple_type::TupleType;
 use scallop_core::integrate::IntegrateContext;
 use scallop_core::integrate::{Attribute, AttributeArgument};
-use scallop_core::runtime::dynamic::DynamicOutputCollection;
+use scallop_core::runtime::dynamic::*;
+use scallop_core::runtime::monitor;
 use scallop_core::runtime::provenance::*;
 use scallop_core::utils::ArcFamily;
+use scallop_core::utils::PointerFamily;
 
 use crate::custom_tag;
-use crate::wmc::WMCType;
 
 use super::collection::*;
 use super::error::*;
@@ -31,18 +32,8 @@ pub struct Context {
 #[pymethods]
 impl Context {
   #[new]
-  #[args(
-    provenance = "\"unit\"",
-    k = "3",
-    custom_provenance = "None",
-    wmc_type = "\"bottom-up\""
-  )]
-  fn new(
-    provenance: &str,
-    k: usize,
-    custom_provenance: Option<Py<PyAny>>,
-    wmc_type: &str,
-  ) -> Result<Self, BindingError> {
+  #[args(provenance = "\"unit\"", k = "3", custom_provenance = "None")]
+  fn new(provenance: &str, k: usize, custom_provenance: Option<Py<PyAny>>) -> Result<Self, BindingError> {
     // Check provenance type
     match provenance {
       "unit" => Ok(Self {
@@ -52,19 +43,13 @@ impl Context {
         ctx: ContextEnum::Proofs(IntegrateContext::new(proofs::ProofsContext::default())),
       }),
       "minmaxprob" => Ok(Self {
-        ctx: ContextEnum::MinMaxProb(IntegrateContext::new(
-          min_max_prob::MinMaxProbContext::default(),
-        )),
+        ctx: ContextEnum::MinMaxProb(IntegrateContext::new(min_max_prob::MinMaxProbContext::default())),
       }),
       "addmultprob" => Ok(Self {
-        ctx: ContextEnum::AddMultProb(IntegrateContext::new(
-          add_mult_prob::AddMultProbContext::default(),
-        )),
+        ctx: ContextEnum::AddMultProb(IntegrateContext::new(add_mult_prob::AddMultProbContext::default())),
       }),
       "topkproofs" => Ok(Self {
-        ctx: ContextEnum::TopKProofs(IntegrateContext::new(top_k_proofs::TopKProofsContext::new(
-          k,
-        ))),
+        ctx: ContextEnum::TopKProofs(IntegrateContext::new(top_k_proofs::TopKProofsContext::new(k))),
       }),
       "topbottomkclauses" => Ok(Self {
         ctx: ContextEnum::TopBottomKClauses(IntegrateContext::new(
@@ -87,10 +72,7 @@ impl Context {
         )),
       }),
       "difftopkproofs" => Ok(Self {
-        ctx: ContextEnum::DiffTopKProofs(
-          IntegrateContext::new(diff_top_k_proofs::DiffTopKProofsContext::new(k)),
-          WMCType::from(wmc_type),
-        ),
+        ctx: ContextEnum::DiffTopKProofs(IntegrateContext::new(diff_top_k_proofs::DiffTopKProofsContext::new(k))),
       }),
       "difftopbottomkclauses" => Ok(Self {
         ctx: ContextEnum::DiffTopBottomKClauses(IntegrateContext::new(
@@ -111,9 +93,7 @@ impl Context {
   }
 
   fn clone(&self) -> Self {
-    Self {
-      ctx: self.ctx.clone(),
-    }
+    Self { ctx: self.ctx.clone() }
   }
 
   fn compile(&mut self) -> Result<(), BindingError> {
@@ -127,7 +107,7 @@ impl Context {
       ContextEnum::DiffMinMaxProb(c) => c.compile().map_err(BindingError::from),
       ContextEnum::DiffAddMultProb(c) => c.compile().map_err(BindingError::from),
       ContextEnum::DiffSampleKProofs(c) => c.compile().map_err(BindingError::from),
-      ContextEnum::DiffTopKProofs(c, _) => c.compile().map_err(BindingError::from),
+      ContextEnum::DiffTopKProofs(c) => c.compile().map_err(BindingError::from),
       ContextEnum::DiffTopBottomKClauses(c) => c.compile().map_err(BindingError::from),
       ContextEnum::Custom(c) => c.compile().map_err(BindingError::from),
     }
@@ -144,7 +124,7 @@ impl Context {
       ContextEnum::DiffMinMaxProb(c) => c.import_file(file_name).map_err(BindingError::from),
       ContextEnum::DiffAddMultProb(c) => c.import_file(file_name).map_err(BindingError::from),
       ContextEnum::DiffSampleKProofs(c) => c.import_file(file_name).map_err(BindingError::from),
-      ContextEnum::DiffTopKProofs(c, _) => c.import_file(file_name).map_err(BindingError::from),
+      ContextEnum::DiffTopKProofs(c) => c.import_file(file_name).map_err(BindingError::from),
       ContextEnum::DiffTopBottomKClauses(c) => c.import_file(file_name).map_err(BindingError::from),
       ContextEnum::Custom(c) => c.import_file(file_name).map_err(BindingError::from),
     }
@@ -161,7 +141,7 @@ impl Context {
       ContextEnum::DiffMinMaxProb(c) => c.dump_front_ir(),
       ContextEnum::DiffAddMultProb(c) => c.dump_front_ir(),
       ContextEnum::DiffSampleKProofs(c) => c.dump_front_ir(),
-      ContextEnum::DiffTopKProofs(c, _) => c.dump_front_ir(),
+      ContextEnum::DiffTopKProofs(c) => c.dump_front_ir(),
       ContextEnum::DiffTopBottomKClauses(c) => c.dump_front_ir(),
       ContextEnum::Custom(c) => c.dump_front_ir(),
     }
@@ -178,7 +158,7 @@ impl Context {
       ContextEnum::DiffMinMaxProb(_) => None,
       ContextEnum::DiffAddMultProb(c) => Some(c.provenance_context().input_tags()),
       ContextEnum::DiffSampleKProofs(c) => Some(c.provenance_context().input_tags()),
-      ContextEnum::DiffTopKProofs(c, _) => Some(c.provenance_context().input_tags()),
+      ContextEnum::DiffTopKProofs(c) => Some(c.provenance_context().input_tags()),
       ContextEnum::DiffTopBottomKClauses(c) => Some(c.provenance_context().input_tags()),
       ContextEnum::Custom(_) => None,
     }
@@ -201,7 +181,7 @@ impl Context {
       ContextEnum::DiffSampleKProofs(c) => {
         c.provenance_context_mut().set_k(k);
       }
-      ContextEnum::DiffTopKProofs(c, _) => {
+      ContextEnum::DiffTopKProofs(c) => {
         c.provenance_context_mut().set_k(k);
       }
       ContextEnum::DiffTopBottomKClauses(c) => {
@@ -252,7 +232,7 @@ impl Context {
       ContextEnum::DiffMinMaxProb(c) => c.add_relation_with_attributes(relation, attrs)?,
       ContextEnum::DiffAddMultProb(c) => c.add_relation_with_attributes(relation, attrs)?,
       ContextEnum::DiffSampleKProofs(c) => c.add_relation_with_attributes(relation, attrs)?,
-      ContextEnum::DiffTopKProofs(c, _) => c.add_relation_with_attributes(relation, attrs)?,
+      ContextEnum::DiffTopKProofs(c) => c.add_relation_with_attributes(relation, attrs)?,
       ContextEnum::DiffTopBottomKClauses(c) => c.add_relation_with_attributes(relation, attrs)?,
       ContextEnum::Custom(c) => c.add_relation_with_attributes(relation, attrs)?,
     };
@@ -349,7 +329,7 @@ impl Context {
           Err(BindingError::UnknownRelation(relation.to_string()).into())
         }
       }
-      ContextEnum::DiffTopKProofs(c, _) => {
+      ContextEnum::DiffTopKProofs(c) => {
         if let Some(tuple_type) = c.relation_type(relation) {
           let tuples = process_diff_prob_facts(elems, tuple_type)?;
           c.add_facts_with_disjunction(relation, tuples, disjunctions, false)?;
@@ -380,12 +360,7 @@ impl Context {
   }
 
   #[args(tag = "None", demand = "None")]
-  fn add_rule(
-    &mut self,
-    rule: &str,
-    tag: Option<&PyAny>,
-    demand: Option<String>,
-  ) -> Result<(), BindingError> {
+  fn add_rule(&mut self, rule: &str, tag: Option<&PyAny>, demand: Option<String>) -> Result<(), BindingError> {
     // Attributes
     let mut attrs = Vec::new();
 
@@ -508,7 +483,7 @@ impl Context {
 
         Ok(())
       }
-      ContextEnum::DiffTopKProofs(c, _) => {
+      ContextEnum::DiffTopKProofs(c) => {
         // Get the tag
         let tag = if let Some(prov) = tag {
           let tag: Py<PyAny> = prov.into();
@@ -566,9 +541,28 @@ impl Context {
       ContextEnum::DiffMinMaxProb(c) => c.run_with_iter_limit(iter_limit)?,
       ContextEnum::DiffAddMultProb(c) => c.run_with_iter_limit(iter_limit)?,
       ContextEnum::DiffSampleKProofs(c) => c.run_with_iter_limit(iter_limit)?,
-      ContextEnum::DiffTopKProofs(c, _) => c.run_with_iter_limit(iter_limit)?,
+      ContextEnum::DiffTopKProofs(c) => c.run_with_iter_limit(iter_limit)?,
       ContextEnum::DiffTopBottomKClauses(c) => c.run_with_iter_limit(iter_limit)?,
       ContextEnum::Custom(c) => c.run_with_iter_limit(iter_limit)?,
+    }
+    Ok(())
+  }
+
+  fn run_with_debug_tag(&mut self, iter_limit: Option<usize>) -> Result<(), BindingError> {
+    let m = monitor::DebugTagsMonitor;
+    match &mut self.ctx {
+      ContextEnum::Unit(c) => c.run_with_iter_limit_and_monitor(iter_limit, &m)?,
+      ContextEnum::Proofs(c) => c.run_with_iter_limit_and_monitor(iter_limit, &m)?,
+      ContextEnum::MinMaxProb(c) => c.run_with_iter_limit_and_monitor(iter_limit, &m)?,
+      ContextEnum::AddMultProb(c) => c.run_with_iter_limit_and_monitor(iter_limit, &m)?,
+      ContextEnum::TopKProofs(c) => c.run_with_iter_limit_and_monitor(iter_limit, &m)?,
+      ContextEnum::TopBottomKClauses(c) => c.run_with_iter_limit_and_monitor(iter_limit, &m)?,
+      ContextEnum::DiffMinMaxProb(c) => c.run_with_iter_limit_and_monitor(iter_limit, &m)?,
+      ContextEnum::DiffAddMultProb(c) => c.run_with_iter_limit_and_monitor(iter_limit, &m)?,
+      ContextEnum::DiffSampleKProofs(c) => c.run_with_iter_limit_and_monitor(iter_limit, &m)?,
+      ContextEnum::DiffTopKProofs(c) => c.run_with_iter_limit_and_monitor(iter_limit, &m)?,
+      ContextEnum::DiffTopBottomKClauses(c) => c.run_with_iter_limit_and_monitor(iter_limit, &m)?,
+      ContextEnum::Custom(c) => c.run_with_iter_limit_and_monitor(iter_limit, &m)?,
     }
     Ok(())
   }
@@ -605,180 +599,71 @@ impl Context {
 
   fn relation(&mut self, r: &str) -> Result<Collection, BindingError> {
     match &mut self.ctx {
-      ContextEnum::Unit(c) => {
-        if c.has_relation(r) {
-          if let Some(collection) = c.computed_rc_relation(r) {
-            Ok(CollectionEnum::unit(collection).into())
-          } else {
-            Err(BindingError::RelationNotComputed(r.to_string()))
-          }
-        } else {
-          Err(BindingError::UnknownRelation(r.to_string()))
-        }
-      }
+      ContextEnum::Unit(c) => get_output_collection(c, r, |col, _| CollectionEnum::unit(col).into()),
+      ContextEnum::Proofs(c) => get_output_collection(c, r, |col, _| CollectionEnum::proofs(col).into()),
+      ContextEnum::MinMaxProb(c) => get_output_collection(c, r, |col, _| CollectionEnum::min_max_prob(col).into()),
+      ContextEnum::AddMultProb(c) => get_output_collection(c, r, |col, _| CollectionEnum::add_mult_prob(col).into()),
+      ContextEnum::TopKProofs(c) => get_output_collection(c, r, |col, ctx| {
+        CollectionEnum::top_k_proofs(col, ctx.probs.clone()).into()
+      }),
+      ContextEnum::TopBottomKClauses(c) => get_output_collection(c, r, |col, ctx| {
+        CollectionEnum::top_bottom_k_clauses(col, ctx.probs.clone()).into()
+      }),
+      ContextEnum::DiffMinMaxProb(c) => get_output_collection(c, r, |col, ctx| {
+        CollectionEnum::diff_min_max_prob(col, ctx.diff_probs.clone()).into()
+      }),
+      ContextEnum::DiffAddMultProb(c) => get_output_collection(c, r, |col, ctx| {
+        CollectionEnum::diff_add_mult_prob(col, ctx.storage.clone()).into()
+      }),
+      ContextEnum::DiffSampleKProofs(c) => get_output_collection(c, r, |col, ctx| {
+        CollectionEnum::diff_sample_k_proofs(col, ctx.diff_probs.clone()).into()
+      }),
+      ContextEnum::DiffTopKProofs(c) => get_output_collection(c, r, |col, ctx| {
+        CollectionEnum::diff_top_k_proofs(col, ctx.diff_probs.clone()).into()
+      }),
+      ContextEnum::DiffTopBottomKClauses(c) => get_output_collection(c, r, |col, ctx| {
+        CollectionEnum::diff_top_bottom_k_clauses(col, ctx.diff_probs.clone()).into()
+      }),
+      ContextEnum::Custom(c) => get_output_collection(c, r, |col, _| CollectionEnum::custom(col).into()),
+    }
+  }
+
+  fn relation_with_debug_tag(&mut self, r: &str) -> Result<Collection, BindingError> {
+    let m = monitor::DebugTagsMonitor;
+    match &mut self.ctx {
+      ContextEnum::Unit(c) => get_output_collection_with_monitor(c, &m, r, |col, _| CollectionEnum::unit(col).into()),
       ContextEnum::Proofs(c) => {
-        if c.has_relation(r) {
-          if let Some(collection) = c.computed_rc_relation(r) {
-            Ok(CollectionEnum::proofs(collection).into())
-          } else {
-            Err(BindingError::RelationNotComputed(r.to_string()))
-          }
-        } else {
-          Err(BindingError::UnknownRelation(r.to_string()))
-        }
+        get_output_collection_with_monitor(c, &m, r, |col, _| CollectionEnum::proofs(col).into())
       }
       ContextEnum::MinMaxProb(c) => {
-        if c.has_relation(r) {
-          if let Some(collection) = c.computed_rc_relation(r) {
-            Ok(CollectionEnum::min_max_prob(collection).into())
-          } else {
-            Err(BindingError::RelationNotComputed(r.to_string()))
-          }
-        } else {
-          Err(BindingError::UnknownRelation(r.to_string()))
-        }
+        get_output_collection_with_monitor(c, &m, r, |col, _| CollectionEnum::min_max_prob(col).into())
       }
       ContextEnum::AddMultProb(c) => {
-        if c.has_relation(r) {
-          if let Some(collection) = c.computed_rc_relation(r) {
-            Ok(CollectionEnum::add_mult_prob(collection).into())
-          } else {
-            Err(BindingError::RelationNotComputed(r.to_string()))
-          }
-        } else {
-          Err(BindingError::UnknownRelation(r.to_string()))
-        }
+        get_output_collection_with_monitor(c, &m, r, |col, _| CollectionEnum::add_mult_prob(col).into())
       }
-      ContextEnum::TopKProofs(c) => {
-        if c.has_relation(r) {
-          if let Some(collection) = c.computed_rc_relation(r) {
-            Ok(
-              CollectionEnum::TopKProofs {
-                collection,
-                tags: c.provenance_context().probs.clone(),
-              }
-              .into(),
-            )
-          } else {
-            Err(BindingError::RelationNotComputed(r.to_string()))
-          }
-        } else {
-          Err(BindingError::UnknownRelation(r.to_string()))
-        }
-      }
-      ContextEnum::TopBottomKClauses(c) => {
-        if c.has_relation(r) {
-          if let Some(collection) = c.computed_rc_relation(r) {
-            Ok(
-              CollectionEnum::TopBottomKClauses {
-                collection,
-                tags: c.provenance_context().probs.clone(),
-              }
-              .into(),
-            )
-          } else {
-            Err(BindingError::RelationNotComputed(r.to_string()))
-          }
-        } else {
-          Err(BindingError::UnknownRelation(r.to_string()))
-        }
-      }
-      ContextEnum::DiffMinMaxProb(c) => {
-        if c.has_relation(r) {
-          if let Some(collection) = c.computed_rc_relation(r) {
-            Ok(
-              CollectionEnum::DiffMinMaxProb {
-                collection,
-                tags: c.provenance_context().diff_probs.clone(),
-              }
-              .into(),
-            )
-          } else {
-            Err(BindingError::RelationNotComputed(r.to_string()))
-          }
-        } else {
-          Err(BindingError::UnknownRelation(r.to_string()))
-        }
-      }
-      ContextEnum::DiffAddMultProb(c) => {
-        if c.has_relation(r) {
-          if let Some(collection) = c.computed_rc_relation(r) {
-            Ok(
-              CollectionEnum::DiffAddMultProb {
-                collection,
-                tags: c.provenance_context().storage.clone(),
-              }
-              .into(),
-            )
-          } else {
-            Err(BindingError::RelationNotComputed(r.to_string()))
-          }
-        } else {
-          Err(BindingError::UnknownRelation(r.to_string()))
-        }
-      }
-      ContextEnum::DiffSampleKProofs(c) => {
-        if c.has_relation(r) {
-          if let Some(collection) = c.computed_rc_relation(r) {
-            Ok(
-              CollectionEnum::DiffSampleKProofs {
-                collection,
-                tags: c.provenance_context().diff_probs.clone(),
-              }
-              .into(),
-            )
-          } else {
-            Err(BindingError::RelationNotComputed(r.to_string()))
-          }
-        } else {
-          Err(BindingError::UnknownRelation(r.to_string()))
-        }
-      }
-      ContextEnum::DiffTopKProofs(c, wmc_type) => {
-        if c.has_relation(r) {
-          if let Some(collection) = c.computed_rc_relation(r) {
-            Ok(
-              CollectionEnum::DiffTopKProofs {
-                collection,
-                tags: c.provenance_context().diff_probs.clone(),
-                wmc_type: wmc_type.clone(),
-              }
-              .into(),
-            )
-          } else {
-            Err(BindingError::RelationNotComputed(r.to_string()))
-          }
-        } else {
-          Err(BindingError::UnknownRelation(r.to_string()))
-        }
-      }
-      ContextEnum::DiffTopBottomKClauses(c) => {
-        if c.has_relation(r) {
-          if let Some(collection) = c.computed_rc_relation(r) {
-            Ok(
-              CollectionEnum::DiffTopBottomKClauses {
-                collection,
-                tags: c.provenance_context().diff_probs.clone(),
-              }
-              .into(),
-            )
-          } else {
-            Err(BindingError::RelationNotComputed(r.to_string()))
-          }
-        } else {
-          Err(BindingError::UnknownRelation(r.to_string()))
-        }
-      }
+      ContextEnum::TopKProofs(c) => get_output_collection_with_monitor(c, &m, r, |col, ctx| {
+        CollectionEnum::top_k_proofs(col, ctx.probs.clone()).into()
+      }),
+      ContextEnum::TopBottomKClauses(c) => get_output_collection_with_monitor(c, &m, r, |col, ctx| {
+        CollectionEnum::top_bottom_k_clauses(col, ctx.probs.clone()).into()
+      }),
+      ContextEnum::DiffMinMaxProb(c) => get_output_collection_with_monitor(c, &m, r, |col, ctx| {
+        CollectionEnum::diff_min_max_prob(col, ctx.diff_probs.clone()).into()
+      }),
+      ContextEnum::DiffAddMultProb(c) => get_output_collection_with_monitor(c, &m, r, |col, ctx| {
+        CollectionEnum::diff_add_mult_prob(col, ctx.storage.clone()).into()
+      }),
+      ContextEnum::DiffSampleKProofs(c) => get_output_collection_with_monitor(c, &m, r, |col, ctx| {
+        CollectionEnum::diff_sample_k_proofs(col, ctx.diff_probs.clone()).into()
+      }),
+      ContextEnum::DiffTopKProofs(c) => get_output_collection_with_monitor(c, &m, r, |col, ctx| {
+        CollectionEnum::diff_top_k_proofs(col, ctx.diff_probs.clone()).into()
+      }),
+      ContextEnum::DiffTopBottomKClauses(c) => get_output_collection_with_monitor(c, &m, r, |col, ctx| {
+        CollectionEnum::diff_top_bottom_k_clauses(col, ctx.diff_probs.clone()).into()
+      }),
       ContextEnum::Custom(c) => {
-        if c.has_relation(r) {
-          if let Some(collection) = c.computed_rc_relation(r) {
-            Ok(CollectionEnum::Custom { collection }.into())
-          } else {
-            Err(BindingError::RelationNotComputed(r.to_string()))
-          }
-        } else {
-          Err(BindingError::UnknownRelation(r.to_string()))
-        }
+        get_output_collection_with_monitor(c, &m, r, |col, _| CollectionEnum::custom(col).into())
       }
     }
   }
@@ -794,7 +679,7 @@ impl Context {
       ContextEnum::DiffMinMaxProb(c) => c.has_relation(r),
       ContextEnum::DiffAddMultProb(c) => c.has_relation(r),
       ContextEnum::DiffSampleKProofs(c) => c.has_relation(r),
-      ContextEnum::DiffTopKProofs(c, _) => c.has_relation(r),
+      ContextEnum::DiffTopKProofs(c) => c.has_relation(r),
       ContextEnum::DiffTopBottomKClauses(c) => c.has_relation(r),
       ContextEnum::Custom(c) => c.has_relation(r),
     }
@@ -811,7 +696,7 @@ impl Context {
       ContextEnum::DiffMinMaxProb(c) => c.is_computed(r),
       ContextEnum::DiffAddMultProb(c) => c.is_computed(r),
       ContextEnum::DiffSampleKProofs(c) => c.is_computed(r),
-      ContextEnum::DiffTopKProofs(c, _) => c.is_computed(r),
+      ContextEnum::DiffTopKProofs(c) => c.is_computed(r),
       ContextEnum::DiffTopBottomKClauses(c) => c.is_computed(r),
       ContextEnum::Custom(c) => c.is_computed(r),
     }
@@ -830,7 +715,7 @@ impl Context {
         ContextEnum::DiffMinMaxProb(c) => c.num_all_relations(),
         ContextEnum::DiffAddMultProb(c) => c.num_all_relations(),
         ContextEnum::DiffSampleKProofs(c) => c.num_all_relations(),
-        ContextEnum::DiffTopKProofs(c, _) => c.num_all_relations(),
+        ContextEnum::DiffTopKProofs(c) => c.num_all_relations(),
         ContextEnum::DiffTopBottomKClauses(c) => c.num_all_relations(),
         ContextEnum::Custom(c) => c.num_all_relations(),
       }
@@ -845,7 +730,7 @@ impl Context {
         ContextEnum::DiffMinMaxProb(c) => c.num_relations(),
         ContextEnum::DiffAddMultProb(c) => c.num_relations(),
         ContextEnum::DiffSampleKProofs(c) => c.num_relations(),
-        ContextEnum::DiffTopKProofs(c, _) => c.num_relations(),
+        ContextEnum::DiffTopKProofs(c) => c.num_relations(),
         ContextEnum::DiffTopBottomKClauses(c) => c.num_relations(),
         ContextEnum::Custom(c) => c.num_relations(),
       }
@@ -865,7 +750,7 @@ impl Context {
         ContextEnum::DiffMinMaxProb(c) => c.all_relations(),
         ContextEnum::DiffAddMultProb(c) => c.all_relations(),
         ContextEnum::DiffSampleKProofs(c) => c.all_relations(),
-        ContextEnum::DiffTopKProofs(c, _) => c.all_relations(),
+        ContextEnum::DiffTopKProofs(c) => c.all_relations(),
         ContextEnum::DiffTopBottomKClauses(c) => c.all_relations(),
         ContextEnum::Custom(c) => c.all_relations(),
       }
@@ -880,7 +765,7 @@ impl Context {
         ContextEnum::DiffMinMaxProb(c) => c.relations(),
         ContextEnum::DiffAddMultProb(c) => c.relations(),
         ContextEnum::DiffSampleKProofs(c) => c.relations(),
-        ContextEnum::DiffTopKProofs(c, _) => c.relations(),
+        ContextEnum::DiffTopKProofs(c) => c.relations(),
         ContextEnum::DiffTopBottomKClauses(c) => c.relations(),
         ContextEnum::Custom(c) => c.relations(),
       }
@@ -899,162 +784,96 @@ impl Context {
     match &self.ctx {
       ContextEnum::Unit(c) => {
         let inputs = process_batched_inputs(inputs, process_unit_facts, |r| c.relation_type(r))?;
-        run_batch_parallel(
-          c,
-          batch_size,
-          inputs,
-          output_relations,
-          iter_limit,
-          |c, _| CollectionEnum::unit(c),
-        )
+        run_batch_parallel(c, batch_size, inputs, output_relations, iter_limit, |c, _| {
+          CollectionEnum::unit(c)
+        })
       }
       ContextEnum::Proofs(c) => {
         let inputs = process_batched_inputs(inputs, process_unit_facts, |r| c.relation_type(r))?;
-        run_batch_parallel(
-          c,
-          batch_size,
-          inputs,
-          output_relations,
-          iter_limit,
-          |c, _| CollectionEnum::proofs(c),
-        )
+        run_batch_parallel(c, batch_size, inputs, output_relations, iter_limit, |c, _| {
+          CollectionEnum::proofs(c)
+        })
       }
       ContextEnum::MinMaxProb(c) => {
         let inputs = process_batched_inputs(inputs, process_prob_facts, |r| c.relation_type(r))?;
-        run_batch_parallel(
-          c,
-          batch_size,
-          inputs,
-          output_relations,
-          iter_limit,
-          |c, _| CollectionEnum::min_max_prob(c),
-        )
+        run_batch_parallel(c, batch_size, inputs, output_relations, iter_limit, |c, _| {
+          CollectionEnum::min_max_prob(c)
+        })
       }
       ContextEnum::AddMultProb(c) => {
         let inputs = process_batched_inputs(inputs, process_prob_facts, |r| c.relation_type(r))?;
-        run_batch_parallel(
-          c,
-          batch_size,
-          inputs,
-          output_relations,
-          iter_limit,
-          |c, _| CollectionEnum::add_mult_prob(c),
-        )
+        run_batch_parallel(c, batch_size, inputs, output_relations, iter_limit, |c, _| {
+          CollectionEnum::add_mult_prob(c)
+        })
       }
       ContextEnum::TopKProofs(c) => {
         let inputs = process_batched_inputs(inputs, process_prob_facts, |r| c.relation_type(r))?;
-        run_batch_parallel(
-          c,
-          batch_size,
-          inputs,
-          output_relations,
-          iter_limit,
-          |c, prov_ctx| CollectionEnum::TopKProofs {
+        run_batch_parallel(c, batch_size, inputs, output_relations, iter_limit, |c, prov_ctx| {
+          CollectionEnum::TopKProofs {
             collection: c,
             tags: Arc::clone(&prov_ctx.probs),
-          },
-        )
+          }
+        })
       }
       ContextEnum::TopBottomKClauses(c) => {
         let inputs = process_batched_inputs(inputs, process_prob_facts, |r| c.relation_type(r))?;
-        run_batch_parallel(
-          c,
-          batch_size,
-          inputs,
-          output_relations,
-          iter_limit,
-          |c, prov_ctx| CollectionEnum::TopBottomKClauses {
+        run_batch_parallel(c, batch_size, inputs, output_relations, iter_limit, |c, prov_ctx| {
+          CollectionEnum::TopBottomKClauses {
             collection: c,
             tags: Arc::clone(&prov_ctx.probs),
-          },
-        )
+          }
+        })
       }
       ContextEnum::DiffMinMaxProb(c) => {
-        let inputs =
-          process_batched_inputs(inputs, process_diff_prob_facts, |r| c.relation_type(r))?;
-        run_batch_parallel(
-          c,
-          batch_size,
-          inputs,
-          output_relations,
-          iter_limit,
-          |c, prov_ctx| CollectionEnum::DiffMinMaxProb {
+        let inputs = process_batched_inputs(inputs, process_diff_prob_facts, |r| c.relation_type(r))?;
+        run_batch_parallel(c, batch_size, inputs, output_relations, iter_limit, |c, prov_ctx| {
+          CollectionEnum::DiffMinMaxProb {
             collection: c,
             tags: Arc::clone(&prov_ctx.diff_probs),
-          },
-        )
+          }
+        })
       }
       ContextEnum::DiffAddMultProb(c) => {
-        let inputs =
-          process_batched_inputs(inputs, process_diff_prob_facts, |r| c.relation_type(r))?;
-        run_batch_parallel(
-          c,
-          batch_size,
-          inputs,
-          output_relations,
-          iter_limit,
-          |c, prov_ctx| CollectionEnum::DiffAddMultProb {
+        let inputs = process_batched_inputs(inputs, process_diff_prob_facts, |r| c.relation_type(r))?;
+        run_batch_parallel(c, batch_size, inputs, output_relations, iter_limit, |c, prov_ctx| {
+          CollectionEnum::DiffAddMultProb {
             collection: c,
             tags: Arc::clone(&prov_ctx.storage),
-          },
-        )
+          }
+        })
       }
       ContextEnum::DiffSampleKProofs(c) => {
-        let inputs =
-          process_batched_inputs(inputs, process_diff_prob_facts, |r| c.relation_type(r))?;
-        run_batch_parallel(
-          c,
-          batch_size,
-          inputs,
-          output_relations,
-          iter_limit,
-          |c, prov_ctx| CollectionEnum::DiffSampleKProofs {
+        let inputs = process_batched_inputs(inputs, process_diff_prob_facts, |r| c.relation_type(r))?;
+        run_batch_parallel(c, batch_size, inputs, output_relations, iter_limit, |c, prov_ctx| {
+          CollectionEnum::DiffSampleKProofs {
             collection: c,
             tags: Arc::clone(&prov_ctx.diff_probs),
-          },
-        )
+          }
+        })
       }
-      ContextEnum::DiffTopKProofs(c, wmc_type) => {
-        let inputs =
-          process_batched_inputs(inputs, process_diff_prob_facts, |r| c.relation_type(r))?;
-        run_batch_parallel(
-          c,
-          batch_size,
-          inputs,
-          output_relations,
-          iter_limit,
-          |c, prov_ctx| CollectionEnum::DiffTopKProofs {
+      ContextEnum::DiffTopKProofs(c) => {
+        let inputs = process_batched_inputs(inputs, process_diff_prob_facts, |r| c.relation_type(r))?;
+        run_batch_parallel(c, batch_size, inputs, output_relations, iter_limit, |c, prov_ctx| {
+          CollectionEnum::DiffTopKProofs {
             collection: c,
             tags: Arc::clone(&prov_ctx.diff_probs),
-            wmc_type: wmc_type.clone(),
-          },
-        )
+          }
+        })
       }
       ContextEnum::DiffTopBottomKClauses(c) => {
-        let inputs =
-          process_batched_inputs(inputs, process_diff_prob_facts, |r| c.relation_type(r))?;
-        run_batch_parallel(
-          c,
-          batch_size,
-          inputs,
-          output_relations,
-          iter_limit,
-          |c, prov_ctx| CollectionEnum::DiffTopBottomKClauses {
+        let inputs = process_batched_inputs(inputs, process_diff_prob_facts, |r| c.relation_type(r))?;
+        run_batch_parallel(c, batch_size, inputs, output_relations, iter_limit, |c, prov_ctx| {
+          CollectionEnum::DiffTopBottomKClauses {
             collection: c,
             tags: Arc::clone(&prov_ctx.diff_probs),
-          },
-        )
+          }
+        })
       }
       ContextEnum::Custom(c) => {
         let inputs = process_batched_inputs(inputs, process_custom_facts, |r| c.relation_type(r))?;
-        run_batch_parallel(
-          c,
-          batch_size,
-          inputs,
-          output_relations,
-          iter_limit,
-          |c, _| CollectionEnum::Custom { collection: c },
-        )
+        run_batch_parallel(c, batch_size, inputs, output_relations, iter_limit, |c, _| {
+          CollectionEnum::Custom { collection: c }
+        })
       }
     }
   }
@@ -1086,30 +905,13 @@ pub enum ContextEnum {
   MinMaxProb(IntegrateContext<min_max_prob::MinMaxProbContext, ArcFamily>),
   AddMultProb(IntegrateContext<add_mult_prob::AddMultProbContext, ArcFamily>),
   TopKProofs(IntegrateContext<top_k_proofs::TopKProofsContext<ArcFamily>, ArcFamily>),
-  TopBottomKClauses(
-    IntegrateContext<top_bottom_k_clauses::TopBottomKClausesContext<ArcFamily>, ArcFamily>,
-  ),
-  DiffMinMaxProb(
-    IntegrateContext<diff_min_max_prob::DiffMinMaxProbContext<Py<PyAny>, ArcFamily>, ArcFamily>,
-  ),
-  DiffAddMultProb(
-    IntegrateContext<diff_add_mult_prob::DiffAddMultProbContext<Py<PyAny>, ArcFamily>, ArcFamily>,
-  ),
-  DiffSampleKProofs(
-    IntegrateContext<
-      diff_sample_k_proofs::DiffSampleKProofsContext<Py<PyAny>, ArcFamily>,
-      ArcFamily,
-    >,
-  ),
-  DiffTopKProofs(
-    IntegrateContext<diff_top_k_proofs::DiffTopKProofsContext<Py<PyAny>, ArcFamily>, ArcFamily>,
-    WMCType,
-  ),
+  TopBottomKClauses(IntegrateContext<top_bottom_k_clauses::TopBottomKClausesContext<ArcFamily>, ArcFamily>),
+  DiffMinMaxProb(IntegrateContext<diff_min_max_prob::DiffMinMaxProbContext<Py<PyAny>, ArcFamily>, ArcFamily>),
+  DiffAddMultProb(IntegrateContext<diff_add_mult_prob::DiffAddMultProbContext<Py<PyAny>, ArcFamily>, ArcFamily>),
+  DiffSampleKProofs(IntegrateContext<diff_sample_k_proofs::DiffSampleKProofsContext<Py<PyAny>, ArcFamily>, ArcFamily>),
+  DiffTopKProofs(IntegrateContext<diff_top_k_proofs::DiffTopKProofsContext<Py<PyAny>, ArcFamily>, ArcFamily>),
   DiffTopBottomKClauses(
-    IntegrateContext<
-      diff_top_bottom_k_clauses::DiffTopBottomKClausesContext<Py<PyAny>, ArcFamily>,
-      ArcFamily,
-    >,
+    IntegrateContext<diff_top_bottom_k_clauses::DiffTopBottomKClausesContext<Py<PyAny>, ArcFamily>, ArcFamily>,
   ),
   Custom(IntegrateContext<custom_tag::CustomTagContext, ArcFamily>),
 }
@@ -1122,10 +924,7 @@ fn process_unit_facts(elems: &PyList, tuple_type: TupleType) -> PyResult<Vec<(Op
     .collect::<PyResult<Vec<_>>>()
 }
 
-fn process_prob_facts(
-  elems: &PyList,
-  tuple_type: TupleType,
-) -> PyResult<Vec<(Option<f64>, Tuple)>> {
+fn process_prob_facts(elems: &PyList, tuple_type: TupleType) -> PyResult<Vec<(Option<f64>, Tuple)>> {
   let elems: Vec<&PyAny> = elems.extract()?;
   elems
     .into_iter()
@@ -1160,10 +959,7 @@ fn process_diff_prob_facts(
     .collect::<PyResult<Vec<_>>>()
 }
 
-fn process_custom_facts(
-  elems: &PyList,
-  tuple_type: TupleType,
-) -> PyResult<Vec<(Option<Py<PyAny>>, Tuple)>> {
+fn process_custom_facts(elems: &PyList, tuple_type: TupleType) -> PyResult<Vec<(Option<Py<PyAny>>, Tuple)>> {
   let elems: Vec<&PyAny> = elems.extract()?;
   elems
     .into_iter()
@@ -1186,12 +982,7 @@ fn process_batched_inputs<P, G, T>(
   inputs: HashMap<String, Vec<(&PyList, Option<Vec<Vec<usize>>>)>>,
   process_facts: P,
   get_relation_type: G,
-) -> PyResult<
-  Vec<(
-    String,
-    Vec<(Vec<(Option<T>, Tuple)>, Option<Vec<Vec<usize>>>)>,
-  )>,
->
+) -> PyResult<Vec<(String, Vec<(Vec<(Option<T>, Tuple)>, Option<Vec<Vec<usize>>>)>)>>
 where
   P: Fn(&PyList, TupleType) -> PyResult<Vec<(Option<T>, Tuple)>>,
   G: Fn(&str) -> Option<TupleType>,
@@ -1237,20 +1028,12 @@ where
       let output_relation = output_relations[i];
       let mut temp_ctx = internal.clone();
       for (relation, batch) in &inputs {
-        temp_ctx.add_facts_with_disjunction(
-          relation,
-          batch[i].0.clone(),
-          batch[i].1.clone(),
-          false,
-        )?;
+        temp_ctx.add_facts_with_disjunction(relation, batch[i].0.clone(), batch[i].1.clone(), false)?;
       }
       temp_ctx.run_with_iter_limit(iter_limit)?;
-      let computed =
-        temp_ctx
-          .computed_rc_relation(output_relation)
-          .ok_or(BindingError::RelationNotComputed(
-            output_relation.to_string(),
-          ))?;
+      let computed = temp_ctx
+        .computed_rc_relation(output_relation)
+        .ok_or(BindingError::RelationNotComputed(output_relation.to_string()))?;
       Ok(f(computed, temp_ctx.provenance_context()).into())
     })
     .collect()
@@ -1258,4 +1041,44 @@ where
 
 fn is_all_equal<T: Iterator<Item = usize> + Clone>(i: T) -> bool {
   i.clone().min() == i.max()
+}
+
+fn get_output_collection<C, P, F>(c: &mut IntegrateContext<C, P>, r: &str, f: F) -> Result<Collection, BindingError>
+where
+  C: ProvenanceContext,
+  P: PointerFamily,
+  F: FnOnce(P::Pointer<DynamicOutputCollection<C::Tag>>, &C) -> Collection,
+{
+  if c.has_relation(r) {
+    if let Some(collection) = c.computed_rc_relation(r) {
+      Ok(f(P::clone_ptr(&collection), c.provenance_context()))
+    } else {
+      Err(BindingError::RelationNotComputed(r.to_string()))
+    }
+  } else {
+    Err(BindingError::UnknownRelation(r.to_string()))
+  }
+}
+
+fn get_output_collection_with_monitor<C, M, P, F>(
+  c: &mut IntegrateContext<C, P>,
+  m: &M,
+  r: &str,
+  f: F,
+) -> Result<Collection, BindingError>
+where
+  C: ProvenanceContext,
+  M: monitor::Monitor<C>,
+  P: PointerFamily,
+  F: FnOnce(P::Pointer<DynamicOutputCollection<C::Tag>>, &C) -> Collection,
+{
+  if c.has_relation(r) {
+    if let Some(collection) = c.computed_rc_relation_with_monitor(r, m) {
+      Ok(f(P::clone_ptr(&collection), c.provenance_context()))
+    } else {
+      Err(BindingError::RelationNotComputed(r.to_string()))
+    }
+  } else {
+    Err(BindingError::UnknownRelation(r.to_string()))
+  }
 }

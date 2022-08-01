@@ -105,11 +105,7 @@ fn incoming_updates<'a>(n: NodeIndex, g: &RamDependencySCCGraph<'a>) -> BTreeSet
     .collect()
 }
 
-fn incoming_node_all_visited(
-  n: NodeIndex,
-  g: &RamDependencySCCGraph,
-  visited: &HashSet<NodeIndex>,
-) -> bool {
+fn incoming_node_all_visited(n: NodeIndex, g: &RamDependencySCCGraph, visited: &HashSet<NodeIndex>) -> bool {
   g.edges_directed(n, EdgeDirection::Incoming)
     .all(|e| visited.contains(&e.source()))
 }

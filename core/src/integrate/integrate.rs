@@ -5,18 +5,25 @@ use crate::common::tuple::Tuple;
 use crate::common::tuple_type::TupleType;
 use crate::compiler;
 use crate::runtime::dynamic;
+use crate::runtime::monitor::Monitor;
 use crate::runtime::provenance;
 use crate::runtime::provenance::ProvenanceContext;
 use crate::utils::{PointerFamily, RcFamily};
 
 use super::Attribute;
 
-pub fn interpret_string(
-  string: String,
-) -> Result<dynamic::Output<provenance::unit::Unit>, IntegrateError> {
+pub fn interpret_string(string: String) -> Result<dynamic::Output<provenance::unit::Unit>, IntegrateError> {
   let ram = compiler::compile_string_to_ram(string).map_err(IntegrateError::Compile)?;
   let mut ctx = provenance::unit::UnitContext::default();
   dynamic::interpret(ram, &mut ctx).map_err(IntegrateError::Runtime)
+}
+
+pub fn interpret_string_with_ctx<C: ProvenanceContext>(
+  string: String,
+  ctx: &mut C,
+) -> Result<dynamic::Output<C::Tag>, IntegrateError> {
+  let ram = compiler::compile_string_to_ram(string).map_err(IntegrateError::Compile)?;
+  dynamic::interpret(ram, ctx).map_err(IntegrateError::Runtime)
 }
 
 #[derive(Clone)]
@@ -57,12 +64,11 @@ impl<C: ProvenanceContext, P: PointerFamily> IntegrateContext<C, P> {
   /// Import file
   pub fn import_file(&mut self, file_name: &str) -> Result<(), IntegrateError> {
     use std::path::PathBuf;
-    let source =
-      compiler::front::FileSource::new(&PathBuf::from(file_name.to_string())).map_err(|e| {
-        let front_err = compiler::front::FrontCompileError::SourceError(e);
-        let compile_err = compiler::CompileError::Front(front_err);
-        IntegrateError::Compile(vec![compile_err])
-      })?;
+    let source = compiler::front::FileSource::new(&PathBuf::from(file_name.to_string())).map_err(|e| {
+      let front_err = compiler::front::FrontCompileError::SourceError(e);
+      let compile_err = compiler::CompileError::Front(front_err);
+      IntegrateError::Compile(vec![compile_err])
+    })?;
     self
       .front_ctx
       .compile_source(source)
@@ -77,10 +83,7 @@ impl<C: ProvenanceContext, P: PointerFamily> IntegrateContext<C, P> {
   }
 
   /// Compile a relation declaration
-  pub fn add_relation(
-    &mut self,
-    string: &str,
-  ) -> Result<&compiler::front::RelationTypeDecl, IntegrateError> {
+  pub fn add_relation(&mut self, string: &str) -> Result<&compiler::front::RelationTypeDecl, IntegrateError> {
     self.front_has_changed = true;
     let source = compiler::front::StringSource::new(string.to_string());
     self
@@ -101,9 +104,7 @@ impl<C: ProvenanceContext, P: PointerFamily> IntegrateContext<C, P> {
     self
       .front_ctx
       .compile_relation_with_annotator(source, |item| {
-        item
-          .attributes_mut()
-          .extend(attrs.iter().map(Attribute::to_front))
+        item.attributes_mut().extend(attrs.iter().map(Attribute::to_front))
       })
       .map_err(IntegrateError::from_front_error_ctx)
       .map(move |sid| self.front_ctx.relation_type_decl_of_source_id(sid).unwrap())
@@ -137,10 +138,7 @@ impl<C: ProvenanceContext, P: PointerFamily> IntegrateContext<C, P> {
     // Process the tag
     if let Some(rd) = self.front_ctx.rule_decl_of_source_id(source_id) {
       let pred = rd.rule_tag_predicate();
-      self
-        .internal
-        .exec_ctx
-        .add_facts(&pred, vec![(tag, Tuple::empty())]);
+      self.internal.exec_ctx.add_facts(&pred, vec![(tag, Tuple::empty())]);
     }
 
     // Set changed to true
@@ -161,9 +159,7 @@ impl<C: ProvenanceContext, P: PointerFamily> IntegrateContext<C, P> {
     self
       .front_ctx
       .compile_rule_with_annotator(source, |item: &mut compiler::front::Item| {
-        item
-          .attributes_mut()
-          .extend(attrs.iter().map(Attribute::to_front))
+        item.attributes_mut().extend(attrs.iter().map(Attribute::to_front))
       })
       .map_err(IntegrateError::from_front_error_ctx)
   }
@@ -199,9 +195,9 @@ impl<C: ProvenanceContext, P: PointerFamily> IntegrateContext<C, P> {
           }
         }
       } else {
-        return Err(IntegrateError::Runtime(
-          dynamic::RuntimeError::UnknownRelation(predicate.to_string()),
-        ));
+        return Err(IntegrateError::Runtime(dynamic::RuntimeError::UnknownRelation(
+          predicate.to_string(),
+        )));
       }
     }
 
@@ -219,18 +215,14 @@ impl<C: ProvenanceContext, P: PointerFamily> IntegrateContext<C, P> {
       // First convert front to back
       let mut back_ir = self.front_ctx.to_back_program();
       if let Err(e) = back_ir.apply_optimizations(&self.options) {
-        return Err(IntegrateError::Compile(vec![compiler::CompileError::Back(
-          e,
-        )]));
+        return Err(IntegrateError::Compile(vec![compiler::CompileError::Back(e)]));
       }
 
       // Then convert back to ram
       let ram = match back_ir.to_ram_program(&self.options) {
         Ok(ram) => ram,
         Err(e) => {
-          return Err(IntegrateError::Compile(vec![compiler::CompileError::Back(
-            e,
-          )]));
+          return Err(IntegrateError::Compile(vec![compiler::CompileError::Back(e)]));
         }
       };
 
@@ -243,6 +235,30 @@ impl<C: ProvenanceContext, P: PointerFamily> IntegrateContext<C, P> {
 
     // Return success
     Ok(())
+  }
+
+  /// Execute the program in its current state, with a limit set on iteration count
+  pub fn run_with_iter_limit_and_monitor<M>(&mut self, iter_limit: Option<usize>, m: &M) -> Result<(), IntegrateError>
+  where
+    C::InputTag: FromInputTag,
+    M: Monitor<C>,
+  {
+    // First compile the code
+    self.compile()?;
+
+    // Finally execute the ram
+    self.internal.run_with_iter_limit_and_monitor(iter_limit, m)
+  }
+
+  /// Execute the program in its current state
+  ///
+  /// Note: the results should be inspected using `relation` function
+  pub fn run_with_monitor<M>(&mut self, m: &M) -> Result<(), IntegrateError>
+  where
+    C::InputTag: FromInputTag,
+    M: Monitor<C>,
+  {
+    self.run_with_iter_limit_and_monitor(None, m)
   }
 
   /// Execute the program in its current state, with a limit set on iteration count
@@ -262,7 +278,7 @@ impl<C: ProvenanceContext, P: PointerFamily> IntegrateContext<C, P> {
   /// Note: the results should be inspected using `relation` function
   pub fn run(&mut self) -> Result<(), IntegrateError>
   where
-    C::InputTag: Default + FromInputTag,
+    C::InputTag: FromInputTag,
   {
     self.run_with_iter_limit(None)
   }
@@ -303,10 +319,7 @@ impl<C: ProvenanceContext, P: PointerFamily> IntegrateContext<C, P> {
   }
 
   /// Get the relation output collection of a given relation
-  pub fn computed_relation(
-    &mut self,
-    relation: &str,
-  ) -> Option<&dynamic::DynamicOutputCollection<C::Tag>> {
+  pub fn computed_relation(&mut self, relation: &str) -> Option<&dynamic::DynamicOutputCollection<C::Tag>> {
     self.internal.computed_relation(relation)
   }
 
@@ -316,6 +329,18 @@ impl<C: ProvenanceContext, P: PointerFamily> IntegrateContext<C, P> {
     relation: &str,
   ) -> Option<P::Pointer<dynamic::DynamicOutputCollection<C::Tag>>> {
     self.internal.computed_rc_relation(relation)
+  }
+
+  /// Get the relation output collection of a given relation
+  pub fn computed_rc_relation_with_monitor<M>(
+    &mut self,
+    relation: &str,
+    m: &M,
+  ) -> Option<P::Pointer<dynamic::DynamicOutputCollection<C::Tag>>>
+  where
+    M: Monitor<C>,
+  {
+    self.internal.computed_rc_relation_with_monitor(relation, m)
   }
 
   /// Get the Reference Counted (RC) version of the collection
@@ -385,16 +410,30 @@ impl<C: ProvenanceContext, P: PointerFamily> CompiledIntegrateContext<C, P> {
           }
         }
       } else {
-        return Err(IntegrateError::Runtime(
-          dynamic::RuntimeError::UnknownRelation(predicate.to_string()),
-        ));
+        return Err(IntegrateError::Runtime(dynamic::RuntimeError::UnknownRelation(
+          predicate.to_string(),
+        )));
       }
     }
 
     // Actually insert
+    self.exec_ctx.add_facts_with_disjunction(predicate, facts, disjunctions);
+    Ok(())
+  }
+
+  /// Execute the program in its current state, with a limit set on iteration count
+  pub fn run_with_iter_limit_and_monitor<M>(&mut self, iter_limit: Option<usize>, m: &M) -> Result<(), IntegrateError>
+  where
+    C::InputTag: FromInputTag,
+    M: Monitor<C>,
+  {
+    // Finally execute the ram
     self
       .exec_ctx
-      .add_facts_with_disjunction(predicate, facts, disjunctions);
+      .execute_with_iter_limit_and_monitor(self.ram_program.clone(), &mut self.prov_ctx, iter_limit, m)
+      .map_err(IntegrateError::Runtime)?;
+
+    // Success
     Ok(())
   }
 
@@ -416,9 +455,20 @@ impl<C: ProvenanceContext, P: PointerFamily> CompiledIntegrateContext<C, P> {
   /// Execute the program in its current state
   ///
   /// Note: the results should be inspected using `relation` function
+  pub fn run_with_monitor<M>(&mut self, m: &M) -> Result<(), IntegrateError>
+  where
+    C::InputTag: FromInputTag,
+    M: Monitor<C>,
+  {
+    self.run_with_iter_limit_and_monitor(None, m)
+  }
+
+  /// Execute the program in its current state
+  ///
+  /// Note: the results should be inspected using `relation` function
   pub fn run(&mut self) -> Result<(), IntegrateError>
   where
-    C::InputTag: Default + FromInputTag,
+    C::InputTag: FromInputTag,
   {
     self.run_with_iter_limit(None)
   }
@@ -442,22 +492,29 @@ impl<C: ProvenanceContext, P: PointerFamily> CompiledIntegrateContext<C, P> {
     // If not already computed, recover output collection from execution context, and cache it
     if !self.computed_output_relations.contains_key(relation) {
       if let Some(rc) = self.exec_ctx.relation(relation, self.provenance_context()) {
-        self
-          .computed_output_relations
-          .insert(relation.to_string(), P::new(rc));
+        self.computed_output_relations.insert(relation.to_string(), P::new(rc));
       }
     }
   }
 
-  pub fn computed_relation(
-    &mut self,
-    relation: &str,
-  ) -> Option<&dynamic::DynamicOutputCollection<C::Tag>> {
+  fn recover_relation_and_cache_with_monitor<M>(&mut self, relation: &str, m: &M)
+  where
+    M: Monitor<C>,
+  {
+    // If not already computed, recover output collection from execution context, and cache it
+    if !self.computed_output_relations.contains_key(relation) {
+      if let Some(rc) = self
+        .exec_ctx
+        .relation_with_monitor(relation, self.provenance_context(), m)
+      {
+        self.computed_output_relations.insert(relation.to_string(), P::new(rc));
+      }
+    }
+  }
+
+  pub fn computed_relation(&mut self, relation: &str) -> Option<&dynamic::DynamicOutputCollection<C::Tag>> {
     self.recover_relation_and_cache(relation);
-    self
-      .computed_output_relations
-      .get(relation)
-      .map(|p| P::get(p))
+    self.computed_output_relations.get(relation).map(|p| P::get(p))
   }
 
   /// Get the RC'ed output collection of a given relation
@@ -466,10 +523,20 @@ impl<C: ProvenanceContext, P: PointerFamily> CompiledIntegrateContext<C, P> {
     relation: &str,
   ) -> Option<P::Pointer<dynamic::DynamicOutputCollection<C::Tag>>> {
     self.recover_relation_and_cache(relation);
-    self
-      .computed_output_relations
-      .get(relation)
-      .map(|p| P::clone_ptr(p))
+    self.computed_output_relations.get(relation).map(|p| P::clone_ptr(p))
+  }
+
+  /// Get the RC'ed output collection of a given relation
+  pub fn computed_rc_relation_with_monitor<M>(
+    &mut self,
+    relation: &str,
+    m: &M,
+  ) -> Option<P::Pointer<dynamic::DynamicOutputCollection<C::Tag>>>
+  where
+    M: Monitor<C>,
+  {
+    self.recover_relation_and_cache_with_monitor(relation, m);
+    self.computed_output_relations.get(relation).map(|p| P::clone_ptr(p))
   }
 
   /// Get the Reference Counted (RC) version of the collection

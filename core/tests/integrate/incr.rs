@@ -18,10 +18,7 @@ fn incr_edge_path_left_recursion() {
   ctx
     .add_facts(
       "edge",
-      vec![
-        (None, (0usize, 1usize).into()),
-        (None, (1usize, 2usize).into()),
-      ],
+      vec![(None, (0usize, 1usize).into()), (None, (1usize, 2usize).into())],
       false,
     )
     .unwrap();
@@ -46,18 +43,12 @@ fn incr_edge_path_left_branching_1() {
   ctx
     .add_facts(
       "edge",
-      vec![
-        (None, (0usize, 1usize).into()),
-        (None, (1usize, 2usize).into()),
-      ],
+      vec![(None, (0usize, 1usize).into()), (None, (1usize, 2usize).into())],
       false,
     )
     .unwrap();
   ctx.run().unwrap();
-  expect_output_collection(
-    ctx.computed_relation("edge").unwrap(),
-    vec![(0usize, 1usize), (1, 2)],
-  );
+  expect_output_collection(ctx.computed_relation("edge").unwrap(), vec![(0usize, 1usize), (1, 2)]);
 
   // First branch
   let mut first_branch = ctx.clone();
@@ -82,9 +73,7 @@ fn incr_edge_path_left_branching_1() {
   );
 
   // Second branch, continuation
-  second_branch
-    .add_rule(r#"result(1, y) = path(1, y)"#)
-    .unwrap();
+  second_branch.add_rule(r#"result(1, y) = path(1, y)"#).unwrap();
   second_branch.run().unwrap();
   expect_output_collection(
     second_branch.computed_relation("result").unwrap(),

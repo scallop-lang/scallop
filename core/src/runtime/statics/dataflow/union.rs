@@ -3,11 +3,7 @@ use std::marker::PhantomData;
 use super::*;
 use crate::runtime::provenance::*;
 
-pub fn union<'b, D1, D2, Tup, T>(
-  d1: D1,
-  d2: D2,
-  semiring_ctx: &'b T::Context,
-) -> Union<'b, D1, D2, Tup, T>
+pub fn union<'b, D1, D2, Tup, T>(d1: D1, d2: D2, semiring_ctx: &'b T::Context) -> Union<'b, D1, D2, Tup, T>
 where
   Tup: StaticTupleTrait,
   T: Tag,

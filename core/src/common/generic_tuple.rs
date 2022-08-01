@@ -110,14 +110,7 @@ where
   F: Into<GenericTuple<T>>,
 {
   fn from((a, b, c, d, e, f): (A, B, C, D, E, F)) -> Self {
-    Self::Tuple(Box::new([
-      a.into(),
-      b.into(),
-      c.into(),
-      d.into(),
-      e.into(),
-      f.into(),
-    ]))
+    Self::Tuple(Box::new([a.into(), b.into(), c.into(), d.into(), e.into(), f.into()]))
   }
 }
 

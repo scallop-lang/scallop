@@ -82,9 +82,7 @@ impl FrontErrorReportingContext {
   where
     FrontCompileError: From<T>,
   {
-    self
-      .errors
-      .extend(new_errors.drain(..).map(FrontCompileError::from))
+    self.errors.extend(new_errors.drain(..).map(FrontCompileError::from))
   }
 
   pub fn has_error(&self) -> bool {

@@ -1,4 +1,4 @@
-use scallop_core::common::expr::*;
+use scallop_core::common::aggregate_op::AggregateOp;
 use scallop_core::runtime::dynamic::dataflow::*;
 use scallop_core::runtime::dynamic::*;
 use scallop_core::runtime::provenance::*;
@@ -14,10 +14,7 @@ fn test_dynamic_aggregate_count_1() {
   let mut target = DynamicRelation::<unit::Unit>::new();
 
   // Initial
-  source_1.insert_untagged(
-    &mut ctx,
-    vec![(0i8, 1i8), (1i8, 2i8), (3i8, 4i8), (3i8, 5i8)],
-  );
+  source_1.insert_untagged(&mut ctx, vec![(0i8, 1i8), (1i8, 2i8), (3i8, 4i8), (3i8, 5i8)]);
   source_2.insert_untagged(&mut ctx, vec![(1i8, 1i8), (1i8, 2i8), (3i8, 5i8)]);
 
   // Iterate until fixpoint
@@ -33,12 +30,16 @@ fn test_dynamic_aggregate_count_1() {
   let mut first_time = true;
   let mut agg = DynamicRelation::<unit::Unit>::new();
   while agg.changed(&ctx) || first_time {
-    first_time = false;
     agg.insert_dataflow_recent(
       &ctx,
-      &DynamicGroups::from_collection(&completed_target)
-        .aggregate(DynamicAggregateOp::count(Expr::access(())), &ctx),
+      &DynamicAggregationDataflow::single(
+        AggregateOp::Count.into(),
+        DynamicDataflow::dynamic_collection(&completed_target, first_time),
+        &ctx,
+      )
+      .into(),
     );
+    first_time = false;
   }
 
   expect_collection(&agg.complete(&ctx), vec![2usize]);
