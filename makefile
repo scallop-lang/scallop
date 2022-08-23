@@ -1,5 +1,5 @@
 all:
-	@echo "Try `make install-scli`, `make install-sclc`, or `make install-scallopy`
+	@echo "Try `make install-scli`, `make install-sclc`, or `make install-scallopy`"
 
 install-scli:
 	cargo install --path etc/scli
