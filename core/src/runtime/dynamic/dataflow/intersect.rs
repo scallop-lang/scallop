@@ -1,12 +1,12 @@
 use super::*;
 
-pub struct DynamicIntersectDataflow<'a, T: Tag> {
-  pub d1: Box<DynamicDataflow<'a, T>>,
-  pub d2: Box<DynamicDataflow<'a, T>>,
-  pub ctx: &'a T::Context,
+pub struct DynamicIntersectDataflow<'a, Prov: Provenance> {
+  pub d1: Box<DynamicDataflow<'a, Prov>>,
+  pub d2: Box<DynamicDataflow<'a, Prov>>,
+  pub ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for DynamicIntersectDataflow<'a, T> {
+impl<'a, Prov: Provenance> Clone for DynamicIntersectDataflow<'a, Prov> {
   fn clone(&self) -> Self {
     Self {
       d1: self.d1.clone(),
@@ -16,13 +16,13 @@ impl<'a, T: Tag> Clone for DynamicIntersectDataflow<'a, T> {
   }
 }
 
-impl<'a, T: Tag> DynamicIntersectDataflow<'a, T> {
-  pub fn iter_stable(&self) -> DynamicBatches<'a, T> {
+impl<'a, Prov: Provenance> DynamicIntersectDataflow<'a, Prov> {
+  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     let op = IntersectOp { ctx: self.ctx };
     DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_stable(), op.into())
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     let op = IntersectOp { ctx: self.ctx };
     DynamicBatches::chain(vec![
       DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_recent(), op.clone().into()),
@@ -32,24 +32,24 @@ impl<'a, T: Tag> DynamicIntersectDataflow<'a, T> {
   }
 }
 
-pub struct IntersectOp<'a, T: Tag> {
-  ctx: &'a T::Context,
+pub struct IntersectOp<'a, Prov: Provenance> {
+  ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for IntersectOp<'a, T> {
+impl<'a, Prov: Provenance> Clone for IntersectOp<'a, Prov> {
   fn clone(&self) -> Self {
     Self { ctx: self.ctx }
   }
 }
 
-impl<'a, T: Tag> From<IntersectOp<'a, T>> for BatchBinaryOp<'a, T> {
-  fn from(op: IntersectOp<'a, T>) -> Self {
+impl<'a, Prov: Provenance> From<IntersectOp<'a, Prov>> for BatchBinaryOp<'a, Prov> {
+  fn from(op: IntersectOp<'a, Prov>) -> Self {
     Self::Intersect(op)
   }
 }
 
-impl<'a, T: Tag> IntersectOp<'a, T> {
-  pub fn apply(&self, mut i1: DynamicBatch<'a, T>, mut i2: DynamicBatch<'a, T>) -> DynamicBatch<'a, T> {
+impl<'a, Prov: Provenance> IntersectOp<'a, Prov> {
+  pub fn apply(&self, mut i1: DynamicBatch<'a, Prov>, mut i2: DynamicBatch<'a, Prov>) -> DynamicBatch<'a, Prov> {
     let i1_curr = i1.next();
     let i2_curr = i2.next();
     DynamicBatch::Intersect(DynamicIntersectBatch {
@@ -62,15 +62,15 @@ impl<'a, T: Tag> IntersectOp<'a, T> {
   }
 }
 
-pub struct DynamicIntersectBatch<'a, T: Tag> {
-  i1: Box<DynamicBatch<'a, T>>,
-  i1_curr: Option<DynamicElement<T>>,
-  i2: Box<DynamicBatch<'a, T>>,
-  i2_curr: Option<DynamicElement<T>>,
-  ctx: &'a T::Context,
+pub struct DynamicIntersectBatch<'a, Prov: Provenance> {
+  i1: Box<DynamicBatch<'a, Prov>>,
+  i1_curr: Option<DynamicElement<Prov>>,
+  i2: Box<DynamicBatch<'a, Prov>>,
+  i2_curr: Option<DynamicElement<Prov>>,
+  ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for DynamicIntersectBatch<'a, T> {
+impl<'a, Prov: Provenance> Clone for DynamicIntersectBatch<'a, Prov> {
   fn clone(&self) -> Self {
     Self {
       i1: self.i1.clone(),
@@ -82,8 +82,8 @@ impl<'a, T: Tag> Clone for DynamicIntersectBatch<'a, T> {
   }
 }
 
-impl<'a, T: Tag> Iterator for DynamicIntersectBatch<'a, T> {
-  type Item = DynamicElement<T>;
+impl<'a, Prov: Provenance> Iterator for DynamicIntersectBatch<'a, Prov> {
+  type Item = DynamicElement<Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     use std::cmp::Ordering;

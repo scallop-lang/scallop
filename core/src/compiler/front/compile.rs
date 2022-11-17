@@ -46,22 +46,27 @@ impl FrontContext {
     }
   }
 
-  pub fn compile_source<S: Source>(&mut self, s: S) -> Result<SourceId, FrontErrorReportingContext> {
+  pub fn get_ir(&self) -> String {
+    self
+      .items
+      .iter()
+      .map(|i| format!("{}", i))
+      .collect::<Vec<_>>()
+      .join("\n")
+  }
+
+  pub fn compile_source<S: Source>(&mut self, s: S) -> Result<SourceId, FrontCompileError> {
     self.compile_source_with_parser(s, parser::str_to_items)
   }
 
-  pub fn compile_relation<S>(&mut self, s: S) -> Result<SourceId, FrontErrorReportingContext>
+  pub fn compile_relation<S>(&mut self, s: S) -> Result<SourceId, FrontCompileError>
   where
     S: Source,
   {
     self.compile_source_with_parser(s, parser::str_to_relation_type)
   }
 
-  pub fn compile_relation_with_annotator<S, A>(
-    &mut self,
-    s: S,
-    annotator: A,
-  ) -> Result<SourceId, FrontErrorReportingContext>
+  pub fn compile_relation_with_annotator<S, A>(&mut self, s: S, annotator: A) -> Result<SourceId, FrontCompileError>
   where
     S: Source,
     A: FnMut(&mut Item),
@@ -69,18 +74,14 @@ impl FrontContext {
     self.compile_source_with_parser_and_annotator(s, parser::str_to_relation_type, Some(annotator))
   }
 
-  pub fn compile_rule<S>(&mut self, s: S) -> Result<SourceId, FrontErrorReportingContext>
+  pub fn compile_rule<S>(&mut self, s: S) -> Result<SourceId, FrontCompileError>
   where
     S: Source,
   {
     self.compile_source_with_parser(s, parser::str_to_rule)
   }
 
-  pub fn compile_rule_with_annotator<S, A>(
-    &mut self,
-    s: S,
-    annotator: A,
-  ) -> Result<SourceId, FrontErrorReportingContext>
+  pub fn compile_rule_with_annotator<S, A>(&mut self, s: S, annotator: A) -> Result<SourceId, FrontCompileError>
   where
     S: Source,
     A: FnMut(&mut Item),
@@ -88,18 +89,14 @@ impl FrontContext {
     self.compile_source_with_parser_and_annotator(s, parser::str_to_rule, Some(annotator))
   }
 
-  pub fn compile_query<S>(&mut self, s: S) -> Result<SourceId, FrontErrorReportingContext>
+  pub fn compile_query<S>(&mut self, s: S) -> Result<SourceId, FrontCompileError>
   where
     S: Source,
   {
     self.compile_source_with_parser(s, parser::str_to_query)
   }
 
-  pub fn compile_query_with_annotator<S, A>(
-    &mut self,
-    s: S,
-    annotator: A,
-  ) -> Result<SourceId, FrontErrorReportingContext>
+  pub fn compile_query_with_annotator<S, A>(&mut self, s: S, annotator: A) -> Result<SourceId, FrontCompileError>
   where
     S: Source,
     A: FnMut(&mut Item),
@@ -107,7 +104,7 @@ impl FrontContext {
     self.compile_source_with_parser_and_annotator(s, parser::str_to_query, Some(annotator))
   }
 
-  pub fn compile_source_with_parser<S, P>(&mut self, s: S, p: P) -> Result<SourceId, FrontErrorReportingContext>
+  pub fn compile_source_with_parser<S, P>(&mut self, s: S, p: P) -> Result<SourceId, FrontCompileError>
   where
     S: Source,
     P: FnOnce(&str) -> Result<Vec<Item>, parser::ParserError>,
@@ -115,11 +112,7 @@ impl FrontContext {
     self.compile_source_with_parser_and_annotator(s, p, None::<fn(&mut Item)>)
   }
 
-  pub fn compile_source_with_annotator<S, A>(
-    &mut self,
-    source: S,
-    annotator: A,
-  ) -> Result<SourceId, FrontErrorReportingContext>
+  pub fn compile_source_with_annotator<S, A>(&mut self, source: S, annotator: A) -> Result<SourceId, FrontCompileError>
   where
     S: Source,
     A: FnMut(&mut Item),
@@ -132,7 +125,7 @@ impl FrontContext {
     source: S,
     parser: P,
     mut maybe_annotator: Option<A>,
-  ) -> Result<SourceId, FrontErrorReportingContext>
+  ) -> Result<SourceId, FrontCompileError>
   where
     S: Source,
     P: FnOnce(&str) -> Result<Vec<Item>, parser::ParserError>,
@@ -140,7 +133,7 @@ impl FrontContext {
   {
     // Make duplicate context since we want to stop when compile error
     let mut dup_ctx = self.clone();
-    let mut error_ctx = FrontErrorReportingContext::new();
+    let mut error_ctx = FrontCompileError::new();
 
     // Parse the string
     let parsing_result = parser(source.content());
@@ -192,7 +185,7 @@ impl FrontContext {
     }
 
     // Front transformation; add new items into ast and re-annotate the ast
-    apply_transformations(&mut ast);
+    apply_transformations(&mut ast, dup_ctx.analysis.borrow());
     dup_ctx.node_id_annotator.walk_items(&mut ast);
 
     // Front analysis
@@ -205,6 +198,11 @@ impl FrontContext {
       return Err(error_ctx);
     }
 
+    // If there is no error, print the warnings
+    if error_ctx.has_warning() {
+      error_ctx.report_warnings();
+    }
+
     // Update self if nothing goes wrong
     dup_ctx.items.extend(ast);
     *self = dup_ctx;
@@ -213,8 +211,8 @@ impl FrontContext {
     Ok(SourceId(source_id))
   }
 
-  fn process_imports<S: Source>(&mut self, s: &S, ast: &Vec<Item>) -> Result<(), FrontErrorReportingContext> {
-    let mut error_ctx = FrontErrorReportingContext::new();
+  fn process_imports<S: Source>(&mut self, s: &S, ast: &Vec<Item>) -> Result<(), FrontCompileError> {
+    let mut error_ctx = FrontCompileError::new();
     for item in ast {
       if let Item::ImportDecl(id) = item {
         let f = s.resolve_import_file_path(id.input_file());

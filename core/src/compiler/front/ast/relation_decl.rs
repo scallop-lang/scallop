@@ -1,6 +1,19 @@
 use super::*;
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct ConstantTupleNode {
+  pub elems: Vec<ConstantOrVariable>,
+}
+
+pub type ConstantTuple = AstNode<ConstantTupleNode>;
+
+impl ConstantTuple {
+  pub fn arity(&self) -> usize {
+    self.node.elems.len()
+  }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct ConstantSetTupleNode {
   pub tag: Tag,
   pub tuple: ConstantTuple,
@@ -17,7 +30,7 @@ impl ConstantSetTuple {
     self.node.tuple.arity()
   }
 
-  pub fn iter_constants(&self) -> impl Iterator<Item = &Constant> {
+  pub fn iter_constants(&self) -> impl Iterator<Item = &ConstantOrVariable> {
     self.node.tuple.node.elems.iter()
   }
 }
@@ -126,6 +139,12 @@ pub struct RuleDeclNode {
   pub attrs: Attributes,
   pub tag: Tag,
   pub rule: Rule,
+}
+
+impl RuleDeclNode {
+  pub fn new(attrs: Attributes, tag: Tag, rule: Rule) -> Self {
+    Self { attrs, tag, rule }
+  }
 }
 
 pub type RuleDecl = AstNode<RuleDeclNode>;

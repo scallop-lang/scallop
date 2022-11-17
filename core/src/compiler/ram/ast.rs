@@ -33,6 +33,18 @@ impl Program {
       None
     }
   }
+
+  pub fn set_output_relations(&mut self, target: Vec<&str>) {
+    self.strata.iter_mut().for_each(|stratum| {
+      stratum.relations.iter_mut().for_each(|(_, relation)| {
+        if target.contains(&relation.predicate.as_str()) {
+          relation.output = OutputOption::Default
+        } else {
+          relation.output = OutputOption::Hidden
+        }
+      })
+    })
+  }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
@@ -117,7 +129,7 @@ pub struct Update {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Dataflow {
-  Unit,
+  Unit(TupleType),
   Union(Box<Dataflow>, Box<Dataflow>),
   Join(Box<Dataflow>, Box<Dataflow>),
   Intersect(Box<Dataflow>, Box<Dataflow>),
@@ -127,13 +139,14 @@ pub enum Dataflow {
   Project(Box<Dataflow>, Expr),
   Filter(Box<Dataflow>, Expr),
   Find(Box<Dataflow>, Tuple),
+  OverwriteOne(Box<Dataflow>),
   Reduce(Reduce),
   Relation(String),
 }
 
 impl Dataflow {
-  pub fn unit() -> Self {
-    Self::Unit
+  pub fn unit(tuple_type: TupleType) -> Self {
+    Self::Unit(tuple_type)
   }
 
   pub fn union(self, d2: Dataflow) -> Self {
@@ -172,6 +185,10 @@ impl Dataflow {
     Self::Find(Box::new(self), AsTuple::as_tuple(&t))
   }
 
+  pub fn overwrite_one(self) -> Self {
+    Self::OverwriteOne(Box::new(self))
+  }
+
   pub fn reduce<S: ToString>(op: AggregateOp, predicate: S, group_by: ReduceGroupByType) -> Self {
     Self::Reduce(Reduce {
       op,
@@ -186,14 +203,14 @@ impl Dataflow {
 
   pub fn source_relations(&self) -> HashSet<&String> {
     match self {
-      Self::Unit => HashSet::new(),
+      Self::Unit(_) => HashSet::new(),
       Self::Union(d1, d2)
       | Self::Join(d1, d2)
       | Self::Intersect(d1, d2)
       | Self::Product(d1, d2)
       | Self::Antijoin(d1, d2)
       | Self::Difference(d1, d2) => d1.source_relations().union(&d2.source_relations()).cloned().collect(),
-      Self::Project(d, _) | Self::Filter(d, _) | Self::Find(d, _) => d.source_relations(),
+      Self::Project(d, _) | Self::Filter(d, _) | Self::Find(d, _) | Self::OverwriteOne(d) => d.source_relations(),
       Self::Reduce(r) => std::iter::once(r.source_relation()).collect(),
       Self::Relation(r) => std::iter::once(r).collect(),
     }

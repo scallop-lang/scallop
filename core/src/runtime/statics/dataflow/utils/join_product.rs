@@ -2,36 +2,36 @@ use crate::runtime::provenance::*;
 use crate::runtime::statics::*;
 
 #[derive(Clone)]
-pub struct JoinProductIterator<T1, T2, T>
+pub struct JoinProductIterator<T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  pub v1: Vec<StaticElement<T1, T>>,
-  pub v2: Vec<StaticElement<T2, T>>,
+  pub v1: Vec<StaticElement<T1, Prov>>,
+  pub v2: Vec<StaticElement<T2, Prov>>,
   pub i1: usize,
   pub i2: usize,
 }
 
-impl<T1, T2, T> JoinProductIterator<T1, T2, T>
+impl<T1, T2, Prov> JoinProductIterator<T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  pub fn new(v1: Vec<StaticElement<T1, T>>, v2: Vec<StaticElement<T2, T>>) -> Self {
+  pub fn new(v1: Vec<StaticElement<T1, Prov>>, v2: Vec<StaticElement<T2, Prov>>) -> Self {
     Self { v1, v2, i1: 0, i2: 0 }
   }
 }
 
-impl<T1, T2, T> Iterator for JoinProductIterator<T1, T2, T>
+impl<T1, T2, Prov> Iterator for JoinProductIterator<T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  type Item = (StaticElement<T1, T>, StaticElement<T2, T>);
+  type Item = (StaticElement<T1, Prov>, StaticElement<T2, Prov>);
 
   fn next(&mut self) -> Option<Self::Item> {
     loop {

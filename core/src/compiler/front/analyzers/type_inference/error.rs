@@ -27,12 +27,21 @@ pub enum TypeInferenceError {
     predicate: String,
     loc: AstNodeLocation,
   },
+  UnknownVariable {
+    variable: String,
+    loc: AstNodeLocation,
+  },
   ArityMismatch {
     predicate: String,
     expected: usize,
     actual: usize,
     source_loc: AstNodeLocation,
     mismatch_loc: AstNodeLocation,
+  },
+  FunctionArityMismatch {
+    function: String,
+    actual: usize,
+    loc: AstNodeLocation,
   },
   InvalidArgIndex {
     predicate: String,
@@ -44,9 +53,6 @@ pub enum TypeInferenceError {
     predicate: String,
     decl_loc: AstNodeLocation,
     mismatch_tuple_loc: AstNodeLocation,
-  },
-  NonConstantInFactDecl {
-    expr_loc: AstNodeLocation,
   },
   ConstantTypeMismatch {
     expected: ValueType,
@@ -92,9 +98,9 @@ pub enum TypeInferenceError {
   },
 }
 
-impl From<TypeInferenceError> for FrontCompileError {
-  fn from(e: TypeInferenceError) -> Self {
-    Self::TypeInferenceError(e)
+impl FrontCompileErrorClone for TypeInferenceError {
+  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
+    Box::new(self.clone())
   }
 }
 
@@ -107,49 +113,53 @@ impl TypeInferenceError {
       _ => {}
     }
   }
+}
 
-  pub fn report(&self, src: &Sources) {
+impl FrontCompileErrorTrait for TypeInferenceError {
+  fn error_type(&self) -> FrontCompileErrorType {
+    FrontCompileErrorType::Error
+  }
+
+  fn report(&self, src: &Sources) -> String {
     match self {
       Self::DuplicateTypeDecl {
         type_name,
         source_decl_loc,
         duplicate_decl_loc,
       } => {
-        println!(
-          "Duplicate type declaration found for `{}`. It is originally defined here:",
-          type_name
-        );
-        source_decl_loc.report(src);
-        println!("while we find a duplicated declaration here:");
-        duplicate_decl_loc.report(src);
+        format!(
+          "duplicated type declaration found for `{}`. It is originally defined here:\n{}\nwhile we find a duplicated declaration here:\n{}",
+          type_name, source_decl_loc.report(src), duplicate_decl_loc.report(src),
+        )
       }
       Self::DuplicateRelationTypeDecl {
         predicate,
         source_decl_loc,
         duplicate_decl_loc,
       } => {
-        println!(
-          "Duplicate relation type declaration found for `{}`. It is originally defined here:",
-          predicate
-        );
-        source_decl_loc.report(src);
-        println!("while we find a duplicated declaration here:");
-        duplicate_decl_loc.report(src);
+        format!(
+          "duplicated relation type declaration found for `{}`. It is originally defined here:\n{}\nwhile we find a duplicated declaration here:\n{}",
+          predicate, source_decl_loc.report(src), duplicate_decl_loc.report(src)
+        )
       }
       Self::InvalidSubtype {
         source_type,
         source_type_loc,
       } => {
-        println!("Cannot create subtype from `{}`", source_type);
-        source_type_loc.report(src);
+        format!(
+          "cannot create subtype from `{}`\n{}",
+          source_type,
+          source_type_loc.report(src)
+        )
       }
       Self::UnknownCustomType { type_name, loc } => {
-        println!("Unknown custom type `{}`", type_name);
-        loc.report(src);
+        format!("unknown custom type `{}`\n{}", type_name, loc.report(src))
       }
       Self::UnknownQueryRelationType { predicate, loc } => {
-        println!("Unknown relation `{}` used in query", predicate);
-        loc.report(src);
+        format!("unknown relation `{}` used in query\n{}", predicate, loc.report(src))
+      }
+      Self::UnknownVariable { variable, loc } => {
+        format!("unknown variable `{}` in the rule\n{}", variable, loc.report(src))
       }
       Self::ArityMismatch {
         predicate,
@@ -158,11 +168,21 @@ impl TypeInferenceError {
         mismatch_loc,
         ..
       } => {
-        println!(
-          "Arity mismatch for relation `{}`. Expected {}, found {}:",
-          predicate, expected, actual
-        );
-        mismatch_loc.report(src);
+        format!(
+          "arity mismatch for relation `{}`. Expected {}, found {}:\n{}",
+          predicate,
+          expected,
+          actual,
+          mismatch_loc.report(src)
+        )
+      }
+      Self::FunctionArityMismatch { function, actual, loc } => {
+        format!(
+          "wrong number of arguments for function `{}`, found {}:\n{}",
+          function,
+          actual,
+          loc.report(src)
+        )
       }
       Self::InvalidArgIndex {
         predicate,
@@ -170,66 +190,60 @@ impl TypeInferenceError {
         source_loc,
         access_loc,
       } => {
-        println!(
-          "Invalid `{}`-th argument for relation `{}`. The relation type is inferred here:",
-          index, predicate,
-        );
-        source_loc.report(src);
-        println!("erroneous access happens here:");
-        access_loc.report(src);
+        format!(
+          "invalid `{}`-th argument for relation `{}`. The relation type is inferred here:\n{}\nerroneous access happens here:\n{}",
+          index, predicate, source_loc.report(src), access_loc.report(src)
+        )
       }
       Self::ConstantSetArityMismatch {
         predicate,
         mismatch_tuple_loc,
         ..
       } => {
-        println!(
-          "Arity mismatch in constant set declaration for relation `{}`:",
-          predicate
-        );
-        mismatch_tuple_loc.report(src);
-      }
-      Self::NonConstantInFactDecl { expr_loc } => {
-        println!("Found non-constant in fact declaration:");
-        expr_loc.report(src);
+        format!(
+          "arity mismatch in constant set declaration for relation `{}`:\n{}",
+          predicate,
+          mismatch_tuple_loc.report(src)
+        )
       }
       Self::ConstantTypeMismatch { expected, found } => {
-        println!("Type mismatch for constant. Expected `{}`, found `{}`", expected, found);
-        found.location().report(src);
+        format!(
+          "type mismatch for constant. Expected `{}`, found `{}`\n{}",
+          expected,
+          found,
+          found.location().report(src)
+        )
       }
       Self::CannotUnifyTypes { t1, t2, loc } => match loc {
         Some(l) => {
-          println!("Cannot unify types `{}` and `{}` in", t1, t2);
-          l.report(src);
-          println!("where the first is inferred here");
-          t1.location().report(src);
-          println!("and the second is inferred here");
-          t2.location().report(src);
+          format!("cannot unify types `{}` and `{}` in\n{}\nwhere the first is inferred here\n{}\nand the second is inferred here\n{}", t1, t2, l.report(src), t1.location().report(src), t2.location().report(src))
         }
         None => {
-          println!(
-            "Cannot unify types `{}` and `{}`, where the first is declared here",
-            t1, t2
-          );
-          t1.location().report(src);
-          println!("and the second is declared here");
-          t2.location().report(src);
+          format!(
+            "cannot unify types `{}` and `{}`, where the first is declared here\n{}\nand the second is declared here\n{}",
+            t1, t2, t1.location().report(src), t2.location().report(src)
+          )
         }
       },
       Self::CannotUnifyVariables { v1, t1, v2, t2, loc } => {
-        println!(
-          "Cannot unify variable types: `{}` has `{}` type, `{}` has `{}` type, but they should be unified",
-          v1, t1, v2, t2
-        );
-        loc.report(src);
+        format!(
+          "cannot unify variable types: `{}` has `{}` type, `{}` has `{}` type, but they should be unified\n{}",
+          v1,
+          t1,
+          v2,
+          t2,
+          loc.report(src)
+        )
       }
       Self::CannotTypeCast { t1, t2, loc } => {
-        println!("Cannot cast type from `{}` to `{}`", t1, t2);
-        loc.report(src);
+        format!("cannot cast type from `{}` to `{}`\n{}", t1, t2, loc.report(src))
       }
       Self::ConstraintNotBoolean { ty, loc } => {
-        println!("Constraint must have `bool` type, found `{}` type", ty);
-        loc.report(src);
+        format!(
+          "constraint must have `bool` type, found `{}` type\n{}",
+          ty,
+          loc.report(src)
+        )
       }
       Self::InvalidReduceOutput {
         op,
@@ -237,11 +251,13 @@ impl TypeInferenceError {
         found,
         loc,
       } => {
-        println!(
-          "Invalid amount of output for `{}`. Expected {}, found {}",
-          op, expected, found
-        );
-        loc.report(src);
+        format!(
+          "invalid amount of output for `{}`. Expected {}, found {}\n{}",
+          op,
+          expected,
+          found,
+          loc.report(src)
+        )
       }
       Self::InvalidReduceBindingVar {
         op,
@@ -249,22 +265,23 @@ impl TypeInferenceError {
         found,
         loc,
       } => {
-        println!(
-          "Invalid amount of binding variables for `{}`. Expected {}, found {}",
-          op, expected, found
-        );
-        loc.report(src);
+        format!(
+          "invalid amount of binding variables for `{}`. Expected {}, found {}\n{}",
+          op,
+          expected,
+          found,
+          loc.report(src)
+        )
       }
       Self::InvalidUniqueNumParams {
         num_output_vars,
         num_binding_vars,
         loc,
       } => {
-        println!(
-          "Expected same amount of output variables and binding variables for aggregation `unique`, but found {} output variables and {} binding variables",
-          num_output_vars, num_binding_vars
-        );
-        loc.report(src);
+        format!(
+          "expected same amount of output variables and binding variables for aggregation `unique`, but found {} output variables and {} binding variables\n{}",
+          num_output_vars, num_binding_vars, loc.report(src)
+        )
       }
     }
   }

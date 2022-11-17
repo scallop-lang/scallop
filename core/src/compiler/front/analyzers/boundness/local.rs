@@ -78,6 +78,20 @@ impl NodeVisitor for LocalBoundnessAnalysisContext {
     let dep = BoundnessDependency::UnaryOp(unary_expr.op1().location().clone(), unary_expr.location().clone());
     self.dependencies.push(dep);
   }
+
+  fn visit_if_then_else_expr(&mut self, ite_expr: &IfThenElseExpr) {
+    let cl = ite_expr.cond().location().clone();
+    let tl = ite_expr.then_br().location().clone();
+    let el = ite_expr.else_br().location().clone();
+    let dep = BoundnessDependency::IfThenElseOp(cl, tl, el, ite_expr.location().clone());
+    self.dependencies.push(dep);
+  }
+
+  fn visit_call_expr(&mut self, call_expr: &CallExpr) {
+    let arg_locs = call_expr.iter_args().map(|a| a.location().clone()).collect::<Vec<_>>();
+    let dep = BoundnessDependency::CallOp(arg_locs, call_expr.location().clone());
+    self.dependencies.push(dep);
+  }
 }
 
 impl LocalBoundnessAnalysisContext {
@@ -154,6 +168,13 @@ impl LocalBoundnessAnalysisContext {
             let b_then_br = get_mut(&mut self.expr_boundness, then_br);
             let b_else_br = get_mut(&mut self.expr_boundness, else_br);
             update(&mut self.expr_boundness, e, b_cond && b_then_br && b_else_br);
+          }
+          CallOp(arg_locs, e) => {
+            let mut b = true;
+            for arg in arg_locs {
+              b &= get_mut(&mut self.expr_boundness, arg);
+            }
+            update(&mut self.expr_boundness, e, b);
           }
         }
       }

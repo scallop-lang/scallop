@@ -1,0 +1,2 @@
+SAMPLE_TYPE_CATEGORICAL = "categorical"
+SAMPLE_TYPE_TOP_K = "top-k"

@@ -1,25 +1,25 @@
 use super::*;
 
-pub fn collection<'a, Tup, T>(
-  collection: &'a StaticCollection<Tup, T>,
+pub fn collection<'a, Tup, Prov>(
+  collection: &'a StaticCollection<Tup, Prov>,
   first_time: bool,
-) -> StaticCollectionDataflow<'a, Tup, T>
+) -> StaticCollectionDataflow<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
   StaticCollectionDataflow { collection, first_time }
 }
 
-pub struct StaticCollectionDataflow<'a, Tup: StaticTupleTrait, T: Tag> {
-  pub collection: &'a StaticCollection<Tup, T>,
+pub struct StaticCollectionDataflow<'a, Tup: StaticTupleTrait, Prov: Provenance> {
+  pub collection: &'a StaticCollection<Tup, Prov>,
   pub first_time: bool,
 }
 
-impl<'a, Tup, T> Clone for StaticCollectionDataflow<'a, Tup, T>
+impl<'a, Tup, Prov> Clone for StaticCollectionDataflow<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
   fn clone(&self) -> Self {
     Self {
@@ -29,14 +29,14 @@ where
   }
 }
 
-impl<'a, Tup, T> Dataflow<Tup, T> for StaticCollectionDataflow<'a, Tup, T>
+impl<'a, Tup, Prov> Dataflow<Tup, Prov> for StaticCollectionDataflow<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  type Stable = SingleBatch<StaticCollectionBatch<'a, Tup, T>>;
+  type Stable = SingleBatch<StaticCollectionBatch<'a, Tup, Prov>>;
 
-  type Recent = SingleBatch<StaticCollectionBatch<'a, Tup, T>>;
+  type Recent = SingleBatch<StaticCollectionBatch<'a, Tup, Prov>>;
 
   fn iter_recent(self) -> Self::Recent {
     if self.first_time {
@@ -61,12 +61,12 @@ where
   }
 }
 
-pub struct StaticCollectionBatch<'a, Tup: StaticTupleTrait, T: Tag> {
-  collection: &'a StaticCollection<Tup, T>,
+pub struct StaticCollectionBatch<'a, Tup: StaticTupleTrait, Prov: Provenance> {
+  collection: &'a StaticCollection<Tup, Prov>,
   i: usize,
 }
 
-impl<'a, Tup: StaticTupleTrait, T: Tag> Clone for StaticCollectionBatch<'a, Tup, T> {
+impl<'a, Tup: StaticTupleTrait, Prov: Provenance> Clone for StaticCollectionBatch<'a, Tup, Prov> {
   fn clone(&self) -> Self {
     Self {
       collection: self.collection,
@@ -75,12 +75,12 @@ impl<'a, Tup: StaticTupleTrait, T: Tag> Clone for StaticCollectionBatch<'a, Tup,
   }
 }
 
-impl<'a, Tup, T> Iterator for StaticCollectionBatch<'a, Tup, T>
+impl<'a, Tup, Prov> Iterator for StaticCollectionBatch<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  type Item = StaticElement<Tup, T>;
+  type Item = StaticElement<Tup, Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     if let Some(e) = self.collection.ith(self.i) {
@@ -92,9 +92,9 @@ where
   }
 }
 
-impl<'a, Tup, T> Batch<Tup, T> for StaticCollectionBatch<'a, Tup, T>
+impl<'a, Tup, Prov> Batch<Tup, Prov> for StaticCollectionBatch<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
 }

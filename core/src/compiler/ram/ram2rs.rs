@@ -6,6 +6,7 @@ use super::*;
 use crate::common::aggregate_op::*;
 use crate::common::binary_op::*;
 use crate::common::expr::*;
+use crate::common::input_tag::*;
 use crate::common::output_option::OutputOption;
 use crate::common::tuple::*;
 use crate::common::tuple_type::*;
@@ -34,7 +35,8 @@ impl ast::Program {
       })
       .collect::<Vec<_>>();
     let final_result_struct_decl = quote! {
-      pub struct OutputRelations<C: ProvenanceContext> { #(#final_result_fields)* }
+      #[derive(Clone)]
+      pub struct OutputRelations<C: Provenance> { #(#final_result_fields)* }
     };
 
     // Strata Struct/run code
@@ -83,15 +85,16 @@ impl ast::Program {
     // Composite
     quote! {
       // use std::rc::Rc;
+      use scallop_core::common::input_tag::*;
       use scallop_core::runtime::provenance::*;
       use scallop_core::runtime::statics::*;
       use scallop_core::runtime::edb::*;
       #(#strata_rs)*
       #final_result_struct_decl
-      pub fn run<C: ProvenanceContext>(ctx: &mut C) -> OutputRelations<C> {
+      pub fn run<C: Provenance>(ctx: &mut C) -> OutputRelations<C> {
         run_with_edb(ctx, EDB::new())
       }
-      pub fn run_with_edb<C: ProvenanceContext>(ctx: &mut C, mut edb: EDB<C>) -> OutputRelations<C> {
+      pub fn run_with_edb<C: Provenance>(ctx: &mut C, mut edb: EDB<C>) -> OutputRelations<C> {
         #(#exec_strata)*
         #output_relations
       }
@@ -116,7 +119,7 @@ impl ast::Program {
         use scallop_core::common::value_type::FromType;
         use scallop_core::runtime::edb::*;
         use scallop_core::runtime::provenance::*;
-        pub fn create_edb<C: ProvenanceContext>() -> EDB<C> {
+        pub fn create_edb<C: Provenance>() -> EDB<C> {
           EDB::new_with_types(vec![ #(#relation_types),* ].into_iter())
         }
       }
@@ -169,7 +172,7 @@ impl ast::Stratum {
         }
       })
       .collect::<Vec<_>>();
-    quote! { struct #struct_name<C: ProvenanceContext> { #(#fields)* } }
+    quote! { struct #struct_name<C: Provenance> { #(#fields)* } }
   }
 
   pub fn to_rs_run_fn(
@@ -198,30 +201,45 @@ impl ast::Stratum {
         let rs_ty = tuple_type_to_rs_type(&relation.tuple_type);
         let create_stmt = quote! { let #rs_rel_name = iter.create_relation::<#rs_ty>(); };
 
-        // 1.2. Add non-probabilistic facts
-        let one_tuples = relation
+        // 1.2. Add facts
+        let tuples = relation
           .facts
           .iter()
-          .filter_map(|f| {
-            if f.tag.is_none() {
-              Some(tuple_to_rs_tuple(&f.tuple))
-            } else {
-              None
-            }
+          .map(|f| {
+            let tag = input_tag_to_rs_input_tag(&f.tag);
+            let tup = tuple_to_rs_tuple(&f.tuple);
+            quote! { (#tag, #tup) }
           })
           .collect::<Vec<_>>();
-        let add_one_fact_stmt = if one_tuples.is_empty() {
+        let add_fact_stmt = if tuples.is_empty() {
           quote! {}
         } else {
-          quote! { #rs_rel_name.insert_untagged(iter.provenance_context, vec![#(#one_tuples),*]); }
+          quote! { #rs_rel_name.insert_dynamically_tagged(iter.provenance_context, vec![#(#tuples),*]); }
         };
 
-        // 1.3. Load from edb
+        // 1.3. Add disjunctions
+        let add_disj_stmts = relation
+          .disjunctive_facts
+          .iter()
+          .map(|fs| {
+            let tuples = fs
+              .iter()
+              .map(|f| {
+                let tag = input_tag_to_rs_input_tag(&f.tag);
+                let tup = tuple_to_rs_tuple(&f.tuple);
+                quote! { (#tag, #tup) }
+              })
+              .collect::<Vec<_>>();
+            quote! { #rs_rel_name.insert_dynamically_tagged_annotated_disjunction(iter.provenance_context, vec![#(#tuples),*]); }
+          })
+          .collect::<Vec<_>>();
+
+        // 1.4. Load from edb
         let load_from_edb_stmt =
           quote! { edb.load_into_static_relation(#predicate, iter.provenance_context, &#rs_rel_name); };
 
         // Ensemble statements
-        quote! { #create_stmt #add_one_fact_stmt #load_from_edb_stmt }
+        quote! { #create_stmt #add_fact_stmt #(#add_disj_stmts)* #load_from_edb_stmt }
       })
       .collect::<Vec<_>>();
 
@@ -249,8 +267,8 @@ impl ast::Stratum {
 
     // Final function
     quote! {
-      fn #fn_name<C: ProvenanceContext>(ctx: &mut C, edb: &mut EDB<C>, #(#args)*) -> #ret_ty<C> {
-        let mut iter = StaticIteration::<C::Tag>::new(ctx);
+      fn #fn_name<C: Provenance>(ctx: &mut C, edb: &mut EDB<C>, #(#args)*) -> #ret_ty<C> {
+        let mut iter = StaticIteration::<C>::new(ctx);
         #(#create_relation_stmts)*
         while iter.changed() || iter.is_first_iteration() {
           #(#updates)*
@@ -263,16 +281,20 @@ impl ast::Stratum {
 }
 
 impl ast::Relation {
+  pub fn to_rs_field_name(&self) -> TokenStream {
+    relation_name_to_rs_field_name(&self.predicate)
+  }
+
   pub fn to_rs_result_struct_field(&self, _: &CompileOptions) -> TokenStream {
     let field_name = relation_name_to_rs_field_name(&self.predicate);
     let ty = tuple_type_to_rs_type(&self.tuple_type);
-    quote! { #field_name: StaticCollection<#ty, C::Tag>, }
+    quote! { #field_name: StaticCollection<#ty, C>, }
   }
 
   pub fn to_rs_output_struct_field(&self, _: &CompileOptions) -> TokenStream {
     let field_name = relation_name_to_rs_field_name(&self.predicate);
     let ty = tuple_type_to_rs_type(&self.tuple_type);
-    quote! { #field_name: StaticOutputCollection<#ty, C::Tag>, }
+    quote! { #field_name: StaticOutputCollection<#ty, C>, }
   }
 }
 
@@ -287,8 +309,9 @@ impl ast::Update {
 impl ast::Dataflow {
   pub fn to_rs_dataflow(&self, curr_strat_id: usize, rel_to_strat_map: &RelationToStratumMap) -> TokenStream {
     match self {
-      Self::Unit => {
-        unimplemented!()
+      Self::Unit(tuple_type) => {
+        let ty = tuple_type_to_rs_type(tuple_type);
+        quote! { iter.unit::<#ty>(iter.is_first_iteration()) }
       }
       Self::Union(d1, d2) => {
         let rs_d1 = d1.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
@@ -335,6 +358,10 @@ impl ast::Dataflow {
         let rs_tuple = tuple_to_rs_tuple(tuple);
         quote! { dataflow::find(#rs_d1, #rs_tuple) }
       }
+      Self::OverwriteOne(d1) => {
+        let rs_d1 = d1.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
+        quote! { dataflow::overwrite_one(#rs_d1) }
+      }
       Self::Reduce(r) => {
         let get_col = |r| {
           let rel_ident = relation_name_to_rs_field_name(r);
@@ -356,7 +383,7 @@ impl ast::Dataflow {
           AggregateOp::Argmax => quote! { ArgmaxAggregator::new() },
           AggregateOp::Argmin => quote! { ArgminAggregator::new() },
           AggregateOp::Exists => quote! { ExistsAggregator::new() },
-          AggregateOp::Unique => quote! { UniqueAggregator::new() },
+          AggregateOp::TopK(k) => quote! { TopKAggregator::new(#k) },
         };
 
         // Get the dataflow
@@ -461,18 +488,18 @@ fn expr_to_rs_expr(expr: &Expr) -> TokenStream {
       let op1 = expr_to_rs_expr(&b.op1);
       let op2 = expr_to_rs_expr(&b.op2);
       let op = binary_op_to_rs(&b.op);
-      quote! { #op1 #op #op2 }
+      quote! { (#op1 #op #op2) }
     }
     Expr::Unary(u) => {
       let op1 = expr_to_rs_expr(&u.op1);
       match &u.op {
         UnaryOp::TypeCast(target_ty) => {
           let rs_ty = value_type_to_rs_type(target_ty);
-          quote! { #op1 as #rs_ty }
+          quote! { (#op1 as #rs_ty) }
         }
-        UnaryOp::Not => quote! { !#op1 },
-        UnaryOp::Pos => quote! { +#op1 },
-        UnaryOp::Neg => quote! { -#op1 },
+        UnaryOp::Not => quote! { (!#op1) },
+        UnaryOp::Pos => quote! { (+#op1) },
+        UnaryOp::Neg => quote! { (-#op1) },
       }
     }
     Expr::IfThenElse(i) => {
@@ -481,6 +508,18 @@ fn expr_to_rs_expr(expr: &Expr) -> TokenStream {
       let else_br = expr_to_rs_expr(&i.else_br);
       quote! { if #cond { #then_br } else { #else_br } }
     }
+    Expr::Call(_) => {
+      unimplemented!()
+    }
+  }
+}
+
+fn input_tag_to_rs_input_tag(tag: &InputTag) -> TokenStream {
+  match tag {
+    InputTag::None => quote! { InputTag::None },
+    InputTag::Bool(b) => quote! { InputTag::Bool(#b) },
+    InputTag::Float(f) => quote! { InputTag::Float(#f) },
+    InputTag::TaggedFloat(_, _) => quote! { InputTag::None },
   }
 }
 

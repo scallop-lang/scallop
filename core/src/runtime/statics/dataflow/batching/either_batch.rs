@@ -5,23 +5,23 @@ use crate::runtime::provenance::*;
 use crate::runtime::statics::*;
 
 #[derive(Clone)]
-pub enum EitherBatch<I1, I2, Tup, T>
+pub enum EitherBatch<I1, I2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<Tup, T>,
-  I2: Batch<Tup, T>,
+  Prov: Provenance,
+  I1: Batch<Tup, Prov>,
+  I2: Batch<Tup, Prov>,
 {
-  First(I1, PhantomData<(Tup, T)>),
-  Second(I2, PhantomData<(Tup, T)>),
+  First(I1, PhantomData<(Tup, Prov)>),
+  Second(I2, PhantomData<(Tup, Prov)>),
 }
 
-impl<I1, I2, Tup, T> EitherBatch<I1, I2, Tup, T>
+impl<I1, I2, Tup, Prov> EitherBatch<I1, I2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<Tup, T>,
-  I2: Batch<Tup, T>,
+  Prov: Provenance,
+  I1: Batch<Tup, Prov>,
+  I2: Batch<Tup, Prov>,
 {
   pub fn first(i1: I1) -> Self {
     Self::First(i1, PhantomData)
@@ -32,14 +32,14 @@ where
   }
 }
 
-impl<I1, I2, Tup, T> Iterator for EitherBatch<I1, I2, Tup, T>
+impl<I1, I2, Tup, Prov> Iterator for EitherBatch<I1, I2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<Tup, T>,
-  I2: Batch<Tup, T>,
+  Prov: Provenance,
+  I1: Batch<Tup, Prov>,
+  I2: Batch<Tup, Prov>,
 {
-  type Item = StaticElement<Tup, T>;
+  type Item = StaticElement<Tup, Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     match self {
@@ -49,11 +49,11 @@ where
   }
 }
 
-impl<I1, I2, Tup, T> Batch<Tup, T> for EitherBatch<I1, I2, Tup, T>
+impl<I1, I2, Tup, Prov> Batch<Tup, Prov> for EitherBatch<I1, I2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<Tup, T>,
-  I2: Batch<Tup, T>,
+  Prov: Provenance,
+  I1: Batch<Tup, Prov>,
+  I2: Batch<Tup, Prov>,
 {
 }

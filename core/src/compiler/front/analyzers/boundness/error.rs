@@ -9,30 +9,30 @@ pub enum BoundnessAnalysisError {
   ReduceArgUnbound { loc: Loc },
 }
 
-impl From<BoundnessAnalysisError> for FrontCompileError {
-  fn from(e: BoundnessAnalysisError) -> Self {
-    Self::BoundnessAnalysisError(e)
+impl FrontCompileErrorClone for BoundnessAnalysisError {
+  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
+    Box::new(self.clone())
   }
 }
 
-impl BoundnessAnalysisError {
-  pub fn report(&self, src: &Sources) {
+impl FrontCompileErrorTrait for BoundnessAnalysisError {
+  fn error_type(&self) -> FrontCompileErrorType {
+    FrontCompileErrorType::Error
+  }
+
+  fn report(&self, src: &Sources) -> String {
     match self {
       Self::UnboundVariable { var_name, var_loc } => {
-        println!("Unbound variable `{}` in the rule", var_name);
-        var_loc.report(src);
+        format!("Unbound variable `{}` in the rule\n{}", var_name, var_loc.report(src))
       }
       Self::HeadExprUnbound { loc } => {
-        println!("Argument of the head of a rule is unbounded");
-        loc.report(src);
+        format!("Argument of the head of a rule is unbounded\n{}", loc.report(src))
       }
       Self::ConstraintUnbound { loc } => {
-        println!("Constraint unbound");
-        loc.report(src);
+        format!("Constraint unbound\n{}", loc.report(src))
       }
       Self::ReduceArgUnbound { loc } => {
-        println!("The argument for the aggregation is unbounded");
-        loc.report(src);
+        format!("The argument for the aggregation is unbounded\n{}", loc.report(src))
       }
     }
   }

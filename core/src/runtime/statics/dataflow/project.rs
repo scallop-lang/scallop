@@ -3,12 +3,12 @@ use std::marker::PhantomData;
 use super::*;
 use crate::runtime::statics::*;
 
-pub fn project<S, F, T1, T2, T>(source: S, map_fn: F) -> Projection<S, F, T1, T2, T>
+pub fn project<S, F, T1, T2, Prov>(source: S, map_fn: F) -> Projection<S, F, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  S: Dataflow<T1, T>,
+  Prov: Provenance,
+  S: Dataflow<T1, Prov>,
   F: Fn(T1) -> T2,
 {
   Projection {
@@ -18,55 +18,55 @@ where
   }
 }
 
-pub trait ProjectionOnDataflow<S, F, T1, T2, T>
+pub trait ProjectionOnDataflow<S, F, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  S: Dataflow<T1, T>,
+  Prov: Provenance,
+  S: Dataflow<T1, Prov>,
   F: Fn(T1) -> T2,
 {
-  fn project(self, map_fn: F) -> Projection<S, F, T1, T2, T>;
+  fn project(self, map_fn: F) -> Projection<S, F, T1, T2, Prov>;
 }
 
-impl<S, F, T1, T2, T> ProjectionOnDataflow<S, F, T1, T2, T> for S
+impl<S, F, T1, T2, Prov> ProjectionOnDataflow<S, F, T1, T2, Prov> for S
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  S: Dataflow<T1, T>,
+  Prov: Provenance,
+  S: Dataflow<T1, Prov>,
   F: Fn(T1) -> T2,
 {
-  fn project(self, map_fn: F) -> Projection<S, F, T1, T2, T> {
+  fn project(self, map_fn: F) -> Projection<S, F, T1, T2, Prov> {
     project(self, map_fn)
   }
 }
 
 #[derive(Clone)]
-pub struct Projection<S, F, T1, T2, T>
+pub struct Projection<S, F, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  S: Dataflow<T1, T>,
+  Prov: Provenance,
+  S: Dataflow<T1, Prov>,
   F: Fn(T1) -> T2,
 {
   source: S,
   map_fn: F,
-  phantom: PhantomData<(T1, T2, T)>,
+  phantom: PhantomData<(T1, T2, Prov)>,
 }
 
-impl<S, F, T1, T2, T> Dataflow<T2, T> for Projection<S, F, T1, T2, T>
+impl<S, F, T1, T2, Prov> Dataflow<T2, Prov> for Projection<S, F, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  S: Dataflow<T1, T>,
+  Prov: Provenance,
+  S: Dataflow<T1, Prov>,
   F: Fn(T1) -> T2 + Clone,
 {
-  type Stable = BatchesMap<S::Stable, ProjectOp<F, T1, T2, T>, T1, T2, T>;
+  type Stable = BatchesMap<S::Stable, ProjectOp<F, T1, T2, Prov>, T1, T2, Prov>;
 
-  type Recent = BatchesMap<S::Recent, ProjectOp<F, T1, T2, T>, T1, T2, T>;
+  type Recent = BatchesMap<S::Recent, ProjectOp<F, T1, T2, Prov>, T1, T2, Prov>;
 
   fn iter_stable(&self) -> Self::Stable {
     let op = ProjectOp::new(self.map_fn.clone());
@@ -100,15 +100,15 @@ where
   }
 }
 
-impl<I1, F, T1, T2, T> BatchUnaryOp<I1> for ProjectOp<F, T1, T2, T>
+impl<I1, F, T1, T2, Prov> BatchUnaryOp<I1> for ProjectOp<F, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<T1, T>,
+  Prov: Provenance,
+  I1: Batch<T1, Prov>,
   F: Fn(T1) -> T2 + Clone,
 {
-  type I2 = ProjectionIterator<I1, F, T1, T2, T>;
+  type I2 = ProjectionIterator<I1, F, T1, T2, Prov>;
 
   fn apply(&self, i1: I1) -> Self::I2 {
     Self::I2 {
@@ -120,28 +120,28 @@ where
 }
 
 #[derive(Clone)]
-pub struct ProjectionIterator<I, F, T1, T2, T>
+pub struct ProjectionIterator<I, F, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  I: Batch<T1, T>,
+  Prov: Provenance,
+  I: Batch<T1, Prov>,
   F: Fn(T1) -> T2 + Clone,
 {
   source_iter: I,
   map_fn: F,
-  phantom: PhantomData<(T1, T2, T)>,
+  phantom: PhantomData<(T1, T2, Prov)>,
 }
 
-impl<I, F, T1, T2, T> Iterator for ProjectionIterator<I, F, T1, T2, T>
+impl<I, F, T1, T2, Prov> Iterator for ProjectionIterator<I, F, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  I: Batch<T1, T>,
+  Prov: Provenance,
+  I: Batch<T1, Prov>,
   F: Fn(T1) -> T2 + Clone,
 {
-  type Item = StaticElement<T2, T>;
+  type Item = StaticElement<T2, Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     match self.source_iter.next() {
@@ -158,12 +158,12 @@ where
   }
 }
 
-impl<I, F, T1, T2, T> Batch<T2, T> for ProjectionIterator<I, F, T1, T2, T>
+impl<I, F, T1, T2, Prov> Batch<T2, Prov> for ProjectionIterator<I, F, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  I: Batch<T1, T>,
+  Prov: Provenance,
+  I: Batch<T1, Prov>,
   F: Fn(T1) -> T2 + Clone,
 {
 }

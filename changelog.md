@@ -1,3 +1,12 @@
+# v0.1.5, August 21, 2022
+
+`v0.1.5` introduces JIT compilation and many more features
+- JIT compilation in `scallopy` (`jit=True`)
+- `scallopy` forward function can output multiple relations instead of just one
+- Add standard library functions such as `string_length`, `hash`, etc.
+- Add more provenance structures such as `diffnandmultprob`, `diffaddminprob`, etc.
+- Systematic internal monitoring and `--debug-tag` options
+
 # v0.1.4, July 24, 2022
 
 `v0.1.4` introduces multiple bug fixes and new features

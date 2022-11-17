@@ -104,7 +104,10 @@ impl FrontContext {
               let args = tuple
                 .iter_constants()
                 .zip(tys.iter())
-                .map(|(c, t)| c.to_value(t))
+                .map(|(c, t)| {
+                  // Unwrap is okay here since we have checked for constant in pre-transformation analysis
+                  c.constant().unwrap().to_value(t)
+                })
                 .collect();
               back::Fact {
                 tag: tuple.tag().input_tag().clone(),
@@ -145,7 +148,10 @@ impl FrontContext {
               let args = tuple
                 .iter_constants()
                 .zip(tys.iter())
-                .map(|(c, t)| c.to_value(t))
+                .map(|(c, t)| {
+                  // Unwrap is okay here since we have checked for constant in pre-transformation analysis
+                  c.constant().unwrap().to_value(t)
+                })
                 .collect();
               back::Fact {
                 tag: tuple.tag().input_tag().clone(),
@@ -442,7 +448,8 @@ impl FrontContext {
       front::ReduceOperatorNode::Min => AggregateOp::min(!arg_vars.is_empty()),
       front::ReduceOperatorNode::Max => AggregateOp::max(!arg_vars.is_empty()),
       front::ReduceOperatorNode::Exists => AggregateOp::Exists,
-      front::ReduceOperatorNode::Unique => AggregateOp::Unique,
+      front::ReduceOperatorNode::Unique => AggregateOp::top_k(1),
+      front::ReduceOperatorNode::TopK(k) => AggregateOp::top_k(k.clone()),
       front::ReduceOperatorNode::Forall => {
         panic!("There should be no forall aggregator op. This is a bug");
       }

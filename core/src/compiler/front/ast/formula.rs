@@ -131,6 +131,12 @@ pub struct ConstraintNode {
   pub expr: Expr,
 }
 
+impl ConstraintNode {
+  pub fn new(expr: Expr) -> Self {
+    Self { expr }
+  }
+}
+
 pub type Constraint = AstNode<ConstraintNode>;
 
 impl Constraint {
@@ -228,6 +234,7 @@ pub enum ReduceOperatorNode {
   Exists,
   Forall,
   Unique,
+  TopK(usize),
   Unknown(String),
 }
 
@@ -251,7 +258,8 @@ impl ReduceOperator {
       ReduceOperatorNode::Exists => Some(1),
       ReduceOperatorNode::Forall => Some(1),
       ReduceOperatorNode::Unique => None,
-      _ => None,
+      ReduceOperatorNode::TopK(_) => None,
+      ReduceOperatorNode::Unknown(_) => None,
     }
   }
 
@@ -265,21 +273,23 @@ impl ReduceOperator {
       ReduceOperatorNode::Exists => None,
       ReduceOperatorNode::Forall => None,
       ReduceOperatorNode::Unique => None,
+      ReduceOperatorNode::TopK(_) => None,
       _ => None,
     }
   }
 
-  pub fn to_str(&self) -> &'static str {
+  pub fn to_string(&self) -> String {
     match &self.node {
-      ReduceOperatorNode::Count => "count",
-      ReduceOperatorNode::Sum => "sum",
-      ReduceOperatorNode::Prod => "prod",
-      ReduceOperatorNode::Min => "min",
-      ReduceOperatorNode::Max => "max",
-      ReduceOperatorNode::Exists => "exists",
-      ReduceOperatorNode::Forall => "forall",
-      ReduceOperatorNode::Unique => "unique",
-      _ => "unknown",
+      ReduceOperatorNode::Count => "count".to_string(),
+      ReduceOperatorNode::Sum => "sum".to_string(),
+      ReduceOperatorNode::Prod => "prod".to_string(),
+      ReduceOperatorNode::Min => "min".to_string(),
+      ReduceOperatorNode::Max => "max".to_string(),
+      ReduceOperatorNode::Exists => "exists".to_string(),
+      ReduceOperatorNode::Forall => "forall".to_string(),
+      ReduceOperatorNode::Unique => "unique".to_string(),
+      ReduceOperatorNode::TopK(k) => format!("top<{}>", k),
+      ReduceOperatorNode::Unknown(_) => "unknown".to_string(),
     }
   }
 }

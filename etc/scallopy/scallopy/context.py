@@ -12,6 +12,7 @@ from .provenance import ScallopProvenance, DiffAddMultProb2Semiring, DiffNandMul
 from .io import CSVFileOptions
 from .utils import _mapping_tuple
 from .history import HistoryAction, record_history
+from .sample_type import SAMPLE_TYPE_TOP_K
 
 # Main context
 class ScallopContext(Context):
@@ -48,7 +49,6 @@ class ScallopContext(Context):
   :param k:
   :param train_k:
   :param test_k:
-  :param wmc_type: The method for WMC. Can be chosen from `"top-down"` or `"bottom-up"`
   """
   def __init__(
     self,
@@ -85,6 +85,8 @@ class ScallopContext(Context):
       self._input_mappings = {}
       self._input_retain_topk = {}
       self._input_non_probabilistic = {}
+      self._input_is_singleton = {}
+      self._sample_facts = {}
       self._k = k
       self._train_k = train_k
       self._test_k = test_k
@@ -97,6 +99,8 @@ class ScallopContext(Context):
       self._input_mappings = deepcopy(fork_from._input_mappings)
       self._input_retain_topk = deepcopy(fork_from._input_retain_topk)
       self._input_non_probabilistic = deepcopy(fork_from._input_non_probabilistic)
+      self._input_is_singleton = deepcopy(fork_from._input_is_singleton)
+      self._sample_facts = deepcopy(fork_from._sample_facts)
       self._k = deepcopy(fork_from._k)
       self._train_k = deepcopy(fork_from._train_k)
       self._test_k = deepcopy(fork_from._test_k)
@@ -122,7 +126,7 @@ class ScallopContext(Context):
     self._history_actions: List[HistoryAction] = []
 
     # Internal scallop context
-    self._internal = InternalScallopContext(provenance=self.provenance, custom_provenance=self._custom_provenance, k=self._k, wmc_type=self._wmc_type)
+    self._internal = InternalScallopContext(provenance=self.provenance, custom_provenance=self._custom_provenance, k=self._k)
 
     # Restore from history actions
     for history_action in state["_history_actions"]:
@@ -182,14 +186,25 @@ class ScallopContext(Context):
     """
     self._internal.import_file(file_name)
 
+  @record_history
+  def add_program(self, program: str):
+    """
+    Add a full scallop program string
+    """
+    self._internal.add_program(program)
+
   def forward_function(
     self,
     output: Optional[str] = None,
     output_mapping: Optional[Union[List[Tuple], Tuple]] = None,
+    output_mappings: Optional[Dict[str, List[Tuple]]] = None,
     iter_limit: Optional[int] = None,
     dispatch: Optional[str] = "parallel",
     debug_provenance: bool = False,
     retain_graph: bool = False,
+    jit: bool = False,
+    jit_name: str = "",
+    recompile: bool = False,
   ) -> Callable:
     """
     Generate a forward function for PyTorch module.
@@ -207,18 +222,18 @@ class ScallopContext(Context):
     If not specified (i.e. None), will run until fixpoint
     """
     # Import ScallopForward to avoid circular dependency
-    from .forward import ScallopForward
+    from .forward import InternalScallopForwardFunction
 
     # Check PyTorch support
     if not has_pytorch:
       raise Exception("`forward_function` cannot be called when there is no PyTorch")
 
     # Needs to be a differentiable context
-    if "diff" in self.provenance or self.provenance == "custom": pass
+    if ("diff" in self.provenance or self.provenance == "custom") and not "debug" in self.provenance: pass
     else: raise Exception("`forward_function` can only be called on context with differentiable provenance")
 
     # Forward function
-    return ScallopForward(self, output, output_mapping, iter_limit, dispatch, debug_provenance, retain_graph)
+    return InternalScallopForwardFunction(self, output, output_mapping, output_mappings, iter_limit, dispatch, debug_provenance, retain_graph, jit, jit_name, recompile)
 
   def _refresh_training_eval_state(self):
     if self._train_k is not None or self._test_k is not None:
@@ -307,9 +322,11 @@ class ScallopContext(Context):
         raise Exception(f"Unknown type `{ty}`")
 
     # Make sure that relation types is a tuple
+    is_singleton_tuple = False
     if type(relation_types) == tuple:
       relation_types_tuple = relation_types
     elif type(relation_types) == type or type(relation_types) == str:
+      is_singleton_tuple = True
       relation_types_tuple = (relation_types,)
     else:
       raise Exception(f"Unknown relation types `{relation_types}`")
@@ -326,12 +343,7 @@ class ScallopContext(Context):
 
     # Store the input mapping
     if input_mapping is not None:
-      if type(input_mapping) == list:
-        self._input_mappings[relation_name] = ([_mapping_tuple(t) for t in input_mapping], False)
-      elif type(input_mapping) == tuple:
-        self._input_mappings[relation_name] = ([_mapping_tuple(input_mapping)], True)
-      else:
-        raise Exception(f"Unknown input mapping type `{type(input_mapping)}`. Must be a list or tuple")
+      self.set_input_mapping(relation_name, input_mapping)
 
     # Store the retain topk property
     if retain_topk is not None:
@@ -340,6 +352,10 @@ class ScallopContext(Context):
     # Store the non-probabilistic property
     if non_probabilistic:
       self._input_non_probabilistic[relation_name] = True
+
+    # Store the input is singleton property
+    if is_singleton_tuple:
+      self._input_is_singleton[relation_name] = True
 
   @record_history
   def add_facts(
@@ -380,10 +396,23 @@ class ScallopContext(Context):
     :param elems: the tuple elements
     :param disjunctions: the disjunctions
     """
+
+    # First normalize the probability format
+    if relation in self._input_non_probabilistic and self._input_non_probabilistic[relation] and self.requires_tag():
+      elems = [(None, t) for t in elems]
+
+    # Then normalize the singleton tuple format
+    if relation in self._input_is_singleton and self._input_is_singleton[relation]:
+      if self.requires_tag():
+        elems = [(tag, (tup,)) if type(tup) != tuple else (tag, tup) for (tag, tup) in elems]
+      else:
+        elems = [(tup,) if type(tup) != tuple else tup for tup in elems]
+
+    # Add the facts
     self._internal.add_facts(relation, elems, disjunctions)
 
   @record_history
-  def add_rule(self, rule: str, tag: Optional[Any] = None):
+  def add_rule(self, rule: str, tag: Optional[Any] = None, demand: Optional[str] = None):
     """
     Add rule to the context. The rule will be compiled and compilation
     error may be raised.
@@ -403,7 +432,7 @@ class ScallopContext(Context):
     :param rule: a rule in scallop syntax
     :param tag: the tag associated with the rule
     """
-    self._internal.add_rule(rule, tag=tag)
+    self._internal.add_rule(rule, tag=tag, demand=demand)
 
   @record_history
   def compile(self):
@@ -416,7 +445,7 @@ class ScallopContext(Context):
     """
     self._internal.dump_front_ir()
 
-  def relation(self, relation: str) -> ScallopCollection:
+  def relation(self, relation: str, debug: bool = False) -> ScallopCollection:
     """
     Inspect the (computed) relation in the context. Will return
     a `ScallopCollection` which is iterable.
@@ -428,10 +457,8 @@ class ScallopContext(Context):
 
     :param relation: the name of the relation
     """
-    return ScallopCollection(
-      self.provenance,
-      self._internal.relation(relation),
-    )
+    int_col = self._internal.relation(relation) if not debug else self._internal.relation_with_debug_tag(relation)
+    return ScallopCollection(self.provenance, int_col)
 
   def has_relation(self, relation: str) -> bool:
     """
@@ -480,8 +507,37 @@ class ScallopContext(Context):
     Set the input mapping for the given relation
     """
     if type(input_mapping) == list:
-      self._input_mappings[relation] = ([_mapping_tuple(t) for t in input_mapping], False)
+      (preproc_input_mapping, is_singleton) = ([_mapping_tuple(t) for t in input_mapping], False)
     elif type(input_mapping) == tuple:
-      self._input_mappings[relation] = ([_mapping_tuple(input_mapping)], True)
+      (preproc_input_mapping, is_singleton) = ([_mapping_tuple(input_mapping)], True)
     else:
       raise Exception(f"Unknown input mapping type `{type(input_mapping)}`. Must be a list or tuple")
+
+    # Check if the tuples in the input mapping matches
+    for tuple in preproc_input_mapping:
+      if not self._internal.check_tuple(relation, tuple):
+        raise Exception(f"The tuple {tuple} in the input mapping does not match the type of the relation `{relation}`")
+
+    # If there is no problem, set the input_mapping property
+    self._input_mappings[relation] = (preproc_input_mapping, is_singleton)
+
+  def set_sample_topk_facts(self, relation: str, amount: int):
+    self._input_retain_topk[relation] = amount
+
+  def set_sample_facts(self, relation: str, amount: int, sample_type: str = SAMPLE_TYPE_TOP_K):
+    """
+    When forward function is called, sample from the given facts by the amount
+
+    :param relation: the relation within which the facts need to be sampled
+    :param sample_type: can be chosen from "categorical" or ""
+    """
+    self._sample_facts[relation] = (sample_type, amount)
+
+  def requires_tag(self) -> bool:
+    """
+    Returns whether the context requires facts to be associated with tags
+    """
+    if self.provenance == "unit" or self.provenance == "proofs":
+      return False
+    else:
+      return True

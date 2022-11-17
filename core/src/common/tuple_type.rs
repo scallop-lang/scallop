@@ -57,6 +57,13 @@ impl TupleType {
       Self::Tuple(types.iter().cloned().map(Self::Value).collect())
     }
   }
+
+  pub fn unit_value(&self) -> Tuple {
+    match self {
+      Self::Value(_) => panic!("[Internal Error] Should not happen; calling `unit_value` on non-empty tuple type"),
+      Self::Tuple(t) => Tuple::Tuple(t.iter().map(|t| t.unit_value()).collect()),
+    }
+  }
 }
 
 impl<A> FromType<A> for TupleType

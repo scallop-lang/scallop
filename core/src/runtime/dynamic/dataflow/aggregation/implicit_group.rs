@@ -2,13 +2,13 @@ use crate::common::tuple::*;
 
 use super::*;
 
-pub struct DynamicAggregationImplicitGroupDataflow<'a, T: Tag> {
+pub struct DynamicAggregationImplicitGroupDataflow<'a, Prov: Provenance> {
   pub agg: DynamicAggregator,
-  pub d: Box<DynamicDataflow<'a, T>>,
-  pub ctx: &'a T::Context,
+  pub d: Box<DynamicDataflow<'a, Prov>>,
+  pub ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for DynamicAggregationImplicitGroupDataflow<'a, T> {
+impl<'a, Prov: Provenance> Clone for DynamicAggregationImplicitGroupDataflow<'a, Prov> {
   fn clone(&self) -> Self {
     Self {
       agg: self.agg.clone(),
@@ -18,8 +18,8 @@ impl<'a, T: Tag> Clone for DynamicAggregationImplicitGroupDataflow<'a, T> {
   }
 }
 
-impl<'a, T: Tag> DynamicAggregationImplicitGroupDataflow<'a, T> {
-  pub fn new(agg: DynamicAggregator, d: DynamicDataflow<'a, T>, ctx: &'a T::Context) -> Self {
+impl<'a, Prov: Provenance> DynamicAggregationImplicitGroupDataflow<'a, Prov> {
+  pub fn new(agg: DynamicAggregator, d: DynamicDataflow<'a, Prov>, ctx: &'a Prov) -> Self {
     Self {
       agg,
       d: Box::new(d),
@@ -27,11 +27,11 @@ impl<'a, T: Tag> DynamicAggregationImplicitGroupDataflow<'a, T> {
     }
   }
 
-  pub fn iter_stable(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     DynamicBatches::Empty
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     // Sanitize input relation
     let mut batch = if let Some(b) = self.d.iter_recent().next() {
       b
@@ -40,7 +40,7 @@ impl<'a, T: Tag> DynamicAggregationImplicitGroupDataflow<'a, T> {
     };
 
     // Temporary function to aggregate the group and populate the result
-    let consolidate_group = |result: &mut DynamicElements<T>, agg_key: Tuple, agg_group| {
+    let consolidate_group = |result: &mut DynamicElements<Prov>, agg_key: Tuple, agg_group| {
       let agg_results = self.agg.aggregate(agg_group, self.ctx);
       let joined_results = agg_results
         .into_iter()

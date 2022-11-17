@@ -9,10 +9,12 @@ use super::*;
 #[derive(Clone, Debug)]
 pub struct TypeInference {
   pub custom_types: HashMap<String, (ValueType, Loc)>,
+  pub constant_types: HashMap<Loc, Type>,
   pub relation_type_decl_loc: HashMap<String, Loc>,
   pub inferred_relation_types: HashMap<String, (Vec<TypeSet>, Loc)>,
   pub rule_variable_type: HashMap<Loc, HashMap<String, TypeSet>>,
   pub rule_local_contexts: Vec<LocalTypeInferenceContext>,
+  pub query_relations: HashMap<String, Loc>,
   pub expr_types: HashMap<Loc, TypeSet>,
   pub errors: Vec<TypeInferenceError>,
 }
@@ -21,10 +23,12 @@ impl TypeInference {
   pub fn new() -> Self {
     Self {
       custom_types: HashMap::new(),
+      constant_types: HashMap::new(),
       relation_type_decl_loc: HashMap::new(),
       inferred_relation_types: HashMap::new(),
       rule_variable_type: HashMap::new(),
       rule_local_contexts: Vec::new(),
+      query_relations: HashMap::new(),
       expr_types: HashMap::new(),
       errors: vec![],
     }
@@ -43,6 +47,10 @@ impl TypeInference {
       .iter()
       .filter(|(n, _)| !n.contains("#"))
       .count()
+  }
+
+  pub fn extend_constant_types(&mut self, constant_types: HashMap<Loc, Type>) {
+    self.constant_types.extend(constant_types.into_iter());
   }
 
   pub fn relations(&self) -> Vec<String> {
@@ -166,7 +174,33 @@ impl TypeInference {
     }
   }
 
-  fn _infer_types(&mut self) -> Result<(), TypeInferenceError> {
+  pub fn resolve_constant_type(&self, c: &Constant) -> Result<TypeSet, TypeInferenceError> {
+    if let Some(ty) = self.constant_types.get(c.location()) {
+      let val_ty = find_value_type(&self.custom_types, ty)?;
+      Ok(TypeSet::BaseType(val_ty, ty.location().clone()))
+    } else {
+      Ok(TypeSet::from_constant(c))
+    }
+  }
+
+  pub fn check_query_predicates(&mut self) {
+    for (pred, loc) in &self.query_relations {
+      if !self.inferred_relation_types.contains_key(pred) {
+        self.errors.push(TypeInferenceError::UnknownQueryRelationType {
+          predicate: pred.clone(),
+          loc: loc.clone(),
+        });
+      }
+    }
+  }
+
+  pub fn infer_types(&mut self) {
+    if let Err(err) = self.infer_types_helper() {
+      self.errors.push(err);
+    }
+  }
+
+  fn infer_types_helper(&mut self) -> Result<(), TypeInferenceError> {
     // Mapping from variable to set of expressions
     // Mapping from relation argument to set of expressions
     let mut inferred_var_expr = HashMap::<Loc, HashMap<String, BTreeSet<Loc>>>::new();
@@ -195,6 +229,7 @@ impl TypeInference {
       for ctx in &self.rule_local_contexts {
         ctx.unify_expr_types(
           &self.custom_types,
+          &self.constant_types,
           &self.inferred_relation_types,
           &mut inferred_expr_types,
         )?;
@@ -223,12 +258,6 @@ impl TypeInference {
 
     Ok(())
   }
-
-  pub fn infer_types(&mut self) {
-    if let Err(err) = self._infer_types() {
-      self.errors.push(err);
-    }
-  }
 }
 
 impl NodeVisitor for TypeInference {
@@ -244,16 +273,28 @@ impl NodeVisitor for TypeInference {
     );
   }
 
-  fn visit_relation_type_decl(&mut self, relation_type_decl: &RelationTypeDecl) {
+  fn visit_relation_type(&mut self, relation_type: &RelationType) {
     self.check_and_add_relation_type(
-      relation_type_decl.predicate(),
-      relation_type_decl.arg_types(),
-      relation_type_decl.location(),
+      relation_type.predicate(),
+      relation_type.arg_types(),
+      relation_type.location(),
     );
   }
 
-  fn visit_input_decl(&mut self, input_decl: &InputDecl) {
-    self.check_and_add_relation_type(input_decl.predicate(), input_decl.arg_types(), input_decl.location());
+  fn visit_const_assignment(&mut self, const_assign: &ConstAssignment) {
+    if let Some(raw_type) = const_assign.ty() {
+      let result = find_value_type(&self.custom_types, raw_type).and_then(|ty| {
+        let ts = TypeSet::from_constant(const_assign.value());
+        ts.unify(&TypeSet::BaseType(ty, raw_type.location().clone()))
+      });
+      match result {
+        Ok(_) => {}
+        Err(mut err) => {
+          err.annotate_location(const_assign.location());
+          self.errors.push(err);
+        }
+      }
+    }
   }
 
   fn visit_constant_set_decl(&mut self, constant_set_decl: &ConstantSetDecl) {
@@ -322,7 +363,14 @@ impl NodeVisitor for TypeInference {
 
       // If matches, we check whether the type matches
       for (c, ts) in tuple.iter_constants().zip(type_sets.iter_mut()) {
-        let curr_ts = TypeSet::from_constant(c);
+        // Unwrap is okay here because we have checked for constant in the pre-transformation analysis
+        let curr_ts = match self.resolve_constant_type(c.constant().unwrap()) {
+          Ok(t) => t,
+          Err(err) => {
+            self.errors.push(err);
+            continue;
+          }
+        };
         let maybe_new_ts = ts.unify(&curr_ts);
         match maybe_new_ts {
           Ok(new_ts) => {
@@ -346,51 +394,55 @@ impl NodeVisitor for TypeInference {
 
   fn visit_fact_decl(&mut self, fact_decl: &FactDecl) {
     let pred = fact_decl.predicate();
-    let maybe_type_sets = fact_decl
+    let maybe_curr_type_sets = fact_decl
       .iter_arguments()
       .map(|arg| match arg {
-        Expr::Constant(c) => Ok(TypeSet::from_constant(c)),
-        _ => Err(TypeInferenceError::NonConstantInFactDecl {
-          expr_loc: arg.location().clone(),
-        }),
+        Expr::Constant(c) => self.resolve_constant_type(c),
+        _ => {
+          panic!("[Internal Error] Non-constant occurring in fact decl during type inference. This should not happen")
+        }
       })
       .collect::<Result<Vec<_>, _>>();
-    match maybe_type_sets {
-      Ok(curr_type_sets) => {
-        if self.inferred_relation_types.contains_key(pred) {
-          let (original_type_sets, original_type_def_loc) = &self.inferred_relation_types[pred];
-
-          // First check if the arity matches
-          if curr_type_sets.len() != original_type_sets.len() {
-            self.errors.push(TypeInferenceError::ArityMismatch {
-              predicate: pred.clone(),
-              expected: original_type_sets.len(),
-              actual: curr_type_sets.len(),
-              source_loc: original_type_def_loc.clone(),
-              mismatch_loc: fact_decl.atom().location().clone(),
-            });
-            return;
-          }
-
-          // If matches, unify the types
-          let maybe_new_type_sets = original_type_sets
-            .iter()
-            .zip(curr_type_sets.iter())
-            .map(|(orig_ts, new_ts)| orig_ts.unify(new_ts))
-            .collect::<Result<Vec<_>, _>>();
-          match maybe_new_type_sets {
-            Ok(new_type_sets) => {
-              self.inferred_relation_types.get_mut(pred).unwrap().0 = new_type_sets;
-            }
-            Err(err) => self.errors.push(err),
-          }
-        } else {
-          self
-            .inferred_relation_types
-            .insert(pred.clone(), (curr_type_sets, fact_decl.location().clone()));
-        }
+    let curr_type_sets = match maybe_curr_type_sets {
+      Ok(t) => t,
+      Err(err) => {
+        self.errors.push(err);
+        return;
       }
-      Err(err) => self.errors.push(err),
+    };
+
+    // Check the type
+    if self.inferred_relation_types.contains_key(pred) {
+      let (original_type_sets, original_type_def_loc) = &self.inferred_relation_types[pred];
+
+      // First check if the arity matches
+      if curr_type_sets.len() != original_type_sets.len() {
+        self.errors.push(TypeInferenceError::ArityMismatch {
+          predicate: pred.clone(),
+          expected: original_type_sets.len(),
+          actual: curr_type_sets.len(),
+          source_loc: original_type_def_loc.clone(),
+          mismatch_loc: fact_decl.atom().location().clone(),
+        });
+        return;
+      }
+
+      // If matches, unify the types
+      let maybe_new_type_sets = original_type_sets
+        .iter()
+        .zip(curr_type_sets.iter())
+        .map(|(orig_ts, new_ts)| orig_ts.unify(new_ts))
+        .collect::<Result<Vec<_>, _>>();
+      match maybe_new_type_sets {
+        Ok(new_type_sets) => {
+          self.inferred_relation_types.get_mut(pred).unwrap().0 = new_type_sets;
+        }
+        Err(err) => self.errors.push(err),
+      }
+    } else {
+      self
+        .inferred_relation_types
+        .insert(pred.clone(), (curr_type_sets, fact_decl.location().clone()));
     }
   }
 
@@ -434,12 +486,7 @@ impl NodeVisitor for TypeInference {
         self.rule_local_contexts.push(ctx);
       }
       QueryNode::Predicate(p) => {
-        if !self.inferred_relation_types.contains_key(p.name()) {
-          self.errors.push(TypeInferenceError::UnknownQueryRelationType {
-            predicate: p.name().to_string(),
-            loc: p.location().clone(),
-          })
-        }
+        self.query_relations.insert(p.name().to_string(), p.location().clone());
       }
     }
   }

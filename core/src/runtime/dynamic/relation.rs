@@ -12,13 +12,13 @@ use crate::runtime::provenance::*;
 use crate::runtime::utils::*;
 
 #[derive(Clone)]
-pub struct DynamicRelation<T: Tag> {
-  pub stable: Rc<RefCell<Vec<DynamicCollection<T>>>>,
-  pub recent: Rc<RefCell<DynamicCollection<T>>>,
-  to_add: Rc<RefCell<Vec<DynamicCollection<T>>>>,
+pub struct DynamicRelation<Prov: Provenance> {
+  pub stable: Rc<RefCell<Vec<DynamicCollection<Prov>>>>,
+  pub recent: Rc<RefCell<DynamicCollection<Prov>>>,
+  to_add: Rc<RefCell<Vec<DynamicCollection<Prov>>>>,
 }
 
-impl<T: Tag> DynamicRelation<T> {
+impl<Prov: Provenance> DynamicRelation<Prov> {
   pub fn new() -> Self {
     Self {
       stable: Rc::new(RefCell::new(Vec::new())),
@@ -27,7 +27,7 @@ impl<T: Tag> DynamicRelation<T> {
     }
   }
 
-  pub fn insert_untagged<Tup>(&self, ctx: &mut T::Context, data: Vec<Tup>)
+  pub fn insert_untagged<Tup>(&self, ctx: &mut Prov, data: Vec<Tup>)
   where
     Tup: Into<Tuple>,
   {
@@ -35,16 +35,16 @@ impl<T: Tag> DynamicRelation<T> {
     self.insert_tagged(ctx, elements);
   }
 
-  pub fn insert_untagged_with_monitor<Tup, M>(&self, ctx: &mut T::Context, data: Vec<Tup>, m: &M)
+  pub fn insert_untagged_with_monitor<Tup, M>(&self, ctx: &mut Prov, data: Vec<Tup>, m: &M)
   where
     Tup: Into<Tuple>,
-    M: Monitor<T::Context>,
+    M: Monitor<Prov>,
   {
     let elements = data.into_iter().map(|tuple| (None, tuple)).collect::<Vec<_>>();
     self.insert_tagged_with_monitor(ctx, elements, m);
   }
 
-  pub fn insert_one_tagged<Tup>(&self, ctx: &mut T::Context, input_tag: Option<InputTagOf<T::Context>>, tuple: Tup)
+  pub fn insert_one_tagged<Tup>(&self, ctx: &mut Prov, input_tag: Option<InputTagOf<Prov>>, tuple: Tup)
   where
     Tup: Into<Tuple>,
   {
@@ -53,18 +53,18 @@ impl<T: Tag> DynamicRelation<T> {
 
   pub fn insert_one_tagged_with_monitor<Tup, M>(
     &self,
-    ctx: &mut T::Context,
-    input_tag: Option<InputTagOf<T::Context>>,
+    ctx: &mut Prov,
+    input_tag: Option<InputTagOf<Prov>>,
     tuple: Tup,
     m: &M,
   ) where
     Tup: Into<Tuple>,
-    M: Monitor<T::Context>,
+    M: Monitor<Prov>,
   {
     self.insert_tagged_with_monitor(ctx, vec![(input_tag, tuple)], m);
   }
 
-  pub fn insert_dynamically_tagged<Tup>(&self, ctx: &mut T::Context, data: Vec<(InputTag, Tup)>)
+  pub fn insert_dynamically_tagged<Tup>(&self, ctx: &mut Prov, data: Vec<(InputTag, Tup)>)
   where
     Tup: Into<Tuple>,
   {
@@ -78,10 +78,10 @@ impl<T: Tag> DynamicRelation<T> {
     self.insert_tagged(ctx, elements);
   }
 
-  pub fn insert_dynamically_tagged_with_monitor<Tup, M>(&self, ctx: &mut T::Context, data: Vec<(InputTag, Tup)>, m: &M)
+  pub fn insert_dynamically_tagged_with_monitor<Tup, M>(&self, ctx: &mut Prov, data: Vec<(InputTag, Tup)>, m: &M)
   where
     Tup: Into<Tuple>,
-    M: Monitor<T::Context>,
+    M: Monitor<Prov>,
   {
     let elements = data
       .into_iter()
@@ -93,7 +93,7 @@ impl<T: Tag> DynamicRelation<T> {
     self.insert_tagged_with_monitor(ctx, elements, m);
   }
 
-  pub fn insert_tagged<Tup>(&self, ctx: &mut T::Context, data: Vec<(Option<InputTagOf<T::Context>>, Tup)>)
+  pub fn insert_tagged<Tup>(&self, ctx: &mut Prov, data: Vec<(Option<InputTagOf<Prov>>, Tup)>)
   where
     Tup: Into<Tuple>,
   {
@@ -102,17 +102,17 @@ impl<T: Tag> DynamicRelation<T> {
       .map(|(info, tuple)| DynamicElement::new(tuple.into(), ctx.tagging_optional_fn(info)))
       .collect::<Vec<_>>();
     let dataflow = DynamicDataflow::Vec(&elements);
-    self.insert_dataflow_recent(ctx, &dataflow);
+    self.insert_dataflow_recent(ctx, &dataflow, false);
   }
 
   pub fn insert_tagged_with_monitor<Tup, M>(
     &self,
-    ctx: &mut T::Context,
-    data: Vec<(Option<InputTagOf<T::Context>>, Tup)>,
+    ctx: &mut Prov,
+    data: Vec<(Option<InputTagOf<Prov>>, Tup)>,
     m: &M,
   ) where
     Tup: Into<Tuple>,
-    M: Monitor<T::Context>,
+    M: Monitor<Prov>,
   {
     let elements = data
       .into_iter()
@@ -124,13 +124,13 @@ impl<T: Tag> DynamicRelation<T> {
       })
       .collect::<Vec<_>>();
     let dataflow = DynamicDataflow::Vec(&elements);
-    self.insert_dataflow_recent(ctx, &dataflow);
+    self.insert_dataflow_recent(ctx, &dataflow, false);
   }
 
   pub fn insert_annotated_disjunction<Tup>(
     &self,
-    ctx: &mut T::Context,
-    data: Vec<(Option<InputTagOf<T::Context>>, Tup)>,
+    ctx: &mut Prov,
+    data: Vec<(Option<InputTagOf<Prov>>, Tup)>,
   ) where
     Tup: Into<Tuple>,
   {
@@ -142,17 +142,17 @@ impl<T: Tag> DynamicRelation<T> {
       .map(|(tag, tup)| DynamicElement::new(tup, tag))
       .collect::<Vec<_>>();
     let dataflow = DynamicDataflow::Vec(&new_data);
-    self.insert_dataflow_recent(ctx, &dataflow);
+    self.insert_dataflow_recent(ctx, &dataflow, false);
   }
 
   pub fn insert_annotated_disjunction_with_monitor<Tup, M>(
     &self,
-    ctx: &mut T::Context,
-    data: Vec<(Option<InputTagOf<T::Context>>, Tup)>,
+    ctx: &mut Prov,
+    data: Vec<(Option<InputTagOf<Prov>>, Tup)>,
     m: &M,
   ) where
     Tup: Into<Tuple>,
-    M: Monitor<T::Context>,
+    M: Monitor<Prov>,
   {
     let (input_tags, tuples): (Vec<_>, Vec<Tup>) = data.into_iter().unzip();
     let tags = ctx.tagging_disjunction_optional_fn(input_tags.clone());
@@ -167,7 +167,49 @@ impl<T: Tag> DynamicRelation<T> {
       })
       .collect::<Vec<_>>();
     let dataflow = DynamicDataflow::Vec(&elems);
-    self.insert_dataflow_recent(ctx, &dataflow);
+    self.insert_dataflow_recent(ctx, &dataflow, false);
+  }
+
+  pub fn insert_dynamically_tagged_annotated_disjunction<Tup>(&self, ctx: &mut Prov, data: Vec<(InputTag, Tup)>)
+  where
+    Tup: Into<Tuple>,
+  {
+    let (dyn_input_tags, tuples): (Vec<_>, Vec<Tup>) = data.into_iter().unzip();
+    let input_tags: Vec<_> = dyn_input_tags.iter().map(FromInputTag::from_input_tag).collect();
+    let tags = ctx.tagging_disjunction_optional_fn(input_tags);
+    let elements = tags
+      .into_iter()
+      .zip(tuples.into_iter().map(|t| t.into()))
+      .map(|(tag, tup)| DynamicElement::new(tup, tag))
+      .collect::<Vec<_>>();
+    let dataflow = DynamicDataflow::Vec(&elements);
+    self.insert_dataflow_recent(ctx, &dataflow, false);
+  }
+
+  pub fn insert_dynamically_tagged_annotated_disjunction_with_monitor<Tup, M>(
+    &self,
+    ctx: &mut Prov,
+    data: Vec<(InputTag, Tup)>,
+    m: &M,
+  ) where
+    Tup: Into<Tuple>,
+    M: Monitor<Prov>,
+  {
+    let (dyn_input_tags, tuples): (Vec<_>, Vec<Tup>) = data.into_iter().unzip();
+    let input_tags: Vec<_> = dyn_input_tags.iter().map(FromInputTag::from_input_tag).collect();
+    let tags = ctx.tagging_disjunction_optional_fn(input_tags.clone());
+    let elements = tuples
+      .into_iter()
+      .map(|t| t.into())
+      .zip(input_tags.into_iter())
+      .zip(tags.into_iter())
+      .map(|((tup, input_tag), tag)| {
+        m.observe_tagging(&tup, &input_tag, &tag);
+        DynamicElement::new(tup, tag)
+      })
+      .collect::<Vec<_>>();
+    let dataflow = DynamicDataflow::Vec(&elements);
+    self.insert_dataflow_recent(ctx, &dataflow, false);
   }
 
   pub fn num_stable(&self) -> usize {
@@ -178,7 +220,7 @@ impl<T: Tag> DynamicRelation<T> {
     self.recent.borrow().len()
   }
 
-  pub fn changed(&mut self, ctx: &T::Context) -> bool {
+  pub fn changed(&mut self, ctx: &Prov) -> bool {
     // 1. Merge self.recent into self.stable.
     if !self.recent.borrow().is_empty() {
       let mut recent = ::std::mem::replace(&mut (*self.recent.borrow_mut()), DynamicCollection::empty());
@@ -204,8 +246,8 @@ impl<T: Tag> DynamicRelation<T> {
         // Helper function to compute whether to retain a given stable element
         let compute_stable_retain =
           |index: usize,
-           to_add: &mut DynamicCollection<T>,
-           stable_elem: &mut DynamicElement<T>,
+           to_add: &mut DynamicCollection<Prov>,
+           stable_elem: &mut DynamicElement<Prov>,
            to_remove_to_add_indices: &mut HashSet<usize>| {
             // If going over to_add, then the stable element does not exist in to_add. Therefore we retain the stable element
             if index >= to_add.len() {
@@ -220,22 +262,20 @@ impl<T: Tag> DynamicRelation<T> {
             } else {
               // If the two elements are equal, then we need to compute a new tag, while deciding where
               // to put the new element: stable or recent
-              let (new_tag, proceeding) = ctx.add_with_proceeding(&stable_elem.tag, &to_add_elem.tag);
-              match proceeding {
-                Proceeding::Recent => {
-                  // If we put the new element in recent, then we will not retain the stable element,
-                  // while updating tag of the element in `to_add`
-                  to_add_elem.tag = new_tag;
-                  false
-                }
-                Proceeding::Stable => {
-                  // If we put the new element in stable, then we retain the stable element and update
-                  // the tag of that element. Additionally, we will remove the element in the `to_add`
-                  // collection.
-                  stable_elem.tag = new_tag;
-                  to_remove_to_add_indices.insert(index.clone());
-                  true
-                }
+              let new_tag = ctx.add(&stable_elem.tag, &to_add_elem.tag);
+              let saturated = ctx.saturated(&stable_elem.tag, &new_tag);
+              if saturated {
+                // If we put the new element in stable, then we retain the stable element and update
+                // the tag of that element. Additionally, we will remove the element in the `to_add`
+                // collection.
+                stable_elem.tag = new_tag;
+                to_remove_to_add_indices.insert(index.clone());
+                true
+              } else {
+                // If we put the new element in recent, then we will not retain the stable element,
+                // while updating tag of the element in `to_add`
+                to_add_elem.tag = new_tag;
+                false
               }
             }
           };
@@ -270,21 +310,29 @@ impl<T: Tag> DynamicRelation<T> {
     !self.recent.borrow().is_empty()
   }
 
-  pub fn insert_dataflow_recent<'a>(&self, ctx: &T::Context, d: &DynamicDataflow<'a, T>) {
+  pub fn insert_dataflow_recent<'a>(&self, ctx: &Prov, d: &DynamicDataflow<'a, Prov>, early_discard: bool) {
     for batch in d.iter_recent() {
-      let data = batch.filter(|e| !ctx.discard(&e.tag)).collect::<Vec<_>>();
+      let data = if early_discard {
+        batch.filter(|e| !ctx.discard(&e.tag)).collect::<Vec<_>>()
+      } else {
+        batch.collect::<Vec<_>>()
+      };
       self.to_add.borrow_mut().push(DynamicCollection::from_vec(data, ctx));
     }
   }
 
-  pub fn insert_dataflow_stable<'a>(&self, ctx: &T::Context, d: &DynamicDataflow<'a, T>) {
+  pub fn insert_dataflow_stable<'a>(&self, ctx: &Prov, d: &DynamicDataflow<'a, Prov>, early_discard: bool) {
     for batch in d.iter_stable() {
-      let data = batch.filter(|e| ctx.discard(&e.tag)).collect::<Vec<_>>();
+      let data = if early_discard {
+        batch.filter(|e| !ctx.discard(&e.tag)).collect::<Vec<_>>()
+      } else {
+        batch.collect::<Vec<_>>()
+      };
       self.to_add.borrow_mut().push(DynamicCollection::from_vec(data, ctx));
     }
   }
 
-  pub fn complete(&self, ctx: &T::Context) -> DynamicCollection<T> {
+  pub fn complete(&self, ctx: &Prov) -> DynamicCollection<Prov> {
     assert!(self.recent.borrow().is_empty());
     assert!(self.to_add.borrow().is_empty());
     let mut result = DynamicCollection::empty();

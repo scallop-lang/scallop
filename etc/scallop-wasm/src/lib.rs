@@ -20,7 +20,7 @@ pub fn interpret_with_minmaxprob(source: String) -> String {
       return format!("{}", err);
     }
   };
-  let mut ctx = min_max_prob::MinMaxProbContext::default();
+  let mut ctx = min_max_prob::MinMaxProbProvenance::default();
   let result = match dynamic::interpret(ram, &mut ctx).map_err(IntegrateError::Runtime) {
     Ok(result) => result,
     Err(err) => {
@@ -78,8 +78,8 @@ pub fn interpret_with_topbottomkclauses(source: String, k: usize) -> String {
     .join("\n")
 }
 
-fn result_to_string<T: Tag>(
-  result: Result<BTreeMap<String, dynamic::DynamicOutputCollection<T>>, IntegrateError>,
+fn result_to_string<Prov: Provenance>(
+  result: Result<BTreeMap<String, dynamic::DynamicOutputCollection<Prov>>, IntegrateError>,
 ) -> String {
   match result {
     Ok(result) => result

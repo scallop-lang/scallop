@@ -45,15 +45,15 @@ fn main() -> std::io::Result<()> {
   // Initialize provenance context and run
   match cmd_args.provenance.as_str() {
     "unit" => {
-      let ctx = runtime::provenance::unit::UnitContext::default();
+      let ctx = runtime::provenance::unit::UnitProvenance::default();
       run(cmd_args, ctx)
     }
     "bool" => {
-      let ctx = runtime::provenance::boolean::BooleanContext::default();
+      let ctx = runtime::provenance::boolean::BooleanProvenance::default();
       run(cmd_args, ctx)
     }
     "minmaxprob" => {
-      let ctx = runtime::provenance::min_max_prob::MinMaxProbContext::default();
+      let ctx = runtime::provenance::min_max_prob::MinMaxProbProvenance::default();
       run(cmd_args, ctx)
     }
     _ => {
@@ -65,7 +65,7 @@ fn main() -> std::io::Result<()> {
 
 fn run<C>(cmd_args: Options, mut ctx: C) -> std::io::Result<()>
 where
-  C: runtime::provenance::ProvenanceContext,
+  C: runtime::provenance::Provenance,
 {
   // Interactive REPL
   let reader = Interface::new("scl")?;

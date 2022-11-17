@@ -7,34 +7,34 @@ use crate::runtime::statics::*;
 
 use super::super::*;
 
-pub struct AggregationJoinGroup<'a, A, D1, D2, K, T1, T2, T>
+pub struct AggregationJoinGroup<'a, A, D1, D2, K, T1, T2, Prov>
 where
   K: StaticTupleTrait,
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  D1: Dataflow<(K, T1), T>,
-  D2: Dataflow<(K, T2), T>,
-  A: Aggregator<T2, T>,
-  T: Tag,
+  D1: Dataflow<(K, T1), Prov>,
+  D2: Dataflow<(K, T2), Prov>,
+  A: Aggregator<T2, Prov>,
+  Prov: Provenance,
 {
   agg: A,
   d1: D1,
   d2: D2,
-  ctx: &'a T::Context,
+  ctx: &'a Prov,
   phantom: PhantomData<(K, T1, T2)>,
 }
 
-impl<'a, A, D1, D2, K, T1, T2, T> AggregationJoinGroup<'a, A, D1, D2, K, T1, T2, T>
+impl<'a, A, D1, D2, K, T1, T2, Prov> AggregationJoinGroup<'a, A, D1, D2, K, T1, T2, Prov>
 where
   K: StaticTupleTrait,
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  D1: Dataflow<(K, T1), T>,
-  D2: Dataflow<(K, T2), T>,
-  A: Aggregator<T2, T>,
-  T: Tag,
+  D1: Dataflow<(K, T1), Prov>,
+  D2: Dataflow<(K, T2), Prov>,
+  A: Aggregator<T2, Prov>,
+  Prov: Provenance,
 {
-  pub fn new(agg: A, d1: D1, d2: D2, ctx: &'a T::Context) -> Self {
+  pub fn new(agg: A, d1: D1, d2: D2, ctx: &'a Prov) -> Self {
     Self {
       agg,
       d1,
@@ -45,19 +45,19 @@ where
   }
 }
 
-impl<'a, A, D1, D2, K, T1, T2, T> Dataflow<(K, T1, A::Output), T> for AggregationJoinGroup<'a, A, D1, D2, K, T1, T2, T>
+impl<'a, A, D1, D2, K, T1, T2, Prov> Dataflow<(K, T1, A::Output), Prov> for AggregationJoinGroup<'a, A, D1, D2, K, T1, T2, Prov>
 where
   K: StaticTupleTrait,
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  D1: Dataflow<(K, T1), T>,
-  D2: Dataflow<(K, T2), T>,
-  A: Aggregator<T2, T>,
-  T: Tag,
+  D1: Dataflow<(K, T1), Prov>,
+  D2: Dataflow<(K, T2), Prov>,
+  A: Aggregator<T2, Prov>,
+  Prov: Provenance,
 {
-  type Stable = EmptyBatches<std::iter::Empty<StaticElement<(K, T1, A::Output), T>>>;
+  type Stable = EmptyBatches<std::iter::Empty<StaticElement<(K, T1, A::Output), Prov>>>;
 
-  type Recent = SingleBatch<std::vec::IntoIter<StaticElement<(K, T1, A::Output), T>>>;
+  type Recent = SingleBatch<std::vec::IntoIter<StaticElement<(K, T1, A::Output), Prov>>>;
 
   fn iter_stable(&self) -> Self::Stable {
     Self::Stable::default()
@@ -135,7 +135,7 @@ where
       }
     }
 
-    let result: StaticElements<(K, T1, A::Output), T> = groups
+    let result: StaticElements<(K, T1, A::Output), Prov> = groups
       .into_iter()
       .map(|(group_key, group_by_vals, to_agg_vals)| {
         let to_agg_tups = to_agg_vals
@@ -159,15 +159,15 @@ where
   }
 }
 
-impl<'a, A, D1, D2, K, T1, T2, T> Clone for AggregationJoinGroup<'a, A, D1, D2, K, T1, T2, T>
+impl<'a, A, D1, D2, K, T1, T2, Prov> Clone for AggregationJoinGroup<'a, A, D1, D2, K, T1, T2, Prov>
 where
   K: StaticTupleTrait,
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  D1: Dataflow<(K, T1), T>,
-  D2: Dataflow<(K, T2), T>,
-  A: Aggregator<T2, T>,
-  T: Tag,
+  D1: Dataflow<(K, T1), Prov>,
+  D2: Dataflow<(K, T2), Prov>,
+  A: Aggregator<T2, Prov>,
+  Prov: Provenance,
 {
   fn clone(&self) -> Self {
     Self {

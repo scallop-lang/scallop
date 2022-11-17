@@ -30,7 +30,7 @@ impl Source for ReplSource {
   }
 
   fn num_rows(&self) -> usize {
-    0
+    1
   }
 
   fn row_offset_length(&self, _: usize) -> (usize, usize) {

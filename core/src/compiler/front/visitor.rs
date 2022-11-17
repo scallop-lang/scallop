@@ -10,18 +10,23 @@ macro_rules! node_visitor_func_def {
 pub trait NodeVisitor {
   fn visit_location(&mut self, _: &AstNodeLocation) {}
 
+  node_visitor_func_def!(visit_item, Item);
   node_visitor_func_def!(visit_import_decl, ImportDecl);
   node_visitor_func_def!(visit_import_file, ImportFile);
-  node_visitor_func_def!(visit_input_decl, InputDecl);
   node_visitor_func_def!(visit_arg_type_binding, ArgTypeBinding);
   node_visitor_func_def!(visit_type, Type);
   node_visitor_func_def!(visit_alias_type_decl, AliasTypeDecl);
   node_visitor_func_def!(visit_subtype_decl, SubtypeDecl);
   node_visitor_func_def!(visit_relation_type_decl, RelationTypeDecl);
+  node_visitor_func_def!(visit_relation_type, RelationType);
+  node_visitor_func_def!(visit_const_decl, ConstDecl);
+  node_visitor_func_def!(visit_const_assignment, ConstAssignment);
+  node_visitor_func_def!(visit_relation_decl, RelationDecl);
   node_visitor_func_def!(visit_constant_set_decl, ConstantSetDecl);
   node_visitor_func_def!(visit_constant_set, ConstantSet);
   node_visitor_func_def!(visit_constant_set_tuple, ConstantSetTuple);
   node_visitor_func_def!(visit_constant_tuple, ConstantTuple);
+  node_visitor_func_def!(visit_constant_or_variable, ConstantOrVariable);
   node_visitor_func_def!(visit_fact_decl, FactDecl);
   node_visitor_func_def!(visit_rule_decl, RuleDecl);
   node_visitor_func_def!(visit_query_decl, QueryDecl);
@@ -38,13 +43,16 @@ pub trait NodeVisitor {
   node_visitor_func_def!(visit_constraint, Constraint);
   node_visitor_func_def!(visit_reduce, Reduce);
   node_visitor_func_def!(visit_variable_binding, VariableBinding);
+  node_visitor_func_def!(visit_expr, Expr);
   node_visitor_func_def!(visit_binary_expr, BinaryExpr);
   node_visitor_func_def!(visit_unary_expr, UnaryExpr);
   node_visitor_func_def!(visit_if_then_else_expr, IfThenElseExpr);
+  node_visitor_func_def!(visit_call_expr, CallExpr);
   node_visitor_func_def!(visit_constant, Constant);
   node_visitor_func_def!(visit_variable, Variable);
   node_visitor_func_def!(visit_wildcard, Wildcard);
   node_visitor_func_def!(visit_identifier, Identifier);
+  node_visitor_func_def!(visit_function, Function);
 
   fn walk_items(&mut self, items: &Vec<Item>) {
     for item in items {
@@ -53,10 +61,11 @@ pub trait NodeVisitor {
   }
 
   fn walk_item(&mut self, item: &Item) {
+    self.visit_item(item);
     match item {
       Item::ImportDecl(id) => self.walk_import_decl(id),
-      Item::InputDecl(id) => self.walk_input_decl(id),
       Item::TypeDecl(td) => self.walk_type_decl(td),
+      Item::ConstDecl(cd) => self.walk_const_decl(cd),
       Item::RelationDecl(rd) => self.walk_relation_decl(rd),
       Item::QueryDecl(qd) => self.walk_query_decl(qd),
     }
@@ -72,16 +81,6 @@ pub trait NodeVisitor {
   fn walk_import_file(&mut self, import_file: &ImportFile) {
     self.visit_import_file(import_file);
     self.visit_location(import_file.location());
-  }
-
-  fn walk_input_decl(&mut self, input_decl: &InputDecl) {
-    self.visit_input_decl(input_decl);
-    self.visit_location(&input_decl.loc);
-    self.walk_attributes(&input_decl.node.attrs);
-    self.walk_identifier(&input_decl.node.name);
-    for tb in &input_decl.node.types {
-      self.walk_arg_type_binding(tb);
-    }
   }
 
   fn walk_arg_type_binding(&mut self, arg_type_binding: &ArgTypeBinding) {
@@ -126,13 +125,41 @@ pub trait NodeVisitor {
     self.visit_relation_type_decl(relation_type_decl);
     self.visit_location(&relation_type_decl.loc);
     self.walk_attributes(&relation_type_decl.node.attrs);
-    self.walk_identifier(&relation_type_decl.node.rel_type.name);
-    for arg_type in &relation_type_decl.node.rel_type.arg_types {
+    for rel_type in relation_type_decl.relation_types() {
+      self.walk_relation_type(rel_type);
+    }
+  }
+
+  fn walk_relation_type(&mut self, relation_type: &RelationType) {
+    self.visit_relation_type(relation_type);
+    self.visit_location(&relation_type.loc);
+    self.walk_identifier(&relation_type.node.name);
+    for arg_type in &relation_type.node.arg_types {
       self.walk_arg_type_binding(arg_type);
     }
   }
 
+  fn walk_const_decl(&mut self, const_decl: &ConstDecl) {
+    self.visit_const_decl(const_decl);
+    self.visit_location(const_decl.location());
+    self.walk_attributes(const_decl.attributes());
+    for const_assign in const_decl.iter_assignments() {
+      self.walk_const_assignment(const_assign);
+    }
+  }
+
+  fn walk_const_assignment(&mut self, const_assign: &ConstAssignment) {
+    self.visit_const_assignment(const_assign);
+    self.visit_location(const_assign.location());
+    self.walk_identifier(const_assign.identifier());
+    if let Some(ty) = const_assign.ty() {
+      self.walk_type(ty);
+    }
+    self.walk_constant(const_assign.value())
+  }
+
   fn walk_relation_decl(&mut self, relation_decl: &RelationDecl) {
+    self.visit_relation_decl(relation_decl);
     self.visit_location(&relation_decl.loc);
     match &relation_decl.node {
       RelationDeclNode::Set(f) => self.walk_constant_set_decl(f),
@@ -168,7 +195,15 @@ pub trait NodeVisitor {
     self.visit_constant_tuple(tuple);
     self.visit_location(&tuple.loc);
     for elem in &tuple.node.elems {
-      self.walk_constant(elem);
+      self.walk_constant_or_variable(elem);
+    }
+  }
+
+  fn walk_constant_or_variable(&mut self, cov: &ConstantOrVariable) {
+    self.visit_constant_or_variable(cov);
+    match cov {
+      ConstantOrVariable::Constant(c) => self.walk_constant(c),
+      ConstantOrVariable::Variable(v) => self.walk_variable(v),
     }
   }
 
@@ -312,6 +347,7 @@ pub trait NodeVisitor {
   }
 
   fn walk_expr(&mut self, expr: &Expr) {
+    self.visit_expr(expr);
     match expr {
       Expr::Constant(c) => self.walk_constant(c),
       Expr::Variable(v) => self.walk_variable(v),
@@ -319,6 +355,7 @@ pub trait NodeVisitor {
       Expr::Binary(b) => self.walk_binary_expr(b),
       Expr::Unary(u) => self.walk_unary_expr(u),
       Expr::IfThenElse(i) => self.walk_if_then_else_expr(i),
+      Expr::Call(c) => self.walk_call_expr(c),
     }
   }
 
@@ -353,6 +390,15 @@ pub trait NodeVisitor {
     self.walk_expr(i.else_br());
   }
 
+  fn walk_call_expr(&mut self, c: &CallExpr) {
+    self.visit_call_expr(c);
+    self.visit_location(&c.loc);
+    self.walk_function(c.function());
+    for arg in c.iter_args() {
+      self.walk_expr(arg);
+    }
+  }
+
   fn walk_variable(&mut self, variable: &Variable) {
     self.visit_variable(variable);
     self.visit_location(&variable.loc);
@@ -377,6 +423,11 @@ pub trait NodeVisitor {
   fn walk_identifier(&mut self, identifier: &Identifier) {
     self.visit_identifier(identifier);
     self.visit_location(&identifier.loc);
+  }
+
+  fn walk_function(&mut self, function: &Function) {
+    self.visit_function(function);
+    self.visit_location(&function.loc);
   }
 
   fn walk_attributes(&mut self, attributes: &Attributes) {
@@ -413,18 +464,23 @@ macro_rules! impl_node_visitor_tuple {
     {
       node_visitor_visit_node!(visit_location, AstNodeLocation, ($($id),*));
 
+      node_visitor_visit_node!(visit_item, Item, ($($id),*));
       node_visitor_visit_node!(visit_import_decl, ImportDecl, ($($id),*));
       node_visitor_visit_node!(visit_import_file, ImportFile, ($($id),*));
-      node_visitor_visit_node!(visit_input_decl, InputDecl, ($($id),*));
       node_visitor_visit_node!(visit_arg_type_binding, ArgTypeBinding, ($($id),*));
       node_visitor_visit_node!(visit_type, Type, ($($id),*));
       node_visitor_visit_node!(visit_alias_type_decl, AliasTypeDecl, ($($id),*));
       node_visitor_visit_node!(visit_subtype_decl, SubtypeDecl, ($($id),*));
       node_visitor_visit_node!(visit_relation_type_decl, RelationTypeDecl, ($($id),*));
+      node_visitor_visit_node!(visit_relation_type, RelationType, ($($id),*));
+      node_visitor_visit_node!(visit_const_decl, ConstDecl, ($($id),*));
+      node_visitor_visit_node!(visit_const_assignment, ConstAssignment, ($($id),*));
+      node_visitor_visit_node!(visit_relation_decl, RelationDecl, ($($id),*));
       node_visitor_visit_node!(visit_constant_set_decl, ConstantSetDecl, ($($id),*));
       node_visitor_visit_node!(visit_constant_set, ConstantSet, ($($id),*));
       node_visitor_visit_node!(visit_constant_set_tuple, ConstantSetTuple, ($($id),*));
       node_visitor_visit_node!(visit_constant_tuple, ConstantTuple, ($($id),*));
+      node_visitor_visit_node!(visit_constant_or_variable, ConstantOrVariable, ($($id),*));
       node_visitor_visit_node!(visit_fact_decl, FactDecl, ($($id),*));
       node_visitor_visit_node!(visit_rule_decl, RuleDecl, ($($id),*));
       node_visitor_visit_node!(visit_query_decl, QueryDecl, ($($id),*));
@@ -441,13 +497,16 @@ macro_rules! impl_node_visitor_tuple {
       node_visitor_visit_node!(visit_constraint, Constraint, ($($id),*));
       node_visitor_visit_node!(visit_reduce, Reduce, ($($id),*));
       node_visitor_visit_node!(visit_variable_binding, VariableBinding, ($($id),*));
+      node_visitor_visit_node!(visit_expr, Expr, ($($id),*));
       node_visitor_visit_node!(visit_binary_expr, BinaryExpr, ($($id),*));
       node_visitor_visit_node!(visit_unary_expr, UnaryExpr, ($($id),*));
       node_visitor_visit_node!(visit_if_then_else_expr, IfThenElseExpr, ($($id),*));
+      node_visitor_visit_node!(visit_call_expr, CallExpr, ($($id),*));
       node_visitor_visit_node!(visit_constant, Constant, ($($id),*));
       node_visitor_visit_node!(visit_variable, Variable, ($($id),*));
       node_visitor_visit_node!(visit_wildcard, Wildcard, ($($id),*));
       node_visitor_visit_node!(visit_identifier, Identifier, ($($id),*));
+      node_visitor_visit_node!(visit_function, Function, ($($id),*));
     }
   }
 }

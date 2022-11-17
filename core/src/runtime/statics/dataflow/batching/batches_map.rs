@@ -5,28 +5,28 @@ use crate::runtime::provenance::*;
 use crate::runtime::statics::*;
 
 #[derive(Clone)]
-pub struct BatchesMap<B, Op, T1, T2, T>
+pub struct BatchesMap<B, Op, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
   Op: BatchUnaryOp<B::Batch>,
-  Op::I2: Batch<T2, T>,
-  B: Batches<T1, T>,
+  Op::I2: Batch<T2, Prov>,
+  B: Batches<T1, Prov>,
 {
   source: B,
   op: Op,
-  phantom: PhantomData<(T1, T2, T)>,
+  phantom: PhantomData<(T1, T2, Prov)>,
 }
 
-impl<B, Op, T1, T2, T> BatchesMap<B, Op, T1, T2, T>
+impl<B, Op, T1, T2, Prov> BatchesMap<B, Op, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
   Op: BatchUnaryOp<B::Batch>,
-  Op::I2: Batch<T2, T>,
-  B: Batches<T1, T>,
+  Op::I2: Batch<T2, Prov>,
+  B: Batches<T1, Prov>,
 {
   pub fn new(source: B, op: Op) -> Self {
     Self {
@@ -37,14 +37,14 @@ where
   }
 }
 
-impl<B, Op, T1, T2, T> Iterator for BatchesMap<B, Op, T1, T2, T>
+impl<B, Op, T1, T2, Prov> Iterator for BatchesMap<B, Op, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
   Op: BatchUnaryOp<B::Batch>,
-  Op::I2: Batch<T2, T>,
-  B: Batches<T1, T>,
+  Op::I2: Batch<T2, Prov>,
+  B: Batches<T1, Prov>,
 {
   type Item = Op::I2;
 
@@ -53,14 +53,14 @@ where
   }
 }
 
-impl<B, Op, T1, T2, T> Batches<T2, T> for BatchesMap<B, Op, T1, T2, T>
+impl<B, Op, T1, T2, Prov> Batches<T2, Prov> for BatchesMap<B, Op, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
   Op: BatchUnaryOp<B::Batch>,
-  Op::I2: Batch<T2, T>,
-  B: Batches<T1, T>,
+  Op::I2: Batch<T2, Prov>,
+  B: Batches<T1, Prov>,
 {
   type Batch = Op::I2;
 }

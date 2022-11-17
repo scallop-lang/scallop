@@ -68,7 +68,7 @@ impl Update {
 impl Dataflow {
   fn collect_dependency(&self, preds: &mut HashSet<String>) {
     match self {
-      Self::Unit => {}
+      Self::Unit(_) => {}
       Self::Relation(r) => {
         preds.insert(r.clone());
       }
@@ -77,6 +77,9 @@ impl Dataflow {
         if let ReduceGroupByType::Join(group_by_predicate) = &r.group_by {
           preds.insert(group_by_predicate.clone());
         }
+      }
+      Self::OverwriteOne(d) => {
+        d.collect_dependency(preds);
       }
       Self::Find(d, _) => {
         d.collect_dependency(preds);

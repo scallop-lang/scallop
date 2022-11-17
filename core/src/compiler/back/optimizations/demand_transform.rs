@@ -21,7 +21,7 @@ impl Program {
     // Update relations
     for (_, adornment) in adornments {
       self.relations.push(Relation {
-        attributes: Attributes::new(),
+        attributes: vec![Attribute::magic_set()].into(),
         predicate: adornment.demand_predicate.clone(),
         arg_types: adornment.demand_relation_types(),
       });

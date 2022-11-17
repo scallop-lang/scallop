@@ -10,18 +10,23 @@ macro_rules! node_visitor_mut_func_def {
 pub trait NodeVisitorMut {
   fn visit_location(&mut self, _: &mut AstNodeLocation) {}
 
+  node_visitor_mut_func_def!(visit_item, Item);
   node_visitor_mut_func_def!(visit_import_decl, ImportDecl);
   node_visitor_mut_func_def!(visit_import_file, ImportFile);
-  node_visitor_mut_func_def!(visit_input_decl, InputDecl);
   node_visitor_mut_func_def!(visit_arg_type_binding, ArgTypeBinding);
   node_visitor_mut_func_def!(visit_type, Type);
   node_visitor_mut_func_def!(visit_alias_type_decl, AliasTypeDecl);
   node_visitor_mut_func_def!(visit_subtype_decl, SubtypeDecl);
   node_visitor_mut_func_def!(visit_relation_type_decl, RelationTypeDecl);
+  node_visitor_mut_func_def!(visit_relation_type, RelationType);
+  node_visitor_mut_func_def!(visit_const_decl, ConstDecl);
+  node_visitor_mut_func_def!(visit_const_assignment, ConstAssignment);
+  node_visitor_mut_func_def!(visit_relation_decl, RelationDecl);
   node_visitor_mut_func_def!(visit_constant_set_decl, ConstantSetDecl);
   node_visitor_mut_func_def!(visit_constant_set, ConstantSet);
   node_visitor_mut_func_def!(visit_constant_set_tuple, ConstantSetTuple);
   node_visitor_mut_func_def!(visit_constant_tuple, ConstantTuple);
+  node_visitor_mut_func_def!(visit_constant_or_variable, ConstantOrVariable);
   node_visitor_mut_func_def!(visit_fact_decl, FactDecl);
   node_visitor_mut_func_def!(visit_rule_decl, RuleDecl);
   node_visitor_mut_func_def!(visit_query_decl, QueryDecl);
@@ -38,13 +43,16 @@ pub trait NodeVisitorMut {
   node_visitor_mut_func_def!(visit_constraint, Constraint);
   node_visitor_mut_func_def!(visit_reduce, Reduce);
   node_visitor_mut_func_def!(visit_variable_binding, VariableBinding);
+  node_visitor_mut_func_def!(visit_expr, Expr);
   node_visitor_mut_func_def!(visit_binary_expr, BinaryExpr);
   node_visitor_mut_func_def!(visit_unary_expr, UnaryExpr);
   node_visitor_mut_func_def!(visit_if_then_else_expr, IfThenElseExpr);
+  node_visitor_mut_func_def!(visit_call_expr, CallExpr);
   node_visitor_mut_func_def!(visit_constant, Constant);
   node_visitor_mut_func_def!(visit_variable, Variable);
   node_visitor_mut_func_def!(visit_wildcard, Wildcard);
   node_visitor_mut_func_def!(visit_identifier, Identifier);
+  node_visitor_mut_func_def!(visit_function, Function);
 
   fn walk_items(&mut self, items: &mut Vec<Item>) {
     for item in items {
@@ -53,10 +61,11 @@ pub trait NodeVisitorMut {
   }
 
   fn walk_item(&mut self, item: &mut Item) {
+    self.visit_item(item);
     match item {
       Item::ImportDecl(id) => self.walk_import_decl(id),
-      Item::InputDecl(id) => self.walk_input_decl(id),
       Item::TypeDecl(td) => self.walk_type_decl(td),
+      Item::ConstDecl(cd) => self.walk_const_decl(cd),
       Item::RelationDecl(rd) => self.walk_relation_decl(rd),
       Item::QueryDecl(qd) => self.walk_query_decl(qd),
     }
@@ -72,16 +81,6 @@ pub trait NodeVisitorMut {
   fn walk_import_file(&mut self, import_file: &mut ImportFile) {
     self.visit_import_file(import_file);
     self.visit_location(&mut import_file.loc);
-  }
-
-  fn walk_input_decl(&mut self, input_decl: &mut InputDecl) {
-    self.visit_input_decl(input_decl);
-    self.visit_location(&mut input_decl.loc);
-    self.walk_attributes(&mut input_decl.node.attrs);
-    self.walk_identifier(&mut input_decl.node.name);
-    for tb in &mut input_decl.node.types {
-      self.walk_arg_type_binding(tb);
-    }
   }
 
   fn walk_arg_type_binding(&mut self, arg_type_binding: &mut ArgTypeBinding) {
@@ -126,13 +125,41 @@ pub trait NodeVisitorMut {
     self.visit_relation_type_decl(relation_type_decl);
     self.visit_location(&mut relation_type_decl.loc);
     self.walk_attributes(&mut relation_type_decl.node.attrs);
-    self.walk_identifier(&mut relation_type_decl.node.rel_type.name);
-    for arg_type in &mut relation_type_decl.node.rel_type.arg_types {
+    for rel_type in relation_type_decl.relation_types_mut() {
+      self.walk_relation_type(rel_type);
+    }
+  }
+
+  fn walk_relation_type(&mut self, relation_type: &mut RelationType) {
+    self.visit_relation_type(relation_type);
+    self.visit_location(&mut relation_type.loc);
+    self.walk_identifier(&mut relation_type.node.name);
+    for arg_type in &mut relation_type.node.arg_types {
       self.walk_arg_type_binding(arg_type);
     }
   }
 
+  fn walk_const_decl(&mut self, const_decl: &mut ConstDecl) {
+    self.visit_const_decl(const_decl);
+    self.visit_location(const_decl.location_mut());
+    self.walk_attributes(const_decl.attributes_mut());
+    for const_assign in const_decl.iter_assignments_mut() {
+      self.walk_const_assignment(const_assign);
+    }
+  }
+
+  fn walk_const_assignment(&mut self, const_assign: &mut ConstAssignment) {
+    self.visit_const_assignment(const_assign);
+    self.visit_location(const_assign.location_mut());
+    self.walk_identifier(const_assign.identifier_mut());
+    if let Some(ty) = const_assign.ty_mut() {
+      self.walk_type(ty);
+    }
+    self.walk_constant(const_assign.value_mut())
+  }
+
   fn walk_relation_decl(&mut self, relation_decl: &mut RelationDecl) {
+    self.visit_relation_decl(relation_decl);
     self.visit_location(&mut relation_decl.loc);
     match &mut relation_decl.node {
       RelationDeclNode::Set(f) => self.walk_constant_set_decl(f),
@@ -168,7 +195,15 @@ pub trait NodeVisitorMut {
     self.visit_constant_tuple(tuple);
     self.visit_location(&mut tuple.loc);
     for elem in &mut tuple.node.elems {
-      self.walk_constant(elem);
+      self.walk_constant_or_variable(elem);
+    }
+  }
+
+  fn walk_constant_or_variable(&mut self, cov: &mut ConstantOrVariable) {
+    self.visit_constant_or_variable(cov);
+    match cov {
+      ConstantOrVariable::Constant(c) => self.walk_constant(c),
+      ConstantOrVariable::Variable(v) => self.walk_variable(v),
     }
   }
 
@@ -312,6 +347,7 @@ pub trait NodeVisitorMut {
   }
 
   fn walk_expr(&mut self, expr: &mut Expr) {
+    self.visit_expr(expr);
     match expr {
       Expr::Constant(c) => self.walk_constant(c),
       Expr::Variable(v) => self.walk_variable(v),
@@ -319,6 +355,7 @@ pub trait NodeVisitorMut {
       Expr::Binary(b) => self.walk_binary_expr(b),
       Expr::Unary(u) => self.walk_unary_expr(u),
       Expr::IfThenElse(i) => self.walk_if_then_else_expr(i),
+      Expr::Call(c) => self.walk_call_expr(c),
     }
   }
 
@@ -353,6 +390,15 @@ pub trait NodeVisitorMut {
     self.walk_expr(&mut if_then_else.node.else_br);
   }
 
+  fn walk_call_expr(&mut self, call: &mut CallExpr) {
+    self.visit_call_expr(call);
+    self.visit_location(&mut call.loc);
+    self.walk_function(call.function_mut());
+    for arg in call.iter_args_mut() {
+      self.walk_expr(arg);
+    }
+  }
+
   fn walk_variable(&mut self, variable: &mut Variable) {
     self.visit_variable(variable);
     self.visit_location(&mut variable.loc);
@@ -377,6 +423,11 @@ pub trait NodeVisitorMut {
   fn walk_identifier(&mut self, identifier: &mut Identifier) {
     self.visit_identifier(identifier);
     self.visit_location(&mut identifier.loc);
+  }
+
+  fn walk_function(&mut self, function: &mut Function) {
+    self.visit_function(function);
+    self.visit_location(&mut function.loc);
   }
 
   fn walk_attributes(&mut self, attributes: &mut Attributes) {
@@ -413,16 +464,21 @@ macro_rules! impl_node_visitor_mut_tuple {
     {
       node_visitor_mut_visit_node!(visit_location, AstNodeLocation, ($($id),*));
 
-      node_visitor_mut_visit_node!(visit_input_decl, InputDecl, ($($id),*));
+      node_visitor_mut_visit_node!(visit_item, Item, ($($id),*));
       node_visitor_mut_visit_node!(visit_arg_type_binding, ArgTypeBinding, ($($id),*));
       node_visitor_mut_visit_node!(visit_type, Type, ($($id),*));
       node_visitor_mut_visit_node!(visit_alias_type_decl, AliasTypeDecl, ($($id),*));
       node_visitor_mut_visit_node!(visit_subtype_decl, SubtypeDecl, ($($id),*));
       node_visitor_mut_visit_node!(visit_relation_type_decl, RelationTypeDecl, ($($id),*));
+      node_visitor_mut_visit_node!(visit_relation_type, RelationType, ($($id),*));
+      node_visitor_mut_visit_node!(visit_const_decl, ConstDecl, ($($id),*));
+      node_visitor_mut_visit_node!(visit_const_assignment, ConstAssignment, ($($id),*));
+      node_visitor_mut_visit_node!(visit_relation_decl, RelationDecl, ($($id),*));
       node_visitor_mut_visit_node!(visit_constant_set_decl, ConstantSetDecl, ($($id),*));
       node_visitor_mut_visit_node!(visit_constant_set, ConstantSet, ($($id),*));
       node_visitor_mut_visit_node!(visit_constant_set_tuple, ConstantSetTuple, ($($id),*));
       node_visitor_mut_visit_node!(visit_constant_tuple, ConstantTuple, ($($id),*));
+      node_visitor_mut_visit_node!(visit_constant_or_variable, ConstantOrVariable, ($($id),*));
       node_visitor_mut_visit_node!(visit_fact_decl, FactDecl, ($($id),*));
       node_visitor_mut_visit_node!(visit_rule_decl, RuleDecl, ($($id),*));
       node_visitor_mut_visit_node!(visit_query_decl, QueryDecl, ($($id),*));
@@ -439,6 +495,7 @@ macro_rules! impl_node_visitor_mut_tuple {
       node_visitor_mut_visit_node!(visit_constraint, Constraint, ($($id),*));
       node_visitor_mut_visit_node!(visit_reduce, Reduce, ($($id),*));
       node_visitor_mut_visit_node!(visit_variable_binding, VariableBinding, ($($id),*));
+      node_visitor_mut_visit_node!(visit_expr, Expr, ($($id),*));
       node_visitor_mut_visit_node!(visit_binary_expr, BinaryExpr, ($($id),*));
       node_visitor_mut_visit_node!(visit_unary_expr, UnaryExpr, ($($id),*));
       node_visitor_mut_visit_node!(visit_if_then_else_expr, IfThenElseExpr, ($($id),*));

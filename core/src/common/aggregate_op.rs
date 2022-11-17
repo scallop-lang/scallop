@@ -11,7 +11,7 @@ pub enum AggregateOp {
   Max,
   Argmax,
   Exists,
-  Unique,
+  TopK(usize),
 }
 
 impl std::fmt::Display for AggregateOp {
@@ -25,7 +25,7 @@ impl std::fmt::Display for AggregateOp {
       Self::Argmin => f.write_str("argmin"),
       Self::Argmax => f.write_str("argmax"),
       Self::Exists => f.write_str("exists"),
-      Self::Unique => f.write_str("unique"),
+      Self::TopK(k) => f.write_fmt(format_args!("top<{}>", k)),
     }
   }
 }
@@ -45,5 +45,9 @@ impl AggregateOp {
     } else {
       Self::Max
     }
+  }
+
+  pub fn top_k(k: usize) -> Self {
+    Self::TopK(k)
   }
 }

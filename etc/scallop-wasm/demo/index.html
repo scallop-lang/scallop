@@ -79,10 +79,10 @@
           } else if (provenance == "minmaxprob") {
             interpreted_result = interpret_with_minmaxprob(scallop_source);
           } else if (provenance == "topkproofs") {
-            let top_k = parseInt($("#top-k"));
+            let top_k = parseInt($("#top-k").val());
             interpreted_result = interpret_with_topkproofs(scallop_source, top_k);
           } else if (provenance == "topbottomkclauses") {
-            let top_k = parseInt($("#top-k"));
+            let top_k = parseInt($("#top-k").val());
             interpreted_result = interpret_with_topbottomkclauses(scallop_source, top_k);
           } else {
             alert("Unknown provenance `" + provenance + "`");

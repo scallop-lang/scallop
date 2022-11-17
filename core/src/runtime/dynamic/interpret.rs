@@ -7,43 +7,62 @@ use crate::common::predicate_set::PredicateSet;
 use crate::compiler;
 use crate::runtime::monitor::Monitor;
 
-pub type Output<T> = BTreeMap<String, DynamicOutputCollection<T>>;
+pub type Output<Prov> = BTreeMap<String, DynamicOutputCollection<Prov>>;
 
-pub type InterpretResult<T> = Result<Output<T>, RuntimeError>;
+pub type InterpretResult<Prov> = Result<Output<Prov>, RuntimeError>;
 
-#[derive(Default)]
 pub struct InterpretOptions {
+  /// Iteration limit
+  pub iter_limit: Option<usize>,
+
+  /// Discard
+  pub early_discard: bool,
+
   /// The set of predicates that we expect to return from interpretation
   pub return_relations: PredicateSet,
 
   /// The set of predicates that we expect to be printed from interpretation
   pub print_relations: PredicateSet,
+
+  /// Random seed
+  pub random_seed: u64,
 }
 
-pub fn interpret<C>(ram: compiler::ram::Program, ctx: &mut C) -> InterpretResult<C::Tag>
+impl Default for InterpretOptions {
+  fn default() -> Self {
+    Self {
+      iter_limit: None,
+      early_discard: true,
+      return_relations: PredicateSet::default(),
+      print_relations: PredicateSet::default(),
+    }
+  }
+}
+
+pub fn interpret<Prov>(ram: compiler::ram::Program, ctx: &mut Prov) -> InterpretResult<Prov>
 where
-  C: ProvenanceContext,
+  Prov: Provenance,
 {
   let opt = InterpretOptions::default();
   interpret_with_options(ram, ctx, &opt)
 }
 
-pub fn interpret_with_options<C>(
+pub fn interpret_with_options<Prov>(
   ram: compiler::ram::Program,
-  ctx: &mut C,
+  ctx: &mut Prov,
   opt: &InterpretOptions,
-) -> InterpretResult<C::Tag>
+) -> InterpretResult<Prov>
 where
-  C: ProvenanceContext,
+  Prov: Provenance,
 {
   let (stratum_inputs, stratum_outputs) = stratum_inputs_outputs(&ram);
 
   // Store the results
-  let mut results: Vec<HashMap<String, DynamicCollection<C::Tag>>> = vec![];
+  let mut results: Vec<HashMap<String, DynamicCollection<Prov>>> = vec![];
 
   // Iterate through stratum
   for (i, stratum) in ram.strata.iter().enumerate() {
-    let mut iter = DynamicIteration::<C::Tag>::new();
+    let mut iter = DynamicIteration::<Prov>::new();
 
     // Create dynamic relations
     let mut dyn_relas = HashSet::new();
@@ -74,10 +93,12 @@ where
       // Add disjunctive facts
       if !relation.disjunctive_facts.is_empty() {
         for disjunction in &relation.disjunctive_facts {
-          iter.get_dynamic_relation_unsafe(predicate).insert_dynamically_tagged(
-            ctx,
-            disjunction.iter().map(|f| (f.tag.clone(), f.tuple.clone())).collect(),
-          );
+          iter
+            .get_dynamic_relation_unsafe(predicate)
+            .insert_dynamically_tagged_annotated_disjunction(
+              ctx,
+              disjunction.iter().map(|f| (f.tag.clone(), f.tuple.clone())).collect(),
+            );
         }
       }
     }
@@ -102,7 +123,7 @@ where
     }
 
     // Run!
-    let result = iter.run(ctx);
+    let result = iter.run_with_iter_limit(ctx, opt.iter_limit.clone());
     results.push(result);
   }
 
@@ -130,24 +151,24 @@ where
   Ok(final_result)
 }
 
-pub fn interpret_with_options_and_monitor<C, M>(
+pub fn interpret_with_options_and_monitor<Prov, M>(
   ram: compiler::ram::Program,
-  ctx: &mut C,
+  ctx: &mut Prov,
   opt: &InterpretOptions,
   monitor: &M,
-) -> InterpretResult<C::Tag>
+) -> InterpretResult<Prov>
 where
-  C: ProvenanceContext,
-  M: Monitor<C>,
+  Prov: Provenance,
+  M: Monitor<Prov>,
 {
   let (stratum_inputs, stratum_outputs) = stratum_inputs_outputs(&ram);
 
   // Store the results
-  let mut results: Vec<HashMap<String, DynamicCollection<C::Tag>>> = vec![];
+  let mut results: Vec<HashMap<String, DynamicCollection<Prov>>> = vec![];
 
   // Iterate through stratum
   for (i, stratum) in ram.strata.iter().enumerate() {
-    let mut iter = DynamicIteration::<C::Tag>::new();
+    let mut iter = DynamicIteration::<Prov>::new();
 
     // Create dynamic relations
     let mut dyn_relas = HashSet::new();
@@ -186,7 +207,7 @@ where
         for disjunction in &relation.disjunctive_facts {
           iter
             .get_dynamic_relation_unsafe(predicate)
-            .insert_dynamically_tagged_with_monitor(
+            .insert_dynamically_tagged_annotated_disjunction_with_monitor(
               ctx,
               disjunction.iter().map(|f| (f.tag.clone(), f.tuple.clone())).collect(),
               monitor,

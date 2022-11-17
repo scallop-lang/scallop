@@ -4,7 +4,7 @@ use super::*;
 use crate::common::value_type::*;
 use crate::compiler::front::*;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct LocalTypeInferenceContext {
   pub rule_loc: Loc,
   pub atom_arities: HashMap<String, Vec<(usize, Loc)>>,
@@ -109,11 +109,17 @@ impl LocalTypeInferenceContext {
   pub fn unify_expr_types(
     &self,
     custom_types: &HashMap<String, (ValueType, Loc)>,
+    constant_types: &HashMap<Loc, Type>,
     inferred_relation_types: &HashMap<String, (Vec<TypeSet>, Loc)>,
     inferred_expr_types: &mut HashMap<Loc, TypeSet>,
   ) -> Result<(), TypeInferenceError> {
     for unif in &self.unifications {
-      unif.unify(custom_types, inferred_relation_types, inferred_expr_types)?;
+      unif.unify(
+        custom_types,
+        constant_types,
+        inferred_relation_types,
+        inferred_expr_types,
+      )?;
     }
     Ok(())
   }
@@ -128,10 +134,20 @@ impl LocalTypeInferenceContext {
       .or_default()
       .iter()
       .map(|(var, exprs)| {
-        let tys = exprs.iter().filter_map(|e| inferred_expr_types.get(e)).collect();
-        match TypeSet::unify_type_sets(tys) {
-          Ok(ty) => Ok((var.clone(), ty)),
-          Err(err) => Err(err),
+        let tys = exprs
+          .iter()
+          .filter_map(|e| inferred_expr_types.get(e))
+          .collect::<Vec<_>>();
+        if tys.is_empty() {
+          Err(TypeInferenceError::UnknownVariable {
+            variable: var.clone(),
+            loc: self.rule_loc.clone(),
+          })
+        } else {
+          match TypeSet::unify_type_sets(tys) {
+            Ok(ty) => Ok((var.clone(), ty)),
+            Err(err) => Err(err),
+          }
         }
       })
       .collect::<Result<HashMap<_, _>, _>>()?;
@@ -277,7 +293,7 @@ impl NodeVisitor for LocalTypeInferenceContext {
     if let Some(arity) = r.operator().output_arity() {
       if vars.len() != arity {
         self.errors.push(TypeInferenceError::InvalidReduceOutput {
-          op: r.operator().to_str().to_string(),
+          op: r.operator().to_string().to_string(),
           expected: arity,
           found: r.left().len(),
           loc: r.location().clone(),
@@ -292,7 +308,7 @@ impl NodeVisitor for LocalTypeInferenceContext {
     if let Some(num_bindings) = maybe_num_bindings {
       if bindings.len() != num_bindings {
         self.errors.push(TypeInferenceError::InvalidReduceBindingVar {
-          op: r.operator().to_str().to_string(),
+          op: r.operator().to_string().to_string(),
           expected: num_bindings,
           found: bindings.len(),
           loc: r.location().clone(),
@@ -372,7 +388,7 @@ impl NodeVisitor for LocalTypeInferenceContext {
           self.var_types.insert(n.to_string(), (ty, loc.clone()));
         }
       }
-      ReduceOperatorNode::Unique => {
+      ReduceOperatorNode::Unique | ReduceOperatorNode::TopK(_) => {
         if vars.len() == bindings.len() {
           for (var, binding) in vars.iter().zip(bindings.iter()) {
             if let Some(n) = var.name() {
@@ -455,5 +471,19 @@ impl NodeVisitor for LocalTypeInferenceContext {
       i.else_br().location().clone(),
     );
     self.unifications.push(unif)
+  }
+
+  fn visit_call_expr(&mut self, c: &CallExpr) {
+    match c.function().function() {
+      Some(f) => {
+        let unif = Unification::Call(
+          f,
+          c.iter_args().map(|a| a.location().clone()).collect(),
+          c.location().clone(),
+        );
+        self.unifications.push(unif)
+      }
+      _ => {}
+    }
   }
 }

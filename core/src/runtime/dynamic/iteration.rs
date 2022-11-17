@@ -6,18 +6,20 @@ use crate::runtime::provenance::*;
 use super::dataflow::*;
 use super::*;
 
-pub struct DynamicIteration<'a, T: Tag> {
+pub struct DynamicIteration<'a, Prov: Provenance> {
   pub iter_num: usize,
-  pub input_dynamic_collections: HashMap<String, &'a DynamicCollection<T>>,
-  pub dynamic_relations: HashMap<String, DynamicRelation<T>>,
+  pub early_discard: bool,
+  pub input_dynamic_collections: HashMap<String, &'a DynamicCollection<Prov>>,
+  pub dynamic_relations: HashMap<String, DynamicRelation<Prov>>,
   pub output_relations: Vec<String>,
   pub updates: Vec<Update>,
 }
 
-impl<'a, T: Tag> DynamicIteration<'a, T> {
+impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
   pub fn new() -> Self {
     Self {
       iter_num: 0,
+      early_discard: true,
       input_dynamic_collections: HashMap::new(),
       dynamic_relations: HashMap::new(),
       output_relations: Vec::new(),
@@ -33,21 +35,21 @@ impl<'a, T: Tag> DynamicIteration<'a, T> {
     self.iter_num += 1;
   }
 
-  pub fn add_input_dynamic_collection(&mut self, name: &str, col: &'a DynamicCollection<T>) {
+  pub fn add_input_dynamic_collection(&mut self, name: &str, col: &'a DynamicCollection<Prov>) {
     self.input_dynamic_collections.insert(name.to_string(), col);
   }
 
   pub fn create_dynamic_relation(&mut self, name: &str) {
     self
       .dynamic_relations
-      .insert(name.to_string(), DynamicRelation::<T>::new());
+      .insert(name.to_string(), DynamicRelation::<Prov>::new());
   }
 
-  pub fn get_dynamic_relation<'b>(&'b mut self, name: &str) -> Option<&'b DynamicRelation<T>> {
+  pub fn get_dynamic_relation<'b>(&'b mut self, name: &str) -> Option<&'b DynamicRelation<Prov>> {
     self.dynamic_relations.get(name).map(|r| r)
   }
 
-  pub fn get_dynamic_relation_unsafe<'b>(&'b mut self, name: &str) -> &'b DynamicRelation<T> {
+  pub fn get_dynamic_relation_unsafe<'b>(&'b mut self, name: &str) -> &'b DynamicRelation<Prov> {
     self.dynamic_relations.get(name).map(|r| r).unwrap()
   }
 
@@ -66,29 +68,49 @@ impl<'a, T: Tag> DynamicIteration<'a, T> {
     self.output_relations.push(name.to_string())
   }
 
-  pub fn run(&'a mut self, ctx: &T::Context) -> HashMap<String, DynamicCollection<T>> {
+  pub fn run(&'a mut self, ctx: &Prov) -> HashMap<String, DynamicCollection<Prov>> {
     self.run_with_iter_limit(ctx, None)
+  }
+
+  fn need_to_iterate(&mut self, ctx: &Prov, iter_limit: Option<usize>) -> bool {
+    // Check if it has been changed
+    if self.changed(ctx) || self.is_first_iteration() {
+      // Check iter count; if reaching limit then we need to stop
+      if let Some(iter_limit) = iter_limit {
+        if self.iter_num > iter_limit {
+          self.changed(ctx);
+          return false;
+        }
+      }
+
+      // If not reaching limit then we need to iterate
+      return true;
+    }
+
+    // If it is no longer changing, but we are still less than expected iter limit, continue
+    if let Some(iter_limit) = iter_limit {
+      if self.iter_num < iter_limit {
+        return true;
+      }
+    }
+
+    // Finally, stop
+    return false;
   }
 
   pub fn run_with_iter_limit(
     &'a mut self,
-    ctx: &T::Context,
+    ctx: &Prov,
     iter_limit: Option<usize>,
-  ) -> HashMap<String, DynamicCollection<T>> {
+  ) -> HashMap<String, DynamicCollection<Prov>> {
     // Iterate until fixpoint
-    while self.changed(ctx) || self.is_first_iteration() {
-      // Check iter count
-      if let Some(iter_limit) = iter_limit {
-        if self.iter_num > iter_limit {
-          self.changed(ctx);
-          break;
-        }
-      }
-
+    while self.need_to_iterate(ctx, iter_limit) {
       // Perform updates
       for update in &self.updates {
         let dyn_update = self.build_dynamic_update(ctx, update);
-        dyn_update.target.insert_dataflow_recent(ctx, &dyn_update.dataflow);
+        dyn_update
+          .target
+          .insert_dataflow_recent(ctx, &dyn_update.dataflow, self.early_discard);
       }
 
       // Update iteration number
@@ -104,7 +126,7 @@ impl<'a, T: Tag> DynamicIteration<'a, T> {
     result
   }
 
-  fn changed(&mut self, ctx: &T::Context) -> bool {
+  fn changed(&mut self, ctx: &Prov) -> bool {
     let mut changed = false;
     for (_, relation) in &mut self.dynamic_relations {
       if relation.changed(ctx) {
@@ -114,7 +136,7 @@ impl<'a, T: Tag> DynamicIteration<'a, T> {
     changed
   }
 
-  fn unsafe_get_dynamic_relation(&'a self, name: &str) -> &'a DynamicRelation<T> {
+  fn unsafe_get_dynamic_relation(&'a self, name: &str) -> &'a DynamicRelation<Prov> {
     if self.dynamic_relations.contains_key(name) {
       &self.dynamic_relations[name]
     } else {
@@ -122,7 +144,7 @@ impl<'a, T: Tag> DynamicIteration<'a, T> {
     }
   }
 
-  fn unsafe_get_input_dynamic_collection(&'a self, name: &str) -> &'a DynamicCollection<T> {
+  fn unsafe_get_input_dynamic_collection(&'a self, name: &str) -> &'a DynamicCollection<Prov> {
     if self.input_dynamic_collections.contains_key(name) {
       self.input_dynamic_collections[name]
     } else {
@@ -130,20 +152,20 @@ impl<'a, T: Tag> DynamicIteration<'a, T> {
     }
   }
 
-  fn build_dynamic_update(&'a self, ctx: &'a T::Context, update: &Update) -> DynamicUpdate<'a, T> {
+  fn build_dynamic_update(&'a self, ctx: &'a Prov, update: &Update) -> DynamicUpdate<'a, Prov> {
     DynamicUpdate {
       target: self.unsafe_get_dynamic_relation(&update.target),
       dataflow: self.build_dynamic_dataflow(ctx, &update.dataflow),
     }
   }
 
-  fn build_dynamic_dataflow(&'a self, ctx: &'a T::Context, dataflow: &Dataflow) -> DynamicDataflow<'a, T> {
+  fn build_dynamic_dataflow(&'a self, ctx: &'a Prov, dataflow: &Dataflow) -> DynamicDataflow<'a, Prov> {
     match dataflow {
-      Dataflow::Unit => {
+      Dataflow::Unit(t) => {
         if self.is_first_iteration() {
-          DynamicDataflow::recent_unit(ctx)
+          DynamicDataflow::recent_unit(ctx, t.clone())
         } else {
-          DynamicDataflow::stable_unit(ctx)
+          DynamicDataflow::stable_unit(ctx, t.clone())
         }
       }
       Dataflow::Relation(c) => {
@@ -153,6 +175,7 @@ impl<'a, T: Tag> DynamicIteration<'a, T> {
           self.unsafe_get_dynamic_relation(c).into()
         }
       }
+      Dataflow::OverwriteOne(d) => self.build_dynamic_dataflow(ctx, d).overwrite_one(ctx),
       Dataflow::Filter(d, e) => self.build_dynamic_dataflow(ctx, d).filter(e.clone()),
       Dataflow::Find(d, k) => self.build_dynamic_dataflow(ctx, d).find(k.clone()),
       Dataflow::Project(d, e) => self.build_dynamic_dataflow(ctx, d).project(e.clone()),
@@ -207,13 +230,13 @@ impl<'a, T: Tag> DynamicIteration<'a, T> {
     }
   }
 
-  fn build_dynamic_collection(&self, r: &str) -> DynamicDataflow<T> {
+  fn build_dynamic_collection(&self, r: &str) -> DynamicDataflow<Prov> {
     let col = self.unsafe_get_input_dynamic_collection(r);
     DynamicDataflow::dynamic_collection(col, self.is_first_iteration())
   }
 }
 
-struct DynamicUpdate<'a, T: Tag> {
-  target: &'a DynamicRelation<T>,
-  dataflow: DynamicDataflow<'a, T>,
+struct DynamicUpdate<'a, Prov: Provenance> {
+  target: &'a DynamicRelation<Prov>,
+  dataflow: DynamicDataflow<'a, Prov>,
 }

@@ -7,14 +7,14 @@ use crate::runtime::monitor::Monitor;
 use crate::runtime::provenance::*;
 use crate::utils::{PointerFamily, RcFamily};
 
-pub struct DynamicExecutionContext<T: Tag, P: PointerFamily = RcFamily> {
+pub struct DynamicExecutionContext<Prov: Provenance, P: PointerFamily = RcFamily> {
   pub program: ram::Program,
-  pub facts: HashMap<String, Vec<(Option<InputTagOf<T::Context>>, Tuple)>>,
+  pub facts: HashMap<String, Vec<(Option<InputTagOf<Prov>>, Tuple)>>,
   pub disjunctions: HashMap<String, Vec<Vec<usize>>>,
-  pub results: HashMap<String, P::Pointer<DynamicCollection<T>>>,
+  pub results: HashMap<String, P::Pointer<DynamicCollection<Prov>>>,
 }
 
-impl<T: Tag, P: PointerFamily> Clone for DynamicExecutionContext<T, P> {
+impl<Prov: Provenance, P: PointerFamily> Clone for DynamicExecutionContext<Prov, P> {
   fn clone(&self) -> Self {
     Self {
       program: self.program.clone(),
@@ -25,7 +25,7 @@ impl<T: Tag, P: PointerFamily> Clone for DynamicExecutionContext<T, P> {
   }
 }
 
-impl<T: Tag, P: PointerFamily> DynamicExecutionContext<T, P> {
+impl<Prov: Provenance, P: PointerFamily> DynamicExecutionContext<Prov, P> {
   pub fn new() -> Self {
     Self {
       program: ram::Program::new(),
@@ -35,24 +35,16 @@ impl<T: Tag, P: PointerFamily> DynamicExecutionContext<T, P> {
     }
   }
 
-  pub fn execute<C>(&mut self, program: ram::Program, ctx: &mut C) -> Result<(), RuntimeError>
-  where
-    T: Tag<Context = C>,
-    C: ProvenanceContext<Tag = T>,
-  {
+  pub fn execute(&mut self, program: ram::Program, ctx: &mut Prov) -> Result<(), RuntimeError> {
     self.execute_with_iter_limit(program, ctx, None)
   }
 
-  pub fn execute_with_iter_limit<C>(
+  pub fn execute_with_iter_limit(
     &mut self,
     program: ram::Program,
-    ctx: &mut C,
+    ctx: &mut Prov,
     iter_limit: Option<usize>,
-  ) -> Result<(), RuntimeError>
-  where
-    T: Tag<Context = C>,
-    C: ProvenanceContext<Tag = T>,
-  {
+  ) -> Result<(), RuntimeError> {
     let mut curr_result = HashMap::new();
     std::mem::swap(&mut self.results, &mut curr_result);
 
@@ -77,17 +69,13 @@ impl<T: Tag, P: PointerFamily> DynamicExecutionContext<T, P> {
     Ok(())
   }
 
-  fn execute_stratum<C>(
+  fn execute_stratum(
     &mut self,
     stratum: &ram::Stratum,
-    inputs: HashMap<String, &P::Pointer<DynamicCollection<T>>>,
-    ctx: &mut C,
+    inputs: HashMap<String, &P::Pointer<DynamicCollection<Prov>>>,
+    ctx: &mut Prov,
     iter_limit: Option<usize>,
-  ) -> Result<HashMap<String, DynamicCollection<T>>, RuntimeError>
-  where
-    T: Tag<Context = C>,
-    C: ProvenanceContext<Tag = T>,
-  {
+  ) -> Result<HashMap<String, DynamicCollection<Prov>>, RuntimeError> {
     let dyn_relas = stratum
       .relations
       .iter()
@@ -101,7 +89,7 @@ impl<T: Tag, P: PointerFamily> DynamicExecutionContext<T, P> {
     }
 
     // Otherwise, do computation
-    let mut iter = DynamicIteration::<T>::new();
+    let mut iter = DynamicIteration::<Prov>::new();
 
     // Add input collections
     for (rel, col) in inputs {
@@ -177,26 +165,22 @@ impl<T: Tag, P: PointerFamily> DynamicExecutionContext<T, P> {
     Ok(result)
   }
 
-  pub fn execute_with_monitor<C, M>(&mut self, program: ram::Program, ctx: &mut C, m: &M) -> Result<(), RuntimeError>
+  pub fn execute_with_monitor<M>(&mut self, program: ram::Program, ctx: &mut Prov, m: &M) -> Result<(), RuntimeError>
   where
-    T: Tag<Context = C>,
-    C: ProvenanceContext<Tag = T>,
-    M: Monitor<C>,
+    M: Monitor<Prov>,
   {
     self.execute_with_iter_limit_and_monitor(program, ctx, None, m)
   }
 
-  pub fn execute_with_iter_limit_and_monitor<C, M>(
+  pub fn execute_with_iter_limit_and_monitor<M>(
     &mut self,
     program: ram::Program,
-    ctx: &mut C,
+    ctx: &mut Prov,
     iter_limit: Option<usize>,
     m: &M,
   ) -> Result<(), RuntimeError>
   where
-    T: Tag<Context = C>,
-    C: ProvenanceContext<Tag = T>,
-    M: Monitor<C>,
+    M: Monitor<Prov>,
   {
     let mut curr_result = HashMap::new();
     std::mem::swap(&mut self.results, &mut curr_result);
@@ -222,18 +206,16 @@ impl<T: Tag, P: PointerFamily> DynamicExecutionContext<T, P> {
     Ok(())
   }
 
-  fn execute_stratum_with_monitor<C, M>(
+  fn execute_stratum_with_monitor<M>(
     &mut self,
     stratum: &ram::Stratum,
-    inputs: HashMap<String, &P::Pointer<DynamicCollection<T>>>,
-    ctx: &mut C,
+    inputs: HashMap<String, &P::Pointer<DynamicCollection<Prov>>>,
+    ctx: &mut Prov,
     iter_limit: Option<usize>,
     m: &M,
-  ) -> Result<HashMap<String, DynamicCollection<T>>, RuntimeError>
+  ) -> Result<HashMap<String, DynamicCollection<Prov>>, RuntimeError>
   where
-    T: Tag<Context = C>,
-    C: ProvenanceContext<Tag = T>,
-    M: Monitor<C>,
+    M: Monitor<Prov>,
   {
     let dyn_relas = stratum
       .relations
@@ -248,7 +230,7 @@ impl<T: Tag, P: PointerFamily> DynamicExecutionContext<T, P> {
     }
 
     // Otherwise, do computation
-    let mut iter = DynamicIteration::<T>::new();
+    let mut iter = DynamicIteration::<Prov>::new();
 
     // Add input collections
     for (rel, col) in inputs {
@@ -332,14 +314,14 @@ impl<T: Tag, P: PointerFamily> DynamicExecutionContext<T, P> {
     Ok(result)
   }
 
-  pub fn add_facts(&mut self, relation: &str, facts: Vec<(Option<InputTagOf<T::Context>>, Tuple)>) {
+  pub fn add_facts(&mut self, relation: &str, facts: Vec<(Option<InputTagOf<Prov>>, Tuple)>) {
     self.add_facts_with_disjunction(relation, facts, None);
   }
 
   pub fn add_facts_with_disjunction(
     &mut self,
     relation: &str,
-    facts: Vec<(Option<InputTagOf<T::Context>>, Tuple)>,
+    facts: Vec<(Option<InputTagOf<Prov>>, Tuple)>,
     disjunctions: Option<Vec<Vec<usize>>>,
   ) {
     // For incremental: when new fact is added, we need to recompute the relation
@@ -367,21 +349,21 @@ impl<T: Tag, P: PointerFamily> DynamicExecutionContext<T, P> {
     }
   }
 
-  pub fn internal_relation(&self, r: &str) -> Option<&DynamicCollection<T>> {
+  pub fn internal_relation(&self, r: &str) -> Option<&DynamicCollection<Prov>> {
     self.results.get(r).map(|c| &**c)
   }
 
-  pub fn internal_rc_relation(&self, r: &str) -> Option<P::Pointer<DynamicCollection<T>>> {
+  pub fn internal_rc_relation(&self, r: &str) -> Option<P::Pointer<DynamicCollection<Prov>>> {
     self.results.get(r).map(|c| P::clone_ptr(c))
   }
 
-  pub fn relation(&self, r: &str, ctx: &T::Context) -> Option<DynamicOutputCollection<T>> {
+  pub fn relation(&self, r: &str, ctx: &Prov) -> Option<DynamicOutputCollection<Prov>> {
     self.internal_relation(r).map(|c| c.clone().recover(ctx))
   }
 
-  pub fn relation_with_monitor<M>(&self, r: &str, ctx: &T::Context, m: &M) -> Option<DynamicOutputCollection<T>>
+  pub fn relation_with_monitor<M>(&self, r: &str, ctx: &Prov, m: &M) -> Option<DynamicOutputCollection<Prov>>
   where
-    M: Monitor<T::Context>,
+    M: Monitor<Prov>,
   {
     self
       .internal_relation(r)

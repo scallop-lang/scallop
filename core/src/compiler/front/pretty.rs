@@ -5,11 +5,11 @@ use super::*;
 impl Display for Item {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     match self {
-      Self::ImportDecl(id) => Display::fmt(id, f),
-      Self::InputDecl(id) => Display::fmt(id, f),
-      Self::TypeDecl(td) => Display::fmt(td, f),
-      Self::RelationDecl(rd) => Display::fmt(rd, f),
-      Self::QueryDecl(qd) => Display::fmt(qd, f),
+      Self::ImportDecl(id) => id.fmt(f),
+      Self::TypeDecl(td) => td.fmt(f),
+      Self::ConstDecl(cd) => cd.fmt(f),
+      Self::RelationDecl(rd) => rd.fmt(f),
+      Self::QueryDecl(qd) => qd.fmt(f),
     }
   }
 }
@@ -23,32 +23,39 @@ impl Display for ImportDecl {
   }
 }
 
-impl Display for InputDecl {
+impl Display for TypeDecl {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    match &self.node {
+      TypeDeclNode::Subtype(s) => s.fmt(f),
+      TypeDeclNode::Alias(s) => s.fmt(f),
+      TypeDeclNode::Relation(s) => s.fmt(f),
+    }
+  }
+}
+
+impl Display for ConstDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     for attr in self.attributes() {
       f.write_fmt(format_args!("{} ", attr))?;
     }
-    f.write_fmt(format_args!(
-      "input {}({})",
-      self.predicate(),
-      self
-        .node
-        .types
-        .iter()
-        .map(|t| format!("{}", t))
-        .collect::<Vec<_>>()
-        .join(", ")
-    ))
+    f.write_fmt(format_args!("const "))?;
+    for (i, const_assign) in self.iter_assignments().enumerate() {
+      if i > 0 {
+        f.write_str(", ")?;
+      }
+      const_assign.fmt(f)?;
+    }
+    Ok(())
   }
 }
 
-impl Display for TypeDecl {
+impl Display for ConstAssignment {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    match &self.node {
-      TypeDeclNode::Subtype(s) => Display::fmt(s, f),
-      TypeDeclNode::Alias(s) => Display::fmt(s, f),
-      TypeDeclNode::Relation(s) => Display::fmt(s, f),
+    f.write_fmt(format_args!("{}", self.name()))?;
+    if let Some(ty) = self.ty() {
+      f.write_fmt(format_args!(": {}", ty))?;
     }
+    f.write_fmt(format_args!(" = {}", self.value()))
   }
 }
 
@@ -84,6 +91,7 @@ impl Display for Attribute {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     f.write_fmt(format_args!("@{}", self.name()))?;
     if self.num_pos_args() + self.num_kw_args() > 0 {
+      f.write_str("(")?;
       f.write_str(
         &self
           .node
@@ -104,7 +112,8 @@ impl Display for Attribute {
           .map(|(n, a)| format!("{} = {}", n, a))
           .collect::<Vec<_>>()
           .join(", "),
-      )
+      )?;
+      f.write_str(")")
     } else {
       Ok(())
     }
@@ -130,7 +139,7 @@ impl Display for Type {
 impl Display for SubtypeDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     for attr in self.attributes() {
-      f.write_fmt(format_args!("{} ", attr))?;
+      attr.fmt(f)?;
     }
     f.write_fmt(format_args!("type {} <: {}", self.name(), self.subtype_of()))
   }
@@ -139,7 +148,7 @@ impl Display for SubtypeDecl {
 impl Display for AliasTypeDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     for attr in self.attributes() {
-      f.write_fmt(format_args!("{} ", attr))?;
+      attr.fmt(f)?;
     }
     f.write_fmt(format_args!("type {} = {}", self.name(), self.alias_of()))
   }
@@ -148,17 +157,30 @@ impl Display for AliasTypeDecl {
 impl Display for RelationTypeDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     for attr in self.attributes() {
-      f.write_fmt(format_args!("{} ", attr))?;
+      attr.fmt(f)?;
     }
-    f.write_fmt(format_args!(
-      "type {}({})",
-      self.predicate(),
-      self
-        .arg_types()
-        .map(|a| format!("{}", a))
-        .collect::<Vec<_>>()
-        .join(", ")
-    ))
+    f.write_str("type ")?;
+    for (i, relation_type) in self.relation_types().enumerate() {
+      if i > 0 {
+        f.write_str(", ")?;
+      }
+      f.write_fmt(format_args!("{}", relation_type))?;
+    }
+    Ok(())
+  }
+}
+
+impl Display for RelationType {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    f.write_str(self.predicate())?;
+    f.write_str("(")?;
+    for (i, arg_type) in self.arg_types().enumerate() {
+      if i > 0 {
+        f.write_str(", ")?;
+      }
+      arg_type.fmt(f)?;
+    }
+    f.write_str(")")
   }
 }
 
@@ -171,7 +193,7 @@ impl Display for Identifier {
 impl Display for ConstantSetDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     for attr in self.attributes() {
-      f.write_fmt(format_args!("{} ", attr))?;
+      attr.fmt(f)?;
     }
     f.write_fmt(format_args!(
       "rel {} = {{{}}}",
@@ -188,7 +210,7 @@ impl Display for ConstantSetDecl {
 impl Display for FactDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     for attr in self.attributes() {
-      f.write_fmt(format_args!("{} ", attr))?;
+      attr.fmt(f)?;
     }
     f.write_fmt(format_args!(
       "rel {}({})",
@@ -238,6 +260,15 @@ impl Display for ConstantSetTuple {
         .collect::<Vec<_>>()
         .join(", ")
     ))
+  }
+}
+
+impl Display for ConstantOrVariable {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    match self {
+      Self::Constant(c) => c.fmt(f),
+      Self::Variable(v) => v.fmt(f),
+    }
   }
 }
 
@@ -352,7 +383,7 @@ impl Display for Reduce {
 
 impl Display for ReduceOperator {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    f.write_str(self.to_str())
+    f.write_str(&self.to_string())
   }
 }
 
@@ -388,6 +419,11 @@ impl std::fmt::Display for Expr {
         i.cond(),
         i.then_br(),
         i.else_br()
+      )),
+      Self::Call(c) => f.write_fmt(format_args!(
+        "${}({})",
+        c.function(),
+        c.iter_args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(", ")
       )),
     }
   }
@@ -428,6 +464,20 @@ impl std::fmt::Display for UnaryExpr {
     match op {
       UnaryOpNode::TypeCast(_) => f.write_fmt(format_args!("({} {})", self.op1(), op)),
       _ => f.write_fmt(format_args!("({}{})", op, self.op1())),
+    }
+  }
+}
+
+impl std::fmt::Display for Function {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match &self.node {
+      FunctionNode::Abs => f.write_str("abs"),
+      FunctionNode::Hash => f.write_str("hash"),
+      FunctionNode::StringConcat => f.write_str("string_concat"),
+      FunctionNode::StringLength => f.write_str("string_length"),
+      FunctionNode::Substring => f.write_str("substring"),
+      FunctionNode::StringCharAt => f.write_str("string_char_at"),
+      FunctionNode::Unknown(u) => u.fmt(f),
     }
   }
 }

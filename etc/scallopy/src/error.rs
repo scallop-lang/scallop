@@ -1,10 +1,11 @@
 use pyo3::{exceptions::PyException, prelude::*};
 
-use scallop_core::integrate::IntegrateError;
+use scallop_core::{integrate::IntegrateError, runtime::dynamic::RuntimeError};
 
 #[derive(Debug)]
 pub enum BindingError {
-  IntegrateError(IntegrateError),
+  CompileError(String),
+  RuntimeError(RuntimeError),
   InvalidCustomProvenance,
   UnknownProvenance(String),
   UnknownRelation(String),
@@ -20,7 +21,8 @@ impl std::error::Error for BindingError {}
 impl std::fmt::Display for BindingError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      Self::IntegrateError(e) => std::fmt::Display::fmt(e, f),
+      Self::CompileError(e) => std::fmt::Display::fmt(e, f),
+      Self::RuntimeError(e) => std::fmt::Display::fmt(e, f),
       Self::InvalidCustomProvenance => f.write_str("Invalid custom provenance context"),
       Self::UnknownProvenance(p) => f.write_fmt(format_args!("Unknown provenance `{}`", p)),
       Self::UnknownRelation(r) => f.write_fmt(format_args!("Unknown relation `{}`", r)),
@@ -35,7 +37,12 @@ impl std::fmt::Display for BindingError {
 
 impl std::convert::From<IntegrateError> for BindingError {
   fn from(err: IntegrateError) -> Self {
-    Self::IntegrateError(err)
+    match err {
+      IntegrateError::Compile(cs) => {
+        Self::CompileError(cs.into_iter().map(|c| format!("{}", c)).collect::<Vec<_>>().join("\n"))
+      }
+      IntegrateError::Runtime(e) => Self::RuntimeError(e),
+    }
   }
 }
 

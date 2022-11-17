@@ -26,12 +26,10 @@ impl HiddenRelationAnalysis {
 }
 
 impl NodeVisitor for HiddenRelationAnalysis {
-  fn visit_input_decl(&mut self, input_decl: &InputDecl) {
-    self.process_attributes(input_decl.predicate(), input_decl.attributes())
-  }
-
   fn visit_relation_type_decl(&mut self, rela_type_decl: &ast::RelationTypeDecl) {
-    self.process_attributes(rela_type_decl.predicate(), rela_type_decl.attributes())
+    for rela_type in rela_type_decl.relation_types() {
+      self.process_attributes(rela_type.predicate(), rela_type_decl.attributes());
+    }
   }
 
   fn visit_constant_set_decl(&mut self, decl: &ast::ConstantSetDecl) {

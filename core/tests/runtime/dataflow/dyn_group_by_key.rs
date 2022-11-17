@@ -5,15 +5,14 @@ use scallop_core::runtime::dynamic::*;
 use scallop_core::runtime::provenance::*;
 use scallop_core::testing::*;
 
-fn test_group_by_key_1<T>() -> DynamicCollection<T>
+fn test_group_by_key_1<Prov>() -> DynamicCollection<Prov>
 where
-  T: Tag + std::fmt::Debug,
-  T::Context: ProvenanceContext<InputTag = ()> + Default,
+  Prov: Provenance<InputTag = ()> + Default,
 {
-  let mut ctx = T::Context::default();
+  let mut ctx = Prov::default();
 
   let result_1 = {
-    let mut strata_1 = DynamicIteration::<T>::new();
+    let mut strata_1 = DynamicIteration::<Prov>::new();
     strata_1.create_dynamic_relation("color");
     strata_1.create_dynamic_relation("colors");
     strata_1.create_dynamic_relation("_color_rev");
@@ -38,7 +37,7 @@ where
   };
 
   let mut result_2 = {
-    let mut strata_2 = DynamicIteration::<T>::new();
+    let mut strata_2 = DynamicIteration::<Prov>::new();
     strata_2.create_dynamic_relation("color_count");
     strata_2.add_input_dynamic_collection("_color_rev", &result_1["_color_rev"]);
     strata_2.add_input_dynamic_collection("_colors_key", &result_1["_colors_key"]);
@@ -56,6 +55,6 @@ where
 
 #[test]
 fn test_group_by_key_1_unit() {
-  let color_count = test_group_by_key_1::<unit::Unit>();
+  let color_count = test_group_by_key_1::<unit::UnitProvenance>();
   expect_collection(&color_count, vec![("blue", 2usize), ("green", 1usize), ("red", 0usize)])
 }

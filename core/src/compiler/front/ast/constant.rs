@@ -26,7 +26,7 @@ impl Tag {
 pub enum ConstantNode {
   Integer(i64),
   Float(f64),
-  Char(char),
+  Char(String),
   Boolean(bool),
   String(String),
 }
@@ -53,7 +53,7 @@ impl Constant {
       (Integer(i), ValueType::F64) => Value::F64(*i as f64),
       (Float(f), ValueType::F32) => Value::F32(*f as f32),
       (Float(f), ValueType::F64) => Value::F64(*f as f64),
-      (Char(c), ValueType::Char) => Value::Char(*c as char),
+      (Char(c), ValueType::Char) => Value::Char(c.chars().next().unwrap()),
       (Boolean(b), ValueType::Bool) => Value::Bool(*b),
       (String(_), ValueType::Str) => panic!("Cannot cast dynamic string into static string"),
       (String(s), ValueType::String) => Value::String(s.clone()),
@@ -75,15 +75,38 @@ impl Constant {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct ConstantTupleNode {
-  pub elems: Vec<Constant>,
+pub enum ConstantOrVariable {
+  Constant(Constant),
+  Variable(Variable),
 }
 
-pub type ConstantTuple = AstNode<ConstantTupleNode>;
+impl ConstantOrVariable {
+  pub fn is_constant(&self) -> bool {
+    match self {
+      Self::Constant(_) => true,
+      Self::Variable(_) => false,
+    }
+  }
 
-impl ConstantTuple {
-  pub fn arity(&self) -> usize {
-    self.node.elems.len()
+  pub fn is_variable(&self) -> bool {
+    match self {
+      Self::Constant(_) => false,
+      Self::Variable(_) => true,
+    }
+  }
+
+  pub fn constant(&self) -> Option<&Constant> {
+    match self {
+      Self::Constant(c) => Some(c),
+      Self::Variable(_) => None,
+    }
+  }
+
+  pub fn variable(&self) -> Option<&Variable> {
+    match self {
+      Self::Constant(_) => None,
+      Self::Variable(v) => Some(v),
+    }
   }
 }
 

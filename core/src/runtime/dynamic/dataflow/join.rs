@@ -2,13 +2,13 @@ use super::utils::*;
 use super::*;
 use crate::common::tuple::Tuple;
 
-pub struct DynamicJoinDataflow<'a, T: Tag> {
-  pub d1: Box<DynamicDataflow<'a, T>>,
-  pub d2: Box<DynamicDataflow<'a, T>>,
-  pub ctx: &'a T::Context,
+pub struct DynamicJoinDataflow<'a, Prov: Provenance> {
+  pub d1: Box<DynamicDataflow<'a, Prov>>,
+  pub d2: Box<DynamicDataflow<'a, Prov>>,
+  pub ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for DynamicJoinDataflow<'a, T> {
+impl<'a, Prov: Provenance> Clone for DynamicJoinDataflow<'a, Prov> {
   fn clone(&self) -> Self {
     Self {
       d1: self.d1.clone(),
@@ -18,13 +18,13 @@ impl<'a, T: Tag> Clone for DynamicJoinDataflow<'a, T> {
   }
 }
 
-impl<'a, T: Tag> DynamicJoinDataflow<'a, T> {
-  pub fn iter_stable(&self) -> DynamicBatches<'a, T> {
+impl<'a, Prov: Provenance> DynamicJoinDataflow<'a, Prov> {
+  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     let op = JoinOp { ctx: self.ctx };
     DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_stable(), op.into())
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     let op = JoinOp { ctx: self.ctx };
     DynamicBatches::chain(vec![
       DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_recent(), op.clone().into()),
@@ -34,24 +34,24 @@ impl<'a, T: Tag> DynamicJoinDataflow<'a, T> {
   }
 }
 
-pub struct JoinOp<'a, T: Tag> {
-  ctx: &'a T::Context,
+pub struct JoinOp<'a, Prov: Provenance> {
+  ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for JoinOp<'a, T> {
+impl<'a, Prov: Provenance> Clone for JoinOp<'a, Prov> {
   fn clone(&self) -> Self {
     Self { ctx: self.ctx }
   }
 }
 
-impl<'a, T: Tag> From<JoinOp<'a, T>> for BatchBinaryOp<'a, T> {
-  fn from(op: JoinOp<'a, T>) -> Self {
+impl<'a, Prov: Provenance> From<JoinOp<'a, Prov>> for BatchBinaryOp<'a, Prov> {
+  fn from(op: JoinOp<'a, Prov>) -> Self {
     Self::Join(op)
   }
 }
 
-impl<'a, T: Tag> JoinOp<'a, T> {
-  pub fn apply(&self, mut i1: DynamicBatch<'a, T>, mut i2: DynamicBatch<'a, T>) -> DynamicBatch<'a, T> {
+impl<'a, Prov: Provenance> JoinOp<'a, Prov> {
+  pub fn apply(&self, mut i1: DynamicBatch<'a, Prov>, mut i2: DynamicBatch<'a, Prov>) -> DynamicBatch<'a, Prov> {
     let i1_curr = i1.next();
     let i2_curr = i2.next();
     DynamicBatch::Join(DynamicJoinBatch {
@@ -65,16 +65,16 @@ impl<'a, T: Tag> JoinOp<'a, T> {
   }
 }
 
-pub struct DynamicJoinBatch<'a, T: Tag> {
-  i1: Box<DynamicBatch<'a, T>>,
-  i1_curr: Option<DynamicElement<T>>,
-  i2: Box<DynamicBatch<'a, T>>,
-  i2_curr: Option<DynamicElement<T>>,
-  curr_iter: Option<JoinProductIterator<T>>,
-  ctx: &'a T::Context,
+pub struct DynamicJoinBatch<'a, Prov: Provenance> {
+  i1: Box<DynamicBatch<'a, Prov>>,
+  i1_curr: Option<DynamicElement<Prov>>,
+  i2: Box<DynamicBatch<'a, Prov>>,
+  i2_curr: Option<DynamicElement<Prov>>,
+  curr_iter: Option<JoinProductIterator<Prov>>,
+  ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for DynamicJoinBatch<'a, T> {
+impl<'a, Prov: Provenance> Clone for DynamicJoinBatch<'a, Prov> {
   fn clone(&self) -> Self {
     Self {
       i1: self.i1.clone(),
@@ -87,8 +87,8 @@ impl<'a, T: Tag> Clone for DynamicJoinBatch<'a, T> {
   }
 }
 
-impl<'a, T: Tag> Iterator for DynamicJoinBatch<'a, T> {
-  type Item = DynamicElement<T>;
+impl<'a, Prov: Provenance> Iterator for DynamicJoinBatch<'a, Prov> {
+  type Item = DynamicElement<Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     use std::cmp::Ordering;

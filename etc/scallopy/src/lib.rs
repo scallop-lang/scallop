@@ -3,6 +3,7 @@ mod context;
 mod custom_tag;
 mod error;
 mod io;
+mod provenance;
 mod tuple;
 
 use pyo3::prelude::*;

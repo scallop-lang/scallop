@@ -5,7 +5,7 @@ use scallop_core::utils::RcFamily;
 
 #[test]
 fn incr_edge_path_left_recursion() {
-  let prov_ctx = provenance::unit::UnitContext::default();
+  let prov_ctx = provenance::unit::UnitProvenance::default();
   let mut ctx = integrate::IntegrateContext::<_, RcFamily>::new(prov_ctx);
 
   // Source
@@ -35,7 +35,7 @@ fn incr_edge_path_left_recursion() {
 
 #[test]
 fn incr_edge_path_left_branching_1() {
-  let prov_ctx = provenance::unit::UnitContext::default();
+  let prov_ctx = provenance::unit::UnitProvenance::default();
   let mut ctx = integrate::IntegrateContext::<_, RcFamily>::new(prov_ctx);
 
   // Base context

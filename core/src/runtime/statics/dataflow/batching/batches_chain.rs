@@ -5,25 +5,25 @@ use crate::runtime::provenance::*;
 use crate::runtime::statics::*;
 
 #[derive(Clone)]
-pub struct BatchesChain<B1, B2, Tup, T>
+pub struct BatchesChain<B1, B2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  B1: Batches<Tup, T>,
-  B2: Batches<Tup, T>,
+  Prov: Provenance,
+  B1: Batches<Tup, Prov>,
+  B2: Batches<Tup, Prov>,
 {
   b1: B1,
   b2: B2,
   use_b1: bool,
-  phantom: PhantomData<(Tup, T)>,
+  phantom: PhantomData<(Tup, Prov)>,
 }
 
-impl<B1, B2, Tup, T> BatchesChain<B1, B2, Tup, T>
+impl<B1, B2, Tup, Prov> BatchesChain<B1, B2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  B1: Batches<Tup, T>,
-  B2: Batches<Tup, T>,
+  Prov: Provenance,
+  B1: Batches<Tup, Prov>,
+  B2: Batches<Tup, Prov>,
 {
   pub fn chain(b1: B1, b2: B2) -> Self {
     Self {
@@ -35,14 +35,14 @@ where
   }
 }
 
-impl<B1, B2, Tup, T> Iterator for BatchesChain<B1, B2, Tup, T>
+impl<B1, B2, Tup, Prov> Iterator for BatchesChain<B1, B2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  B1: Batches<Tup, T>,
-  B2: Batches<Tup, T>,
+  Prov: Provenance,
+  B1: Batches<Tup, Prov>,
+  B2: Batches<Tup, Prov>,
 {
-  type Item = EitherBatch<B1::Batch, B2::Batch, Tup, T>;
+  type Item = EitherBatch<B1::Batch, B2::Batch, Tup, Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     if self.use_b1 {
@@ -56,25 +56,25 @@ where
   }
 }
 
-impl<Tup, T, B1, B2> Batches<Tup, T> for BatchesChain<B1, B2, Tup, T>
+impl<Tup, Prov, B1, B2> Batches<Tup, Prov> for BatchesChain<B1, B2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  B1: Batches<Tup, T>,
-  B2: Batches<Tup, T>,
+  Prov: Provenance,
+  B1: Batches<Tup, Prov>,
+  B2: Batches<Tup, Prov>,
 {
-  type Batch = EitherBatch<B1::Batch, B2::Batch, Tup, T>;
+  type Batch = EitherBatch<B1::Batch, B2::Batch, Tup, Prov>;
 }
 
-pub type BatchesChain3<B1, B2, B3, Tup, T> = BatchesChain<BatchesChain<B1, B2, Tup, T>, B3, Tup, T>;
+pub type BatchesChain3<B1, B2, B3, Tup, Prov> = BatchesChain<BatchesChain<B1, B2, Tup, Prov>, B3, Tup, Prov>;
 
-impl<B1, B2, B3, Tup, T> BatchesChain3<B1, B2, B3, Tup, T>
+impl<B1, B2, B3, Tup, Prov> BatchesChain3<B1, B2, B3, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  B1: Batches<Tup, T>,
-  B2: Batches<Tup, T>,
-  B3: Batches<Tup, T>,
+  Prov: Provenance,
+  B1: Batches<Tup, Prov>,
+  B2: Batches<Tup, Prov>,
+  B3: Batches<Tup, Prov>,
 {
   pub fn chain_3(b1: B1, b2: B2, b3: B3) -> Self {
     BatchesChain::chain(BatchesChain::chain(b1, b2), b3)

@@ -6,6 +6,12 @@ pub struct RuleNode {
   pub body: Formula,
 }
 
+impl RuleNode {
+  pub fn new(head: Atom, body: Formula) -> Self {
+    Self { head, body }
+  }
+}
+
 pub type Rule = AstNode<RuleNode>;
 
 impl Rule {

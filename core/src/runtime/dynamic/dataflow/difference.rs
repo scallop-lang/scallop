@@ -1,12 +1,12 @@
 use super::*;
 
-pub struct DynamicDifferenceDataflow<'a, T: Tag> {
-  pub d1: Box<DynamicDataflow<'a, T>>,
-  pub d2: Box<DynamicDataflow<'a, T>>,
-  pub ctx: &'a T::Context,
+pub struct DynamicDifferenceDataflow<'a, Prov: Provenance> {
+  pub d1: Box<DynamicDataflow<'a, Prov>>,
+  pub d2: Box<DynamicDataflow<'a, Prov>>,
+  pub ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for DynamicDifferenceDataflow<'a, T> {
+impl<'a, Prov: Provenance> Clone for DynamicDifferenceDataflow<'a, Prov> {
   fn clone(&self) -> Self {
     Self {
       d1: self.d1.clone(),
@@ -16,12 +16,12 @@ impl<'a, T: Tag> Clone for DynamicDifferenceDataflow<'a, T> {
   }
 }
 
-impl<'a, T: Tag> DynamicDifferenceDataflow<'a, T> {
-  pub fn iter_stable(&self) -> DynamicBatches<'a, T> {
+impl<'a, Prov: Provenance> DynamicDifferenceDataflow<'a, Prov> {
+  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     DynamicBatches::Empty
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     let op = DifferenceOp { ctx: self.ctx };
     DynamicBatches::chain(vec![
       DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_recent(), op.clone().into()),
@@ -31,24 +31,24 @@ impl<'a, T: Tag> DynamicDifferenceDataflow<'a, T> {
   }
 }
 
-pub struct DifferenceOp<'a, T: Tag> {
-  ctx: &'a T::Context,
+pub struct DifferenceOp<'a, Prov: Provenance> {
+  ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for DifferenceOp<'a, T> {
+impl<'a, Prov: Provenance> Clone for DifferenceOp<'a, Prov> {
   fn clone(&self) -> Self {
     Self { ctx: self.ctx }
   }
 }
 
-impl<'a, T: Tag> From<DifferenceOp<'a, T>> for BatchBinaryOp<'a, T> {
-  fn from(op: DifferenceOp<'a, T>) -> Self {
+impl<'a, Prov: Provenance> From<DifferenceOp<'a, Prov>> for BatchBinaryOp<'a, Prov> {
+  fn from(op: DifferenceOp<'a, Prov>) -> Self {
     Self::Difference(op)
   }
 }
 
-impl<'a, T: Tag> DifferenceOp<'a, T> {
-  pub fn apply(&self, mut i1: DynamicBatch<'a, T>, mut i2: DynamicBatch<'a, T>) -> DynamicBatch<'a, T> {
+impl<'a, Prov: Provenance> DifferenceOp<'a, Prov> {
+  pub fn apply(&self, mut i1: DynamicBatch<'a, Prov>, mut i2: DynamicBatch<'a, Prov>) -> DynamicBatch<'a, Prov> {
     let i1_curr = i1.next();
     let i2_curr = i2.next();
     DynamicBatch::Difference(DynamicDifferenceBatch {
@@ -61,15 +61,15 @@ impl<'a, T: Tag> DifferenceOp<'a, T> {
   }
 }
 
-pub struct DynamicDifferenceBatch<'a, T: Tag> {
-  i1: Box<DynamicBatch<'a, T>>,
-  i1_curr: Option<DynamicElement<T>>,
-  i2: Box<DynamicBatch<'a, T>>,
-  i2_curr: Option<DynamicElement<T>>,
-  ctx: &'a T::Context,
+pub struct DynamicDifferenceBatch<'a, Prov: Provenance> {
+  i1: Box<DynamicBatch<'a, Prov>>,
+  i1_curr: Option<DynamicElement<Prov>>,
+  i2: Box<DynamicBatch<'a, Prov>>,
+  i2_curr: Option<DynamicElement<Prov>>,
+  ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for DynamicDifferenceBatch<'a, T> {
+impl<'a, Prov: Provenance> Clone for DynamicDifferenceBatch<'a, Prov> {
   fn clone(&self) -> Self {
     Self {
       i1: self.i1.clone(),
@@ -81,8 +81,8 @@ impl<'a, T: Tag> Clone for DynamicDifferenceBatch<'a, T> {
   }
 }
 
-impl<'a, T: Tag> Iterator for DynamicDifferenceBatch<'a, T> {
-  type Item = DynamicElement<T>;
+impl<'a, Prov: Provenance> Iterator for DynamicDifferenceBatch<'a, Prov> {
+  type Item = DynamicElement<Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     use std::cmp::Ordering;

@@ -3,7 +3,7 @@ use structopt::StructOpt;
 
 use scallop_core::compiler;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Default, StructOpt)]
 #[structopt(name = "sclc", about = "Scallop Compiler")]
 pub struct Options {
   #[structopt(parse(from_os_str))]
@@ -14,6 +14,21 @@ pub struct Options {
 
   #[structopt(long, default_value = "executable")]
   pub mode: String,
+
+  #[structopt(long)]
+  pub do_not_copy_artifact: bool,
+
+  #[structopt(long)]
+  pub do_not_keep_temporary_directory: bool,
+
+  #[structopt(long)]
+  pub dump_rs: bool,
+
+  #[structopt(long)]
+  pub provenance: Option<String>,
+
+  #[structopt(long, default_value = "3")]
+  pub top_k: usize,
 }
 
 impl From<&Options> for compiler::CompileOptions {

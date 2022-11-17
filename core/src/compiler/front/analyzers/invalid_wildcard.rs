@@ -51,18 +51,21 @@ pub enum InvalidWildcardError {
   },
 }
 
-impl From<InvalidWildcardError> for FrontCompileError {
-  fn from(e: InvalidWildcardError) -> Self {
-    Self::InvalidWildcardError(e)
+impl FrontCompileErrorClone for InvalidWildcardError {
+  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
+    Box::new(self.clone())
   }
 }
 
-impl InvalidWildcardError {
-  pub fn report(&self, src: &Sources) {
+impl FrontCompileErrorTrait for InvalidWildcardError {
+  fn error_type(&self) -> FrontCompileErrorType {
+    FrontCompileErrorType::Error
+  }
+
+  fn report(&self, src: &Sources) -> String {
     match self {
       Self::InvalidWildcard { wildcard_loc, position } => {
-        println!("Invalid wildcard in the {}:", position);
-        wildcard_loc.report(src);
+        format!("Invalid wildcard in the {}:\n{}", position, wildcard_loc.report(src))
       }
     }
   }

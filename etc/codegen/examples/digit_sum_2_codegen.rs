@@ -3,6 +3,8 @@ use scallop_core::runtime::provenance::*;
 mod sum_2 {
   use scallop_codegen::scallop;
   scallop! {
+    type digit_1(i8)
+    type digit_2(i8)
     rel sum_2(a + b) = digit_1(a), digit_2(b)
     query sum_2
   }

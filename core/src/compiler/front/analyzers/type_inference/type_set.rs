@@ -1,4 +1,5 @@
 use super::*;
+use crate::common::functions::Function;
 use crate::common::value_type::*;
 use crate::compiler::front::*;
 
@@ -128,6 +129,22 @@ impl std::fmt::Display for TypeSet {
 }
 
 impl TypeSet {
+  pub fn base(ty: ValueType) -> Self {
+    Self::BaseType(ty, AstNodeLocation::default())
+  }
+
+  pub fn any() -> Self {
+    Self::Any(AstNodeLocation::default())
+  }
+
+  pub fn arith() -> Self {
+    Self::Arith(AstNodeLocation::default())
+  }
+
+  pub fn string() -> Self {
+    Self::String(AstNodeLocation::default())
+  }
+
   pub fn from_constant(c: &Constant) -> Self {
     match &c.node {
       ConstantNode::Integer(i) => {
@@ -141,6 +158,46 @@ impl TypeSet {
       ConstantNode::Char(_) => Self::BaseType(ValueType::Char, c.location().clone()),
       ConstantNode::Boolean(_) => Self::BaseType(ValueType::Bool, c.location().clone()),
       ConstantNode::String(_) => Self::String(c.location().clone()),
+    }
+  }
+
+  pub fn function_return_type(f: &Function) -> Self {
+    match f {
+      Function::Abs => Self::arith(),
+      Function::Hash => Self::base(ValueType::U64),
+      Function::StringConcat => Self::base(ValueType::String),
+      Function::StringLength => Self::base(ValueType::USize),
+      Function::Substring => Self::base(ValueType::String),
+      Function::StringCharAt => Self::base(ValueType::Char),
+    }
+  }
+
+  pub fn function_argument_type(f: &Function, i: usize) -> Self {
+    match f {
+      Function::Abs => Self::arith(),
+      Function::Hash => Self::any(),
+      Function::StringConcat => Self::string(),
+      Function::StringLength => Self::string(),
+      Function::Substring => {
+        if i == 0 {
+          Self::string()
+        } else if i == 1 {
+          Self::base(ValueType::USize)
+        } else if i == 2 {
+          Self::base(ValueType::USize)
+        } else {
+          panic!("There is no argument {} for the substring function", i)
+        }
+      }
+      Function::StringCharAt => {
+        if i == 0 {
+          Self::string()
+        } else if i == 1 {
+          Self::base(ValueType::USize)
+        } else {
+          panic!("There is no argument {} for the string_char_at function", i)
+        }
+      }
     }
   }
 
@@ -158,7 +215,7 @@ impl TypeSet {
       (Self::Integer(_), base_ty) => base_ty.is_numeric(),
       (Self::SignedInteger(_), base_ty) => base_ty.is_numeric(),
       (Self::Float(_), base_ty) => base_ty.is_numeric(),
-      (Self::String(_), base_ty) => base_ty.is_string(),
+      (Self::String(_), base_ty) => base_ty.is_string() || base_ty.is_numeric(),
       (Self::Any(_), _) => false,
     }
   }

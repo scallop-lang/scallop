@@ -5,23 +5,23 @@ use scallop_core::testing::*;
 
 #[test]
 fn test_dynamic_difference_unit_1() {
-  test_dynamic_difference_master_1(unit::UnitContext::default());
+  test_dynamic_difference_master_1(unit::UnitProvenance::default());
 }
 
 #[test]
 fn test_dynamic_difference_bool_1() {
-  test_dynamic_difference_master_1(boolean::BooleanContext::default());
+  test_dynamic_difference_master_1(boolean::BooleanProvenance::default());
 }
 
-fn test_dynamic_difference_master_1<C>(mut ctx: C)
+fn test_dynamic_difference_master_1<Prov>(mut ctx: Prov)
 where
-  C::Tag: std::fmt::Debug,
-  C: ProvenanceContext,
+  Prov::Tag: std::fmt::Debug,
+  Prov: Provenance,
 {
   // Relations
-  let mut source_1 = DynamicRelation::<C::Tag>::new();
-  let mut source_2 = DynamicRelation::<C::Tag>::new();
-  let mut target = DynamicRelation::<C::Tag>::new();
+  let mut source_1 = DynamicRelation::<Prov>::new();
+  let mut source_2 = DynamicRelation::<Prov>::new();
+  let mut target = DynamicRelation::<Prov>::new();
 
   // Initial
   source_1.insert_untagged(&mut ctx, vec![(0i8, 1i8), (1i8, 2i8)]);
@@ -36,6 +36,7 @@ where
     target.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::from(&source_1).difference(DynamicDataflow::dynamic_recent_collection(&source_2_coll), &ctx),
+      true,
     )
   }
 

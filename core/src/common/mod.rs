@@ -2,6 +2,7 @@ pub mod aggregate_op;
 pub mod binary_op;
 pub mod element;
 pub mod expr;
+pub mod functions;
 pub mod generic_tuple;
 pub mod input_file;
 pub mod input_tag;

@@ -284,17 +284,30 @@ impl Program {
   fn plan_to_ram_update(&self, ctx: &mut B2RContext, head: &Head, plan: &Plan) -> ram::Update {
     let (head_goal, need_projection) = self.head_variable_tuple(head);
     let subgoal = head_goal.dedup();
-    let semi_final_dataflow = self.plan_to_ram_dataflow(ctx, &subgoal, plan, false.into());
-    let final_dataflow = if need_projection {
-      ram::Dataflow::project(semi_final_dataflow, self.projection_to_head(&subgoal, head))
+
+    // Generate the dataflow
+    let dataflow = self.plan_to_ram_dataflow(ctx, &subgoal, plan, false.into());
+
+    // Check if the dataflow needs projection and update the dataflow
+    let dataflow = if need_projection {
+      ram::Dataflow::project(dataflow, self.projection_to_head(&subgoal, head))
     } else if head_goal != subgoal {
-      ram::Dataflow::project(semi_final_dataflow, subgoal.projection(&head_goal))
+      ram::Dataflow::project(dataflow, subgoal.projection(&head_goal))
     } else {
-      semi_final_dataflow
+      dataflow
     };
+
+    // Check if the head predicate is a magic-set; if so we wrap an overwrite_one dataflow around
+    let dataflow = if self.is_magic_set_predicate(&head.predicate) == Some(true) {
+      ram::Dataflow::overwrite_one(dataflow)
+    } else {
+      dataflow
+    };
+
+    // Return the update
     ram::Update {
       target: head.predicate.clone(),
-      dataflow: final_dataflow,
+      dataflow,
     }
   }
 
@@ -306,7 +319,7 @@ impl Program {
     prop: DataflowProp,
   ) -> ram::Dataflow {
     match &plan.ram_node {
-      HighRamNode::Unit => ram::Dataflow::unit(),
+      HighRamNode::Unit => ram::Dataflow::unit(goal.unit_type()),
       HighRamNode::Ground(atom) => self.ground_plan_to_ram_dataflow(ctx, goal, atom, prop),
       HighRamNode::Filter(d, f) => self.filter_plan_to_ram_dataflow(ctx, goal, &*d, f, prop),
       HighRamNode::Project(d, p) => self.project_plan_to_ram_dataflow(ctx, goal, &*d, p, prop),
@@ -404,24 +417,24 @@ impl Program {
             ram::Dataflow::filter(ram::Dataflow::Relation(atom.predicate.clone()), filter),
             perm.expr(),
           );
-          if prop.need_sorted {
-            if perm.order_preserving() {
-              dataflow
+          if prop.need_sorted && !perm.order_preserving() {
+            ctx.add_permutation(atom.predicate.clone(), perm);
+            if prop.is_negative {
+              Self::create_negative_temp_relation(ctx, goal, dataflow)
             } else {
-              ctx.add_permutation(atom.predicate.clone(), perm);
-              if prop.is_negative {
-                Self::create_negative_temp_relation(ctx, goal, dataflow)
-              } else {
-                Self::create_temp_relation(ctx, goal, dataflow)
-              }
+              Self::create_temp_relation(ctx, goal, dataflow)
             }
           } else {
             dataflow
           }
         } else {
-          let perm_name = Self::permutated_predicate_name(&atom.predicate, &perm);
-          ctx.add_permutation(atom.predicate.clone(), perm);
-          ram::Dataflow::Relation(perm_name)
+          if prop.need_sorted && !perm.order_preserving() {
+            let perm_name = Self::permutated_predicate_name(&atom.predicate, &perm);
+            ctx.add_permutation(atom.predicate.clone(), perm);
+            ram::Dataflow::Relation(perm_name)
+          } else {
+            ram::Dataflow::project(ram::Dataflow::Relation(atom.predicate.clone()), perm.expr())
+          }
         }
       }
     }

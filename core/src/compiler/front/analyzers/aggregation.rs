@@ -53,27 +53,35 @@ pub enum AggregationAnalysisError {
   ForallBodyNotImplies { loc: Loc },
 }
 
-impl AggregationAnalysisError {
-  pub fn report(&self, src: &Sources) {
-    match self {
-      Self::NonMinMaxAggregationHasArgument { op } => {
-        println!("{} aggregation cannot have arguments", op);
-        op.location().report(src);
-      }
-      Self::UnknownAggregator { agg, loc } => {
-        println!("unknown aggregator `{}`", agg);
-        loc.report(src);
-      }
-      Self::ForallBodyNotImplies { loc } => {
-        println!("the body of forall aggregation must be an `implies` formula");
-        loc.report(src);
-      }
-    }
+impl FrontCompileErrorClone for AggregationAnalysisError {
+  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
+    Box::new(self.clone())
   }
 }
 
-impl From<AggregationAnalysisError> for FrontCompileError {
-  fn from(e: AggregationAnalysisError) -> Self {
-    Self::AggregationAnalysisError(e)
+impl FrontCompileErrorTrait for AggregationAnalysisError {
+  fn error_type(&self) -> FrontCompileErrorType {
+    FrontCompileErrorType::Error
+  }
+
+  fn report(&self, src: &Sources) -> String {
+    match self {
+      Self::NonMinMaxAggregationHasArgument { op } => {
+        format!(
+          "{} aggregation cannot have arguments\n{}",
+          op,
+          op.location().report(src)
+        )
+      }
+      Self::UnknownAggregator { agg, loc } => {
+        format!("unknown aggregator `{}`\n{}", agg, loc.report(src))
+      }
+      Self::ForallBodyNotImplies { loc } => {
+        format!(
+          "the body of forall aggregation must be an `implies` formula\n{}",
+          loc.report(src)
+        )
+      }
+    }
   }
 }

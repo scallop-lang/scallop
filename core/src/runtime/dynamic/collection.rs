@@ -6,19 +6,19 @@ use crate::runtime::monitor::Monitor;
 use crate::runtime::provenance::*;
 
 #[derive(Clone)]
-pub struct DynamicCollection<T: Tag> {
-  pub elements: Vec<DynamicElement<T>>,
+pub struct DynamicCollection<Prov: Provenance> {
+  pub elements: Vec<DynamicElement<Prov>>,
 }
 
-impl<T: Tag + std::fmt::Debug> std::fmt::Debug for DynamicCollection<T> {
+impl<Prov: Provenance> std::fmt::Debug for DynamicCollection<Prov> where Prov::Tag: std::fmt::Debug {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_set().entries(&self.elements).finish()
   }
 }
 
-impl<T: Tag> std::fmt::Display for DynamicCollection<T>
+impl<Prov: Provenance> std::fmt::Display for DynamicCollection<Prov>
 where
-  DynamicElement<T>: std::fmt::Display,
+  DynamicElement<Prov>: std::fmt::Display,
 {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str("{")?;
@@ -32,16 +32,16 @@ where
   }
 }
 
-impl<T: Tag> DynamicCollection<T> {
+impl<Prov: Provenance> DynamicCollection<Prov> {
   pub fn empty() -> Self {
     Self { elements: vec![] }
   }
 
-  pub fn from_vec_unchecked(elements: Vec<DynamicElement<T>>) -> Self {
+  pub fn from_vec_unchecked(elements: Vec<DynamicElement<Prov>>) -> Self {
     Self { elements }
   }
 
-  pub fn from_vec(mut elements: Vec<DynamicElement<T>>, ctx: &T::Context) -> Self {
+  pub fn from_vec(mut elements: Vec<DynamicElement<Prov>>, ctx: &Prov) -> Self {
     elements.sort();
 
     let mut index = 0;
@@ -77,26 +77,26 @@ impl<T: Tag> DynamicCollection<T> {
     self.elements.is_empty()
   }
 
-  pub fn ith(&self, i: usize) -> Option<&DynamicElement<T>> {
+  pub fn ith(&self, i: usize) -> Option<&DynamicElement<Prov>> {
     self.elements.get(i)
   }
 
-  pub fn iter(&self) -> impl Iterator<Item = &DynamicElement<T>> {
+  pub fn iter(&self) -> impl Iterator<Item = &DynamicElement<Prov>> {
     self.elements.iter()
   }
 
-  pub fn into_iter(self) -> impl IntoIterator<Item = DynamicElement<T>> {
+  pub fn into_iter(self) -> impl IntoIterator<Item = DynamicElement<Prov>> {
     self.elements.into_iter()
   }
 
   pub fn apply_recover_fn<F, S>(self, mut f: F) -> impl Iterator<Item = (S, Tuple)>
   where
-    F: FnMut(T) -> S,
+    F: FnMut(Prov::Tag) -> S,
   {
     self.elements.into_iter().map(move |elem| (f(elem.tag), elem.tuple))
   }
 
-  pub fn recover(self, ctx: &T::Context) -> DynamicOutputCollection<T> {
+  pub fn recover(self, ctx: &Prov) -> DynamicOutputCollection<Prov> {
     DynamicOutputCollection::from(
       self
         .elements
@@ -105,9 +105,9 @@ impl<T: Tag> DynamicCollection<T> {
     )
   }
 
-  pub fn recover_with_monitor<M>(self, ctx: &T::Context, m: &M) -> DynamicOutputCollection<T>
+  pub fn recover_with_monitor<M>(self, ctx: &Prov, m: &M) -> DynamicOutputCollection<Prov>
   where
-    M: Monitor<T::Context>,
+    M: Monitor<Prov>,
   {
     DynamicOutputCollection::from(self.elements.into_iter().map(move |elem| {
       let output_tag = ctx.recover_fn(&elem.tag);
@@ -116,7 +116,7 @@ impl<T: Tag> DynamicCollection<T> {
     }))
   }
 
-  pub fn merge(self, other: Self, ctx: &T::Context) -> Self {
+  pub fn merge(self, other: Self, ctx: &Prov) -> Self {
     let Self {
       elements: mut elements1,
     } = self;
@@ -176,29 +176,29 @@ impl<T: Tag> DynamicCollection<T> {
   }
 }
 
-impl<T: Tag> std::ops::Deref for DynamicCollection<T> {
-  type Target = [DynamicElement<T>];
+impl<Prov: Provenance> std::ops::Deref for DynamicCollection<Prov> {
+  type Target = [DynamicElement<Prov>];
 
   fn deref(&self) -> &Self::Target {
     &self.elements[..]
   }
 }
 
-impl<T: Tag> std::ops::DerefMut for DynamicCollection<T> {
+impl<Prov: Provenance> std::ops::DerefMut for DynamicCollection<Prov> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.elements[..]
   }
 }
 
-impl<T: Tag> std::ops::Index<usize> for DynamicCollection<T> {
-  type Output = DynamicElement<T>;
+impl<Prov: Provenance> std::ops::Index<usize> for DynamicCollection<Prov> {
+  type Output = DynamicElement<Prov>;
 
   fn index(&self, index: usize) -> &Self::Output {
     &self.elements[index]
   }
 }
 
-impl<T: Tag> std::ops::IndexMut<usize> for DynamicCollection<T> {
+impl<Prov: Provenance> std::ops::IndexMut<usize> for DynamicCollection<Prov> {
   fn index_mut(&mut self, index: usize) -> &mut Self::Output {
     &mut self.elements[index]
   }

@@ -3,32 +3,32 @@ use std::marker::PhantomData;
 use crate::runtime::provenance::*;
 use crate::runtime::statics::*;
 
-pub struct ExistsAggregator<Tup: StaticTupleTrait, T: Tag> {
-  phantom: PhantomData<(Tup, T)>,
+pub struct ExistsAggregator<Tup: StaticTupleTrait, Prov: Provenance> {
+  phantom: PhantomData<(Tup, Prov)>,
 }
 
-impl<Tup: StaticTupleTrait, T: Tag> ExistsAggregator<Tup, T> {
+impl<Tup: StaticTupleTrait, Prov: Provenance> ExistsAggregator<Tup, Prov> {
   pub fn new() -> Self {
     Self { phantom: PhantomData }
   }
 }
 
-impl<Tup, T> Aggregator<Tup, T> for ExistsAggregator<Tup, T>
+impl<Tup, Prov> Aggregator<Tup, Prov> for ExistsAggregator<Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
   type Output = bool;
 
-  fn aggregate(&self, tuples: StaticElements<Tup, T>, ctx: &T::Context) -> StaticElements<Self::Output, T> {
+  fn aggregate(&self, tuples: StaticElements<Tup, Prov>, ctx: &Prov) -> StaticElements<Self::Output, Prov> {
     ctx.static_exists(tuples)
   }
 }
 
-impl<Tup, T> Clone for ExistsAggregator<Tup, T>
+impl<Tup, Prov> Clone for ExistsAggregator<Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
   fn clone(&self) -> Self {
     Self { phantom: PhantomData }

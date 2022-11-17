@@ -4,12 +4,12 @@ use std::marker::PhantomData;
 use super::*;
 use crate::runtime::provenance::*;
 
-pub fn difference<'b, D1, D2, Tup, T>(d1: D1, d2: D2, semiring_ctx: &'b T::Context) -> Difference<'b, D1, D2, Tup, T>
+pub fn difference<'b, D1, D2, Tup, Prov>(d1: D1, d2: D2, semiring_ctx: &'b Prov) -> Difference<'b, D1, D2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  D1: Dataflow<Tup, T>,
-  D2: Dataflow<Tup, T>,
+  Prov: Provenance,
+  D1: Dataflow<Tup, Prov>,
+  D2: Dataflow<Tup, Prov>,
 {
   Difference {
     d1,
@@ -19,25 +19,25 @@ where
   }
 }
 
-pub struct Difference<'b, D1, D2, Tup, T>
+pub struct Difference<'b, D1, D2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  D1: Dataflow<Tup, T>,
-  D2: Dataflow<Tup, T>,
+  Prov: Provenance,
+  D1: Dataflow<Tup, Prov>,
+  D2: Dataflow<Tup, Prov>,
 {
   d1: D1,
   d2: D2,
-  semiring_ctx: &'b T::Context,
-  phantom: PhantomData<(Tup, T)>,
+  semiring_ctx: &'b Prov,
+  phantom: PhantomData<(Tup, Prov)>,
 }
 
-impl<'b, D1, D2, Tup, T> Clone for Difference<'b, D1, D2, Tup, T>
+impl<'b, D1, D2, Tup, Prov> Clone for Difference<'b, D1, D2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  D1: Dataflow<Tup, T>,
-  D2: Dataflow<Tup, T>,
+  Prov: Provenance,
+  D1: Dataflow<Tup, Prov>,
+  D2: Dataflow<Tup, Prov>,
 {
   fn clone(&self) -> Self {
     Self {
@@ -49,21 +49,21 @@ where
   }
 }
 
-impl<'b, D1, D2, Tup, T> Dataflow<Tup, T> for Difference<'b, D1, D2, Tup, T>
+impl<'b, D1, D2, Tup, Prov> Dataflow<Tup, Prov> for Difference<'b, D1, D2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  D1: Dataflow<Tup, T>,
-  D2: Dataflow<Tup, T>,
+  Prov: Provenance,
+  D1: Dataflow<Tup, Prov>,
+  D2: Dataflow<Tup, Prov>,
 {
-  type Stable = EmptyBatches<std::iter::Empty<StaticElement<Tup, T>>>;
+  type Stable = EmptyBatches<std::iter::Empty<StaticElement<Tup, Prov>>>;
 
   type Recent = BatchesChain3<
-    BatchesJoin<D1::Recent, D2::Stable, RecentStableOp<'b, D1, D2, Tup, T>, Tup, Tup, Tup, T>,
-    BatchesJoin<D1::Stable, D2::Recent, StableRecentOp<'b, D1, D2, Tup, T>, Tup, Tup, Tup, T>,
-    BatchesJoin<D1::Recent, D2::Recent, RecentRecentOp<'b, D1, D2, Tup, T>, Tup, Tup, Tup, T>,
+    BatchesJoin<D1::Recent, D2::Stable, RecentStableOp<'b, D1, D2, Tup, Prov>, Tup, Tup, Tup, Prov>,
+    BatchesJoin<D1::Stable, D2::Recent, StableRecentOp<'b, D1, D2, Tup, Prov>, Tup, Tup, Tup, Prov>,
+    BatchesJoin<D1::Recent, D2::Recent, RecentRecentOp<'b, D1, D2, Tup, Prov>, Tup, Tup, Tup, Prov>,
     Tup,
-    T,
+    Prov,
   >;
 
   fn iter_stable(&self) -> Self::Stable {
@@ -83,43 +83,43 @@ where
   }
 }
 
-type RecentStableOp<'b, D1, D2, Tup, T> = DifferenceOp<
+type RecentStableOp<'b, D1, D2, Tup, Prov> = DifferenceOp<
   'b,
-  <<D1 as Dataflow<Tup, T>>::Recent as Batches<Tup, T>>::Batch,
-  <<D2 as Dataflow<Tup, T>>::Stable as Batches<Tup, T>>::Batch,
+  <<D1 as Dataflow<Tup, Prov>>::Recent as Batches<Tup, Prov>>::Batch,
+  <<D2 as Dataflow<Tup, Prov>>::Stable as Batches<Tup, Prov>>::Batch,
   Tup,
-  T,
+  Prov,
 >;
 
-type StableRecentOp<'b, D1, D2, Tup, T> = DifferenceOp<
+type StableRecentOp<'b, D1, D2, Tup, Prov> = DifferenceOp<
   'b,
-  <<D1 as Dataflow<Tup, T>>::Stable as Batches<Tup, T>>::Batch,
-  <<D2 as Dataflow<Tup, T>>::Recent as Batches<Tup, T>>::Batch,
+  <<D1 as Dataflow<Tup, Prov>>::Stable as Batches<Tup, Prov>>::Batch,
+  <<D2 as Dataflow<Tup, Prov>>::Recent as Batches<Tup, Prov>>::Batch,
   Tup,
-  T,
+  Prov,
 >;
 
-type RecentRecentOp<'b, D1, D2, Tup, T> = DifferenceOp<
+type RecentRecentOp<'b, D1, D2, Tup, Prov> = DifferenceOp<
   'b,
-  <<D1 as Dataflow<Tup, T>>::Recent as Batches<Tup, T>>::Batch,
-  <<D2 as Dataflow<Tup, T>>::Recent as Batches<Tup, T>>::Batch,
+  <<D1 as Dataflow<Tup, Prov>>::Recent as Batches<Tup, Prov>>::Batch,
+  <<D2 as Dataflow<Tup, Prov>>::Recent as Batches<Tup, Prov>>::Batch,
   Tup,
-  T,
+  Prov,
 >;
 
-pub struct DifferenceOp<'a, I1, I2, Tup, T>
+pub struct DifferenceOp<'a, I1, I2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  semiring_ctx: &'a T::Context,
-  phantom: PhantomData<(I1, I2, Tup, T)>,
+  semiring_ctx: &'a Prov,
+  phantom: PhantomData<(I1, I2, Tup, Prov)>,
 }
 
-impl<'a, I1, I2, Tup, T> Clone for DifferenceOp<'a, I1, I2, Tup, T>
+impl<'a, I1, I2, Tup, Prov> Clone for DifferenceOp<'a, I1, I2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
   fn clone(&self) -> Self {
     Self {
@@ -129,12 +129,12 @@ where
   }
 }
 
-impl<'a, I1, I2, Tup, T> DifferenceOp<'a, I1, I2, Tup, T>
+impl<'a, I1, I2, Tup, Prov> DifferenceOp<'a, I1, I2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  pub fn new(semiring_ctx: &'a T::Context) -> Self {
+  pub fn new(semiring_ctx: &'a Prov) -> Self {
     Self {
       semiring_ctx,
       phantom: PhantomData,
@@ -142,14 +142,14 @@ where
   }
 }
 
-impl<'a, I1, I2, Tup, T> BatchBinaryOp<I1, I2> for DifferenceOp<'a, I1, I2, Tup, T>
+impl<'a, I1, I2, Tup, Prov> BatchBinaryOp<I1, I2> for DifferenceOp<'a, I1, I2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<Tup, T>,
-  I2: Batch<Tup, T>,
+  Prov: Provenance,
+  I1: Batch<Tup, Prov>,
+  I2: Batch<Tup, Prov>,
 {
-  type IOut = DifferenceIterator<'a, I1, I2, Tup, T>;
+  type IOut = DifferenceIterator<'a, I1, I2, Tup, Prov>;
 
   fn apply(&self, mut i1: I1, mut i2: I2) -> Self::IOut {
     let i1_curr = i1.next();
@@ -165,27 +165,27 @@ where
   }
 }
 
-pub struct DifferenceIterator<'b, I1, I2, Tup, T>
+pub struct DifferenceIterator<'b, I1, I2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<Tup, T>,
-  I2: Batch<Tup, T>,
+  Prov: Provenance,
+  I1: Batch<Tup, Prov>,
+  I2: Batch<Tup, Prov>,
 {
   i1: I1,
   i2: I2,
-  i1_curr: Option<StaticElement<Tup, T>>,
-  i2_curr: Option<StaticElement<Tup, T>>,
-  semiring_ctx: &'b T::Context,
+  i1_curr: Option<StaticElement<Tup, Prov>>,
+  i2_curr: Option<StaticElement<Tup, Prov>>,
+  semiring_ctx: &'b Prov,
   phantom: PhantomData<(I1, I2, Tup)>,
 }
 
-impl<'b, I1, I2, Tup, T> Clone for DifferenceIterator<'b, I1, I2, Tup, T>
+impl<'b, I1, I2, Tup, Prov> Clone for DifferenceIterator<'b, I1, I2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<Tup, T>,
-  I2: Batch<Tup, T>,
+  Prov: Provenance,
+  I1: Batch<Tup, Prov>,
+  I2: Batch<Tup, Prov>,
 {
   fn clone(&self) -> Self {
     Self {
@@ -199,14 +199,14 @@ where
   }
 }
 
-impl<'b, I1, I2, Tup, T> Iterator for DifferenceIterator<'b, I1, I2, Tup, T>
+impl<'b, I1, I2, Tup, Prov> Iterator for DifferenceIterator<'b, I1, I2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<Tup, T>,
-  I2: Batch<Tup, T>,
+  Prov: Provenance,
+  I1: Batch<Tup, Prov>,
+  I2: Batch<Tup, Prov>,
 {
-  type Item = StaticElement<Tup, T>;
+  type Item = StaticElement<Tup, Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     loop {
@@ -244,11 +244,11 @@ where
   }
 }
 
-impl<'b, I1, I2, Tup, T> Batch<Tup, T> for DifferenceIterator<'b, I1, I2, Tup, T>
+impl<'b, I1, I2, Tup, Prov> Batch<Tup, Prov> for DifferenceIterator<'b, I1, I2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<Tup, T>,
-  I2: Batch<Tup, T>,
+  Prov: Provenance,
+  I1: Batch<Tup, Prov>,
+  I2: Batch<Tup, Prov>,
 {
 }

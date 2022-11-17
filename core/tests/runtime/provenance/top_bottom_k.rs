@@ -21,10 +21,10 @@ mod diff {
     let ab_or_cd = ctx.add(&ab, &cd);
 
     // Should only contain a and b
-    assert_eq!(ab_or_cd.formula.clauses.len(), 1);
-    assert_eq!(ab_or_cd.formula.clauses[0].literals.len(), 2);
-    assert_eq!(ab_or_cd.formula.clauses[0].literals[0], Literal::Pos(0));
-    assert_eq!(ab_or_cd.formula.clauses[0].literals[1], Literal::Pos(1));
+    assert_eq!(ab_or_cd.clauses.len(), 1);
+    assert_eq!(ab_or_cd.clauses[0].literals.len(), 2);
+    assert_eq!(ab_or_cd.clauses[0].literals[0], Literal::Pos(0));
+    assert_eq!(ab_or_cd.clauses[0].literals[1], Literal::Pos(1));
   }
 
   #[test]

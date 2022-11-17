@@ -5,27 +5,27 @@ use crate::runtime::statics::*;
 
 use super::super::*;
 
-pub struct AggregationSingleGroup<'a, A, D, T1, T>
+pub struct AggregationSingleGroup<'a, A, D, T1, Prov>
 where
   T1: StaticTupleTrait,
-  D: Dataflow<T1, T>,
-  A: Aggregator<T1, T>,
-  T: Tag,
+  D: Dataflow<T1, Prov>,
+  A: Aggregator<T1, Prov>,
+  Prov: Provenance,
 {
   agg: A,
   d: D,
-  ctx: &'a T::Context,
+  ctx: &'a Prov,
   phantom: PhantomData<T1>,
 }
 
-impl<'a, A, D, T1, T> AggregationSingleGroup<'a, A, D, T1, T>
+impl<'a, A, D, T1, Prov> AggregationSingleGroup<'a, A, D, T1, Prov>
 where
   T1: StaticTupleTrait,
-  D: Dataflow<T1, T>,
-  A: Aggregator<T1, T>,
-  T: Tag,
+  D: Dataflow<T1, Prov>,
+  A: Aggregator<T1, Prov>,
+  Prov: Provenance,
 {
-  pub fn new(agg: A, d: D, ctx: &'a T::Context) -> Self {
+  pub fn new(agg: A, d: D, ctx: &'a Prov) -> Self {
     Self {
       agg,
       d,
@@ -35,16 +35,16 @@ where
   }
 }
 
-impl<'a, A, D, T1, T> Dataflow<A::Output, T> for AggregationSingleGroup<'a, A, D, T1, T>
+impl<'a, A, D, T1, Prov> Dataflow<A::Output, Prov> for AggregationSingleGroup<'a, A, D, T1, Prov>
 where
   T1: StaticTupleTrait,
-  D: Dataflow<T1, T>,
-  A: Aggregator<T1, T>,
-  T: Tag,
+  D: Dataflow<T1, Prov>,
+  A: Aggregator<T1, Prov>,
+  Prov: Provenance,
 {
-  type Stable = EmptyBatches<std::iter::Empty<StaticElement<A::Output, T>>>;
+  type Stable = EmptyBatches<std::iter::Empty<StaticElement<A::Output, Prov>>>;
 
-  type Recent = SingleBatch<std::vec::IntoIter<StaticElement<A::Output, T>>>;
+  type Recent = SingleBatch<std::vec::IntoIter<StaticElement<A::Output, Prov>>>;
 
   fn iter_stable(&self) -> Self::Stable {
     Self::Stable::default()
@@ -69,12 +69,12 @@ where
   }
 }
 
-impl<'a, A, D, T1, T> Clone for AggregationSingleGroup<'a, A, D, T1, T>
+impl<'a, A, D, T1, Prov> Clone for AggregationSingleGroup<'a, A, D, T1, Prov>
 where
   T1: StaticTupleTrait,
-  D: Dataflow<T1, T>,
-  A: Aggregator<T1, T>,
-  T: Tag,
+  D: Dataflow<T1, Prov>,
+  A: Aggregator<T1, Prov>,
+  Prov: Provenance,
 {
   fn clone(&self) -> Self {
     Self {

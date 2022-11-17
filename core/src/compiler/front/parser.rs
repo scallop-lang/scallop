@@ -44,10 +44,32 @@ impl ParserError {
   pub fn set_source_name(&mut self, name: String) {
     self.source_name = Some(name);
   }
+}
 
-  pub fn report(&self, sources: &Sources) {
+impl std::fmt::Display for ParserError {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     if let Some(source_name) = &self.source_name {
-      println!("Syntax error in {}: {}", source_name, self.message);
+      f.write_fmt(format_args!("Syntax error in {}: {}", source_name, self.message))
+    } else {
+      f.write_fmt(format_args!("Syntax error: {}", self.message))
+    }
+  }
+}
+
+impl FrontCompileErrorClone for ParserError {
+  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
+    Box::new(self.clone())
+  }
+}
+
+impl FrontCompileErrorTrait for ParserError {
+  fn error_type(&self) -> FrontCompileErrorType {
+    FrontCompileErrorType::Error
+  }
+
+  fn report(&self, sources: &Sources) -> String {
+    if let Some(source_name) = &self.source_name {
+      let begin = format!("Syntax error in {}: {}", source_name, self.message);
 
       // First compute offset span
       let offset_span = if let Some((l, r)) = self.location_span {
@@ -73,27 +95,13 @@ impl ParserError {
           id: None,
           source_id: self.source_id,
         };
-        ast_loc.report(sources)
+        format!("{}\n{}", begin, ast_loc.report(sources))
+      } else {
+        format!("Syntax error: {}", self.message)
       }
     } else {
-      println!("Syntax error: {}", self.message)
+      format!("Syntax error: {}", self.message)
     }
-  }
-}
-
-impl std::fmt::Display for ParserError {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    if let Some(source_name) = &self.source_name {
-      f.write_fmt(format_args!("Syntax error in {}: {}", source_name, self.message))
-    } else {
-      f.write_fmt(format_args!("Syntax error: {}", self.message))
-    }
-  }
-}
-
-impl From<ParserError> for FrontCompileError {
-  fn from(e: ParserError) -> Self {
-    Self::ParserError(e)
   }
 }
 

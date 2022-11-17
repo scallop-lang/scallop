@@ -34,6 +34,11 @@ pub enum FlattenedNode {
     then_br: Loc,
     else_br: Loc,
   },
+  Call {
+    left: back::Variable,
+    function: back::Function,
+    args: Vec<Loc>,
+  },
 }
 
 impl FlattenedNode {
@@ -42,6 +47,7 @@ impl FlattenedNode {
       Self::Binary { left, .. } => left.clone(),
       Self::Unary { left, .. } => left.clone(),
       Self::IfThenElse { left, .. } => left.clone(),
+      Self::Call { left, .. } => left.clone(),
     }
   }
 }
@@ -95,6 +101,9 @@ impl<'a> FlattenExprContext<'a> {
           then_br,
           else_br,
         } => self.collect_flattened_literals_of_if_then_else_op(left, cond, then_br, else_br),
+        FlattenedNode::Call { left, function, args } => {
+          self.collect_flattened_literals_of_call_op(left, function, args)
+        }
       }
     } else {
       vec![]
@@ -183,6 +192,28 @@ impl<'a> FlattenExprContext<'a> {
     curr_literals.extend(self.collect_flattened_literals(cond));
     curr_literals.extend(self.collect_flattened_literals(then_br));
     curr_literals.extend(self.collect_flattened_literals(else_br));
+
+    // Return all of them
+    curr_literals
+  }
+
+  pub fn collect_flattened_literals_of_call_op(
+    &self,
+    left: &back::Variable,
+    function: &back::Function,
+    args: &Vec<Loc>,
+  ) -> Vec<back::Literal> {
+    let mut curr_literals = vec![];
+
+    // The call expression literal
+    let arg_terms = args.iter().map(|a| self.get_loc_term(a)).collect::<Vec<_>>();
+    let literal = back::Literal::call_expr(left.clone(), function.clone(), arg_terms);
+    curr_literals.push(literal);
+
+    // Collect flattened literals from args
+    for arg in args {
+      curr_literals.extend(self.collect_flattened_literals(arg));
+    }
 
     // Return all of them
     curr_literals
@@ -358,6 +389,22 @@ impl<'a> NodeVisitor for FlattenExprContext<'a> {
         cond: i.cond().location().clone(),
         then_br: i.then_br().location().clone(),
         else_br: i.else_br().location().clone(),
+      },
+    );
+  }
+
+  fn visit_call_expr(&mut self, c: &ast::CallExpr) {
+    let tmp_var_name = self.allocate_tmp_var();
+    let function = c.function().function().unwrap(); // Note: Unwrap is fine here since function analysis confirms it
+    self.internal.insert(
+      c.location().clone(),
+      FlattenedNode::Call {
+        left: back::Variable {
+          name: tmp_var_name,
+          ty: self.type_inference.expr_value_type(c).unwrap(),
+        },
+        function,
+        args: c.iter_args().map(|a| a.location().clone()).collect(),
       },
     );
   }

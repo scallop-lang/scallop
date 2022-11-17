@@ -3,13 +3,13 @@ use std::marker::PhantomData;
 use super::*;
 use crate::runtime::provenance::*;
 
-pub fn product<'b, D1, D2, T1, T2, T>(d1: D1, d2: D2, semiring_ctx: &'b T::Context) -> Product<'b, D1, D2, T1, T2, T>
+pub fn product<'b, D1, D2, T1, T2, Prov>(d1: D1, d2: D2, semiring_ctx: &'b Prov) -> Product<'b, D1, D2, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  D1: Dataflow<T1, T>,
-  D2: Dataflow<T2, T>,
+  Prov: Provenance,
+  D1: Dataflow<T1, Prov>,
+  D2: Dataflow<T2, Prov>,
 {
   Product {
     d1,
@@ -19,27 +19,27 @@ where
   }
 }
 
-pub struct Product<'b, D1, D2, T1, T2, T>
+pub struct Product<'b, D1, D2, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  D1: Dataflow<T1, T>,
-  D2: Dataflow<T2, T>,
+  Prov: Provenance,
+  D1: Dataflow<T1, Prov>,
+  D2: Dataflow<T2, Prov>,
 {
   d1: D1,
   d2: D2,
-  semiring_ctx: &'b T::Context,
-  phantom: PhantomData<(T1, T2, T)>,
+  semiring_ctx: &'b Prov,
+  phantom: PhantomData<(T1, T2, Prov)>,
 }
 
-impl<'b, D1, D2, T1, T2, T> Clone for Product<'b, D1, D2, T1, T2, T>
+impl<'b, D1, D2, T1, T2, Prov> Clone for Product<'b, D1, D2, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  D1: Dataflow<T1, T>,
-  D2: Dataflow<T2, T>,
+  Prov: Provenance,
+  D1: Dataflow<T1, Prov>,
+  D2: Dataflow<T2, Prov>,
 {
   fn clone(&self) -> Self {
     Self {
@@ -51,22 +51,22 @@ where
   }
 }
 
-impl<'b, D1, D2, T1, T2, T> Dataflow<(T1, T2), T> for Product<'b, D1, D2, T1, T2, T>
+impl<'b, D1, D2, T1, T2, Prov> Dataflow<(T1, T2), Prov> for Product<'b, D1, D2, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  D1: Dataflow<T1, T>,
-  D2: Dataflow<T2, T>,
+  Prov: Provenance,
+  D1: Dataflow<T1, Prov>,
+  D2: Dataflow<T2, Prov>,
 {
-  type Stable = BatchesJoin<D1::Stable, D2::Stable, StableStableOp<'b, D1, D2, T1, T2, T>, T1, T2, (T1, T2), T>;
+  type Stable = BatchesJoin<D1::Stable, D2::Stable, StableStableOp<'b, D1, D2, T1, T2, Prov>, T1, T2, (T1, T2), Prov>;
 
   type Recent = BatchesChain3<
-    BatchesJoin<D1::Recent, D2::Stable, RecentStableOp<'b, D1, D2, T1, T2, T>, T1, T2, (T1, T2), T>,
-    BatchesJoin<D1::Stable, D2::Recent, StableRecentOp<'b, D1, D2, T1, T2, T>, T1, T2, (T1, T2), T>,
-    BatchesJoin<D1::Recent, D2::Recent, RecentRecentOp<'b, D1, D2, T1, T2, T>, T1, T2, (T1, T2), T>,
+    BatchesJoin<D1::Recent, D2::Stable, RecentStableOp<'b, D1, D2, T1, T2, Prov>, T1, T2, (T1, T2), Prov>,
+    BatchesJoin<D1::Stable, D2::Recent, StableRecentOp<'b, D1, D2, T1, T2, Prov>, T1, T2, (T1, T2), Prov>,
+    BatchesJoin<D1::Recent, D2::Recent, RecentRecentOp<'b, D1, D2, T1, T2, Prov>, T1, T2, (T1, T2), Prov>,
     (T1, T2),
-    T,
+    Prov,
   >;
 
   fn iter_stable(&self) -> Self::Stable {
@@ -87,61 +87,61 @@ where
   }
 }
 
-type StableStableOp<'b, D1, D2, T1, T2, T> = ProductOp<
+type StableStableOp<'b, D1, D2, T1, T2, Prov> = ProductOp<
   'b,
-  <<D1 as Dataflow<T1, T>>::Stable as Batches<T1, T>>::Batch,
-  <<D2 as Dataflow<T2, T>>::Stable as Batches<T2, T>>::Batch,
+  <<D1 as Dataflow<T1, Prov>>::Stable as Batches<T1, Prov>>::Batch,
+  <<D2 as Dataflow<T2, Prov>>::Stable as Batches<T2, Prov>>::Batch,
   T1,
   T2,
-  T,
+  Prov,
 >;
 
-type RecentStableOp<'b, D1, D2, T1, T2, T> = ProductOp<
+type RecentStableOp<'b, D1, D2, T1, T2, Prov> = ProductOp<
   'b,
-  <<D1 as Dataflow<T1, T>>::Recent as Batches<T1, T>>::Batch,
-  <<D2 as Dataflow<T2, T>>::Stable as Batches<T2, T>>::Batch,
+  <<D1 as Dataflow<T1, Prov>>::Recent as Batches<T1, Prov>>::Batch,
+  <<D2 as Dataflow<T2, Prov>>::Stable as Batches<T2, Prov>>::Batch,
   T1,
   T2,
-  T,
+  Prov,
 >;
 
-type StableRecentOp<'b, D1, D2, T1, T2, T> = ProductOp<
+type StableRecentOp<'b, D1, D2, T1, T2, Prov> = ProductOp<
   'b,
-  <<D1 as Dataflow<T1, T>>::Stable as Batches<T1, T>>::Batch,
-  <<D2 as Dataflow<T2, T>>::Recent as Batches<T2, T>>::Batch,
+  <<D1 as Dataflow<T1, Prov>>::Stable as Batches<T1, Prov>>::Batch,
+  <<D2 as Dataflow<T2, Prov>>::Recent as Batches<T2, Prov>>::Batch,
   T1,
   T2,
-  T,
+  Prov,
 >;
 
-type RecentRecentOp<'b, D1, D2, T1, T2, T> = ProductOp<
+type RecentRecentOp<'b, D1, D2, T1, T2, Prov> = ProductOp<
   'b,
-  <<D1 as Dataflow<T1, T>>::Recent as Batches<T1, T>>::Batch,
-  <<D2 as Dataflow<T2, T>>::Recent as Batches<T2, T>>::Batch,
+  <<D1 as Dataflow<T1, Prov>>::Recent as Batches<T1, Prov>>::Batch,
+  <<D2 as Dataflow<T2, Prov>>::Recent as Batches<T2, Prov>>::Batch,
   T1,
   T2,
-  T,
+  Prov,
 >;
 
-pub struct ProductOp<'b, I1, I2, T1, T2, T>
+pub struct ProductOp<'b, I1, I2, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<T1, T>,
-  I2: Batch<T2, T>,
+  Prov: Provenance,
+  I1: Batch<T1, Prov>,
+  I2: Batch<T2, Prov>,
 {
-  semiring_ctx: &'b T::Context,
-  phantom: PhantomData<(I1, I2, T1, T2, T)>,
+  semiring_ctx: &'b Prov,
+  phantom: PhantomData<(I1, I2, T1, T2, Prov)>,
 }
 
-impl<'b, I1, I2, T1, T2, T> Clone for ProductOp<'b, I1, I2, T1, T2, T>
+impl<'b, I1, I2, T1, T2, Prov> Clone for ProductOp<'b, I1, I2, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<T1, T>,
-  I2: Batch<T2, T>,
+  Prov: Provenance,
+  I1: Batch<T1, Prov>,
+  I2: Batch<T2, Prov>,
 {
   fn clone(&self) -> Self {
     Self {
@@ -151,15 +151,15 @@ where
   }
 }
 
-impl<'b, I1, I2, T1, T2, T> ProductOp<'b, I1, I2, T1, T2, T>
+impl<'b, I1, I2, T1, T2, Prov> ProductOp<'b, I1, I2, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<T1, T>,
-  I2: Batch<T2, T>,
+  Prov: Provenance,
+  I1: Batch<T1, Prov>,
+  I2: Batch<T2, Prov>,
 {
-  pub fn new(semiring_ctx: &'b T::Context) -> Self {
+  pub fn new(semiring_ctx: &'b Prov) -> Self {
     Self {
       semiring_ctx,
       phantom: PhantomData,
@@ -167,15 +167,15 @@ where
   }
 }
 
-impl<'b, I1, I2, T1, T2, T> BatchBinaryOp<I1, I2> for ProductOp<'b, I1, I2, T1, T2, T>
+impl<'b, I1, I2, T1, T2, Prov> BatchBinaryOp<I1, I2> for ProductOp<'b, I1, I2, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<T1, T>,
-  I2: Batch<T2, T>,
+  Prov: Provenance,
+  I1: Batch<T1, Prov>,
+  I2: Batch<T2, Prov>,
 {
-  type IOut = ProductIterator<'b, I1, I2, T1, T2, T>;
+  type IOut = ProductIterator<'b, I1, I2, T1, T2, Prov>;
 
   fn apply(&self, mut i1: I1, i2: I2) -> Self::IOut {
     let i1_curr = i1.next();
@@ -190,29 +190,29 @@ where
   }
 }
 
-pub struct ProductIterator<'b, I1, I2, T1, T2, T>
+pub struct ProductIterator<'b, I1, I2, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<T1, T>,
-  I2: Batch<T2, T>,
+  Prov: Provenance,
+  I1: Batch<T1, Prov>,
+  I2: Batch<T2, Prov>,
 {
   i1: I1,
-  i1_curr: Option<StaticElement<T1, T>>,
+  i1_curr: Option<StaticElement<T1, Prov>>,
   i2_source: I2,
   i2_clone: I2,
-  semiring_ctx: &'b T::Context,
+  semiring_ctx: &'b Prov,
   phantom: PhantomData<(I1, I2, T1, T2)>,
 }
 
-impl<'b, I1, I2, T1, T2, T> Clone for ProductIterator<'b, I1, I2, T1, T2, T>
+impl<'b, I1, I2, T1, T2, Prov> Clone for ProductIterator<'b, I1, I2, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<T1, T>,
-  I2: Batch<T2, T>,
+  Prov: Provenance,
+  I1: Batch<T1, Prov>,
+  I2: Batch<T2, Prov>,
 {
   fn clone(&self) -> Self {
     Self {
@@ -226,15 +226,15 @@ where
   }
 }
 
-impl<'b, I1, I2, T1, T2, T> Iterator for ProductIterator<'b, I1, I2, T1, T2, T>
+impl<'b, I1, I2, T1, T2, Prov> Iterator for ProductIterator<'b, I1, I2, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<T1, T>,
-  I2: Batch<T2, T>,
+  Prov: Provenance,
+  I1: Batch<T1, Prov>,
+  I2: Batch<T2, Prov>,
 {
-  type Item = StaticElement<(T1, T2), T>;
+  type Item = StaticElement<(T1, T2), Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     loop {
@@ -257,12 +257,12 @@ where
   }
 }
 
-impl<'b, I1, I2, T1, T2, T> Batch<(T1, T2), T> for ProductIterator<'b, I1, I2, T1, T2, T>
+impl<'b, I1, I2, T1, T2, Prov> Batch<(T1, T2), Prov> for ProductIterator<'b, I1, I2, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<T1, T>,
-  I2: Batch<T2, T>,
+  Prov: Provenance,
+  I1: Batch<T1, Prov>,
+  I2: Batch<T2, Prov>,
 {
 }

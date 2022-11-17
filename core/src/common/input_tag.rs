@@ -1,11 +1,14 @@
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
-pub enum InputTag {
+pub enum ExtInputTag<T: Clone + PartialEq + PartialOrd> {
   None,
   Bool(bool),
   Float(f64),
+  TaggedFloat(f64, T),
 }
 
-impl InputTag {
+pub type InputTag = ExtInputTag<()>;
+
+impl<T: Clone + PartialEq + PartialOrd> ExtInputTag<T> {
   pub fn is_some(&self) -> bool {
     match self {
       Self::None => false,
@@ -21,51 +24,52 @@ impl InputTag {
   }
 }
 
-impl std::fmt::Display for InputTag {
+impl<T: Clone + PartialEq + PartialOrd> std::fmt::Display for ExtInputTag<T> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
       Self::None => Ok(()),
       Self::Bool(b) => b.fmt(f),
       Self::Float(n) => n.fmt(f),
+      Self::TaggedFloat(n, _) => n.fmt(f),
     }
   }
 }
 
-impl Default for InputTag {
+impl<T: Clone + PartialEq + PartialOrd> Default for ExtInputTag<T> {
   fn default() -> Self {
     Self::None
   }
 }
 
 pub trait FromInputTag: Sized {
-  fn from_input_tag(t: &InputTag) -> Option<Self>;
+  fn from_input_tag<T: Clone + PartialEq + PartialOrd>(t: &ExtInputTag<T>) -> Option<Self>;
 }
 
 impl<T> FromInputTag for T {
-  default fn from_input_tag(_: &InputTag) -> Option<T> {
+  default fn from_input_tag<TP: Clone + PartialEq + PartialOrd>(_: &ExtInputTag<TP>) -> Option<T> {
     None
   }
 }
 
 impl FromInputTag for bool {
-  fn from_input_tag(t: &InputTag) -> Option<bool> {
+  fn from_input_tag<TP: Clone + PartialEq + PartialOrd>(t: &ExtInputTag<TP>) -> Option<bool> {
     match t {
-      InputTag::Bool(b) => Some(b.clone()),
+      ExtInputTag::Bool(b) => Some(b.clone()),
       _ => None,
     }
   }
 }
 
 impl FromInputTag for f64 {
-  fn from_input_tag(t: &InputTag) -> Option<f64> {
+  fn from_input_tag<TP: Clone + PartialEq + PartialOrd>(t: &ExtInputTag<TP>) -> Option<f64> {
     match t {
-      InputTag::Float(f) => Some(f.clone()),
+      ExtInputTag::Float(f) => Some(f.clone()),
       _ => None,
     }
   }
 }
 
-impl std::str::FromStr for InputTag {
+impl<TP: Clone + PartialEq + PartialOrd> std::str::FromStr for ExtInputTag<TP> {
   type Err = ParseInputTagError;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {

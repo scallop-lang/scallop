@@ -29,6 +29,21 @@ impl Value {
   pub fn value_type(&self) -> ValueType {
     ValueType::type_of(self)
   }
+
+  pub fn as_usize(&self) -> usize {
+    match self {
+      Self::USize(u) => *u,
+      v => panic!("Cannot cast value {} as usize", v),
+    }
+  }
+
+  pub fn as_str(&self) -> &str {
+    match self {
+      Self::Str(s) => s,
+      Self::String(s) => &s,
+      v => panic!("Cannot get string from value {}", v),
+    }
+  }
 }
 
 impl Eq for Value {}
@@ -38,6 +53,31 @@ impl Ord for Value {
     match self.partial_cmp(other) {
       Some(o) => o,
       None => std::cmp::Ordering::Equal,
+    }
+  }
+}
+
+impl std::hash::Hash for Value {
+  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    match self {
+      Self::I8(i) => i.hash(state),
+      Self::I16(i) => i.hash(state),
+      Self::I32(i) => i.hash(state),
+      Self::I64(i) => i.hash(state),
+      Self::I128(i) => i.hash(state),
+      Self::ISize(i) => i.hash(state),
+      Self::U8(u) => u.hash(state),
+      Self::U16(u) => u.hash(state),
+      Self::U32(u) => u.hash(state),
+      Self::U64(u) => u.hash(state),
+      Self::U128(u) => u.hash(state),
+      Self::USize(u) => u.hash(state),
+      Self::F32(f) => i32::from_ne_bytes(f.to_ne_bytes()).hash(state),
+      Self::F64(f) => i64::from_ne_bytes(f.to_ne_bytes()).hash(state),
+      Self::Char(c) => c.hash(state),
+      Self::Bool(b) => b.hash(state),
+      Self::Str(s) => s.hash(state),
+      Self::String(s) => s.hash(state),
     }
   }
 }
@@ -59,7 +99,7 @@ impl std::fmt::Display for Value {
       Self::USize(i) => f.write_fmt(format_args!("{}", i)),
       Self::F32(i) => f.write_fmt(format_args!("{}", i)),
       Self::F64(i) => f.write_fmt(format_args!("{}", i)),
-      Self::Char(i) => f.write_fmt(format_args!("{}", i)),
+      Self::Char(i) => f.write_fmt(format_args!("'{}'", i)),
       Self::Bool(i) => f.write_fmt(format_args!("{}", i)),
       Self::Str(i) => f.write_fmt(format_args!("{:?}", i)),
       Self::String(i) => f.write_fmt(format_args!("{:?}", i)),

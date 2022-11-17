@@ -75,6 +75,7 @@ impl<'a> QueryPlanContext<'a> {
             let else_br_bounded = term_is_bounded(&new_bounded_args, &i.else_br);
             cond_bounded && then_br_bounded && else_br_bounded
           }
+          AssignExpr::Call(c) => c.args.iter().all(|a| term_is_bounded(&new_bounded_args, a)),
         };
         if can_bound {
           new_bounded_args.insert(assign.left.clone());
@@ -126,6 +127,7 @@ impl<'a> QueryPlanContext<'a> {
     final_states.pop().unwrap()
   }
 
+  /// The main entry function that computes a query plan from a sequence of arcs
   fn get_query_plan(&self, arcs: &Vec<Arc>) -> Plan {
     // Stage 1: Helper Functions (Closures)
 
@@ -205,6 +207,8 @@ impl<'a> QueryPlanContext<'a> {
           bounded_vars: self.pos_atoms[first_arc.right].variable_args().cloned().collect(),
           ram_node: HighRamNode::Ground(self.pos_atoms[first_arc.right].clone()),
         };
+
+        // Note: We always apply constraint first and then assigns
         (try_apply_constraint(try_apply_assigns(node)), 1)
       }
     } else {
@@ -229,6 +233,7 @@ impl<'a> QueryPlanContext<'a> {
         };
       }
 
+      // Note: We always apply constraint first and then assigns
       (try_apply_constraint(try_apply_assigns(node)), 0)
     };
 
@@ -268,6 +273,7 @@ impl<'a> QueryPlanContext<'a> {
         };
       }
 
+      // Note: We always apply constraint first and then assigns
       fringe = try_apply_constraint(try_apply_assigns(fringe));
     }
 

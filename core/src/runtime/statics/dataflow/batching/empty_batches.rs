@@ -42,11 +42,11 @@ where
   }
 }
 
-impl<I, Tup, T> Batches<Tup, T> for EmptyBatches<I>
+impl<I, Tup, Prov> Batches<Tup, Prov> for EmptyBatches<I>
 where
-  I: Batch<Tup, T>,
+  I: Batch<Tup, Prov>,
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
   type Batch = I;
 }

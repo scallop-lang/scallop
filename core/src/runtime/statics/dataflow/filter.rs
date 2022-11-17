@@ -3,11 +3,11 @@ use std::marker::PhantomData;
 use super::*;
 use crate::runtime::provenance::*;
 
-pub fn filter<S, F, Tup, T>(source: S, filter_fn: F) -> Filter<S, F, Tup, T>
+pub fn filter<S, F, Tup, Prov>(source: S, filter_fn: F) -> Filter<S, F, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  S: Dataflow<Tup, T>,
+  Prov: Provenance,
+  S: Dataflow<Tup, Prov>,
   F: Fn(&Tup) -> bool,
 {
   Filter {
@@ -17,51 +17,51 @@ where
   }
 }
 
-pub trait FilterOnDataflow<S, F, Tup, T>
+pub trait FilterOnDataflow<S, F, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  S: Dataflow<Tup, T>,
+  Prov: Provenance,
+  S: Dataflow<Tup, Prov>,
   F: Fn(&Tup) -> bool,
 {
-  fn filter(self, filter_fn: F) -> Filter<S, F, Tup, T>;
+  fn filter(self, filter_fn: F) -> Filter<S, F, Tup, Prov>;
 }
 
-impl<S, F, Tup, T> FilterOnDataflow<S, F, Tup, T> for S
+impl<S, F, Tup, Prov> FilterOnDataflow<S, F, Tup, Prov> for S
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  S: Dataflow<Tup, T>,
+  Prov: Provenance,
+  S: Dataflow<Tup, Prov>,
   F: Fn(&Tup) -> bool,
 {
-  fn filter(self, filter_fn: F) -> Filter<S, F, Tup, T> {
+  fn filter(self, filter_fn: F) -> Filter<S, F, Tup, Prov> {
     filter(self, filter_fn)
   }
 }
 
 #[derive(Clone)]
-pub struct Filter<S, F, Tup, T>
+pub struct Filter<S, F, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  S: Dataflow<Tup, T>,
+  Prov: Provenance,
+  S: Dataflow<Tup, Prov>,
   F: Fn(&Tup) -> bool,
 {
   source: S,
   filter_fn: F,
-  phantom: PhantomData<(Tup, T)>,
+  phantom: PhantomData<(Tup, Prov)>,
 }
 
-impl<S, F, Tup, T> Dataflow<Tup, T> for Filter<S, F, Tup, T>
+impl<S, F, Tup, Prov> Dataflow<Tup, Prov> for Filter<S, F, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  S: Dataflow<Tup, T>,
+  Prov: Provenance,
+  S: Dataflow<Tup, Prov>,
   F: Fn(&Tup) -> bool + Clone,
 {
-  type Stable = BatchesMap<S::Stable, FilterOp<F, Tup, T>, Tup, Tup, T>;
+  type Stable = BatchesMap<S::Stable, FilterOp<F, Tup, Prov>, Tup, Tup, Prov>;
 
-  type Recent = BatchesMap<S::Recent, FilterOp<F, Tup, T>, Tup, Tup, T>;
+  type Recent = BatchesMap<S::Recent, FilterOp<F, Tup, Prov>, Tup, Tup, Prov>;
 
   fn iter_stable(&self) -> Self::Stable {
     let op = FilterOp::new(self.filter_fn.clone());
@@ -75,15 +75,15 @@ where
 }
 
 #[derive(Clone)]
-pub struct FilterOp<F, Tup, T>
+pub struct FilterOp<F, Tup, Prov>
 where
   F: Fn(&Tup) -> bool + Clone,
 {
   filter_fn: F,
-  phantom: PhantomData<(Tup, T)>,
+  phantom: PhantomData<(Tup, Prov)>,
 }
 
-impl<F, Tup, T> FilterOp<F, Tup, T>
+impl<F, Tup, Prov> FilterOp<F, Tup, Prov>
 where
   F: Fn(&Tup) -> bool + Clone,
 {
@@ -95,14 +95,14 @@ where
   }
 }
 
-impl<I1, F, Tup, T> BatchUnaryOp<I1> for FilterOp<F, Tup, T>
+impl<I1, F, Tup, Prov> BatchUnaryOp<I1> for FilterOp<F, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  I1: Batch<Tup, T>,
+  Prov: Provenance,
+  I1: Batch<Tup, Prov>,
   F: Fn(&Tup) -> bool + Clone,
 {
-  type I2 = FilterIterator<I1, F, Tup, T>;
+  type I2 = FilterIterator<I1, F, Tup, Prov>;
 
   fn apply(&self, i1: I1) -> Self::I2 {
     Self::I2 {
@@ -114,26 +114,26 @@ where
 }
 
 #[derive(Clone)]
-pub struct FilterIterator<I, F, Tup, T>
+pub struct FilterIterator<I, F, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  I: Batch<Tup, T>,
+  Prov: Provenance,
+  I: Batch<Tup, Prov>,
   F: Fn(&Tup) -> bool + Clone,
 {
   source_iter: I,
   filter_fn: F,
-  phantom: PhantomData<(Tup, T)>,
+  phantom: PhantomData<(Tup, Prov)>,
 }
 
-impl<I, F, Tup, T> Iterator for FilterIterator<I, F, Tup, T>
+impl<I, F, Tup, Prov> Iterator for FilterIterator<I, F, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  I: Batch<Tup, T>,
+  Prov: Provenance,
+  I: Batch<Tup, Prov>,
   F: Fn(&Tup) -> bool + Clone,
 {
-  type Item = StaticElement<Tup, T>;
+  type Item = StaticElement<Tup, Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     loop {
@@ -153,11 +153,11 @@ where
   }
 }
 
-impl<I, F, Tup, T> Batch<Tup, T> for FilterIterator<I, F, Tup, T>
+impl<I, F, Tup, Prov> Batch<Tup, Prov> for FilterIterator<I, F, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  I: Batch<Tup, T>,
+  Prov: Provenance,
+  I: Batch<Tup, Prov>,
   F: Fn(&Tup) -> bool + Clone,
 {
 }

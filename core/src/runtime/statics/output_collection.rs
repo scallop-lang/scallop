@@ -1,12 +1,13 @@
+use crate::common::tuple::*;
 use crate::runtime::provenance::*;
 use crate::runtime::statics::StaticTupleTrait;
 
 #[derive(Clone)]
-pub struct StaticOutputCollection<Tup: StaticTupleTrait, T: Tag> {
-  pub elements: Vec<(OutputTagOf<T::Context>, Tup)>,
+pub struct StaticOutputCollection<Tup: StaticTupleTrait, Prov: Provenance> {
+  pub elements: Vec<(OutputTagOf<Prov>, Tup)>,
 }
 
-impl<Tup: StaticTupleTrait, T: Tag> StaticOutputCollection<Tup, T> {
+impl<Tup: StaticTupleTrait, Prov: Provenance> StaticOutputCollection<Tup, Prov> {
   /// Whether the collection is empty
   pub fn is_empty(&self) -> bool {
     self.elements.is_empty()
@@ -17,7 +18,7 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticOutputCollection<Tup, T> {
     self.elements.len()
   }
 
-  pub fn iter(&self) -> impl Iterator<Item = &(OutputTagOf<T::Context>, Tup)> {
+  pub fn iter(&self) -> impl Iterator<Item = &(OutputTagOf<Prov>, Tup)> {
     self.elements.iter()
   }
 
@@ -25,15 +26,26 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticOutputCollection<Tup, T> {
     self.elements.get(i).map(|e| &e.1)
   }
 
-  pub fn ith_tag(&self, i: usize) -> Option<&OutputTagOf<T::Context>> {
+  pub fn ith_tag(&self, i: usize) -> Option<&OutputTagOf<Prov>> {
     self.elements.get(i).map(|e| &e.0)
+  }
+
+  pub fn to_dynamic_vec(&self) -> Vec<(OutputTagOf<Prov>, Tuple)>
+  where
+    Tup: Into<Tuple>,
+  {
+    self
+      .elements
+      .iter()
+      .map(|(tag, tup)| (tag.clone(), tup.clone().into()))
+      .collect()
   }
 }
 
-impl<I, T, Tup> From<I> for StaticOutputCollection<Tup, T>
+impl<I, Prov, Tup> From<I> for StaticOutputCollection<Tup, Prov>
 where
-  T: Tag,
-  I: Iterator<Item = (OutputTagOf<T::Context>, Tup)>,
+  Prov: Provenance,
+  I: Iterator<Item = (OutputTagOf<Prov>, Tup)>,
   Tup: StaticTupleTrait,
 {
   fn from(i: I) -> Self {
@@ -41,7 +53,7 @@ where
   }
 }
 
-impl<T: Tag, Tup: StaticTupleTrait> std::fmt::Debug for StaticOutputCollection<Tup, T> {
+impl<Prov: Provenance, Tup: StaticTupleTrait> std::fmt::Debug for StaticOutputCollection<Tup, Prov> {
   default fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str("{")?;
     for (i, (tag, tuple)) in self.elements.iter().enumerate() {
@@ -54,7 +66,7 @@ impl<T: Tag, Tup: StaticTupleTrait> std::fmt::Debug for StaticOutputCollection<T
   }
 }
 
-impl<Tup: StaticTupleTrait> std::fmt::Debug for StaticOutputCollection<Tup, unit::Unit> {
+impl<Tup: StaticTupleTrait> std::fmt::Debug for StaticOutputCollection<Tup, unit::UnitProvenance> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str("{")?;
     for (i, (_, tuple)) in self.elements.iter().enumerate() {
@@ -67,7 +79,7 @@ impl<Tup: StaticTupleTrait> std::fmt::Debug for StaticOutputCollection<Tup, unit
   }
 }
 
-impl<T: Tag, Tup: StaticTupleTrait> std::fmt::Display for StaticOutputCollection<Tup, T> {
+impl<Prov: Provenance, Tup: StaticTupleTrait> std::fmt::Display for StaticOutputCollection<Tup, Prov> {
   default fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str("{")?;
     for (i, (tag, tuple)) in self.elements.iter().enumerate() {
@@ -80,7 +92,7 @@ impl<T: Tag, Tup: StaticTupleTrait> std::fmt::Display for StaticOutputCollection
   }
 }
 
-impl<Tup: StaticTupleTrait> std::fmt::Display for StaticOutputCollection<Tup, unit::Unit> {
+impl<Tup: StaticTupleTrait> std::fmt::Display for StaticOutputCollection<Tup, unit::UnitProvenance> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str("{")?;
     for (i, (_, tuple)) in self.elements.iter().enumerate() {

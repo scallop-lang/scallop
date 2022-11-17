@@ -1,16 +1,16 @@
 use super::super::*;
 
 #[derive(Clone)]
-pub enum BatchBinaryOp<'a, T: Tag> {
-  Intersect(IntersectOp<'a, T>),
-  Join(JoinOp<'a, T>),
-  Product(ProductOp<'a, T>),
-  Difference(DifferenceOp<'a, T>),
-  Antijoin(AntijoinOp<'a, T>),
+pub enum BatchBinaryOp<'a, Prov: Provenance> {
+  Intersect(IntersectOp<'a, Prov>),
+  Join(JoinOp<'a, Prov>),
+  Product(ProductOp<'a, Prov>),
+  Difference(DifferenceOp<'a, Prov>),
+  Antijoin(AntijoinOp<'a, Prov>),
 }
 
-impl<'a, T: Tag> BatchBinaryOp<'a, T> {
-  pub fn apply(&self, b1: DynamicBatch<'a, T>, b2: DynamicBatch<'a, T>) -> DynamicBatch<'a, T> {
+impl<'a, Prov: Provenance> BatchBinaryOp<'a, Prov> {
+  pub fn apply(&self, b1: DynamicBatch<'a, Prov>, b2: DynamicBatch<'a, Prov>) -> DynamicBatch<'a, Prov> {
     match self {
       Self::Intersect(i) => i.apply(b1, b2),
       Self::Join(j) => j.apply(b1, b2),

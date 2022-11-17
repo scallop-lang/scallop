@@ -99,6 +99,10 @@ pub fn constant_prop(rule: &mut Rule) {
                     then_br: substitute_term(&i.then_br),
                     else_br: substitute_term(&i.else_br),
                   }),
+                  AssignExpr::Call(c) => AssignExpr::Call(CallExpr {
+                    function: c.function.clone(),
+                    args: c.args.iter().map(substitute_term).collect(),
+                  }),
                 },
               })
             } else {

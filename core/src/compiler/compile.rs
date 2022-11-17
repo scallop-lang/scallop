@@ -17,10 +17,8 @@ pub fn compile_source_to_ram_with_options<S: front::Source>(
     Err(error_ctx) => {
       if options.report_front_errors {
         error_ctx.report_errors();
-        return Err(vec![]);
-      } else {
-        return Err(error_ctx.errors.into_iter().map(CompileError::Front).collect());
       }
+      return Err(vec![CompileError::Front(error_ctx)]);
     }
   }
 
@@ -45,12 +43,17 @@ pub fn compile_source_to_ram_with_options<S: front::Source>(
   }
 
   // Construct ram ir
-  let ram = match back_ir.to_ram_program(&options) {
+  let mut ram = match back_ir.to_ram_program(&options) {
     Ok(ram) => ram,
     Err(e) => {
       return Err(vec![CompileError::Back(e)]);
     }
   };
+
+  // Apply ram optimizations
+  if !options.do_not_optimize_ram {
+    ram::optimizations::optimize_ram(&mut ram);
+  }
 
   // Debug
   if options.debug || options.debug_ram {
@@ -86,7 +89,7 @@ pub fn compile_file_to_ram_with_options(
   let source = match front::FileSource::new(file_name) {
     Ok(source) => source,
     Err(err) => {
-      return Err(vec![CompileError::Front(front::FrontCompileError::SourceError(err))]);
+      return Err(vec![CompileError::Front(front::FrontCompileError::singleton(err))]);
     }
   };
 

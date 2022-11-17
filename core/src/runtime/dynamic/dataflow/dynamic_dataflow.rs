@@ -1,44 +1,46 @@
 use crate::common::expr::Expr;
 use crate::common::tuple::Tuple;
+use crate::common::tuple_type::TupleType;
 use crate::runtime::dynamic::*;
 use crate::runtime::provenance::*;
 
 use super::*;
 
 #[derive(Clone)]
-pub enum DynamicDataflow<'a, T: Tag> {
-  StableUnit(DynamicStableUnitDataflow<'a, T>),
-  RecentUnit(DynamicRecentUnitDataflow<'a, T>),
-  Vec(&'a Vec<DynamicElement<T>>),
-  DynamicStableCollection(DynamicStableCollectionDataflow<'a, T>),
-  DynamicRecentCollection(DynamicRecentCollectionDataflow<'a, T>),
-  DynamicRelation(DynamicRelationDataflow<'a, T>),
-  Project(DynamicProjectDataflow<'a, T>),
-  Filter(DynamicFilterDataflow<'a, T>),
-  Find(DynamicFindDataflow<'a, T>),
-  Intersect(DynamicIntersectDataflow<'a, T>),
-  Join(DynamicJoinDataflow<'a, T>),
-  Product(DynamicProductDataflow<'a, T>),
-  Union(DynamicUnionDataflow<'a, T>),
-  Difference(DynamicDifferenceDataflow<'a, T>),
-  Antijoin(DynamicAntijoinDataflow<'a, T>),
-  Aggregate(DynamicAggregationDataflow<'a, T>),
+pub enum DynamicDataflow<'a, Prov: Provenance> {
+  StableUnit(DynamicStableUnitDataflow<'a, Prov>),
+  RecentUnit(DynamicRecentUnitDataflow<'a, Prov>),
+  Vec(&'a Vec<DynamicElement<Prov>>),
+  DynamicStableCollection(DynamicStableCollectionDataflow<'a, Prov>),
+  DynamicRecentCollection(DynamicRecentCollectionDataflow<'a, Prov>),
+  DynamicRelation(DynamicRelationDataflow<'a, Prov>),
+  OverwriteOne(DynamicOverwriteOneDataflow<'a, Prov>),
+  Project(DynamicProjectDataflow<'a, Prov>),
+  Filter(DynamicFilterDataflow<'a, Prov>),
+  Find(DynamicFindDataflow<'a, Prov>),
+  Intersect(DynamicIntersectDataflow<'a, Prov>),
+  Join(DynamicJoinDataflow<'a, Prov>),
+  Product(DynamicProductDataflow<'a, Prov>),
+  Union(DynamicUnionDataflow<'a, Prov>),
+  Difference(DynamicDifferenceDataflow<'a, Prov>),
+  Antijoin(DynamicAntijoinDataflow<'a, Prov>),
+  Aggregate(DynamicAggregationDataflow<'a, Prov>),
 }
 
-impl<'a, T: Tag> DynamicDataflow<'a, T> {
-  pub fn vec(vec: &'a Vec<DynamicElement<T>>) -> Self {
+impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
+  pub fn vec(vec: &'a Vec<DynamicElement<Prov>>) -> Self {
     Self::Vec(vec)
   }
 
-  pub fn recent_unit(ctx: &'a T::Context) -> Self {
-    Self::RecentUnit(DynamicRecentUnitDataflow::new(ctx))
+  pub fn recent_unit(ctx: &'a Prov, tuple_type: TupleType) -> Self {
+    Self::RecentUnit(DynamicRecentUnitDataflow::new(ctx, tuple_type))
   }
 
-  pub fn stable_unit(ctx: &'a T::Context) -> Self {
-    Self::StableUnit(DynamicStableUnitDataflow::new(ctx))
+  pub fn stable_unit(ctx: &'a Prov, tuple_type: TupleType) -> Self {
+    Self::StableUnit(DynamicStableUnitDataflow::new(ctx, tuple_type))
   }
 
-  pub fn dynamic_collection(col: &'a DynamicCollection<T>, recent: bool) -> Self {
+  pub fn dynamic_collection(col: &'a DynamicCollection<Prov>, recent: bool) -> Self {
     if recent {
       Self::dynamic_recent_collection(col)
     } else {
@@ -46,16 +48,23 @@ impl<'a, T: Tag> DynamicDataflow<'a, T> {
     }
   }
 
-  pub fn dynamic_stable_collection(col: &'a DynamicCollection<T>) -> Self {
+  pub fn dynamic_stable_collection(col: &'a DynamicCollection<Prov>) -> Self {
     Self::DynamicStableCollection(DynamicStableCollectionDataflow(col))
   }
 
-  pub fn dynamic_recent_collection(col: &'a DynamicCollection<T>) -> Self {
+  pub fn dynamic_recent_collection(col: &'a DynamicCollection<Prov>) -> Self {
     Self::DynamicRecentCollection(DynamicRecentCollectionDataflow(col))
   }
 
-  pub fn dynamic_relation(rela: &'a DynamicRelation<T>) -> Self {
+  pub fn dynamic_relation(rela: &'a DynamicRelation<Prov>) -> Self {
     Self::DynamicRelation(DynamicRelationDataflow(rela))
+  }
+
+  pub fn overwrite_one(self, ctx: &'a Prov) -> Self {
+    Self::OverwriteOne(DynamicOverwriteOneDataflow {
+      source: Box::new(self),
+      ctx,
+    })
   }
 
   pub fn project(self, expression: Expr) -> Self {
@@ -79,7 +88,7 @@ impl<'a, T: Tag> DynamicDataflow<'a, T> {
     })
   }
 
-  pub fn intersect(self, d2: Self, ctx: &'a T::Context) -> Self {
+  pub fn intersect(self, d2: Self, ctx: &'a Prov) -> Self {
     Self::Intersect(DynamicIntersectDataflow {
       d1: Box::new(self),
       d2: Box::new(d2),
@@ -87,7 +96,7 @@ impl<'a, T: Tag> DynamicDataflow<'a, T> {
     })
   }
 
-  pub fn join(self, d2: Self, ctx: &'a T::Context) -> Self {
+  pub fn join(self, d2: Self, ctx: &'a Prov) -> Self {
     Self::Join(DynamicJoinDataflow {
       d1: Box::new(self),
       d2: Box::new(d2),
@@ -95,7 +104,7 @@ impl<'a, T: Tag> DynamicDataflow<'a, T> {
     })
   }
 
-  pub fn product(self, d2: Self, ctx: &'a T::Context) -> Self {
+  pub fn product(self, d2: Self, ctx: &'a Prov) -> Self {
     Self::Product(DynamicProductDataflow {
       d1: Box::new(self),
       d2: Box::new(d2),
@@ -110,7 +119,7 @@ impl<'a, T: Tag> DynamicDataflow<'a, T> {
     })
   }
 
-  pub fn difference(self, d2: Self, ctx: &'a T::Context) -> Self {
+  pub fn difference(self, d2: Self, ctx: &'a Prov) -> Self {
     Self::Difference(DynamicDifferenceDataflow {
       d1: Box::new(self),
       d2: Box::new(d2),
@@ -118,7 +127,7 @@ impl<'a, T: Tag> DynamicDataflow<'a, T> {
     })
   }
 
-  pub fn antijoin(self, d2: Self, ctx: &'a T::Context) -> Self {
+  pub fn antijoin(self, d2: Self, ctx: &'a Prov) -> Self {
     Self::Antijoin(DynamicAntijoinDataflow {
       d1: Box::new(self),
       d2: Box::new(d2),
@@ -126,7 +135,7 @@ impl<'a, T: Tag> DynamicDataflow<'a, T> {
     })
   }
 
-  pub fn iter_stable(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     match self {
       Self::StableUnit(i) => i.iter_stable(),
       Self::RecentUnit(i) => i.iter_stable(),
@@ -134,6 +143,7 @@ impl<'a, T: Tag> DynamicDataflow<'a, T> {
       Self::DynamicStableCollection(dc) => dc.iter_stable(),
       Self::DynamicRecentCollection(dc) => dc.iter_stable(),
       Self::DynamicRelation(dr) => dr.iter_stable(),
+      Self::OverwriteOne(d) => d.iter_stable(),
       Self::Project(p) => p.iter_stable(),
       Self::Filter(f) => f.iter_stable(),
       Self::Find(f) => f.iter_stable(),
@@ -147,7 +157,7 @@ impl<'a, T: Tag> DynamicDataflow<'a, T> {
     }
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     match self {
       Self::StableUnit(i) => i.iter_recent(),
       Self::RecentUnit(i) => i.iter_recent(),
@@ -155,6 +165,7 @@ impl<'a, T: Tag> DynamicDataflow<'a, T> {
       Self::DynamicStableCollection(dc) => dc.iter_recent(),
       Self::DynamicRecentCollection(dc) => dc.iter_recent(),
       Self::DynamicRelation(dr) => dr.iter_recent(),
+      Self::OverwriteOne(d) => d.iter_recent(),
       Self::Project(p) => p.iter_recent(),
       Self::Filter(f) => f.iter_recent(),
       Self::Find(f) => f.iter_recent(),
@@ -169,8 +180,8 @@ impl<'a, T: Tag> DynamicDataflow<'a, T> {
   }
 }
 
-impl<'a, T: Tag> From<&'a DynamicRelation<T>> for DynamicDataflow<'a, T> {
-  fn from(r: &'a DynamicRelation<T>) -> Self {
+impl<'a, Prov: Provenance> From<&'a DynamicRelation<Prov>> for DynamicDataflow<'a, Prov> {
+  fn from(r: &'a DynamicRelation<Prov>) -> Self {
     Self::dynamic_relation(r)
   }
 }

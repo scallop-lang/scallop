@@ -23,6 +23,9 @@ struct Options {
   #[structopt(short = "q", long)]
   query: Option<String>,
 
+  #[structopt(long)]
+  iter_limit: Option<usize>,
+
   /// General debug option
   #[structopt(short, long)]
   debug: bool,
@@ -61,7 +64,7 @@ impl From<&Options> for compiler::CompileOptions {
       debug_ram: opt.debug_ram,
       do_not_remove_unused_relations: opt.do_not_remove_unused_relations,
       output_all: opt.output_all,
-      report_front_errors: true,
+      report_front_errors: false,
       ..Default::default()
     }
   }
@@ -88,6 +91,9 @@ fn main() {
     // We do not need anything to be returned
     return_relations: PredicateSet::None,
 
+    // Iteration limit
+    iter_limit: opt.iter_limit,
+
     // We want everything to be printed
     print_relations: if let Some(q) = &opt.query {
       PredicateSet::Some(vec![q.clone()])
@@ -103,19 +109,19 @@ fn main() {
   if !opt.debug_tag {
     match opt.provenance.as_str() {
       "unit" => {
-        let mut ctx = provenance::unit::UnitContext::default();
+        let mut ctx = provenance::unit::UnitProvenance::default();
         dynamic::interpret_with_options(ram, &mut ctx, &interpret_options).expect("Runtime error");
       }
       "bool" => {
-        let mut ctx = provenance::boolean::BooleanContext::default();
+        let mut ctx = provenance::boolean::BooleanProvenance::default();
         dynamic::interpret_with_options(ram, &mut ctx, &interpret_options).expect("Runtime error");
       }
       "proofs" => {
-        let mut ctx = provenance::proofs::ProofsContext::default();
+        let mut ctx = provenance::proofs::ProofsProvenance::default();
         dynamic::interpret_with_options(ram, &mut ctx, &interpret_options).expect("Runtime error");
       }
       "minmaxprob" => {
-        let mut ctx = provenance::min_max_prob::MinMaxProbContext::default();
+        let mut ctx = provenance::min_max_prob::MinMaxProbProvenance::default();
         dynamic::interpret_with_options(ram, &mut ctx, &interpret_options).expect("Runtime error");
       }
       "addmultprob" => {
@@ -140,19 +146,19 @@ fn main() {
 
     match opt.provenance.as_str() {
       "unit" => {
-        let mut ctx = provenance::unit::UnitContext::default();
+        let mut ctx = provenance::unit::UnitProvenance::default();
         dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
       }
       "bool" => {
-        let mut ctx = provenance::boolean::BooleanContext::default();
+        let mut ctx = provenance::boolean::BooleanProvenance::default();
         dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
       }
       "proofs" => {
-        let mut ctx = provenance::proofs::ProofsContext::default();
+        let mut ctx = provenance::proofs::ProofsProvenance::default();
         dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
       }
       "minmaxprob" => {
-        let mut ctx = provenance::min_max_prob::MinMaxProbContext::default();
+        let mut ctx = provenance::min_max_prob::MinMaxProbProvenance::default();
         dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
       }
       "addmultprob" => {

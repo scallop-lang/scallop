@@ -2,11 +2,11 @@ use crate::common::tuple::Tuple;
 use crate::runtime::provenance::*;
 
 #[derive(Clone)]
-pub struct DynamicOutputCollection<T: Tag> {
-  pub elements: Vec<(OutputTagOf<T::Context>, Tuple)>,
+pub struct DynamicOutputCollection<Prov: Provenance> {
+  pub elements: Vec<(OutputTagOf<Prov>, Tuple)>,
 }
 
-impl<T: Tag> DynamicOutputCollection<T> {
+impl<Prov: Provenance> DynamicOutputCollection<Prov> {
   /// Whether the collection is empty
   pub fn is_empty(&self) -> bool {
     self.elements.is_empty()
@@ -17,7 +17,7 @@ impl<T: Tag> DynamicOutputCollection<T> {
     self.elements.len()
   }
 
-  pub fn iter(&self) -> impl Iterator<Item = &(OutputTagOf<T::Context>, Tuple)> {
+  pub fn iter(&self) -> impl Iterator<Item = &(OutputTagOf<Prov>, Tuple)> {
     self.elements.iter()
   }
 
@@ -25,22 +25,22 @@ impl<T: Tag> DynamicOutputCollection<T> {
     self.elements.get(i).map(|e| &e.1)
   }
 
-  pub fn ith_tag(&self, i: usize) -> Option<&OutputTagOf<T::Context>> {
+  pub fn ith_tag(&self, i: usize) -> Option<&OutputTagOf<Prov>> {
     self.elements.get(i).map(|e| &e.0)
   }
 }
 
-impl<I, T> From<I> for DynamicOutputCollection<T>
+impl<I, Prov> From<I> for DynamicOutputCollection<Prov>
 where
-  T: Tag,
-  I: Iterator<Item = (OutputTagOf<T::Context>, Tuple)>,
+  Prov: Provenance,
+  I: Iterator<Item = (OutputTagOf<Prov>, Tuple)>,
 {
   fn from(i: I) -> Self {
     Self { elements: i.collect() }
   }
 }
 
-impl<T: Tag> std::fmt::Debug for DynamicOutputCollection<T> {
+impl<Prov: Provenance> std::fmt::Debug for DynamicOutputCollection<Prov> {
   default fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str("{")?;
     for (i, (tag, tuple)) in self.elements.iter().enumerate() {
@@ -53,7 +53,7 @@ impl<T: Tag> std::fmt::Debug for DynamicOutputCollection<T> {
   }
 }
 
-impl std::fmt::Debug for DynamicOutputCollection<unit::Unit> {
+impl std::fmt::Debug for DynamicOutputCollection<unit::UnitProvenance> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str("{")?;
     for (i, (_, tuple)) in self.elements.iter().enumerate() {
@@ -66,7 +66,7 @@ impl std::fmt::Debug for DynamicOutputCollection<unit::Unit> {
   }
 }
 
-impl<T: Tag> std::fmt::Display for DynamicOutputCollection<T> {
+impl<Prov: Provenance> std::fmt::Display for DynamicOutputCollection<Prov> {
   default fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str("{")?;
     for (i, (tag, tuple)) in self.elements.iter().enumerate() {
@@ -79,7 +79,7 @@ impl<T: Tag> std::fmt::Display for DynamicOutputCollection<T> {
   }
 }
 
-impl std::fmt::Display for DynamicOutputCollection<unit::Unit> {
+impl std::fmt::Display for DynamicOutputCollection<unit::UnitProvenance> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str("{")?;
     for (i, (_, tuple)) in self.elements.iter().enumerate() {

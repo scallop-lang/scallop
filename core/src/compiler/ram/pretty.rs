@@ -89,7 +89,7 @@ impl Dataflow {
     let next_indent = base_indent + indent_size;
     let padding = vec![' '; next_indent].into_iter().collect::<String>();
     match self {
-      Self::Unit => f.write_str("Unit"),
+      Self::Unit(t) => f.write_fmt(format_args!("Unit({})", t)),
       Self::Relation(r) => f.write_fmt(format_args!("Relation {}", r)),
       Self::Reduce(r) => {
         let group_by_predicate = match &r.group_by {
@@ -101,6 +101,10 @@ impl Dataflow {
           "Aggregation {}({}{})",
           r.op, r.predicate, group_by_predicate
         ))
+      }
+      Self::OverwriteOne(d) => {
+        f.write_fmt(format_args!("OverwriteOne\n{}", padding))?;
+        d.pretty_print(f, next_indent, indent_size)
       }
       Self::Find(d, tuple) => {
         f.write_fmt(format_args!("Find[{}]\n{}", tuple, padding))?;

@@ -5,13 +5,12 @@ use scallop_core::runtime::dynamic::*;
 use scallop_core::runtime::provenance::*;
 use scallop_core::testing::*;
 
-fn test_iteration_1<T>() -> DynamicCollection<T>
+fn test_iteration_1<Prov>() -> DynamicCollection<Prov>
 where
-  T: Tag + std::fmt::Debug,
-  T::Context: ProvenanceContext + Default,
+  Prov: Provenance + Default,
 {
-  let mut ctx = T::Context::default();
-  let mut iter = DynamicIteration::<T>::new();
+  let mut ctx = Prov::default();
+  let mut iter = DynamicIteration::<Prov>::new();
 
   // First create relations
   iter.create_dynamic_relation("edge");
@@ -53,28 +52,27 @@ where
 
 #[test]
 fn test_iteration_1_unit() {
-  let _path = test_iteration_1::<unit::Unit>();
+  let _path = test_iteration_1::<unit::UnitProvenance>();
 }
 
 #[test]
 fn test_iteration_1_natural() {
-  let _path = test_iteration_1::<natural::Natural>();
+  let _path = test_iteration_1::<natural::NaturalProvenance>();
 }
 
 #[test]
 fn test_iteration_1_boolean() {
-  let _path = test_iteration_1::<boolean::Boolean>();
+  let _path = test_iteration_1::<boolean::BooleanProvenance>();
 }
 
-fn test_iteration_2<T>() -> DynamicCollection<T>
+fn test_iteration_2<Prov>() -> DynamicCollection<Prov>
 where
-  T: Tag + std::fmt::Debug,
-  T::Context: ProvenanceContext + Default,
+  Prov: Provenance + Default,
 {
-  let mut ctx = T::Context::default();
+  let mut ctx = Prov::default();
 
   let result_1 = {
-    let mut strata_1 = DynamicIteration::<T>::new();
+    let mut strata_1 = DynamicIteration::<Prov>::new();
     strata_1.create_dynamic_relation("color");
     strata_1.create_dynamic_relation("_color_rev");
     strata_1.get_dynamic_relation_unsafe("color").insert_untagged(
@@ -97,7 +95,7 @@ where
   };
 
   let result_2 = {
-    let mut strata_2 = DynamicIteration::<T>::new();
+    let mut strata_2 = DynamicIteration::<Prov>::new();
     strata_2.create_dynamic_relation("color_count");
     strata_2.add_input_dynamic_collection("_color_rev", &result_1["_color_rev"]);
     strata_2.add_update_dataflow(
@@ -109,7 +107,7 @@ where
   };
 
   let mut result_3 = {
-    let mut strata_3 = DynamicIteration::<T>::new();
+    let mut strata_3 = DynamicIteration::<Prov>::new();
     strata_3.create_dynamic_relation("max_color_count");
     strata_3.add_input_dynamic_collection("color_count", &result_2["color_count"]);
     strata_3.add_update_dataflow(
@@ -127,15 +125,15 @@ where
 
 #[test]
 fn test_iteration_2_unit() {
-  let _path = test_iteration_2::<unit::Unit>();
+  let _path = test_iteration_2::<unit::UnitProvenance>();
 }
 
 #[test]
 fn test_iteration_2_natural() {
-  let _path = test_iteration_2::<natural::Natural>();
+  let _path = test_iteration_2::<natural::NaturalProvenance>();
 }
 
 #[test]
 fn test_iteration_2_boolean() {
-  let _path = test_iteration_2::<boolean::Boolean>();
+  let _path = test_iteration_2::<boolean::BooleanProvenance>();
 }

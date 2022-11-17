@@ -3,39 +3,39 @@ use crate::runtime::provenance::*;
 
 use super::*;
 
-pub type StaticElement<Tup, Tag> = Tagged<StaticTupleWrapper<Tup>, Tag>;
+pub type StaticElement<Tup, Prov> = Tagged<StaticTupleWrapper<Tup>, Prov>;
 
-impl<A, B> StaticElement<A, B>
+impl<Tup, Prov> StaticElement<Tup, Prov>
 where
-  A: StaticTupleTrait,
-  B: Tag,
+  Tup: StaticTupleTrait,
+  Prov: Provenance,
 {
-  pub fn new(tuple: A, tag: B) -> Self {
+  pub fn new(tuple: Tup, tag: Prov::Tag) -> Self {
     Self {
       tuple: StaticTupleWrapper::new(tuple),
       tag,
     }
   }
 
-  pub fn tuple(self) -> A {
+  pub fn tuple(self) -> Tup {
     self.tuple.into()
   }
 }
 
-impl<Tup: StaticTupleTrait, T: Tag> Element<T> for StaticElement<Tup, T> {
-  fn tag(&self) -> &T {
+impl<Tup: StaticTupleTrait, Prov: Provenance> Element<Prov> for StaticElement<Tup, Prov> {
+  fn tag(&self) -> &Prov::Tag {
     &self.tag
   }
 }
 
-impl<A: StaticTupleTrait, B: Tag> Into<(A, B)> for StaticElement<A, B> {
-  fn into(self) -> (A, B) {
+impl<Tup: StaticTupleTrait, Prov: Provenance> Into<(Tup, Prov::Tag)> for StaticElement<Tup, Prov> {
+  fn into(self) -> (Tup, Prov::Tag) {
     let Self { tuple, tag } = self;
     (tuple.into(), tag)
   }
 }
 
-pub type StaticElements<Tup, Tag> = Vec<StaticElement<Tup, Tag>>;
+pub type StaticElements<Tup, Prov> = Vec<StaticElement<Tup, Prov>>;
 
 pub trait StaticTupleIterator<'a, Tup: 'static + StaticTupleTrait> {
   type Output: Iterator<Item = &'a Tup>;
@@ -43,19 +43,19 @@ pub trait StaticTupleIterator<'a, Tup: 'static + StaticTupleTrait> {
   fn iter_tuples(&'a self) -> Self::Output;
 }
 
-impl<'a, Tup: 'static + StaticTupleTrait, T: Tag> StaticTupleIterator<'a, Tup> for StaticElements<Tup, T> {
-  type Output = StaticElementsTupleIterator<'a, Tup, T>;
+impl<'a, Tup: 'static + StaticTupleTrait, Prov: 'static + Provenance> StaticTupleIterator<'a, Tup> for StaticElements<Tup, Prov> {
+  type Output = StaticElementsTupleIterator<'a, Tup, Prov>;
 
   fn iter_tuples(&'a self) -> Self::Output {
     StaticElementsTupleIterator { elements: self.iter() }
   }
 }
 
-pub struct StaticElementsTupleIterator<'a, Tup: StaticTupleTrait, T: Tag> {
-  elements: std::slice::Iter<'a, StaticElement<Tup, T>>,
+pub struct StaticElementsTupleIterator<'a, Tup: StaticTupleTrait, Prov: Provenance> {
+  elements: std::slice::Iter<'a, StaticElement<Tup, Prov>>,
 }
 
-impl<'a, Tup: StaticTupleTrait, T: Tag> Iterator for StaticElementsTupleIterator<'a, Tup, T> {
+impl<'a, Tup: StaticTupleTrait, Prov: Provenance> Iterator for StaticElementsTupleIterator<'a, Tup, Prov> {
   type Item = &'a Tup;
 
   fn next(&mut self) -> Option<Self::Item> {
@@ -63,19 +63,19 @@ impl<'a, Tup: StaticTupleTrait, T: Tag> Iterator for StaticElementsTupleIterator
   }
 }
 
-impl<'a, Tup: 'static + StaticTupleTrait, T: Tag> StaticTupleIterator<'a, Tup> for Vec<&'a StaticElement<Tup, T>> {
-  type Output = StaticElementsRefTupleIterator<'a, Tup, T>;
+impl<'a, Tup: 'static + StaticTupleTrait, Prov: Provenance> StaticTupleIterator<'a, Tup> for Vec<&'a StaticElement<Tup, Prov>> {
+  type Output = StaticElementsRefTupleIterator<'a, Tup, Prov>;
 
   fn iter_tuples(&'a self) -> Self::Output {
     StaticElementsRefTupleIterator { elements: self.iter() }
   }
 }
 
-pub struct StaticElementsRefTupleIterator<'a, Tup: StaticTupleTrait, T: Tag> {
-  elements: std::slice::Iter<'a, &'a StaticElement<Tup, T>>,
+pub struct StaticElementsRefTupleIterator<'a, Tup: StaticTupleTrait, Prov: Provenance> {
+  elements: std::slice::Iter<'a, &'a StaticElement<Tup, Prov>>,
 }
 
-impl<'a, Tup: StaticTupleTrait, T: Tag> Iterator for StaticElementsRefTupleIterator<'a, Tup, T> {
+impl<'a, Tup: StaticTupleTrait, Prov: Provenance> Iterator for StaticElementsRefTupleIterator<'a, Tup, Prov> {
   type Item = &'a Tup;
 
   fn next(&mut self) -> Option<Self::Item> {

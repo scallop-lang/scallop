@@ -4,14 +4,14 @@ use super::*;
 use crate::runtime::provenance::*;
 use crate::runtime::statics::*;
 
-impl<'a, Tup, T> Dataflow<Tup, T> for &'a StaticRelation<Tup, T>
+impl<'a, Tup, Prov> Dataflow<Tup, Prov> for &'a StaticRelation<Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  type Stable = StableRelationBatches<'a, Tup, T>;
+  type Stable = StableRelationBatches<'a, Tup, Prov>;
 
-  type Recent = SingleBatch<RelationIterator<'a, Tup, T>>;
+  type Recent = SingleBatch<RelationIterator<'a, Tup, Prov>>;
 
   fn iter_stable(&self) -> Self::Stable {
     Self::Stable {
@@ -28,19 +28,19 @@ where
   }
 }
 
-pub struct StableRelationBatches<'a, Tup, T>
+pub struct StableRelationBatches<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  relations: Ref<'a, Vec<StaticCollection<Tup, T>>>,
+  relations: Ref<'a, Vec<StaticCollection<Tup, Prov>>>,
   rela_id: usize,
 }
 
-impl<'a, Tup, T> Clone for StableRelationBatches<'a, Tup, T>
+impl<'a, Tup, Prov> Clone for StableRelationBatches<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
   fn clone(&self) -> Self {
     Self {
@@ -50,12 +50,12 @@ where
   }
 }
 
-impl<'a, Tup, T> Iterator for StableRelationBatches<'a, Tup, T>
+impl<'a, Tup, Prov> Iterator for StableRelationBatches<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  type Item = StableRelationBatch<'a, Tup, T>;
+  type Item = StableRelationBatch<'a, Tup, Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     if self.rela_id < self.relations.len() {
@@ -77,28 +77,28 @@ where
   }
 }
 
-impl<'a, Tup, T> Batches<Tup, T> for StableRelationBatches<'a, Tup, T>
+impl<'a, Tup, Prov> Batches<Tup, Prov> for StableRelationBatches<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  type Batch = StableRelationBatch<'a, Tup, T>;
+  type Batch = StableRelationBatch<'a, Tup, Prov>;
 }
 
-pub struct StableRelationBatch<'a, Tup, T>
+pub struct StableRelationBatch<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  relations: Ref<'a, Vec<StaticCollection<Tup, T>>>,
+  relations: Ref<'a, Vec<StaticCollection<Tup, Prov>>>,
   rela_id: usize,
   elem_id: usize,
 }
 
-impl<'a, Tup, T> Clone for StableRelationBatch<'a, Tup, T>
+impl<'a, Tup, Prov> Clone for StableRelationBatch<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
   fn clone(&self) -> Self {
     Self {
@@ -109,12 +109,12 @@ where
   }
 }
 
-impl<'a, Tup, T> Iterator for StableRelationBatch<'a, Tup, T>
+impl<'a, Tup, Prov> Iterator for StableRelationBatch<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  type Item = StaticElement<Tup, T>;
+  type Item = StaticElement<Tup, Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     let relation = &self.relations[self.rela_id];
@@ -133,26 +133,26 @@ where
   }
 }
 
-impl<'a, Tup, T> Batch<Tup, T> for StableRelationBatch<'a, Tup, T>
+impl<'a, Tup, Prov> Batch<Tup, Prov> for StableRelationBatch<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
 }
 
-pub struct RelationIterator<'a, Tup, T>
+pub struct RelationIterator<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  relation: Ref<'a, StaticCollection<Tup, T>>,
+  relation: Ref<'a, StaticCollection<Tup, Prov>>,
   elem_id: usize,
 }
 
-impl<'a, Tup, T> Clone for RelationIterator<'a, Tup, T>
+impl<'a, Tup, Prov> Clone for RelationIterator<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
   fn clone(&self) -> Self {
     Self {
@@ -162,12 +162,12 @@ where
   }
 }
 
-impl<'a, Tup, T> Iterator for RelationIterator<'a, Tup, T>
+impl<'a, Tup, Prov> Iterator for RelationIterator<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  type Item = StaticElement<Tup, T>;
+  type Item = StaticElement<Tup, Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     if self.elem_id < self.relation.len() {
@@ -185,16 +185,16 @@ where
   }
 }
 
-impl<'a, Tup, T> Batch<Tup, T> for RelationIterator<'a, Tup, T>
+impl<'a, Tup, Prov> Batch<Tup, Prov> for RelationIterator<'a, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
   fn step(&mut self, u: usize) {
     self.elem_id += u;
   }
 
-  fn search_ahead<F>(&mut self, mut cmp: F) -> Option<StaticElement<Tup, T>>
+  fn search_ahead<F>(&mut self, mut cmp: F) -> Option<StaticElement<Tup, Prov>>
   where
     F: FnMut(&Tup) -> bool,
   {

@@ -5,16 +5,16 @@ use crate::runtime::provenance::*;
 use crate::runtime::statics::*;
 
 #[derive(Clone)]
-pub struct BatchesJoin<B1, B2, Op, T1, T2, TOut, T>
+pub struct BatchesJoin<B1, B2, Op, T1, T2, TOut, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
   TOut: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
   Op: BatchBinaryOp<B1::Batch, B2::Batch>,
-  Op::IOut: Batch<TOut, T>,
-  B1: Batches<T1, T>,
-  B2: Batches<T2, T>,
+  Op::IOut: Batch<TOut, Prov>,
+  B1: Batches<T1, Prov>,
+  B2: Batches<T2, Prov>,
 {
   b1: B1,
   b1_curr: Option<B1::Batch>,
@@ -24,16 +24,16 @@ where
   phantom: PhantomData<(TOut, T2)>,
 }
 
-impl<B1, B2, Op, T1, T2, TOut, T> BatchesJoin<B1, B2, Op, T1, T2, TOut, T>
+impl<B1, B2, Op, T1, T2, TOut, Prov> BatchesJoin<B1, B2, Op, T1, T2, TOut, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
   TOut: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
   Op: BatchBinaryOp<B1::Batch, B2::Batch>,
-  Op::IOut: Batch<TOut, T>,
-  B1: Batches<T1, T>,
-  B2: Batches<T2, T>,
+  Op::IOut: Batch<TOut, Prov>,
+  B1: Batches<T1, Prov>,
+  B2: Batches<T2, Prov>,
 {
   pub fn join(mut b1: B1, b2: B2, op: Op) -> Self {
     let b1_curr = b1.next();
@@ -49,16 +49,16 @@ where
   }
 }
 
-impl<B1, B2, Op, T1, T2, TOut, T> Iterator for BatchesJoin<B1, B2, Op, T1, T2, TOut, T>
+impl<B1, B2, Op, T1, T2, TOut, Prov> Iterator for BatchesJoin<B1, B2, Op, T1, T2, TOut, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
   TOut: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
   Op: BatchBinaryOp<B1::Batch, B2::Batch>,
-  Op::IOut: Batch<TOut, T>,
-  B1: Batches<T1, T>,
-  B2: Batches<T2, T>,
+  Op::IOut: Batch<TOut, Prov>,
+  B1: Batches<T1, Prov>,
+  B2: Batches<T2, Prov>,
 {
   type Item = Op::IOut;
 
@@ -81,16 +81,16 @@ where
   }
 }
 
-impl<B1, B2, Op, T1, T2, TOut, T> Batches<TOut, T> for BatchesJoin<B1, B2, Op, T1, T2, TOut, T>
+impl<B1, B2, Op, T1, T2, TOut, Prov> Batches<TOut, Prov> for BatchesJoin<B1, B2, Op, T1, T2, TOut, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
   TOut: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
   Op: BatchBinaryOp<B1::Batch, B2::Batch>,
-  Op::IOut: Batch<TOut, T>,
-  B1: Batches<T1, T>,
-  B2: Batches<T2, T>,
+  Op::IOut: Batch<TOut, Prov>,
+  B1: Batches<T1, Prov>,
+  B2: Batches<T2, Prov>,
 {
   type Batch = Op::IOut;
 }

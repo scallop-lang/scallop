@@ -1,6 +1,7 @@
 use std::collections::*;
 
-use super::{super::*, type_inference};
+use super::super::*;
+use super::type_inference;
 
 #[derive(Clone, Debug)]
 pub struct DemandAttributeAnalysis {
@@ -81,8 +82,10 @@ impl DemandAttributeAnalysis {
 }
 
 impl NodeVisitor for DemandAttributeAnalysis {
-  fn visit_relation_type_decl(&mut self, rel_type_decl: &ast::RelationTypeDecl) {
-    self.process_attributes(rel_type_decl.predicate(), rel_type_decl.attributes());
+  fn visit_relation_type_decl(&mut self, rela_type_decl: &ast::RelationTypeDecl) {
+    for rela_type in rela_type_decl.relation_types() {
+      self.process_attributes(rela_type.predicate(), rela_type_decl.attributes());
+    }
   }
 
   fn visit_rule_decl(&mut self, rule_decl: &ast::RuleDecl) {
@@ -120,35 +123,44 @@ pub enum DemandAttributeError {
   },
 }
 
-impl From<DemandAttributeError> for FrontCompileError {
-  fn from(e: DemandAttributeError) -> Self {
-    Self::DemandAttributeError(e)
+impl FrontCompileErrorClone for DemandAttributeError {
+  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
+    Box::new(self.clone())
   }
 }
 
-impl DemandAttributeError {
-  pub fn report(&self, src: &Sources) {
+impl FrontCompileErrorTrait for DemandAttributeError {
+  fn error_type(&self) -> FrontCompileErrorType {
+    FrontCompileErrorType::Error
+  }
+
+  fn report(&self, src: &Sources) -> String {
     match self {
       Self::InvalidNumArgs {
         pred,
         actual_num_args,
         loc,
       } => {
-        println!(
-          "Invalid number of arguments of @demand attribute for `{}`. Expected 1, Found {}",
-          pred, actual_num_args
-        );
-        loc.report(src);
+        format!(
+          "Invalid number of arguments of @demand attribute for `{}`. Expected 1, Found {}\n{}",
+          pred,
+          actual_num_args,
+          loc.report(src)
+        )
       }
       Self::InvalidArgumentType { found, loc } => {
-        println!("Invalid argument type. Expected `string`, found `{}`", found);
-        loc.report(src);
+        format!(
+          "Invalid argument type. Expected `string`, found `{}`\n{}",
+          found,
+          loc.report(src)
+        )
       }
       Self::ConflictingPattern { first_loc, second_loc } => {
-        println!("Conflicting demand pattern. First defined here:");
-        first_loc.report(src);
-        println!("re-defined here:");
-        second_loc.report(src);
+        format!(
+          "Conflicting demand pattern. First defined here:\n{}re-defined here:\n{}",
+          first_loc.report(src),
+          second_loc.report(src)
+        )
       }
       Self::ArityMismatch {
         pattern,
@@ -156,15 +168,16 @@ impl DemandAttributeError {
         actual,
         loc,
       } => {
-        println!(
-          "Arity mismatch for demand pattern `{}`. Expected {}, found {}",
-          pattern, expected, actual
-        );
-        loc.report(src);
+        format!(
+          "Arity mismatch for demand pattern `{}`. Expected {}, found {}\n{}",
+          pattern,
+          expected,
+          actual,
+          loc.report(src)
+        )
       }
       Self::InvalidPattern { loc } => {
-        println!("Invalid demand pattern");
-        loc.report(src);
+        format!("Invalid demand pattern\n{}", loc.report(src))
       }
     }
   }

@@ -162,6 +162,17 @@ fn count_test_2() {
 }
 
 #[test]
+fn topk_test_1() {
+  expect_interpret_result(
+    r#"
+      rel r1 = {(0, "x"), (0, "y"), (1, "y"), (1, "z")}
+      rel r2(id, sym) :- sym = top<1>(s: r1(id, s))
+    "#,
+    ("r2", vec![(0usize, "x".to_string()), (1, "y".to_string())]),
+  );
+}
+
+#[test]
 fn digit_sum_test_1() {
   expect_interpret_result(
     r#"
@@ -534,6 +545,18 @@ fn negate_query_1() {
 }
 
 #[test]
+fn negate_query_2() {
+  expect_interpret_multi_result(
+    r#"
+      rel B("Alice")
+      rel A() :- ~B(_)
+      query A
+    "#,
+    vec![("A", TestCollection::empty())],
+  )
+}
+
+#[test]
 fn join_and_arith_1() {
   expect_interpret_multi_result(
     r#"
@@ -770,5 +793,139 @@ fn forall_3() {
         ("green".to_string(), true),
       ],
     ),
+  )
+}
+
+#[test]
+fn string_to_usize() {
+  expect_interpret_result(
+    r#"
+    rel input_string = {"13", "14"}
+    rel result(x as usize) = input_string(x)
+    "#,
+    ("result", vec![(13usize,), (14,)]),
+  )
+}
+
+#[test]
+fn string_to_i32() {
+  expect_interpret_result(
+    r#"
+    rel input_string = {"13", "14"}
+    rel result(x as i32) = input_string(x)
+    "#,
+    ("result", vec![(13i32,), (14,)]),
+  )
+}
+
+#[test]
+fn character_test() {
+  expect_interpret_result(
+    r#"
+    rel chars = {'1', '0', '\t', ' '}
+    "#,
+    ("chars", vec![('1',), ('0',), ('\t',), (' ',)]),
+  )
+}
+
+#[test]
+fn string_char_at_test_1() {
+  expect_interpret_result(
+    r#"
+    rel result($string_char_at("hello world", 3))
+    "#,
+    ("result", vec![('l',)]),
+  )
+}
+
+#[test]
+fn string_char_at_test_2() {
+  expect_interpret_result(
+    r#"
+    rel input("1357")
+    rel string_char_at(0, $string_char_at(s, 0)) :- input(s), 0 < $string_length(s)
+    rel string_char_at(i, $string_char_at(s, i)) :- input(s), i < $string_length(s), string_char_at(i - 1, _)
+    "#,
+    ("string_char_at", vec![(0usize, '1'), (1, '3'), (2, '5'), (3, '7')]),
+  )
+}
+
+#[test]
+fn string_char_at_failure_1() {
+  expect_interpret_empty_result(
+    r#"
+    rel output($string_char_at("", 0))
+    "#,
+    "output",
+  )
+}
+
+#[test]
+fn const_variable_1() {
+  expect_interpret_result(
+    r#"
+    const VAR1 = 135
+    const VAR2 = 246
+    rel r(VAR1, VAR2)
+    "#,
+    ("r", vec![(135usize, 246usize)]),
+  )
+}
+
+#[test]
+fn const_variable_2() {
+  expect_interpret_result(
+    r#"
+    const VAR1: u8 = 135
+    const VAR2: i32 = 246
+    rel r(VAR1, VAR2)
+    "#,
+    ("r", vec![(135u8, 246i32)]),
+  )
+}
+
+#[test]
+fn const_variable_3() {
+  expect_interpret_result(
+    r#"
+    const VAR1: u8 = 135
+    const VAR2: i32 = 246
+    rel r = {(VAR1, VAR2)}
+    "#,
+    ("r", vec![(135u8, 246i32)]),
+  )
+}
+
+#[test]
+fn const_variable_4() {
+  expect_interpret_result(
+    r#"
+    const VAR1: u8 = 135
+    const VAR2: i32 = 246
+    rel r(VAR1 + 1, VAR2)
+    "#,
+    ("r", vec![(136u8, 246i32)]),
+  )
+}
+
+#[test]
+fn const_variable_5() {
+  expect_interpret_result(
+    r#"
+    const UP = 0, RIGHT = 1, DOWN = 2, LEFT = 3
+    rel r(UP, RIGHT, DOWN, LEFT)
+    "#,
+    ("r", vec![(0usize, 1usize, 2usize, 3usize)]),
+  )
+}
+
+#[test]
+fn const_variable_6() {
+  expect_interpret_result(
+    r#"
+    const UP: u8 = 0, RIGHT: u32 = 1, DOWN: i32 = 2, LEFT: usize = 3
+    rel r(UP, RIGHT, DOWN, LEFT)
+    "#,
+    ("r", vec![(0u8, 1u32, 2i32, 3usize)]),
   )
 }

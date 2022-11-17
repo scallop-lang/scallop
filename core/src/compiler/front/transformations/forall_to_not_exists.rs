@@ -35,9 +35,9 @@ impl TransformForall {
             // Create b = !b_temp constraint
             let temp_var_name = format!("{}#forall#temp", left_var.name());
             let temp_var = Variable::default_with_name(temp_var_name);
-            let not_temp_var = Expr::default_unary(UnaryOp::default_not(), Expr::Variable(temp_var.clone()));
+            let not_temp_var = Expr::unary(UnaryOp::default_not(), Expr::Variable(temp_var.clone()));
             let left_var_expr = Expr::Variable(left_var.clone());
-            let left_var_eq_not_temp_var = Expr::default_binary(BinaryOp::default_eq(), left_var_expr, not_temp_var);
+            let left_var_eq_not_temp_var = Expr::binary(BinaryOp::default_eq(), left_var_expr, not_temp_var);
             let constraint = Constraint::default_with_expr(left_var_eq_not_temp_var);
 
             // Create exists aggregation literal

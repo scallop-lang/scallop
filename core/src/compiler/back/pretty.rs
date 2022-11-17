@@ -55,6 +55,7 @@ impl Display for Attribute {
       Self::AggregateBody(a) => a.fmt(f),
       Self::AggregateGroupBy(a) => a.fmt(f),
       Self::Demand(d) => d.fmt(f),
+      Self::MagicSet(d) => d.fmt(f),
       Self::InputFile(i) => i.fmt(f),
     }
   }
@@ -81,6 +82,12 @@ impl Display for AggregateGroupByAttribute {
 impl Display for DemandAttribute {
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
     f.write_fmt(format_args!("@demand({:?})", self.pattern))
+  }
+}
+
+impl Display for MagicSetAttribute {
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    f.write_str("@magic_set")
   }
 }
 
@@ -197,6 +204,7 @@ impl Display for AssignExpr {
       Self::Binary(b) => b.fmt(f),
       Self::Unary(u) => u.fmt(f),
       Self::IfThenElse(i) => i.fmt(f),
+      Self::Call(c) => c.fmt(f),
     }
   }
 }
@@ -223,6 +231,16 @@ impl Display for IfThenElseAssignExpr {
     f.write_fmt(format_args!(
       "if {} then {} else {}",
       self.cond, self.then_br, self.else_br
+    ))
+  }
+}
+
+impl Display for CallExpr {
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    f.write_fmt(format_args!(
+      "${}({})",
+      self.function,
+      self.args.iter().map(|a| format!("{}", a)).collect::<Vec<_>>().join("")
     ))
   }
 }

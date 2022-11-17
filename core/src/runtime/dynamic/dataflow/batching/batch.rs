@@ -5,34 +5,35 @@ use crate::runtime::provenance::*;
 use super::super::*;
 
 #[derive(Clone)]
-pub enum DynamicBatch<'a, T: Tag> {
-  Vec(std::slice::Iter<'a, DynamicElement<T>>),
-  SourceVec(std::vec::IntoIter<DynamicElement<T>>),
-  DynamicRelationStable(DynamicRelationStableBatch<'a, T>),
-  DynamicRelationRecent(DynamicRelationRecentBatch<'a, T>),
-  Project(DynamicProjectBatch<'a, T>),
-  Filter(DynamicFilterBatch<'a, T>),
-  Find(DynamicFindBatch<'a, T>),
-  Intersect(DynamicIntersectBatch<'a, T>),
-  Join(DynamicJoinBatch<'a, T>),
-  Product(DynamicProductBatch<'a, T>),
-  Difference(DynamicDifferenceBatch<'a, T>),
-  Antijoin(DynamicAntijoinBatch<'a, T>),
+pub enum DynamicBatch<'a, Prov: Provenance> {
+  Vec(std::slice::Iter<'a, DynamicElement<Prov>>),
+  SourceVec(std::vec::IntoIter<DynamicElement<Prov>>),
+  DynamicRelationStable(DynamicRelationStableBatch<'a, Prov>),
+  DynamicRelationRecent(DynamicRelationRecentBatch<'a, Prov>),
+  OverwriteOne(DynamicOverwriteOneBatch<'a, Prov>),
+  Project(DynamicProjectBatch<'a, Prov>),
+  Filter(DynamicFilterBatch<'a, Prov>),
+  Find(DynamicFindBatch<'a, Prov>),
+  Intersect(DynamicIntersectBatch<'a, Prov>),
+  Join(DynamicJoinBatch<'a, Prov>),
+  Product(DynamicProductBatch<'a, Prov>),
+  Difference(DynamicDifferenceBatch<'a, Prov>),
+  Antijoin(DynamicAntijoinBatch<'a, Prov>),
 }
 
-impl<'a, T: Tag> DynamicBatch<'a, T> {
-  pub fn vec(v: &'a Vec<DynamicElement<T>>) -> Self {
+impl<'a, Prov: Provenance> DynamicBatch<'a, Prov> {
+  pub fn vec(v: &'a Vec<DynamicElement<Prov>>) -> Self {
     Self::Vec(v.iter())
   }
 
-  pub fn source_vec(v: Vec<DynamicElement<T>>) -> Self {
+  pub fn source_vec(v: Vec<DynamicElement<Prov>>) -> Self {
     Self::SourceVec(v.into_iter())
   }
 
   // pub fn aggregate(
-  //   source: DynamicGroupsIterator<T>,
+  //   source: DynamicGroupsIterator<Prov>,
   //   agg: DynamicAggregateOp,
-  //   ctx: &'a T::Context,
+  //   ctx: &'a Prov,
   // ) -> Self {
   //   Self::Aggregation(DynamicAggregationBatch::new(source, agg, ctx))
   // }
@@ -49,13 +50,13 @@ impl<'a, T: Tag> DynamicBatch<'a, T> {
     }
   }
 
-  pub fn search_ahead<F>(&mut self, cmp: F) -> Option<DynamicElement<T>>
+  pub fn search_ahead<F>(&mut self, cmp: F) -> Option<DynamicElement<Prov>>
   where
     F: FnMut(&Tuple) -> bool,
   {
-    fn search_ahead_variable_helper_1<T, F>(collection: &DynamicCollection<T>, elem_id: &mut usize, mut cmp: F) -> bool
+    fn search_ahead_variable_helper_1<Prov, F>(collection: &DynamicCollection<Prov>, elem_id: &mut usize, mut cmp: F) -> bool
     where
-      T: Tag,
+      Prov: Provenance,
       F: FnMut(&Tuple) -> bool,
     {
       assert!(*elem_id > 0);
@@ -101,8 +102,8 @@ impl<'a, T: Tag> DynamicBatch<'a, T> {
   }
 }
 
-impl<'a, T: Tag> Iterator for DynamicBatch<'a, T> {
-  type Item = DynamicElement<T>;
+impl<'a, Prov: Provenance> Iterator for DynamicBatch<'a, Prov> {
+  type Item = DynamicElement<Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     match self {
@@ -110,6 +111,7 @@ impl<'a, T: Tag> Iterator for DynamicBatch<'a, T> {
       Self::SourceVec(iter) => iter.next(),
       Self::DynamicRelationStable(b) => b.next(),
       Self::DynamicRelationRecent(b) => b.next(),
+      Self::OverwriteOne(o) => o.next(),
       Self::Project(p) => p.next(),
       Self::Filter(f) => f.next(),
       Self::Find(f) => f.next(),

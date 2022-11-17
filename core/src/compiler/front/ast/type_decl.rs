@@ -100,10 +100,12 @@ impl ArgTypeBinding {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct RelationType {
+pub struct RelationTypeNode {
   pub name: Identifier,
   pub arg_types: Vec<ArgTypeBinding>,
 }
+
+pub type RelationType = AstNode<RelationTypeNode>;
 
 impl Into<Vec<Item>> for RelationType {
   fn into(self) -> Vec<Item> {
@@ -111,7 +113,7 @@ impl Into<Vec<Item>> for RelationType {
       TypeDeclNode::Relation(
         RelationTypeDeclNode {
           attrs: Attributes::new(),
-          rel_type: self,
+          rel_types: vec![self],
         }
         .into(),
       )
@@ -120,21 +122,35 @@ impl Into<Vec<Item>> for RelationType {
   }
 }
 
+impl RelationType {
+  pub fn predicate(&self) -> &str {
+    self.node.name.name()
+  }
+
+  pub fn arg_types(&self) -> impl Iterator<Item = &Type> {
+    self.node.arg_types.iter().map(|arg| arg.ty())
+  }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct RelationTypeDeclNode {
   pub attrs: Attributes,
-  pub rel_type: RelationType,
+  pub rel_types: Vec<RelationType>,
 }
 
 pub type RelationTypeDecl = AstNode<RelationTypeDeclNode>;
 
 impl RelationTypeDecl {
-  pub fn predicate(&self) -> &str {
-    self.node.rel_type.name.name()
+  pub fn relation_types(&self) -> impl Iterator<Item = &RelationType> {
+    self.node.rel_types.iter()
   }
 
-  pub fn arg_types(&self) -> impl Iterator<Item = &Type> {
-    self.node.rel_type.arg_types.iter().map(|arg| arg.ty())
+  pub fn relation_types_mut(&mut self) -> impl Iterator<Item = &mut RelationType> {
+    self.node.rel_types.iter_mut()
+  }
+
+  pub fn predicates(&self) -> impl Iterator<Item = &str> {
+    self.relation_types().map(|rel_type| rel_type.predicate())
   }
 
   pub fn attributes(&self) -> &Vec<Attribute> {

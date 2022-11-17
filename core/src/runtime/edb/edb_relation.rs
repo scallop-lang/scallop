@@ -2,18 +2,19 @@ use crate::runtime::provenance::*;
 
 use super::*;
 
-pub struct EDBRelation<C: ProvenanceContext> {
-  pub facts: Vec<EDBFact<C>>,
+#[derive(Clone)]
+pub struct EDBRelation<Prov: Provenance> {
+  pub facts: Vec<EDBFact<Prov>>,
   pub disjunctions: Vec<Vec<usize>>,
 }
 
-impl<C: ProvenanceContext> Default for EDBRelation<C> {
+impl<Prov: Provenance> Default for EDBRelation<Prov> {
   fn default() -> Self {
     Self::new()
   }
 }
 
-impl<C: ProvenanceContext> EDBRelation<C> {
+impl<Prov: Provenance> EDBRelation<Prov> {
   pub fn new() -> Self {
     Self {
       facts: vec![],
@@ -25,7 +26,14 @@ impl<C: ProvenanceContext> EDBRelation<C> {
     self.disjunctions.push(disjunction)
   }
 
-  pub fn extend_facts(&mut self, new_facts: Vec<EDBFact<C>>) {
+  pub fn extend_disjunctions<I>(&mut self, disjunctions: I)
+  where
+    I: Iterator<Item = Vec<usize>>,
+  {
+    self.disjunctions.extend(disjunctions)
+  }
+
+  pub fn extend_facts(&mut self, new_facts: Vec<EDBFact<Prov>>) {
     self.facts.extend(new_facts)
   }
 }

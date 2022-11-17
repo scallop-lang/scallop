@@ -5,11 +5,11 @@ use scallop_core::testing::*;
 
 #[test]
 fn test_dynamic_find_1() {
-  let mut ctx = unit::UnitContext;
+  let mut ctx = unit::UnitProvenance;
 
   // Relations
-  let mut source = DynamicRelation::<unit::Unit>::new();
-  let mut target = DynamicRelation::<unit::Unit>::new();
+  let mut source = DynamicRelation::<unit::UnitProvenance>::new();
+  let mut target = DynamicRelation::<unit::UnitProvenance>::new();
 
   // Initial
   source.insert_untagged(&mut ctx, vec![(0i8, 1i8), (1i8, 2i8)]);
@@ -19,6 +19,7 @@ fn test_dynamic_find_1() {
     target.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::find(DynamicDataflow::dynamic_relation(&source), 1i8.into()),
+      true,
     )
   }
 

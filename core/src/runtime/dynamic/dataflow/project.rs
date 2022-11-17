@@ -3,29 +3,29 @@ use crate::common::expr::Expr;
 use crate::runtime::dynamic::*;
 
 #[derive(Clone)]
-pub struct DynamicProjectDataflow<'a, T: Tag> {
-  pub source: Box<DynamicDataflow<'a, T>>,
+pub struct DynamicProjectDataflow<'a, Prov: Provenance> {
+  pub source: Box<DynamicDataflow<'a, Prov>>,
   pub expression: Expr,
 }
 
-impl<'a, T: Tag> DynamicProjectDataflow<'a, T> {
-  pub fn iter_stable(&self) -> DynamicBatches<'a, T> {
+impl<'a, Prov: Provenance> DynamicProjectDataflow<'a, Prov> {
+  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     DynamicBatches::project(self.source.iter_stable(), self.expression.clone())
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     DynamicBatches::project(self.source.iter_recent(), self.expression.clone())
   }
 }
 
 #[derive(Clone)]
-pub struct DynamicProjectBatches<'a, T: Tag> {
-  pub source: Box<DynamicBatches<'a, T>>,
+pub struct DynamicProjectBatches<'a, Prov: Provenance> {
+  pub source: Box<DynamicBatches<'a, Prov>>,
   pub expression: Expr,
 }
 
-impl<'a, T: Tag> Iterator for DynamicProjectBatches<'a, T> {
-  type Item = DynamicBatch<'a, T>;
+impl<'a, Prov: Provenance> Iterator for DynamicProjectBatches<'a, Prov> {
+  type Item = DynamicBatch<'a, Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     match self.source.next() {
@@ -39,18 +39,21 @@ impl<'a, T: Tag> Iterator for DynamicProjectBatches<'a, T> {
 }
 
 #[derive(Clone)]
-pub struct DynamicProjectBatch<'a, T: Tag> {
-  pub source: Box<DynamicBatch<'a, T>>,
+pub struct DynamicProjectBatch<'a, Prov: Provenance> {
+  pub source: Box<DynamicBatch<'a, Prov>>,
   pub expression: Expr,
 }
 
-impl<'a, T: Tag> Iterator for DynamicProjectBatch<'a, T> {
-  type Item = DynamicElement<T>;
+impl<'a, Prov: Provenance> Iterator for DynamicProjectBatch<'a, Prov> {
+  type Item = DynamicElement<Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
-    self.source.next().map(|elem| {
+    while let Some(elem) = self.source.next() {
       let val = elem.tuple;
-      DynamicElement::new(self.expression.eval(&val), elem.tag)
-    })
+      if let Some(tup) = self.expression.eval(&val) {
+        return Some(DynamicElement::new(tup, elem.tag));
+      }
+    }
+    None
   }
 }

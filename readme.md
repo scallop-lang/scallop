@@ -4,24 +4,14 @@
   <img width="240" height="240" src="docs/icons/scallop-logo-ws-512.png" />
 </p>
 
-Scallop is a declarative language designed to support rich symbolic reasoning
-in AI applications. It is based on Datalog, a logic rule-based query language
-for relational databases.
-
-Sallop is equipped with a scalable Datalog solver that supports discrete,
-probabilistic and differentiable modes of reasoning.  These modes are
-configurable to suit the needs of different AI applications, and they are
-implemented uniformly as instances of a generalized form of the
-[Provenance Semiring](https://repository.upenn.edu/cgi/viewcontent.cgi?article=1022&context=db_research)
-framework.
-
-Scallop provides bindings to support logic reasoning modules within Python
-programs. As a result, Scallop can be deeply integrated with existing PyTorch
-machine learning pipelines.
+Scallop is a language based on DataLog that supports differentiable logical and relational reasoning.
+Scallop program can be easily integrated in Python and even with a PyTorch learning module. You can also use it as another DataLog solver.
+Internally, Scallop is built on a generalized [Provenance Semiring](https://repository.upenn.edu/cgi/viewcontent.cgi?article=1022&context=db_research) framework.
+It allows arbitrary semirings to be configured, supporting Scallop to perform discrete logical reasoning, probabilistic reasoning, and differentiable reasoning.
 
 ## Example
 
-Here is a simple probabilistic Datalog program that is written in Scallop:
+Here is a simple probabilistic DataLog program that is written in Scallop:
 
 ```
 // Knowledge base facts
@@ -66,9 +56,9 @@ The following three binaries are available. Scroll down for more ways
 to use Scallop!
 
 ``` bash
-$ cargo build --release --bin scli # Scallop Interpreter
-$ cargo build --release --bin sclc # Scallop Compiler
-$ cargo build --release --bin sclrepl # Scallop REPL
+$ make install-scli # Scallop Interpreter
+$ make install-sclc # Scallop Compiler
+$ make install-sclrepl # Scallop REPL
 ```
 
 ### Using Scallop Interpreter
@@ -77,7 +67,7 @@ Scallop interpreter (`scli`) interprets a scallop program (a file with extension
 You can install `scli` to your system using
 
 ``` bash
-$ cargo install --path etc/scli
+$ make install-scli
 ```
 
 Then since `scli` is in your system path, you can simply run
@@ -179,7 +169,7 @@ First, we need to create a virtual environment for Scallop to operate in.
 
 ``` bash
 # Mac/Linux (venv, requirement: Python 3.8)
-$ python3 -m venv .env
+$ make py-venv # create a python virtual environment
 $ source .env/bin/activate # if you are using fish, use .env/bin/activate.fish
 
 # Linux (Conda)
@@ -206,6 +196,19 @@ conda environment.
 ``` bash
 $ python etc/scallopy/examples/edge_path.py
 ```
+
+### Scallop VSCode Plugin
+
+To install VSCode plugin from source, you can do the following, after making sure that `npm` is installed on your system
+
+``` bash
+$ npm install -g vsce
+$ make vscode-plugin
+```
+
+After this, a new `.vsix` plugin will appear in the `etc/vscode-scl` directory, named `scallop-x.x.x.vsix`.
+Next, please hold `cmd + shift + p` in VSCode and type "Install from VSIX".
+In the pop-up window, choose the `.vsix` plugin we just generated, and the plugin will be installed.
 
 ## Scallop Language
 

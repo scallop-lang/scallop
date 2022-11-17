@@ -1,4 +1,5 @@
 use super::binary_op::BinaryOp;
+use super::functions::Function;
 use super::tuple::Tuple;
 use super::tuple_access::TupleAccessor;
 use super::unary_op::UnaryOp;
@@ -13,6 +14,7 @@ pub enum Expr {
   Binary(BinaryExpr),
   Unary(UnaryExpr),
   IfThenElse(IfThenElseExpr),
+  Call(CallExpr),
 }
 
 impl Expr {
@@ -24,12 +26,20 @@ impl Expr {
     Self::Unary(UnaryExpr::new(op, op1))
   }
 
+  pub fn ite(c: Expr, t: Expr, e: Expr) -> Self {
+    Self::IfThenElse(IfThenElseExpr::new(c, t, e))
+  }
+
   pub fn access<T: Into<TupleAccessor>>(t: T) -> Self {
     Self::Access(t.into())
   }
 
   pub fn constant<T: Into<Value>>(t: T) -> Self {
     Self::Constant(t.into())
+  }
+
+  pub fn call(function: Function, args: Vec<Expr>) -> Self {
+    Self::Call(CallExpr { function, args })
   }
 
   pub fn lt(self, other: Expr) -> Self {
@@ -64,14 +74,43 @@ impl Expr {
     })
   }
 
-  pub fn eval(&self, v: &Tuple) -> Tuple {
+  pub fn compose(&self, other: &Expr) -> Self {
+    match (self, other) {
+      (Self::Constant(c), _) => Self::Constant(c.clone()),
+      (Self::Access(a1), Self::Access(a2)) => Self::Access(a2.join(a1)),
+      (Self::Access(a), Self::Tuple(t)) => {
+        if a.len() == 0 {
+          Self::Tuple(t.clone())
+        } else {
+          let sub_expr = &t[a.indices[0] as usize];
+          let sub_acc = a.shift();
+          sub_expr.compose(&Expr::Access(sub_acc))
+        }
+      }
+      (Self::Access(a), e) => {
+        if a.len() == 0 {
+          e.clone()
+        } else {
+          panic!("Type mismatch")
+        }
+      }
+      (Self::Tuple(t), e) => Self::Tuple(t.iter().map(|e0| e0.compose(e)).collect()),
+      (Self::Binary(b), e) => Self::binary(b.op.clone(), b.op1.compose(e), b.op2.compose(e)),
+      (Self::Unary(u), e) => Self::unary(u.op.clone(), u.op1.compose(e)),
+      (Self::IfThenElse(i), e) => Self::ite(i.cond.compose(e), i.then_br.compose(e), i.else_br.compose(e)),
+      (Self::Call(c), e) => Self::call(c.function.clone(), c.args.iter().map(|a| a.compose(e)).collect()),
+    }
+  }
+
+  pub fn eval(&self, v: &Tuple) -> Option<Tuple> {
     match self {
-      Self::Tuple(t) => Tuple::Tuple(t.iter().map(|e| e.eval(v)).collect()),
-      Self::Access(a) => v[a].clone(),
-      Self::Constant(c) => Tuple::Value(c.clone()),
+      Self::Tuple(t) => Some(Tuple::Tuple(t.iter().map(|e| e.eval(v)).collect::<Option<_>>()?)),
+      Self::Access(a) => Some(v[a].clone()),
+      Self::Constant(c) => Some(Tuple::Value(c.clone())),
       Self::Binary(b) => b.eval(v),
       Self::Unary(u) => u.eval(v),
       Self::IfThenElse(i) => i.eval(v),
+      Self::Call(c) => c.eval(v),
     }
   }
 }
@@ -224,12 +263,12 @@ impl BinaryExpr {
     }
   }
 
-  pub fn eval(&self, v: &Tuple) -> Tuple {
-    let lhs_v = self.op1.eval(v);
-    let rhs_v = self.op2.eval(v);
+  pub fn eval(&self, v: &Tuple) -> Option<Tuple> {
+    let lhs_v = self.op1.eval(v)?;
+    let rhs_v = self.op2.eval(v)?;
     use crate::common::value::Value::*;
     use BinaryOp::*;
-    match (&self.op, lhs_v, rhs_v) {
+    let result = match (&self.op, lhs_v, rhs_v) {
       // Addition
       (Add, Tuple::Value(I8(i1)), Tuple::Value(I8(i2))) => Tuple::Value(I8(i1 + i2)),
       (Add, Tuple::Value(I16(i1)), Tuple::Value(I16(i2))) => Tuple::Value(I16(i1 + i2)),
@@ -432,7 +471,8 @@ impl BinaryExpr {
       (Leq, Tuple::Value(F32(i1)), Tuple::Value(F32(i2))) => Tuple::Value(Bool(i1 <= i2)),
       (Leq, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => Tuple::Value(Bool(i1 <= i2)),
       (Leq, b1, b2) => panic!("Cannot perform LEQ on {:?} and {:?}", b1, b2),
-    }
+    };
+    Some(result)
   }
 }
 
@@ -447,11 +487,11 @@ impl UnaryExpr {
     Self { op, op1: Box::new(op1) }
   }
 
-  pub fn eval(&self, v: &Tuple) -> Tuple {
-    let arg_v = self.op1.eval(v);
+  pub fn eval(&self, v: &Tuple) -> Option<Tuple> {
+    let arg_v = self.op1.eval(v)?;
     use crate::common::value::Value::*;
     use UnaryOp::*;
-    match (&self.op, arg_v) {
+    let result = match (&self.op, arg_v) {
       // Negative
       (Neg, Tuple::Value(I8(i))) => Tuple::Value(I8(-i)),
       (Neg, Tuple::Value(I16(i))) => Tuple::Value(I16(-i)),
@@ -519,6 +559,34 @@ impl UnaryExpr {
           (Tuple::Value(USize(i)), T::F32) => Tuple::Value(F32(i as f32)),
           (Tuple::Value(USize(i)), T::F64) => Tuple::Value(F64(i as f64)),
 
+          (Tuple::Value(Char(s)), T::I8) => Tuple::Value(I8(s.to_digit(10).unwrap() as i8)),
+          (Tuple::Value(Char(s)), T::I16) => Tuple::Value(I16(s.to_digit(10).unwrap() as i16)),
+          (Tuple::Value(Char(s)), T::I32) => Tuple::Value(I32(s.to_digit(10).unwrap() as i32)),
+          (Tuple::Value(Char(s)), T::I64) => Tuple::Value(I64(s.to_digit(10).unwrap() as i64)),
+          (Tuple::Value(Char(s)), T::I128) => Tuple::Value(I128(s.to_digit(10).unwrap() as i128)),
+          (Tuple::Value(Char(s)), T::ISize) => Tuple::Value(ISize(s.to_digit(10).unwrap() as isize)),
+          (Tuple::Value(Char(s)), T::U8) => Tuple::Value(U8(s.to_digit(10).unwrap() as u8)),
+          (Tuple::Value(Char(s)), T::U16) => Tuple::Value(U16(s.to_digit(10).unwrap() as u16)),
+          (Tuple::Value(Char(s)), T::U32) => Tuple::Value(U32(s.to_digit(10).unwrap() as u32)),
+          (Tuple::Value(Char(s)), T::U64) => Tuple::Value(U64(s.to_digit(10).unwrap() as u64)),
+          (Tuple::Value(Char(s)), T::U128) => Tuple::Value(U128(s.to_digit(10).unwrap() as u128)),
+          (Tuple::Value(Char(s)), T::USize) => Tuple::Value(USize(s.to_digit(10).unwrap() as usize)),
+
+          (Tuple::Value(String(s)), T::I8) => Tuple::Value(I8(s.parse().unwrap())),
+          (Tuple::Value(String(s)), T::I16) => Tuple::Value(I16(s.parse().unwrap())),
+          (Tuple::Value(String(s)), T::I32) => Tuple::Value(I32(s.parse().unwrap())),
+          (Tuple::Value(String(s)), T::I64) => Tuple::Value(I64(s.parse().unwrap())),
+          (Tuple::Value(String(s)), T::I128) => Tuple::Value(I128(s.parse().unwrap())),
+          (Tuple::Value(String(s)), T::ISize) => Tuple::Value(ISize(s.parse().unwrap())),
+          (Tuple::Value(String(s)), T::U8) => Tuple::Value(U8(s.parse().unwrap())),
+          (Tuple::Value(String(s)), T::U16) => Tuple::Value(U16(s.parse().unwrap())),
+          (Tuple::Value(String(s)), T::U32) => Tuple::Value(U32(s.parse().unwrap())),
+          (Tuple::Value(String(s)), T::U64) => Tuple::Value(U64(s.parse().unwrap())),
+          (Tuple::Value(String(s)), T::U128) => Tuple::Value(U128(s.parse().unwrap())),
+          (Tuple::Value(String(s)), T::USize) => Tuple::Value(USize(s.parse().unwrap())),
+          (Tuple::Value(String(s)), T::F32) => Tuple::Value(F32(s.parse().unwrap())),
+          (Tuple::Value(String(s)), T::F64) => Tuple::Value(F64(s.parse().unwrap())),
+
           (Tuple::Value(I8(i)), T::String) => Tuple::Value(String(i.to_string())),
           (Tuple::Value(I16(i)), T::String) => Tuple::Value(String(i.to_string())),
           (Tuple::Value(I32(i)), T::String) => Tuple::Value(String(i.to_string())),
@@ -542,7 +610,8 @@ impl UnaryExpr {
           (v, t) => unimplemented!("Unimplemented type cast from `{:?}` to `{}`", v.tuple_type(), t),
         }
       }
-    }
+    };
+    Some(result)
   }
 }
 
@@ -562,11 +631,28 @@ impl IfThenElseExpr {
     }
   }
 
-  pub fn eval(&self, v: &Tuple) -> Tuple {
-    if self.cond.eval(v).as_bool() {
+  pub fn eval(&self, v: &Tuple) -> Option<Tuple> {
+    if self.cond.eval(v)?.as_bool() {
       self.then_br.eval(v)
     } else {
       self.else_br.eval(v)
     }
+  }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CallExpr {
+  pub function: Function,
+  pub args: Vec<Expr>,
+}
+
+impl CallExpr {
+  pub fn eval(&self, v: &Tuple) -> Option<Tuple> {
+    let args = self
+      .args
+      .iter()
+      .map(|a| a.eval(v).map(|t| t.as_value()))
+      .collect::<Option<Vec<_>>>()?;
+    self.function.call(args).map(Value::into)
   }
 }

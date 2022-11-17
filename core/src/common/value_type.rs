@@ -158,7 +158,9 @@ impl ValueType {
       true
     } else if self.is_boolean() && target.is_boolean() {
       true
-    } else if self.is_char() && target.is_char() {
+    } else if self.is_char() && (target.is_char() || target.is_string() || target.is_integer()) {
+      true
+    } else if self.is_string() && target.is_numeric() {
       true
     } else {
       self.is_string() && target.is_string()

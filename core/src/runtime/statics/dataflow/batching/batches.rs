@@ -1,12 +1,12 @@
 use super::*;
 
-use crate::runtime::provenance::Tag;
-use crate::runtime::statics::StaticTupleTrait;
+use crate::runtime::provenance::*;
+use crate::runtime::statics::*;
 
-pub trait Batches<Tup, T>: Iterator<Item = Self::Batch> + Clone
+pub trait Batches<Tup, Prov>: Iterator<Item = Self::Batch> + Clone
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  type Batch: Batch<Tup, T>;
+  type Batch: Batch<Tup, Prov>;
 }

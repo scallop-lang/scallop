@@ -10,13 +10,10 @@
 			"include": "#strings"
 		},
 		{
+			"include": "#chars"
+		},
+		{
 			"include": "#booleans"
-		},
-		{
-			"include": "#keywords"
-		},
-		{
-			"include": "#builtin_types"
 		},
 		{
 			"include": "#float"
@@ -25,16 +22,129 @@
 			"include": "#integer"
 		},
 		{
+			"include": "#builtin_types"
+		},
+		{
+			"comment": "Relation Type Declaration",
+			"begin": "(type)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s*\\(",
+			"end": "\\)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				},
+				"2": {
+					"name": "entity.name.function.scallop"
+				}
+			},
+			"patterns": [
+				{
+					"comment": "Relation Type Member Binding",
+					"match": "([a-zA-Z][a-zA-Z0-9_]*)\\s*:\\s*([a-zA-Z][a-zA-Z0-9_]*)",
+					"captures": {
+						"1": {
+							"name": "variable.parameter.scallop"
+						},
+						"2": {
+							"name": "storage.type.core.scallop"
+						}
+					}
+				},
+				{
+					"comment": "Relation Type Member",
+					"name": "storage.type.core.scallop",
+					"match": "(\\b[a-zA-Z][a-zA-Z0-9_]*\\b)"
+				}
+			]
+		},
+		{
+			"comment": "Type Alias Declaration",
+			"match": "(type)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s+=",
+			"captures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				},
+				"2": {
+					"name": "storage.type.core.scallop"
+				}
+			}
+		},
+		{
+			"comment": "Sub Type Declaration",
+			"match": "(type)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s+<:",
+			"captures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				},
+				"2": {
+					"name": "storage.type.core.scallop"
+				}
+			}
+		},
+		{
+			"comment": "Constant Declaration with Type",
+			"match": "(const)\\s+([A-Z][A-Z0-9_]*)\\s*:\\s*([a-zA-Z][a-zA-Z0-9_]*)",
+			"captures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				},
+				"2": {
+					"name": "constant.other.caps.scallop"
+				},
+				"3": {
+					"name": "storage.type.core.scallop"
+				}
+			}
+		},
+		{
+			"include": "#keywords"
+		},
+		{
 			"comment": "As Operator",
 			"match": "(\\b(as)\\b)",
 			"name": "keyword.other.scallop"
 		},
 		{
-			"comment": "Aggregators",
+			"comment": "Aggregator with Argument",
+			"match": "\\b(min|max)\\s*\\[",
+			"captures": {
+				"1": {
+					"name": "keyword.other.scallop"
+				}
+			}
+		},
+		{
+			"comment": "Aggregator with sample count",
+			"match": "\\b(top)\\s*(<)\\s*(\\d+)\\s*(>)\\s*\\(",
+			"captures": {
+				"1": {
+					"name": "keyword.other.scallop"
+				},
+				"2": {
+					"name": "punctuation.brackets.angle.scallop"
+				},
+				"3": {
+					"name": "constant.numeric.integer.decimal.scallop"
+				},
+				"4": {
+					"name": "punctuation.brackets.angle.scallop"
+				}
+			}
+		},
+		{
+			"comment": "Aggregator",
 			"match": "\\b(count|sum|prod|min|max|exists|forall|unique)\\s*\\(",
 			"captures": {
 				"1": {
 					"name": "keyword.other.scallop"
+				}
+			}
+		},
+		{
+			"comment": "Foreign Function",
+			"match": "(\\$[a-zA-Z][a-zA-Z0-9_]*)\\s*\\(",
+			"captures": {
+				"1": {
+					"name": "entity.name.tag.scallop"
 				}
 			}
 		},
@@ -70,6 +180,9 @@
 				},
 				{
 					"include": "#strings"
+				},
+				{
+					"include": "#chars"
 				}
 			]
 		},
@@ -99,9 +212,14 @@
 			"match": "(<=|>=|<|>)"
 		},
 		{
+			"comment": "Constant Variable",
+			"match": "(\\b[A-Z][A-Z0-9_]*\\b)",
+			"name": "constant.other.caps.scallop"
+		},
+		{
 			"comment": "Parameters",
 			"name": "variable.parameter.scallop",
-			"match": "([a-zA-Z][a-zA-Z0-9_]*)"
+			"match": "(\\b[a-zA-Z][a-zA-Z0-9_]*\\b)"
 		}
 	],
 	"repository": {
@@ -109,6 +227,17 @@
 			"name": "string.quoted.double.scallop",
 			"begin": "\"",
 			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.scallop",
+					"match": "\\\\."
+				}
+			]
+		},
+		"chars": {
+			"name": "string.quoted.single.scallop",
+			"begin": "'",
+			"end": "'",
 			"patterns": [
 				{
 					"name": "constant.character.escape.scallop",
@@ -130,7 +259,7 @@
 		},
 		"query_relation": {
 			"comment": "Query relation",
-			"match": "\\b(query|output)\\s+([a-zA-Z][a-zA-Z0-9_]*)",
+			"match": "\\b(query)\\s+([a-zA-Z][a-zA-Z0-9_]*)",
 			"captures": {
 				"1": {
 					"name": "keyword.control.scallop"
@@ -159,7 +288,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.scallop",
-					"match": "(\\b(import|type|input|rel|relation|if|then|else|where)\\b)"
+					"match": "(\\b(import|type|const|rel|relation|if|then|else|where)\\b)"
 				}
 			]
 		},

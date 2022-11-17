@@ -7,11 +7,11 @@ use scallop_core::testing::*;
 
 #[test]
 fn test_dynamic_group_and_count_1() {
-  let mut ctx = unit::UnitContext;
+  let mut ctx = unit::UnitProvenance;
 
   // Relations
-  let mut color = DynamicRelation::<unit::Unit>::new();
-  let mut rev_color = DynamicRelation::<unit::Unit>::new();
+  let mut color = DynamicRelation::<unit::UnitProvenance>::new();
+  let mut rev_color = DynamicRelation::<unit::UnitProvenance>::new();
 
   // Initial
   color.insert_untagged(
@@ -34,6 +34,7 @@ fn test_dynamic_group_and_count_1() {
         DynamicDataflow::dynamic_relation(&color),
         (Expr::access(1), Expr::access(0)).into(),
       ),
+      true,
     )
   }
 
@@ -42,7 +43,7 @@ fn test_dynamic_group_and_count_1() {
 
   // Group and aggregate
   let mut first_time = true;
-  let mut color_count = DynamicRelation::<unit::Unit>::new();
+  let mut color_count = DynamicRelation::<unit::UnitProvenance>::new();
   while color_count.changed(&ctx) || first_time {
     color_count.insert_dataflow_recent(
       &ctx,
@@ -52,6 +53,7 @@ fn test_dynamic_group_and_count_1() {
         &ctx,
       )
       .into(),
+      true,
     );
     first_time = false;
   }
@@ -64,11 +66,11 @@ fn test_dynamic_group_and_count_1() {
 
 #[test]
 fn test_dynamic_group_count_max_1() {
-  let mut ctx = unit::UnitContext;
+  let mut ctx = unit::UnitProvenance;
 
   // Relations
-  let mut color = DynamicRelation::<unit::Unit>::new();
-  let mut rev_color = DynamicRelation::<unit::Unit>::new();
+  let mut color = DynamicRelation::<unit::UnitProvenance>::new();
+  let mut rev_color = DynamicRelation::<unit::UnitProvenance>::new();
 
   // Initial
   color.insert_untagged(
@@ -91,6 +93,7 @@ fn test_dynamic_group_count_max_1() {
         DynamicDataflow::dynamic_relation(&color),
         Expr::Tuple(vec![Expr::Access(1.into()), Expr::Access(0.into())]),
       ),
+      true,
     )
   }
 
@@ -99,7 +102,7 @@ fn test_dynamic_group_count_max_1() {
 
   // Group and aggregate
   let mut iter_1_first_time = true;
-  let mut color_count = DynamicRelation::<unit::Unit>::new();
+  let mut color_count = DynamicRelation::<unit::UnitProvenance>::new();
   while color_count.changed(&ctx) || iter_1_first_time {
     color_count.insert_dataflow_recent(
       &ctx,
@@ -109,6 +112,7 @@ fn test_dynamic_group_count_max_1() {
         &ctx,
       )
       .into(),
+      true,
     );
     iter_1_first_time = false;
   }
@@ -118,7 +122,7 @@ fn test_dynamic_group_count_max_1() {
 
   // Find Max
   let mut iter_2_first_time = true;
-  let mut max_count_color = DynamicRelation::<unit::Unit>::new();
+  let mut max_count_color = DynamicRelation::<unit::UnitProvenance>::new();
   while max_count_color.changed(&ctx) || iter_2_first_time {
     max_count_color.insert_dataflow_recent(
       &ctx,
@@ -128,6 +132,7 @@ fn test_dynamic_group_count_max_1() {
         &ctx,
       )
       .into(),
+      true,
     );
     iter_2_first_time = false;
   }

@@ -9,6 +9,7 @@ match {
   // Symbols
   "=",
   ":-",
+  ":=",
   "(",
   ")",
   "[",
@@ -92,19 +93,18 @@ match {
 
   // Keywords
   "import",
-  "input",
   "type",
-  "fact",
+  "const",
   "relation",
   "rel",
   "query",
-  "output",
 
   // Literals
   r"[a-zA-Z][a-zA-Z_0-9]*" => name,
   r"-?[0-9]+" => int,
   r"-?\d+(\.\d+)(e-?\d+)?" => float,
   r#""[^"]*""# => string,
+  r#"'[^']*'"# => character,
 
   // Comments and Whitespaces
   r"\s*" => { },
@@ -210,22 +210,24 @@ ArgTypeBindingNode: ArgTypeBindingNode = {
 
 ArgTypeBinding = Spanned<ArgTypeBindingNode>;
 
-pub RelationType: RelationType = {
+RelationTypeNode: RelationTypeNode = {
   <n: Identifier> "(" <ts: Separated<ArgTypeBinding, ",">> ")" => {
-    RelationType {
+    RelationTypeNode {
       name: n,
       arg_types: ts,
     }
   },
 }
 
+pub RelationType = Spanned<RelationTypeNode>;
+
 RelationTypeDeclNode: RelationTypeDeclNode = {
-  <attrs: Attributes> "type" <rt: RelationType> => {
+  <attrs: Attributes> "type" <rts: AtLeastOneSeparated<RelationType, ",">> => {
     RelationTypeDeclNode {
       attrs,
-      rel_type: rt,
+      rel_types: rts,
     }
-  }
+  },
 }
 
 RelationTypeDecl = Spanned<RelationTypeDeclNode>;
@@ -238,21 +240,39 @@ TypeDeclNode: TypeDeclNode = {
 
 TypeDecl: TypeDecl = Spanned<TypeDeclNode>;
 
-/// ==================================== ///
-/// ========= Input Declaration ========= ///
-/// ==================================== ///
+/// ======================================== ///
+/// ========= Relation Declaration ========= ///
+/// ======================================== ///
 
-InputDeclNode: InputDeclNode = {
-  <attrs: Attributes> "input" <n: Identifier> "(" <ts: Separated<ArgTypeBinding, ",">> ")" => {
-    InputDeclNode {
-      attrs,
+ConstAssignmentNode: ConstAssignmentNode = {
+  <n: Identifier> ":" <t: Type> "=" <c: Constant> => {
+    ConstAssignmentNode {
       name: n,
-      types: ts,
+      ty: Some(t),
+      value: c,
+    }
+  },
+  <n: Identifier> "=" <c: Constant> => {
+    ConstAssignmentNode {
+      name: n,
+      ty: None,
+      value: c,
     }
   }
 }
 
-InputDecl: InputDecl = Spanned<InputDeclNode>;
+ConstAssignment: ConstAssignment = Spanned<ConstAssignmentNode>;
+
+ConstDeclNode: ConstDeclNode = {
+  <attrs: Attributes> "const" <assignments: AtLeastOneSeparatedStrict<ConstAssignment, ",">> => {
+    ConstDeclNode {
+      attrs,
+      assignments,
+    }
+  }
+}
+
+ConstDecl: ConstDecl = Spanned<ConstDeclNode>;
 
 /// ======================================== ///
 /// ========= Relation Declaration ========= ///
@@ -285,13 +305,19 @@ ConstantNode: ConstantNode = {
   <i: Int> => ConstantNode::Integer(i),
   <f: Float> => ConstantNode::Float(f),
   <s: StringLiteral> => ConstantNode::String(s),
+  <c: CharLiteral> => ConstantNode::Char(c),
 }
 
 Constant: Constant = Spanned<ConstantNode>;
 
+ConstantOrVariable: ConstantOrVariable = {
+  <c: Constant> => ConstantOrVariable::Constant(c),
+  <v: Variable> => ConstantOrVariable::Variable(v),
+}
+
 ConstantTupleNode: ConstantTupleNode = {
-  "(" <elems: Separated<Constant, ",">> ")" => ConstantTupleNode { elems },
-  <c: Constant> => ConstantTupleNode { elems: vec![c] },
+  "(" <elems: Separated<ConstantOrVariable, ",">> ")" => ConstantTupleNode { elems },
+  <c: ConstantOrVariable> => ConstantTupleNode { elems: vec![c] },
 }
 
 ConstantTuple: ConstantTuple = Spanned<ConstantTupleNode>;
@@ -460,6 +486,16 @@ ReduceOpNode: ReduceOperatorNode = {
       "unique" => ReduceOperatorNode::Unique,
       x => ReduceOperatorNode::Unknown(x.to_string()),
     }
+  },
+  <n: Identifier> "<" <k: Int> ">" => {
+    match n.name() {
+      "top" => if k > 0 {
+        ReduceOperatorNode::TopK(k as usize)
+      } else {
+        ReduceOperatorNode::Unknown(format!("top<{}>", k))
+      },
+      x => ReduceOperatorNode::Unknown(x.to_string()),
+    }
   }
 }
 
@@ -487,8 +523,10 @@ ReduceGroupBy: (Vec<VariableBinding>, Box<Formula>) = {
   "where" <bs: AtLeastOneSeparatedStrict<VariableBinding, ",">> ":" <f: Formula> => (bs, Box::new(f)),
 }
 
+ReduceAssignmentSymbol = { "=", ":=" }
+
 ReduceNode: ReduceNode = {
-  <vs: ReduceLeft> "=" <op: ReduceOp> <args: ReduceArgs> "(" <bs: AtLeastOneSeparatedStrict<VariableBinding, ",">> ":" <f: Formula> <g: ReduceGroupBy?> ")" => {
+  <vs: ReduceLeft> ReduceAssignmentSymbol <op: ReduceOp> <args: ReduceArgs> "(" <bs: AtLeastOneSeparatedStrict<VariableBinding, ",">> ":" <f: Formula> <g: ReduceGroupBy?> ")" => {
     ReduceNode {
       left: vs,
       operator: op,
@@ -674,6 +712,7 @@ UnaryExpr: Expr = {
 }
 
 ComplexExpr: Expr = {
+  <i: Spanned<IfThenElseExprNode>> => Expr::IfThenElse(i),
   <a: Spanned<AndOrBinaryExprNode>> => Expr::Binary(a),
   <c: Spanned<ComparisonBinaryExprNode>> => Expr::Binary(c),
   <a: Spanned<AddSubBinaryExprNode>> => Expr::Binary(a),
@@ -681,11 +720,26 @@ ComplexExpr: Expr = {
   <u: Spanned<UnaryExprNode>> => Expr::Unary(u),
 }
 
+FunctionNode: FunctionNode = {
+  <n: Name> => FunctionNode::from_string(n),
+}
+
+Function = Spanned<FunctionNode>;
+
+CallExprNode: CallExprNode = {
+  "$" <f: Function> "(" <args: Separated<Expr, ",">> ")" => {
+    CallExprNode::new(f, args)
+  }
+}
+
+CallExpr: CallExpr = Spanned<CallExprNode>;
+
 UnitExpr: Expr = {
   "(" <e: ComplexExpr> ")" => e,
   <w: Wildcard> => Expr::Wildcard(w),
   <c: Constant> => Expr::Constant(c),
   <v: Variable> => Expr::Variable(v),
+  <c: CallExpr> => Expr::Call(c),
 }
 
 RuleNode: RuleNode = {
@@ -749,7 +803,6 @@ pub Query: Query = Spanned<QueryNode>;
 
 QueryKeyword = {
   "query",
-  "output"
 }
 
 QueryDeclNode: QueryDeclNode = {
@@ -769,8 +822,8 @@ QueryDecl: QueryDecl = Spanned<QueryDeclNode>;
 
 pub Item: Item = {
   <i: ImportDecl> => Item::ImportDecl(i),
-  <i: InputDecl> => Item::InputDecl(i),
   <t: TypeDecl> => Item::TypeDecl(t),
+  <c: ConstDecl> => Item::ConstDecl(c),
   <r: RelationDecl> => Item::RelationDecl(r),
   <q: QueryDecl> => Item::QueryDecl(q),
 }
@@ -793,6 +846,10 @@ Float: f64 = float => f64::from_str(<>).unwrap();
 
 StringLiteral: String = <s: string> => {
   s[1..s.len() - 1].replace("\\t", "\t").replace("\\n", "\n").replace("\\\\", "\\").into()
+};
+
+CharLiteral: String = <s: character> => {
+  s[1..s.len() - 1].replace("\\t", "\t").replace("\\n", "\n").replace("\\'", "'").replace("\\\\", "\\").into()
 };
 
 Bool: bool = {

@@ -2,10 +2,10 @@ use crate::common::element::*;
 use crate::common::tuple::*;
 use crate::runtime::provenance::*;
 
-pub type DynamicElement<T> = Tagged<Tuple, T>;
+pub type DynamicElement<Prov> = Tagged<Tuple, Prov>;
 
-impl<T: Tag> DynamicElement<T> {
-  pub fn new<T1: Into<Tuple>>(tuple: T1, tag: T) -> Self {
+impl<Prov: Provenance> DynamicElement<Prov> {
+  pub fn new<T1: Into<Tuple>>(tuple: T1, tag: Prov::Tag) -> Self {
     Self {
       tuple: tuple.into(),
       tag,
@@ -13,33 +13,33 @@ impl<T: Tag> DynamicElement<T> {
   }
 }
 
-impl<T: Tag> Element<T> for DynamicElement<T> {
-  fn tag(&self) -> &T {
+impl<Prov: Provenance> Element<Prov> for DynamicElement<Prov> {
+  fn tag(&self) -> &Prov::Tag {
     &self.tag
   }
 }
 
-pub type DynamicElements<T> = Vec<DynamicElement<T>>;
+pub type DynamicElements<Prov> = Vec<DynamicElement<Prov>>;
 
-pub trait DynamicTupleIterator<'a, T: Tag> {
+pub trait DynamicTupleIterator<'a, Prov: Provenance> {
   type Output: Iterator<Item = &'a Tuple>;
 
   fn iter_tuples(&'a self) -> Self::Output;
 }
 
-impl<'a, T: Tag> DynamicTupleIterator<'a, T> for DynamicElements<T> {
-  type Output = DynamicElementsTupleIterator<'a, T>;
+impl<'a, Prov: Provenance + 'static> DynamicTupleIterator<'a, Prov> for DynamicElements<Prov> {
+  type Output = DynamicElementsTupleIterator<'a, Prov>;
 
   fn iter_tuples(&'a self) -> Self::Output {
     DynamicElementsTupleIterator { elements: self.iter() }
   }
 }
 
-pub struct DynamicElementsTupleIterator<'a, T: Tag> {
-  elements: std::slice::Iter<'a, DynamicElement<T>>,
+pub struct DynamicElementsTupleIterator<'a, Prov: Provenance> {
+  elements: std::slice::Iter<'a, DynamicElement<Prov>>,
 }
 
-impl<'a, T: Tag> Iterator for DynamicElementsTupleIterator<'a, T> {
+impl<'a, Prov: Provenance> Iterator for DynamicElementsTupleIterator<'a, Prov> {
   type Item = &'a Tuple;
 
   fn next(&mut self) -> Option<Self::Item> {
@@ -47,19 +47,19 @@ impl<'a, T: Tag> Iterator for DynamicElementsTupleIterator<'a, T> {
   }
 }
 
-impl<'a, T: Tag> DynamicTupleIterator<'a, T> for Vec<&'a DynamicElement<T>> {
-  type Output = DynamicElementsTupleRefIterator<'a, T>;
+impl<'a, Prov: Provenance> DynamicTupleIterator<'a, Prov> for Vec<&'a DynamicElement<Prov>> {
+  type Output = DynamicElementsTupleRefIterator<'a, Prov>;
 
-  fn iter_tuples(&'a self) -> DynamicElementsTupleRefIterator<'a, T> {
+  fn iter_tuples(&'a self) -> DynamicElementsTupleRefIterator<'a, Prov> {
     DynamicElementsTupleRefIterator { elements: self.iter() }
   }
 }
 
-pub struct DynamicElementsTupleRefIterator<'a, T: Tag> {
-  elements: std::slice::Iter<'a, &'a DynamicElement<T>>,
+pub struct DynamicElementsTupleRefIterator<'a, Prov: Provenance> {
+  elements: std::slice::Iter<'a, &'a DynamicElement<Prov>>,
 }
 
-impl<'a, T: Tag> Iterator for DynamicElementsTupleRefIterator<'a, T> {
+impl<'a, Prov: Provenance> Iterator for DynamicElementsTupleRefIterator<'a, Prov> {
   type Item = &'a Tuple;
 
   fn next(&mut self) -> Option<Self::Item> {

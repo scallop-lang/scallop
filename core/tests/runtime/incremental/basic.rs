@@ -5,7 +5,7 @@ use scallop_core::utils::RcFamily;
 
 #[test]
 fn incr_exec_1() {
-  let mut ctx = unit::UnitContext::default();
+  let mut ctx = unit::UnitProvenance::default();
   let mut exec_ctx = dynamic::DynamicExecutionContext::<_, RcFamily>::new();
 
   let r1 = compile_string_to_ram(

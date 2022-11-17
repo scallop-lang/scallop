@@ -3,12 +3,12 @@ use std::marker::PhantomData;
 use super::*;
 use crate::runtime::provenance::*;
 
-pub fn union<'b, D1, D2, Tup, T>(d1: D1, d2: D2, semiring_ctx: &'b T::Context) -> Union<'b, D1, D2, Tup, T>
+pub fn union<'b, D1, D2, Tup, Prov>(d1: D1, d2: D2, semiring_ctx: &'b Prov) -> Union<'b, D1, D2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  D1: Dataflow<Tup, T>,
-  D2: Dataflow<Tup, T>,
+  Prov: Provenance,
+  D1: Dataflow<Tup, Prov>,
+  D2: Dataflow<Tup, Prov>,
 {
   Union {
     d1,
@@ -18,25 +18,25 @@ where
   }
 }
 
-pub struct Union<'b, D1, D2, Tup, T>
+pub struct Union<'b, D1, D2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  D1: Dataflow<Tup, T>,
-  D2: Dataflow<Tup, T>,
+  Prov: Provenance,
+  D1: Dataflow<Tup, Prov>,
+  D2: Dataflow<Tup, Prov>,
 {
   d1: D1,
   d2: D2,
-  semiring_ctx: &'b T::Context,
-  phantom: PhantomData<(Tup, T)>,
+  semiring_ctx: &'b Prov,
+  phantom: PhantomData<Tup>,
 }
 
-impl<'b, D1, D2, Tup, T> Clone for Union<'b, D1, D2, Tup, T>
+impl<'b, D1, D2, Tup, Prov> Clone for Union<'b, D1, D2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  D1: Dataflow<Tup, T>,
-  D2: Dataflow<Tup, T>,
+  Prov: Provenance,
+  D1: Dataflow<Tup, Prov>,
+  D2: Dataflow<Tup, Prov>,
 {
   fn clone(&self) -> Self {
     Self {
@@ -48,16 +48,16 @@ where
   }
 }
 
-impl<'b, D1, D2, Tup, T> Dataflow<Tup, T> for Union<'b, D1, D2, Tup, T>
+impl<'b, D1, D2, Tup, Prov> Dataflow<Tup, Prov> for Union<'b, D1, D2, Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
-  D1: Dataflow<Tup, T>,
-  D2: Dataflow<Tup, T>,
+  Prov: Provenance,
+  D1: Dataflow<Tup, Prov>,
+  D2: Dataflow<Tup, Prov>,
 {
-  type Stable = BatchesChain<D1::Stable, D2::Stable, Tup, T>;
+  type Stable = BatchesChain<D1::Stable, D2::Stable, Tup, Prov>;
 
-  type Recent = BatchesChain<D1::Recent, D2::Recent, Tup, T>;
+  type Recent = BatchesChain<D1::Recent, D2::Recent, Tup, Prov>;
 
   fn iter_stable(&self) -> Self::Stable {
     BatchesChain::chain(self.d1.iter_stable(), self.d2.iter_stable())

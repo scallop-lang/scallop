@@ -26,4 +26,7 @@ pub enum BoundnessDependency {
   /// If-then-else expression, if the first three (cond, then_br, else_br)
   /// is bounded, the last one is bounded
   IfThenElseOp(Loc, Loc, Loc, Loc),
+
+  /// Call expression, all the arguments need to be bounded for the last one to be bounded
+  CallOp(Vec<Loc>, Loc),
 }

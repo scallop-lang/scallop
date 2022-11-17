@@ -2,14 +2,14 @@ use itertools::*;
 
 use super::*;
 
-pub struct DynamicAggregationJoinGroupDataflow<'a, T: Tag> {
+pub struct DynamicAggregationJoinGroupDataflow<'a, Prov: Provenance> {
   pub agg: DynamicAggregator,
-  pub d1: Box<DynamicDataflow<'a, T>>,
-  pub d2: Box<DynamicDataflow<'a, T>>,
-  pub ctx: &'a T::Context,
+  pub d1: Box<DynamicDataflow<'a, Prov>>,
+  pub d2: Box<DynamicDataflow<'a, Prov>>,
+  pub ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for DynamicAggregationJoinGroupDataflow<'a, T> {
+impl<'a, Prov: Provenance> Clone for DynamicAggregationJoinGroupDataflow<'a, Prov> {
   fn clone(&self) -> Self {
     Self {
       agg: self.agg.clone(),
@@ -20,12 +20,12 @@ impl<'a, T: Tag> Clone for DynamicAggregationJoinGroupDataflow<'a, T> {
   }
 }
 
-impl<'a, T: Tag> DynamicAggregationJoinGroupDataflow<'a, T> {
+impl<'a, Prov: Provenance> DynamicAggregationJoinGroupDataflow<'a, Prov> {
   pub fn new(
     agg: DynamicAggregator,
-    d1: DynamicDataflow<'a, T>,
-    d2: DynamicDataflow<'a, T>,
-    ctx: &'a T::Context,
+    d1: DynamicDataflow<'a, Prov>,
+    d2: DynamicDataflow<'a, Prov>,
+    ctx: &'a Prov,
   ) -> Self {
     Self {
       agg,
@@ -35,11 +35,11 @@ impl<'a, T: Tag> DynamicAggregationJoinGroupDataflow<'a, T> {
     }
   }
 
-  pub fn iter_stable(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     DynamicBatches::empty()
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     let mut group_by_c = if let Some(b1) = self.d1.iter_recent().next() {
       b1
     } else {
@@ -108,7 +108,7 @@ impl<'a, T: Tag> DynamicAggregationJoinGroupDataflow<'a, T> {
       }
     }
 
-    let result: DynamicElements<T> = groups
+    let result: DynamicElements<Prov> = groups
       .into_iter()
       .map(|(group_key, group_by_vals, to_agg_vals)| {
         let to_agg_tups = to_agg_vals

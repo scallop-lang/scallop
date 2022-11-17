@@ -53,6 +53,16 @@ impl Attributes {
     None
   }
 
+  pub fn magic_set_attr(&self) -> Option<&MagicSetAttribute> {
+    for attr in &self.attrs {
+      match attr {
+        Attribute::MagicSet(m) => return Some(m),
+        _ => {}
+      }
+    }
+    None
+  }
+
   pub fn input_file_attr(&self) -> Option<&InputFileAttribute> {
     for attr in &self.attrs {
       match attr {
@@ -66,10 +76,10 @@ impl Attributes {
 
 impl<I> From<I> for Attributes
 where
-  I: Iterator<Item = Attribute>,
+  I: IntoIterator<Item = Attribute>,
 {
   fn from(i: I) -> Self {
-    Self { attrs: i.collect() }
+    Self { attrs: i.into_iter().collect() }
   }
 }
 
@@ -78,6 +88,7 @@ pub enum Attribute {
   AggregateBody(AggregateBodyAttribute),
   AggregateGroupBy(AggregateGroupByAttribute),
   Demand(DemandAttribute),
+  MagicSet(MagicSetAttribute),
   InputFile(InputFileAttribute),
 }
 
@@ -95,6 +106,10 @@ impl Attribute {
       num_join_group_by_vars: num_join_vars,
       num_other_group_by_vars: num_other_vars,
     })
+  }
+
+  pub fn magic_set() -> Self {
+    Self::MagicSet(MagicSetAttribute)
   }
 }
 
@@ -142,10 +157,16 @@ impl Into<Attribute> for AggregateGroupByAttribute {
   }
 }
 
+/// Demand attributes to the relations which are on-demand relations
 #[derive(Clone, Debug, PartialEq)]
 pub struct DemandAttribute {
   pub pattern: String,
 }
+
+/// Magic-Set attributes to the helper relations storing the demanded-tuples for on-demand relations.
+/// These relations are called "magic-sets".
+#[derive(Clone, Debug, PartialEq)]
+pub struct MagicSetAttribute;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct InputFileAttribute {

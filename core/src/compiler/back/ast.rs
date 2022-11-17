@@ -27,6 +27,24 @@ impl Program {
   pub fn rules_of_predicate(&self, pred: String) -> impl Iterator<Item = &Rule> {
     self.rules.iter().filter(move |r| r.head_predicate() == &pred)
   }
+
+  pub fn is_demand_predicate(&self, pred: &String) -> Option<bool> {
+    self.relation_of_predicate(pred).map(|r| r.attributes.demand_attr().is_some())
+  }
+
+  pub fn is_magic_set_predicate(&self, pred: &String) -> Option<bool> {
+    self.relation_of_predicate(pred).map(|r| r.attributes.magic_set_attr().is_some())
+  }
+
+  pub fn set_output_relations(&mut self, outputs: Vec<&str>) {
+    self.outputs.iter_mut().for_each(|(rela, rela_output_options)| {
+      *rela_output_options = if outputs.contains(&rela.as_str()) {
+        OutputOption::Default
+      } else {
+        OutputOption::Hidden
+      };
+    });
+  }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -133,6 +151,13 @@ impl Term {
       _ => None,
     }
   }
+
+  pub fn as_constant(&self) -> Option<&Constant> {
+    match self {
+      Self::Constant(c) => Some(c),
+      _ => None,
+    }
+  }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
@@ -191,6 +216,13 @@ impl Literal {
     Self::Assign(Assign {
       left,
       right: AssignExpr::IfThenElse(IfThenElseAssignExpr { cond, then_br, else_br }),
+    })
+  }
+
+  pub fn call_expr(left: Variable, function: Function, args: Vec<Term>) -> Self {
+    Self::Assign(Assign {
+      left,
+      right: AssignExpr::Call(CallExpr { function, args }),
     })
   }
 
@@ -300,6 +332,11 @@ impl Assign {
         args.extend(i.then_br.as_variable().iter());
         args.extend(i.else_br.as_variable().iter());
       }
+      AssignExpr::Call(c) => {
+        for a in &c.args {
+          args.extend(a.as_variable().iter());
+        }
+      }
     }
     args
   }
@@ -310,6 +347,7 @@ pub enum AssignExpr {
   Binary(BinaryAssignExpr),
   Unary(UnaryAssignExpr),
   IfThenElse(IfThenElseAssignExpr),
+  Call(CallExpr),
 }
 
 pub type BinaryExprOp = crate::common::binary_op::BinaryOp;
@@ -334,6 +372,14 @@ pub struct IfThenElseAssignExpr {
   pub cond: Term,
   pub then_br: Term,
   pub else_br: Term,
+}
+
+pub type Function = crate::common::functions::Function;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct CallExpr {
+  pub function: Function,
+  pub args: Vec<Term>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

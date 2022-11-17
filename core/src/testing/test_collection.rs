@@ -22,18 +22,18 @@ impl<T: Into<Tuple>> From<Vec<T>> for TestCollection {
   }
 }
 
-pub struct TestCollectionWithTag<T: Tag> {
-  pub elements: Vec<(OutputTagOf<T::Context>, Tuple)>,
+pub struct TestCollectionWithTag<Prov: Provenance> {
+  pub elements: Vec<(OutputTagOf<Prov>, Tuple)>,
 }
 
-impl<T: Tag> TestCollectionWithTag<T> {
+impl<Prov: Provenance> TestCollectionWithTag<Prov> {
   pub fn empty() -> Self {
     Self { elements: vec![] }
   }
 }
 
-impl<T: Tag, Tup: Into<Tuple>> From<Vec<(OutputTagOf<T::Context>, Tup)>> for TestCollectionWithTag<T> {
-  fn from(v: Vec<(OutputTagOf<T::Context>, Tup)>) -> Self {
+impl<Prov: Provenance, Tup: Into<Tuple>> From<Vec<(OutputTagOf<Prov>, Tup)>> for TestCollectionWithTag<Prov> {
+  fn from(v: Vec<(OutputTagOf<Prov>, Tup)>) -> Self {
     Self {
       elements: v.into_iter().map(|(tag, tup)| (tag, tup.into())).collect(),
     }
@@ -49,9 +49,10 @@ pub fn test_equals(t1: &Tuple, t2: &Tuple) -> bool {
   }
 }
 
-pub fn expect_collection<T, C>(actual: &DynamicCollection<T>, expected: C)
+pub fn expect_collection<Prov, C>(actual: &DynamicCollection<Prov>, expected: C)
 where
-  T: Tag + std::fmt::Debug,
+  Prov: Provenance,
+  Prov::Tag: std::fmt::Debug,
   C: Into<TestCollection>,
 {
   let expected = Into::<TestCollection>::into(expected);
@@ -77,9 +78,10 @@ where
   }
 }
 
-pub fn expect_output_collection<T, C>(actual: &DynamicOutputCollection<T>, expected: C)
+pub fn expect_output_collection<Prov, C>(actual: &DynamicOutputCollection<Prov>, expected: C)
 where
-  T: Tag + std::fmt::Debug,
+  Prov: Provenance,
+  Prov::Tag: std::fmt::Debug,
   C: Into<TestCollection>,
 {
   let expected = Into::<TestCollection>::into(expected);
@@ -105,13 +107,14 @@ where
   }
 }
 
-pub fn expect_output_collection_with_tag<T, C, F>(actual: &DynamicOutputCollection<T>, expected: C, cmp: F)
+pub fn expect_output_collection_with_tag<Prov, C, F>(actual: &DynamicOutputCollection<Prov>, expected: C, cmp: F)
 where
-  T: Tag + std::fmt::Debug,
-  C: Into<TestCollectionWithTag<T>>,
-  F: Fn(&OutputTagOf<T::Context>, &OutputTagOf<T::Context>) -> bool,
+  Prov: Provenance,
+  Prov::Tag: std::fmt::Debug,
+  C: Into<TestCollectionWithTag<Prov>>,
+  F: Fn(&OutputTagOf<Prov>, &OutputTagOf<Prov>) -> bool,
 {
-  let expected = Into::<TestCollectionWithTag<T>>::into(expected);
+  let expected = Into::<TestCollectionWithTag<Prov>>::into(expected);
 
   // First check everything in expected is in actual
   for e in &expected.elements {
@@ -141,10 +144,11 @@ where
   }
 }
 
-pub fn expect_static_collection<Tup, T>(actual: &StaticCollection<Tup, T>, expected: Vec<Tup>)
+pub fn expect_static_collection<Tup, Prov>(actual: &StaticCollection<Tup, Prov>, expected: Vec<Tup>)
 where
   Tup: StaticTupleTrait + StaticEquals,
-  T: Tag + std::fmt::Debug,
+  Prov: Provenance,
+  Prov::Tag: std::fmt::Debug,
 {
   // First check everything in expected is in actual
   for e in &expected {
@@ -168,10 +172,11 @@ where
   }
 }
 
-pub fn expect_static_output_collection<Tup, T>(actual: &StaticOutputCollection<Tup, T>, expected: Vec<Tup>)
+pub fn expect_static_output_collection<Tup, Prov>(actual: &StaticOutputCollection<Tup, Prov>, expected: Vec<Tup>)
 where
   Tup: StaticTupleTrait + StaticEquals,
-  T: Tag + std::fmt::Debug,
+  Prov: Provenance,
+  Prov::Tag: std::fmt::Debug,
 {
   // First check everything in expected is in actual
   for e in &expected {

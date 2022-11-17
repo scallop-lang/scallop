@@ -17,14 +17,12 @@ impl std::fmt::Display for CustomTag {
   }
 }
 
-impl provenance::Tag for CustomTag {
-  type Context = CustomTagContext;
-}
+impl provenance::Tag for CustomTag {}
 
 #[derive(Clone, Debug)]
 pub struct CustomTagContext(pub Py<PyAny>);
 
-impl provenance::ProvenanceContext for CustomTagContext {
+impl provenance::Provenance for CustomTagContext {
   type Tag = CustomTag;
 
   type InputTag = Py<PyAny>;
@@ -108,6 +106,32 @@ impl provenance::ProvenanceContext for CustomTagContext {
           .extract(py)
           .unwrap(),
       )
+    })
+  }
+
+  fn negate(&self, t: &Self::Tag) -> Option<Self::Tag> {
+    Python::with_gil(|py| {
+      let input = (t.0.clone(),);
+      Some(Self::Tag::new(
+        self
+          .0
+          .call_method(py, "negate", input, None)
+          .unwrap()
+          .extract(py)
+          .unwrap(),
+      ))
+    })
+  }
+
+  fn saturated(&self, t_old: &Self::Tag, t_new: &Self::Tag) -> bool {
+    Python::with_gil(|py| {
+      let input = (t_old.0.clone(), t_new.0.clone());
+      self
+        .0
+        .call_method(py, "saturated", input, None)
+        .unwrap()
+        .extract(py)
+        .unwrap()
     })
   }
 }

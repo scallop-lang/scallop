@@ -5,28 +5,29 @@ use crate::common::tuple::Tuple;
 use crate::runtime::provenance::*;
 
 #[derive(Clone)]
-pub enum DynamicBatches<'a, T: Tag> {
+pub enum DynamicBatches<'a, Prov: Provenance> {
   Empty,
-  Single(Option<DynamicBatch<'a, T>>),
-  Optional(DynamicBatchesOptional<'a, T>),
-  Chain(DynamicBatchesChain<'a, T>),
-  DynamicRelationStable(DynamicRelationStableBatches<'a, T>),
-  Project(DynamicProjectBatches<'a, T>),
-  Filter(DynamicFilterBatches<'a, T>),
-  Find(DynamicFindBatches<'a, T>),
-  Binary(DynamicBatchesBinary<'a, T>),
+  Single(Option<DynamicBatch<'a, Prov>>),
+  Optional(DynamicBatchesOptional<'a, Prov>),
+  Chain(DynamicBatchesChain<'a, Prov>),
+  DynamicRelationStable(DynamicRelationStableBatches<'a, Prov>),
+  Project(DynamicProjectBatches<'a, Prov>),
+  Filter(DynamicFilterBatches<'a, Prov>),
+  Find(DynamicFindBatches<'a, Prov>),
+  OverwriteOne(DynamicOverwriteOneBatches<'a, Prov>),
+  Binary(DynamicBatchesBinary<'a, Prov>),
 }
 
-impl<'a, T: Tag> DynamicBatches<'a, T> {
+impl<'a, Prov: Provenance> DynamicBatches<'a, Prov> {
   pub fn empty() -> Self {
     Self::Empty
   }
 
-  pub fn single(batch: DynamicBatch<'a, T>) -> Self {
+  pub fn single(batch: DynamicBatch<'a, Prov>) -> Self {
     Self::Single(Some(batch))
   }
 
-  pub fn chain(bs: Vec<DynamicBatches<'a, T>>) -> Self {
+  pub fn chain(bs: Vec<DynamicBatches<'a, Prov>>) -> Self {
     if bs.is_empty() {
       Self::Empty
     } else {
@@ -34,34 +35,34 @@ impl<'a, T: Tag> DynamicBatches<'a, T> {
     }
   }
 
-  pub fn project(source: DynamicBatches<'a, T>, expression: Expr) -> Self {
+  pub fn project(source: DynamicBatches<'a, Prov>, expression: Expr) -> Self {
     Self::Project(DynamicProjectBatches {
       source: Box::new(source),
       expression,
     })
   }
 
-  pub fn filter(source: DynamicBatches<'a, T>, filter: Expr) -> Self {
+  pub fn filter(source: DynamicBatches<'a, Prov>, filter: Expr) -> Self {
     Self::Filter(DynamicFilterBatches {
       source: Box::new(source),
       filter,
     })
   }
 
-  pub fn find(source: DynamicBatches<'a, T>, key: Tuple) -> Self {
+  pub fn find(source: DynamicBatches<'a, Prov>, key: Tuple) -> Self {
     Self::Find(DynamicFindBatches {
       source: Box::new(source),
       key,
     })
   }
 
-  pub fn binary(b1: DynamicBatches<'a, T>, b2: DynamicBatches<'a, T>, op: BatchBinaryOp<'a, T>) -> Self {
+  pub fn binary(b1: DynamicBatches<'a, Prov>, b2: DynamicBatches<'a, Prov>, op: BatchBinaryOp<'a, Prov>) -> Self {
     Self::Binary(DynamicBatchesBinary::new(b1, b2, op))
   }
 }
 
-impl<'a, T: Tag> Iterator for DynamicBatches<'a, T> {
-  type Item = DynamicBatch<'a, T>;
+impl<'a, Prov: Provenance> Iterator for DynamicBatches<'a, Prov> {
+  type Item = DynamicBatch<'a, Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     match self {
@@ -73,18 +74,19 @@ impl<'a, T: Tag> Iterator for DynamicBatches<'a, T> {
       Self::Project(m) => m.next(),
       Self::Filter(f) => f.next(),
       Self::Find(f) => f.next(),
+      Self::OverwriteOne(o) => o.next(),
       Self::Binary(b) => b.next(),
     }
   }
 }
 
 #[derive(Clone)]
-pub struct DynamicBatchesOptional<'a, T: Tag> {
-  optional_batches: Option<Box<DynamicBatches<'a, T>>>,
+pub struct DynamicBatchesOptional<'a, Prov: Provenance> {
+  optional_batches: Option<Box<DynamicBatches<'a, Prov>>>,
 }
 
-impl<'a, T: Tag> Iterator for DynamicBatchesOptional<'a, T> {
-  type Item = DynamicBatch<'a, T>;
+impl<'a, Prov: Provenance> Iterator for DynamicBatchesOptional<'a, Prov> {
+  type Item = DynamicBatch<'a, Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     match &mut self.optional_batches {
@@ -95,13 +97,13 @@ impl<'a, T: Tag> Iterator for DynamicBatchesOptional<'a, T> {
 }
 
 #[derive(Clone)]
-pub struct DynamicBatchesChain<'a, T: Tag> {
-  bs: Vec<DynamicBatches<'a, T>>,
+pub struct DynamicBatchesChain<'a, Prov: Provenance> {
+  bs: Vec<DynamicBatches<'a, Prov>>,
   id: usize,
 }
 
-impl<'a, T: Tag> Iterator for DynamicBatchesChain<'a, T> {
-  type Item = DynamicBatch<'a, T>;
+impl<'a, Prov: Provenance> Iterator for DynamicBatchesChain<'a, Prov> {
+  type Item = DynamicBatch<'a, Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     while self.id < self.bs.len() {
@@ -116,16 +118,16 @@ impl<'a, T: Tag> Iterator for DynamicBatchesChain<'a, T> {
 }
 
 #[derive(Clone)]
-pub struct DynamicBatchesBinary<'a, T: Tag> {
-  b1: Box<DynamicBatches<'a, T>>,
-  b1_curr: Option<DynamicBatch<'a, T>>,
-  b2: Box<DynamicBatches<'a, T>>,
-  b2_source: Box<DynamicBatches<'a, T>>,
-  op: BatchBinaryOp<'a, T>,
+pub struct DynamicBatchesBinary<'a, Prov: Provenance> {
+  b1: Box<DynamicBatches<'a, Prov>>,
+  b1_curr: Option<DynamicBatch<'a, Prov>>,
+  b2: Box<DynamicBatches<'a, Prov>>,
+  b2_source: Box<DynamicBatches<'a, Prov>>,
+  op: BatchBinaryOp<'a, Prov>,
 }
 
-impl<'a, T: Tag> DynamicBatchesBinary<'a, T> {
-  pub fn new(mut b1: DynamicBatches<'a, T>, b2: DynamicBatches<'a, T>, op: BatchBinaryOp<'a, T>) -> Self {
+impl<'a, Prov: Provenance> DynamicBatchesBinary<'a, Prov> {
+  pub fn new(mut b1: DynamicBatches<'a, Prov>, b2: DynamicBatches<'a, Prov>, op: BatchBinaryOp<'a, Prov>) -> Self {
     let b1_curr = b1.next();
     let b2_source = b2.clone();
     Self {
@@ -138,8 +140,8 @@ impl<'a, T: Tag> DynamicBatchesBinary<'a, T> {
   }
 }
 
-impl<'a, T: Tag> Iterator for DynamicBatchesBinary<'a, T> {
-  type Item = DynamicBatch<'a, T>;
+impl<'a, Prov: Provenance> Iterator for DynamicBatchesBinary<'a, Prov> {
+  type Item = DynamicBatch<'a, Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     loop {

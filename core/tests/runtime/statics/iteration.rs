@@ -4,8 +4,8 @@ use scallop_core::testing::*;
 
 #[test]
 fn test_static_iter_edge_path() {
-  let mut prov = unit::UnitContext::default();
-  let mut iter = StaticIteration::<unit::Unit>::new(&mut prov);
+  let mut prov = unit::UnitProvenance::default();
+  let mut iter = StaticIteration::<unit::UnitProvenance>::new(&mut prov);
 
   // Add relations
   let edge = iter.create_relation::<(usize, usize)>();
@@ -30,16 +30,16 @@ fn test_static_iter_edge_path() {
 
 #[test]
 fn test_static_iter_odd_even_3() {
-  let mut prov = unit::UnitContext::default();
+  let mut prov = unit::UnitProvenance::default();
 
-  struct Stratum0Result<C: ProvenanceContext> {
-    numbers: StaticCollection<(i32,), C::Tag>,
-    _numbers_perm_0_: StaticCollection<(i32, ()), C::Tag>,
-    _numbers_perm_0_0: StaticCollection<(i32, i32), C::Tag>,
+  struct Stratum0Result<C: Provenance> {
+    numbers: StaticCollection<(i32,), C>,
+    _numbers_perm_0_: StaticCollection<(i32, ()), C>,
+    _numbers_perm_0_0: StaticCollection<(i32, i32), C>,
   }
 
-  fn stratum_0<C: ProvenanceContext>(prov: &mut C) -> Stratum0Result<C> {
-    let mut iter = StaticIteration::<C::Tag>::new(prov);
+  fn stratum_0<C: Provenance>(prov: &mut C) -> Stratum0Result<C> {
+    let mut iter = StaticIteration::<C>::new(prov);
     let numbers = iter.create_relation::<(i32,)>();
     let _numbers_perm_0_ = iter.create_relation::<(i32, ())>();
     let _numbers_perm_0_0 = iter.create_relation::<(i32, i32)>();
@@ -66,12 +66,12 @@ fn test_static_iter_odd_even_3() {
     }
   }
 
-  struct Stratum1Result<C: ProvenanceContext> {
-    odd: StaticCollection<(i32,), C::Tag>,
+  struct Stratum1Result<C: Provenance> {
+    odd: StaticCollection<(i32,), C>,
   }
 
-  fn stratum_1<C: ProvenanceContext>(prov: &mut C, stratum_0_result: &Stratum0Result<C>) -> Stratum1Result<C> {
-    let mut iter = StaticIteration::<C::Tag>::new(prov);
+  fn stratum_1<C: Provenance>(prov: &mut C, stratum_0_result: &Stratum0Result<C>) -> Stratum1Result<C> {
+    let mut iter = StaticIteration::<C>::new(prov);
     let _temp_0 = iter.create_relation::<(i32, i32)>();
     let odd = iter.create_relation::<(i32,)>();
     let _odd_perm_0 = iter.create_relation::<(i32, ())>();
@@ -108,16 +108,16 @@ fn test_static_iter_odd_even_3() {
     }
   }
 
-  struct Stratum2Result<C: ProvenanceContext> {
-    even: StaticCollection<(i32,), C::Tag>,
+  struct Stratum2Result<C: Provenance> {
+    even: StaticCollection<(i32,), C>,
   }
 
-  fn stratum_2<C: ProvenanceContext>(
+  fn stratum_2<C: Provenance>(
     prov: &mut C,
     stratum_0_result: &Stratum0Result<C>,
     stratum_1_result: &Stratum1Result<C>,
   ) -> Stratum2Result<C> {
-    let mut iter = StaticIteration::<C::Tag>::new(prov);
+    let mut iter = StaticIteration::<C>::new(prov);
     let even = iter.create_relation::<(i32,)>();
     while iter.changed() || iter.is_first_iteration() {
       iter.insert_dataflow(
@@ -152,13 +152,13 @@ fn test_static_iter_odd_even_3() {
 
 #[test]
 fn test_static_out_degree_join() {
-  struct Stratum0Result<C: ProvenanceContext> {
-    node_temp: StaticCollection<(usize, ()), C::Tag>,
-    edge: StaticCollection<(usize, usize), C::Tag>,
+  struct Stratum0Result<C: Provenance> {
+    node_temp: StaticCollection<(usize, ()), C>,
+    edge: StaticCollection<(usize, usize), C>,
   }
 
-  fn stratum_0<C: ProvenanceContext>(prov: &mut C) -> Stratum0Result<C> {
-    let mut iter = StaticIteration::<C::Tag>::new(prov);
+  fn stratum_0<C: Provenance>(prov: &mut C) -> Stratum0Result<C> {
+    let mut iter = StaticIteration::<C>::new(prov);
 
     // Add relations
     let node = iter.create_relation::<(usize,)>();
@@ -182,12 +182,12 @@ fn test_static_out_degree_join() {
     }
   }
 
-  struct Stratum1Result<C: ProvenanceContext> {
-    out_degree: StaticCollection<(usize, usize), C::Tag>,
+  struct Stratum1Result<C: Provenance> {
+    out_degree: StaticCollection<(usize, usize), C>,
   }
 
-  fn stratum_1<C: ProvenanceContext>(prov: &mut C, stratum_0_result: &Stratum0Result<C>) -> Stratum1Result<C> {
-    let mut iter = StaticIteration::<C::Tag>::new(prov);
+  fn stratum_1<C: Provenance>(prov: &mut C, stratum_0_result: &Stratum0Result<C>) -> Stratum1Result<C> {
+    let mut iter = StaticIteration::<C>::new(prov);
 
     // Add relations
     let out_degree = iter.create_relation::<(usize, usize)>();
@@ -213,7 +213,7 @@ fn test_static_out_degree_join() {
     }
   }
 
-  let mut prov = unit::UnitContext::default();
+  let mut prov = unit::UnitProvenance::default();
 
   // Execute
   let stratum_0_result = stratum_0(&mut prov);
@@ -225,12 +225,12 @@ fn test_static_out_degree_join() {
 
 #[test]
 fn test_static_out_degree_implicit_group() {
-  struct Stratum0Result<C: ProvenanceContext> {
-    edge: StaticCollection<(usize, usize), C::Tag>,
+  struct Stratum0Result<C: Provenance> {
+    edge: StaticCollection<(usize, usize), C>,
   }
 
-  fn stratum_0<C: ProvenanceContext>(prov: &mut C) -> Stratum0Result<C> {
-    let mut iter = StaticIteration::<C::Tag>::new(prov);
+  fn stratum_0<C: Provenance>(prov: &mut C) -> Stratum0Result<C> {
+    let mut iter = StaticIteration::<C>::new(prov);
 
     // Add relations
     let edge = iter.create_relation::<(usize, usize)>();
@@ -249,12 +249,12 @@ fn test_static_out_degree_implicit_group() {
     }
   }
 
-  struct Stratum1Result<C: ProvenanceContext> {
-    out_degree: StaticCollection<(usize, usize), C::Tag>,
+  struct Stratum1Result<C: Provenance> {
+    out_degree: StaticCollection<(usize, usize), C>,
   }
 
-  fn stratum_1<C: ProvenanceContext>(prov: &mut C, stratum_0_result: &Stratum0Result<C>) -> Stratum1Result<C> {
-    let mut iter = StaticIteration::<C::Tag>::new(prov);
+  fn stratum_1<C: Provenance>(prov: &mut C, stratum_0_result: &Stratum0Result<C>) -> Stratum1Result<C> {
+    let mut iter = StaticIteration::<C>::new(prov);
 
     // Add relations
     let out_degree = iter.create_relation::<(usize, usize)>();
@@ -276,7 +276,7 @@ fn test_static_out_degree_implicit_group() {
     }
   }
 
-  let mut prov = unit::UnitContext::default();
+  let mut prov = unit::UnitProvenance::default();
 
   // Execute
   let stratum_0_result = stratum_0(&mut prov);
@@ -288,12 +288,12 @@ fn test_static_out_degree_implicit_group() {
 
 #[test]
 fn test_static_num_edges() {
-  struct Stratum0Result<C: ProvenanceContext> {
-    edge: StaticCollection<(usize, usize), C::Tag>,
+  struct Stratum0Result<C: Provenance> {
+    edge: StaticCollection<(usize, usize), C>,
   }
 
-  fn stratum_0<C: ProvenanceContext>(prov: &mut C) -> Stratum0Result<C> {
-    let mut iter = StaticIteration::<C::Tag>::new(prov);
+  fn stratum_0<C: Provenance>(prov: &mut C) -> Stratum0Result<C> {
+    let mut iter = StaticIteration::<C>::new(prov);
 
     // Add relations
     let edge = iter.create_relation::<(usize, usize)>();
@@ -312,12 +312,12 @@ fn test_static_num_edges() {
     }
   }
 
-  struct Stratum1Result<C: ProvenanceContext> {
-    num_edges: StaticCollection<usize, C::Tag>,
+  struct Stratum1Result<C: Provenance> {
+    num_edges: StaticCollection<usize, C>,
   }
 
-  fn stratum_1<C: ProvenanceContext>(prov: &mut C, stratum_0_result: &Stratum0Result<C>) -> Stratum1Result<C> {
-    let mut iter = StaticIteration::<C::Tag>::new(prov);
+  fn stratum_1<C: Provenance>(prov: &mut C, stratum_0_result: &Stratum0Result<C>) -> Stratum1Result<C> {
+    let mut iter = StaticIteration::<C>::new(prov);
 
     // Add relations
     let num_edges = iter.create_relation::<usize>();
@@ -339,7 +339,7 @@ fn test_static_num_edges() {
     }
   }
 
-  let mut prov = unit::UnitContext::default();
+  let mut prov = unit::UnitProvenance::default();
 
   // Execute
   let stratum_0_result = stratum_0(&mut prov);

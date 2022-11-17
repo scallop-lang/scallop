@@ -15,7 +15,7 @@ pub enum DynamicAggregator {
   Argmin(DynamicArgmin),
   Argmax(DynamicArgmax),
   Exists(DynamicExists),
-  Unique(DynamicUnique),
+  TopK(DynamicTopK),
 }
 
 impl From<AggregateOp> for DynamicAggregator {
@@ -29,7 +29,7 @@ impl From<AggregateOp> for DynamicAggregator {
       AggregateOp::Argmin => Self::argmin(),
       AggregateOp::Argmax => Self::argmax(),
       AggregateOp::Exists => Self::exists(),
-      AggregateOp::Unique => Self::unique(),
+      AggregateOp::TopK(k) => Self::top_k(k),
     }
   }
 }
@@ -81,11 +81,11 @@ impl DynamicAggregator {
     Self::Exists(DynamicExists)
   }
 
-  pub fn unique() -> Self {
-    Self::Unique(DynamicUnique)
+  pub fn top_k(k: usize) -> Self {
+    Self::TopK(DynamicTopK(k))
   }
 
-  pub fn aggregate<T: Tag>(&self, batch: DynamicElements<T>, ctx: &T::Context) -> DynamicElements<T> {
+  pub fn aggregate<Prov: Provenance>(&self, batch: DynamicElements<Prov>, ctx: &Prov) -> DynamicElements<Prov> {
     match self {
       Self::Count(c) => c.aggregate(batch, ctx),
       Self::Sum(s) => s.aggregate(batch, ctx),
@@ -95,7 +95,7 @@ impl DynamicAggregator {
       Self::Argmin(m) => m.aggregate(batch, ctx),
       Self::Argmax(m) => m.aggregate(batch, ctx),
       Self::Exists(e) => e.aggregate(batch, ctx),
-      Self::Unique(u) => u.aggregate(batch, ctx),
+      Self::TopK(t) => t.aggregate(batch, ctx),
     }
   }
 }

@@ -1,6 +1,7 @@
 use crate::common::tuple::Tuple;
 use crate::common::tuple_type::TupleType;
 
+#[derive(Debug)]
 pub enum EDBError {
   /// When there is a relation with its type stored in the EDB, and the type is a mismatch
   RelationTypeError {
@@ -18,7 +19,7 @@ pub enum EDBError {
   },
 }
 
-impl std::fmt::Debug for EDBError {
+impl std::fmt::Display for EDBError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
       Self::RelationTypeError {

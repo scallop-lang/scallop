@@ -5,12 +5,12 @@ use scallop_core::testing::*;
 
 #[test]
 fn test_dynamic_join_1() {
-  let mut ctx = unit::UnitContext;
+  let mut ctx = unit::UnitProvenance;
 
   // Relations
-  let mut source_1 = DynamicRelation::<unit::Unit>::new();
-  let mut source_2 = DynamicRelation::<unit::Unit>::new();
-  let mut target = DynamicRelation::<unit::Unit>::new();
+  let mut source_1 = DynamicRelation::<unit::UnitProvenance>::new();
+  let mut source_2 = DynamicRelation::<unit::UnitProvenance>::new();
+  let mut target = DynamicRelation::<unit::UnitProvenance>::new();
 
   // Initial
   source_1.insert_untagged(&mut ctx, vec![(0i8, 1i8), (1i8, 2i8)]);
@@ -21,6 +21,7 @@ fn test_dynamic_join_1() {
     target.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::dynamic_relation(&source_1).join(DynamicDataflow::dynamic_relation(&source_2), &ctx),
+      true,
     )
   }
 

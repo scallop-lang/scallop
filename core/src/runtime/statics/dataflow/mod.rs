@@ -11,6 +11,7 @@ mod product;
 mod project;
 mod relation;
 mod union;
+mod unit;
 mod utils;
 mod vec;
 
@@ -26,11 +27,12 @@ pub use product::*;
 pub use project::*;
 pub use relation::*;
 pub use union::*;
+pub use unit::*;
 pub use vec::*;
 
 // Module specific
 use super::*;
-use crate::runtime::provenance::Tag;
+use crate::runtime::provenance::*;
 use batching::*;
 
 /// A dataflow trait
@@ -51,14 +53,14 @@ use batching::*;
 /// Henceforth, the `iter_stable` function will return the sequence
 /// of stable batches, and the `iter_recent` function will return the
 /// sequence of recent batches.
-pub trait Dataflow<Tup, T>: Sized + Clone
+pub trait Dataflow<Tup, Prov>: Sized + Clone
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  type Stable: Batches<Tup, T>;
+  type Stable: Batches<Tup, Prov>;
 
-  type Recent: Batches<Tup, T>;
+  type Recent: Batches<Tup, Prov>;
 
   fn iter_stable(&self) -> Self::Stable;
 

@@ -1,6 +1,6 @@
 [package]
 name = "scallopy"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2018"
 
 [lib]
@@ -9,8 +9,9 @@ crate-type = ["cdylib"]
 
 [dependencies]
 scallop-core = { path = "../../core" }
+sclc = { path = "../sclc" }
 rayon = "1.5"
 
 [dependencies.pyo3]
-version = "0.15.1"
+version = "0.16.5"
 features = ["extension-module"]

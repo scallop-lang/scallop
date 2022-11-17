@@ -1,37 +1,37 @@
 use super::*;
 
 #[derive(Clone)]
-pub enum DynamicAggregationDataflow<'a, T: Tag> {
-  SingleGroup(DynamicAggregationSingleGroupDataflow<'a, T>),
-  ImplicitGroup(DynamicAggregationImplicitGroupDataflow<'a, T>),
-  JoinGroup(DynamicAggregationJoinGroupDataflow<'a, T>),
+pub enum DynamicAggregationDataflow<'a, Prov: Provenance> {
+  SingleGroup(DynamicAggregationSingleGroupDataflow<'a, Prov>),
+  ImplicitGroup(DynamicAggregationImplicitGroupDataflow<'a, Prov>),
+  JoinGroup(DynamicAggregationJoinGroupDataflow<'a, Prov>),
 }
 
-impl<'a, T: Tag> Into<DynamicDataflow<'a, T>> for DynamicAggregationDataflow<'a, T> {
-  fn into(self) -> DynamicDataflow<'a, T> {
+impl<'a, Prov: Provenance> Into<DynamicDataflow<'a, Prov>> for DynamicAggregationDataflow<'a, Prov> {
+  fn into(self) -> DynamicDataflow<'a, Prov> {
     DynamicDataflow::Aggregate(self)
   }
 }
 
-impl<'a, T: Tag> DynamicAggregationDataflow<'a, T> {
-  pub fn single(agg: DynamicAggregator, d: DynamicDataflow<'a, T>, ctx: &'a T::Context) -> Self {
+impl<'a, Prov: Provenance> DynamicAggregationDataflow<'a, Prov> {
+  pub fn single(agg: DynamicAggregator, d: DynamicDataflow<'a, Prov>, ctx: &'a Prov) -> Self {
     Self::SingleGroup(DynamicAggregationSingleGroupDataflow::new(agg, d, ctx))
   }
 
-  pub fn implicit(agg: DynamicAggregator, d: DynamicDataflow<'a, T>, ctx: &'a T::Context) -> Self {
+  pub fn implicit(agg: DynamicAggregator, d: DynamicDataflow<'a, Prov>, ctx: &'a Prov) -> Self {
     Self::ImplicitGroup(DynamicAggregationImplicitGroupDataflow::new(agg, d, ctx))
   }
 
   pub fn join(
     agg: DynamicAggregator,
-    d1: DynamicDataflow<'a, T>,
-    d2: DynamicDataflow<'a, T>,
-    ctx: &'a T::Context,
+    d1: DynamicDataflow<'a, Prov>,
+    d2: DynamicDataflow<'a, Prov>,
+    ctx: &'a Prov,
   ) -> Self {
     Self::JoinGroup(DynamicAggregationJoinGroupDataflow::new(agg, d1, d2, ctx))
   }
 
-  pub fn iter_stable(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     match self {
       Self::SingleGroup(s) => s.iter_stable(),
       Self::ImplicitGroup(s) => s.iter_stable(),
@@ -39,7 +39,7 @@ impl<'a, T: Tag> DynamicAggregationDataflow<'a, T> {
     }
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     match self {
       Self::SingleGroup(s) => s.iter_recent(),
       Self::ImplicitGroup(s) => s.iter_recent(),

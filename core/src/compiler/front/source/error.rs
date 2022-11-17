@@ -6,23 +6,23 @@ pub enum SourceError {
   CannotOpenFile { file_name: PathBuf, std_io_error: String },
 }
 
-impl From<SourceError> for FrontCompileError {
-  fn from(c: SourceError) -> Self {
-    Self::SourceError(c)
+impl FrontCompileErrorTrait for SourceError {
+  fn error_type(&self) -> FrontCompileErrorType {
+    FrontCompileErrorType::Error
   }
-}
 
-impl std::fmt::Display for SourceError {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+  fn report(&self, _: &Sources) -> String {
     match self {
       Self::CannotOpenFile {
         file_name,
         std_io_error,
-      } => f.write_fmt(format_args!(
-        "Cannot open file {}: {}\n",
-        file_name.display(),
-        std_io_error
-      )),
+      } => format!("Cannot open file {}: {}\n", file_name.display(), std_io_error),
     }
+  }
+}
+
+impl FrontCompileErrorClone for SourceError {
+  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
+    Box::new(self.clone())
   }
 }

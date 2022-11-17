@@ -29,6 +29,17 @@ impl Permutation {
     }
   }
 
+  pub fn normalize(&self) -> Self {
+    match self {
+      Self::Tuple(ts) => Self::Tuple(
+        ts.iter()
+          .filter_map(|t| if t.is_empty() { None } else { Some(t.normalize()) })
+          .collect(),
+      ),
+      Self::Value(v) => Self::Value(v.clone()),
+    }
+  }
+
   pub fn expr(&self) -> Expr {
     match self {
       Self::Value(i) => Expr::Access(TupleAccessor::from(i.clone())),

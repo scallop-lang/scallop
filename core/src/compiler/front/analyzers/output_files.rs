@@ -129,91 +129,59 @@ pub enum OutputFilesError {
   },
 }
 
-impl From<OutputFilesError> for FrontCompileError {
-  fn from(e: OutputFilesError) -> Self {
-    Self::OutputFilesError(e)
+impl FrontCompileErrorClone for OutputFilesError {
+  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
+    Box::new(self.clone())
   }
 }
 
-impl std::fmt::Display for OutputFilesError {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      Self::InvalidNumAttrArgument {
-        actual_num_args,
-        attr_loc,
-      } => f.write_fmt(format_args!(
-        "{}Invalid number attributes of @file attribute. Expected 1, Found {}",
-        attr_loc.error_prefix(),
-        actual_num_args,
-      )),
-      Self::InvalidArgument { attr_arg_loc } => f.write_fmt(format_args!(
-        "{}Invalid argument of @file attribute. Expected String, found",
-        attr_arg_loc.error_prefix()
-      )),
-      Self::NoExtension { attr_arg_loc } => f.write_fmt(format_args!(
-        "{}Input file name does not have an extension",
-        attr_arg_loc.error_prefix()
-      )),
-      Self::UnknownExtension { ext, attr_arg_loc } => f.write_fmt(format_args!(
-        "{}Unknown input file extension `.{}`. Expected one from [`.csv`, `.txt`]",
-        attr_arg_loc.error_prefix(),
-        ext,
-      )),
-      Self::DeliminatorNotString { loc } => f.write_fmt(format_args!(
-        "{}`deliminator` attribute is not a string",
-        loc.error_prefix()
-      )),
-      Self::DeliminatorNotSingleCharacter { loc } => f.write_fmt(format_args!(
-        "{}`deliminator` attribute is not a single character string",
-        loc.error_prefix()
-      )),
-      Self::DeliminatorNotASCII { loc } => f.write_fmt(format_args!(
-        "{}`deliminator` attribute is not an ASCII character",
-        loc.error_prefix()
-      )),
-    }
+impl FrontCompileErrorTrait for OutputFilesError {
+  fn error_type(&self) -> FrontCompileErrorType {
+    FrontCompileErrorType::Error
   }
-}
 
-impl OutputFilesError {
-  pub fn report(&self, src: &Sources) {
+  fn report(&self, src: &Sources) -> String {
     match self {
       Self::InvalidNumAttrArgument {
         actual_num_args,
         attr_loc,
       } => {
-        println!(
-          "Invalid number attributes of @file attribute. Expected 1, Found {}",
-          actual_num_args
-        );
-        attr_loc.report(src);
+        format!(
+          "Invalid number attributes of @file attribute. Expected 1, Found {}\n{}",
+          actual_num_args,
+          attr_loc.report(src)
+        )
       }
       Self::InvalidArgument { attr_arg_loc } => {
-        println!("Invalid argument of @file attribute. Expected String, found");
-        attr_arg_loc.report(src);
+        format!(
+          "Invalid argument of @file attribute. Expected String, found\n{}",
+          attr_arg_loc.report(src)
+        )
       }
       Self::NoExtension { attr_arg_loc } => {
-        println!("Input file name does not have an extension");
-        attr_arg_loc.report(src);
+        format!(
+          "Input file name does not have an extension\n{}",
+          attr_arg_loc.report(src)
+        )
       }
       Self::UnknownExtension { ext, attr_arg_loc } => {
-        println!(
-          "Unknown input file extension `.{}`. Expected one from [`.csv`, `.txt`]",
-          ext
-        );
-        attr_arg_loc.report(src);
+        format!(
+          "Unknown input file extension `.{}`. Expected one from [`.csv`, `.txt`]\n{}",
+          ext,
+          attr_arg_loc.report(src)
+        )
       }
       Self::DeliminatorNotString { loc } => {
-        println!("`deliminator` attribute is not a string");
-        loc.report(src);
+        format!("`deliminator` attribute is not a string\n{}", loc.report(src))
       }
       Self::DeliminatorNotSingleCharacter { loc } => {
-        println!("`deliminator` attribute is not a single character string");
-        loc.report(src);
+        format!(
+          "`deliminator` attribute is not a single character string\n{}",
+          loc.report(src)
+        )
       }
       Self::DeliminatorNotASCII { loc } => {
-        println!("`deliminator` attribute is not an ASCII character");
-        loc.report(src);
+        format!("`deliminator` attribute is not an ASCII character\n{}", loc.report(src))
       }
     }
   }

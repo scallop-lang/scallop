@@ -4,27 +4,27 @@ use crate::runtime::provenance::*;
 use super::*;
 
 #[derive(Clone)]
-pub struct DynamicRecentCollectionDataflow<'a, T: Tag>(pub &'a DynamicCollection<T>);
+pub struct DynamicRecentCollectionDataflow<'a, Prov: Provenance>(pub &'a DynamicCollection<Prov>);
 
-impl<'a, T: Tag> DynamicRecentCollectionDataflow<'a, T> {
-  pub fn iter_stable(&self) -> DynamicBatches<'a, T> {
+impl<'a, Prov: Provenance> DynamicRecentCollectionDataflow<'a, Prov> {
+  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     DynamicBatches::Empty
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     DynamicBatches::single(DynamicBatch::vec(&self.0.elements))
   }
 }
 
 #[derive(Clone)]
-pub struct DynamicStableCollectionDataflow<'a, T: Tag>(pub &'a DynamicCollection<T>);
+pub struct DynamicStableCollectionDataflow<'a, Prov: Provenance>(pub &'a DynamicCollection<Prov>);
 
-impl<'a, T: Tag> DynamicStableCollectionDataflow<'a, T> {
-  pub fn iter_stable(&self) -> DynamicBatches<'a, T> {
+impl<'a, Prov: Provenance> DynamicStableCollectionDataflow<'a, Prov> {
+  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     DynamicBatches::single(DynamicBatch::vec(&self.0.elements))
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     DynamicBatches::Empty
   }
 }

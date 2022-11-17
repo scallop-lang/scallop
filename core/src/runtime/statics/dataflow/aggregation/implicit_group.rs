@@ -5,29 +5,29 @@ use crate::runtime::statics::*;
 
 use super::super::*;
 
-pub struct AggregationImplicitGroup<'a, A, D, K, T1, T>
+pub struct AggregationImplicitGroup<'a, A, D, K, T1, Prov>
 where
   K: StaticTupleTrait,
   T1: StaticTupleTrait,
-  D: Dataflow<(K, T1), T>,
-  A: Aggregator<T1, T>,
-  T: Tag,
+  D: Dataflow<(K, T1), Prov>,
+  A: Aggregator<T1, Prov>,
+  Prov: Provenance,
 {
   agg: A,
   d: D,
-  ctx: &'a T::Context,
+  ctx: &'a Prov,
   phantom: PhantomData<(K, T1)>,
 }
 
-impl<'a, A, D, K, T1, T> AggregationImplicitGroup<'a, A, D, K, T1, T>
+impl<'a, A, D, K, T1, Prov> AggregationImplicitGroup<'a, A, D, K, T1, Prov>
 where
   K: StaticTupleTrait,
   T1: StaticTupleTrait,
-  D: Dataflow<(K, T1), T>,
-  A: Aggregator<T1, T>,
-  T: Tag,
+  D: Dataflow<(K, T1), Prov>,
+  A: Aggregator<T1, Prov>,
+  Prov: Provenance,
 {
-  pub fn new(agg: A, d: D, ctx: &'a T::Context) -> Self {
+  pub fn new(agg: A, d: D, ctx: &'a Prov) -> Self {
     Self {
       agg,
       d,
@@ -37,17 +37,17 @@ where
   }
 }
 
-impl<'a, A, D, K, T1, T> Dataflow<(K, A::Output), T> for AggregationImplicitGroup<'a, A, D, K, T1, T>
+impl<'a, A, D, K, T1, Prov> Dataflow<(K, A::Output), Prov> for AggregationImplicitGroup<'a, A, D, K, T1, Prov>
 where
   K: StaticTupleTrait,
   T1: StaticTupleTrait,
-  D: Dataflow<(K, T1), T>,
-  A: Aggregator<T1, T>,
-  T: Tag,
+  D: Dataflow<(K, T1), Prov>,
+  A: Aggregator<T1, Prov>,
+  Prov: Provenance,
 {
-  type Stable = EmptyBatches<std::iter::Empty<StaticElement<(K, A::Output), T>>>;
+  type Stable = EmptyBatches<std::iter::Empty<StaticElement<(K, A::Output), Prov>>>;
 
-  type Recent = SingleBatch<std::vec::IntoIter<StaticElement<(K, A::Output), T>>>;
+  type Recent = SingleBatch<std::vec::IntoIter<StaticElement<(K, A::Output), Prov>>>;
 
   fn iter_stable(&self) -> Self::Stable {
     Self::Stable::default()
@@ -67,7 +67,7 @@ where
 
     // Temporary function to aggregate the group and populate the result
     let consolidate_group =
-      |result: &mut StaticElements<(K, A::Output), T>, agg_key: K, agg_group: StaticElements<T1, T>| {
+      |result: &mut StaticElements<(K, A::Output), Prov>, agg_key: K, agg_group: StaticElements<T1, Prov>| {
         let agg_results = agg.aggregate(agg_group, ctx);
         let joined_results = agg_results
           .into_iter()
@@ -111,13 +111,13 @@ where
   }
 }
 
-impl<'a, A, D, K, T1, T> Clone for AggregationImplicitGroup<'a, A, D, K, T1, T>
+impl<'a, A, D, K, T1, Prov> Clone for AggregationImplicitGroup<'a, A, D, K, T1, Prov>
 where
   K: StaticTupleTrait,
   T1: StaticTupleTrait,
-  D: Dataflow<(K, T1), T>,
-  A: Aggregator<T1, T>,
-  T: Tag,
+  D: Dataflow<(K, T1), Prov>,
+  A: Aggregator<T1, Prov>,
+  Prov: Provenance,
 {
   fn clone(&self) -> Self {
     Self {

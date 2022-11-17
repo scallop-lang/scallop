@@ -4,12 +4,12 @@ use std::marker::PhantomData;
 use super::*;
 use crate::runtime::provenance::*;
 
-pub fn find<D, T1, T2, T>(source: D, key: T1) -> Find<D, T1, T2, T>
+pub fn find<D, T1, T2, Prov>(source: D, key: T1) -> Find<D, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  D: Dataflow<(T1, T2), T>,
+  Prov: Provenance,
+  D: Dataflow<(T1, T2), Prov>,
 {
   Find {
     source,
@@ -18,51 +18,51 @@ where
   }
 }
 
-pub trait FindDataflow<D, T1, T2, T>
+pub trait FindDataflow<D, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  D: Dataflow<(T1, T2), T>,
+  Prov: Provenance,
+  D: Dataflow<(T1, T2), Prov>,
 {
-  fn find(self, key: T1) -> Find<D, T1, T2, T>;
+  fn find(self, key: T1) -> Find<D, T1, T2, Prov>;
 }
 
-impl<D, T1, T2, T> FindDataflow<D, T1, T2, T> for D
+impl<D, T1, T2, Prov> FindDataflow<D, T1, T2, Prov> for D
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  D: Dataflow<(T1, T2), T>,
+  Prov: Provenance,
+  D: Dataflow<(T1, T2), Prov>,
 {
-  fn find(self, key: T1) -> Find<D, T1, T2, T> {
+  fn find(self, key: T1) -> Find<D, T1, T2, Prov> {
     find(self, key)
   }
 }
 
 #[derive(Clone)]
-pub struct Find<D, T1, T2, T>
+pub struct Find<D, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  D: Dataflow<(T1, T2), T>,
+  Prov: Provenance,
+  D: Dataflow<(T1, T2), Prov>,
 {
   source: D,
   key: T1,
-  phantom: PhantomData<(T1, T2, T)>,
+  phantom: PhantomData<(T1, T2, Prov)>,
 }
 
-impl<D, T1, T2, T> Dataflow<(T1, T2), T> for Find<D, T1, T2, T>
+impl<D, T1, T2, Prov> Dataflow<(T1, T2), Prov> for Find<D, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  D: Dataflow<(T1, T2), T>,
+  Prov: Provenance,
+  D: Dataflow<(T1, T2), Prov>,
 {
-  type Stable = BatchesMap<D::Stable, FindOp<T1, T2, T>, (T1, T2), (T1, T2), T>;
+  type Stable = BatchesMap<D::Stable, FindOp<T1, T2, Prov>, (T1, T2), (T1, T2), Prov>;
 
-  type Recent = BatchesMap<D::Recent, FindOp<T1, T2, T>, (T1, T2), (T1, T2), T>;
+  type Recent = BatchesMap<D::Recent, FindOp<T1, T2, Prov>, (T1, T2), (T1, T2), Prov>;
 
   fn iter_stable(&self) -> Self::Stable {
     let op = FindOp::new(self.key.clone());
@@ -76,12 +76,12 @@ where
 }
 
 #[derive(Clone)]
-pub struct FindOp<T1, T2, T> {
+pub struct FindOp<T1, T2, Prov> {
   key: T1,
-  phantom: PhantomData<(T2, T)>,
+  phantom: PhantomData<(T2, Prov)>,
 }
 
-impl<T1, T2, T> FindOp<T1, T2, T> {
+impl<T1, T2, Prov> FindOp<T1, T2, Prov> {
   pub fn new(key: T1) -> Self {
     Self {
       key,
@@ -90,14 +90,14 @@ impl<T1, T2, T> FindOp<T1, T2, T> {
   }
 }
 
-impl<I, T1, T2, T> BatchUnaryOp<I> for FindOp<T1, T2, T>
+impl<I, T1, T2, Prov> BatchUnaryOp<I> for FindOp<T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  I: Batch<(T1, T2), T>,
+  Prov: Provenance,
+  I: Batch<(T1, T2), Prov>,
 {
-  type I2 = FindIterator<I, T1, T2, T>;
+  type I2 = FindIterator<I, T1, T2, Prov>;
 
   fn apply(&self, mut i1: I) -> Self::I2 {
     let curr_elem = i1.next();
@@ -111,27 +111,27 @@ where
 }
 
 #[derive(Clone)]
-pub struct FindIterator<I, T1, T2, T>
+pub struct FindIterator<I, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  I: Batch<(T1, T2), T>,
+  Prov: Provenance,
+  I: Batch<(T1, T2), Prov>,
 {
   source_iter: I,
-  curr_elem: Option<StaticElement<(T1, T2), T>>,
+  curr_elem: Option<StaticElement<(T1, T2), Prov>>,
   key: T1,
-  phantom: PhantomData<(T2, T)>,
+  phantom: PhantomData<(T2, Prov)>,
 }
 
-impl<I, T1, T2, T> Iterator for FindIterator<I, T1, T2, T>
+impl<I, T1, T2, Prov> Iterator for FindIterator<I, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  I: Batch<(T1, T2), T>,
+  Prov: Provenance,
+  I: Batch<(T1, T2), Prov>,
 {
-  type Item = StaticElement<(T1, T2), T>;
+  type Item = StaticElement<(T1, T2), Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     let key = self.key.clone();
@@ -154,11 +154,11 @@ where
   }
 }
 
-impl<I, T1, T2, T> Batch<(T1, T2), T> for FindIterator<I, T1, T2, T>
+impl<I, T1, T2, Prov> Batch<(T1, T2), Prov> for FindIterator<I, T1, T2, Prov>
 where
   T1: StaticTupleTrait,
   T2: StaticTupleTrait,
-  T: Tag,
-  I: Batch<(T1, T2), T>,
+  Prov: Provenance,
+  I: Batch<(T1, T2), Prov>,
 {
 }

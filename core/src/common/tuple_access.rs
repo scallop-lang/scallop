@@ -43,6 +43,23 @@ impl TupleAccessor {
     }
   }
 
+  pub fn join(&self, other: &Self) -> Self {
+    let mut i = 0;
+    let mut v = [0, 0, 0];
+    for x in 0..self.len {
+      v[i] = self.indices[x as usize];
+      i += 1;
+    }
+    for y in 0..other.len {
+      v[i] = other.indices[y as usize];
+      i += 1;
+    }
+    Self {
+      len: self.len + other.len,
+      indices: v,
+    }
+  }
+
   pub fn len(&self) -> usize {
     self.len as usize
   }

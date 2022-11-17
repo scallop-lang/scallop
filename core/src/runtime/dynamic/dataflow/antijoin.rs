@@ -2,13 +2,13 @@ use super::utils::*;
 use super::*;
 
 /// Note: d2 should always be a DynamicCollection
-pub struct DynamicAntijoinDataflow<'a, T: Tag> {
-  pub d1: Box<DynamicDataflow<'a, T>>,
-  pub d2: Box<DynamicDataflow<'a, T>>,
-  pub ctx: &'a T::Context,
+pub struct DynamicAntijoinDataflow<'a, Prov: Provenance> {
+  pub d1: Box<DynamicDataflow<'a, Prov>>,
+  pub d2: Box<DynamicDataflow<'a, Prov>>,
+  pub ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for DynamicAntijoinDataflow<'a, T> {
+impl<'a, Prov: Provenance> Clone for DynamicAntijoinDataflow<'a, Prov> {
   fn clone(&self) -> Self {
     Self {
       d1: self.d1.clone(),
@@ -18,12 +18,12 @@ impl<'a, T: Tag> Clone for DynamicAntijoinDataflow<'a, T> {
   }
 }
 
-impl<'a, T: Tag> DynamicAntijoinDataflow<'a, T> {
-  pub fn iter_stable(&self) -> DynamicBatches<'a, T> {
+impl<'a, Prov: Provenance> DynamicAntijoinDataflow<'a, Prov> {
+  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     DynamicBatches::Empty
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     let op = AntijoinOp { ctx: self.ctx };
     DynamicBatches::chain(vec![
       DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_recent(), op.clone().into()),
@@ -33,24 +33,24 @@ impl<'a, T: Tag> DynamicAntijoinDataflow<'a, T> {
   }
 }
 
-pub struct AntijoinOp<'a, T: Tag> {
-  ctx: &'a T::Context,
+pub struct AntijoinOp<'a, Prov: Provenance> {
+  ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for AntijoinOp<'a, T> {
+impl<'a, Prov: Provenance> Clone for AntijoinOp<'a, Prov> {
   fn clone(&self) -> Self {
     Self { ctx: self.ctx }
   }
 }
 
-impl<'a, T: Tag> From<AntijoinOp<'a, T>> for BatchBinaryOp<'a, T> {
-  fn from(op: AntijoinOp<'a, T>) -> Self {
+impl<'a, Prov: Provenance> From<AntijoinOp<'a, Prov>> for BatchBinaryOp<'a, Prov> {
+  fn from(op: AntijoinOp<'a, Prov>) -> Self {
     Self::Antijoin(op)
   }
 }
 
-impl<'a, T: Tag> AntijoinOp<'a, T> {
-  pub fn apply(&self, mut i1: DynamicBatch<'a, T>, mut i2: DynamicBatch<'a, T>) -> DynamicBatch<'a, T> {
+impl<'a, Prov: Provenance> AntijoinOp<'a, Prov> {
+  pub fn apply(&self, mut i1: DynamicBatch<'a, Prov>, mut i2: DynamicBatch<'a, Prov>) -> DynamicBatch<'a, Prov> {
     let i1_curr = i1.next();
     let i2_curr = i2.next();
     DynamicBatch::Antijoin(DynamicAntijoinBatch {
@@ -64,16 +64,16 @@ impl<'a, T: Tag> AntijoinOp<'a, T> {
   }
 }
 
-pub struct DynamicAntijoinBatch<'a, T: Tag> {
-  i1: Box<DynamicBatch<'a, T>>,
-  i1_curr: Option<DynamicElement<T>>,
-  i2: Box<DynamicBatch<'a, T>>,
-  i2_curr: Option<DynamicElement<T>>,
-  curr_iter: Option<JoinProductIterator<T>>,
-  ctx: &'a T::Context,
+pub struct DynamicAntijoinBatch<'a, Prov: Provenance> {
+  i1: Box<DynamicBatch<'a, Prov>>,
+  i1_curr: Option<DynamicElement<Prov>>,
+  i2: Box<DynamicBatch<'a, Prov>>,
+  i2_curr: Option<DynamicElement<Prov>>,
+  curr_iter: Option<JoinProductIterator<Prov>>,
+  ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for DynamicAntijoinBatch<'a, T> {
+impl<'a, Prov: Provenance> Clone for DynamicAntijoinBatch<'a, Prov> {
   fn clone(&self) -> Self {
     Self {
       i1: self.i1.clone(),
@@ -86,8 +86,8 @@ impl<'a, T: Tag> Clone for DynamicAntijoinBatch<'a, T> {
   }
 }
 
-impl<'a, T: Tag> Iterator for DynamicAntijoinBatch<'a, T> {
-  type Item = DynamicElement<T>;
+impl<'a, Prov: Provenance> Iterator for DynamicAntijoinBatch<'a, Prov> {
+  type Item = DynamicElement<Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     use std::cmp::Ordering;

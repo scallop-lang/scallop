@@ -2,29 +2,29 @@ use super::*;
 use crate::common::tuple::Tuple;
 
 #[derive(Clone)]
-pub struct DynamicFindDataflow<'a, T: Tag> {
-  pub source: Box<DynamicDataflow<'a, T>>,
+pub struct DynamicFindDataflow<'a, Prov: Provenance> {
+  pub source: Box<DynamicDataflow<'a, Prov>>,
   pub key: Tuple,
 }
 
-impl<'a, T: Tag> DynamicFindDataflow<'a, T> {
-  pub fn iter_stable(&self) -> DynamicBatches<'a, T> {
+impl<'a, Prov: Provenance> DynamicFindDataflow<'a, Prov> {
+  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     DynamicBatches::find(self.source.iter_stable(), self.key.clone())
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     DynamicBatches::find(self.source.iter_recent(), self.key.clone())
   }
 }
 
 #[derive(Clone)]
-pub struct DynamicFindBatches<'a, T: Tag> {
-  pub source: Box<DynamicBatches<'a, T>>,
+pub struct DynamicFindBatches<'a, Prov: Provenance> {
+  pub source: Box<DynamicBatches<'a, Prov>>,
   pub key: Tuple,
 }
 
-impl<'a, T: Tag> Iterator for DynamicFindBatches<'a, T> {
-  type Item = DynamicBatch<'a, T>;
+impl<'a, Prov: Provenance> Iterator for DynamicFindBatches<'a, Prov> {
+  type Item = DynamicBatch<'a, Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     self.source.next().map(|mut b| {
@@ -39,14 +39,14 @@ impl<'a, T: Tag> Iterator for DynamicFindBatches<'a, T> {
 }
 
 #[derive(Clone)]
-pub struct DynamicFindBatch<'a, T: Tag> {
-  pub source: Box<DynamicBatch<'a, T>>,
-  pub curr_elem: Option<DynamicElement<T>>,
+pub struct DynamicFindBatch<'a, Prov: Provenance> {
+  pub source: Box<DynamicBatch<'a, Prov>>,
+  pub curr_elem: Option<DynamicElement<Prov>>,
   pub key: Tuple,
 }
 
-impl<'a, T: Tag> Iterator for DynamicFindBatch<'a, T> {
-  type Item = DynamicElement<T>;
+impl<'a, Prov: Provenance> Iterator for DynamicFindBatch<'a, Prov> {
+  type Item = DynamicElement<Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     use std::cmp::Ordering;

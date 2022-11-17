@@ -25,7 +25,17 @@ impl VariableTuple {
   where
     T: Iterator<Item = Variable>,
   {
-    let values = vars.map(Self::Value).collect::<Box<[_]>>();
+    let mut visited = HashSet::new();
+    let values = vars
+      .filter_map(|v| {
+        if !visited.contains(&v) {
+          visited.insert(v.clone());
+          Some(Self::Value(v))
+        } else {
+          None
+        }
+      })
+      .collect::<Box<[_]>>();
     if values.is_empty() {
       Self::Tuple(Box::new([]))
     } else if values.len() == 1 && can_be_singleton {
@@ -85,6 +95,13 @@ impl VariableTuple {
           })
           .collect()
       }
+    }
+  }
+
+  pub fn unit_type(&self) -> TupleType {
+    match self {
+      Self::Value(_) => panic!("[Internal Error] Should not happen; calling `unit_type` on non-empty variable tuple"),
+      Self::Tuple(t) => TupleType::Tuple(t.iter().map(|v| v.unit_type()).collect()),
     }
   }
 
@@ -164,6 +181,10 @@ impl VariableTuple {
               then_br: Box::new(self.term_to_ram_expr(&i.then_br).unwrap()),
               else_br: Box::new(self.term_to_ram_expr(&i.else_br).unwrap()),
             }),
+            AssignExpr::Call(c) => Expr::Call(crate::common::expr::CallExpr {
+              function: c.function.clone(),
+              args: c.args.iter().map(|a| self.term_to_ram_expr(a).unwrap()).collect(),
+            }),
           }
         }
       }
@@ -178,18 +199,29 @@ impl VariableTuple {
   }
 
   pub fn permutation(&self, atom: &Atom) -> Permutation {
+    let mut visited = HashSet::new();
+    self.permutation_helper(atom, &mut visited)
+  }
+
+  fn permutation_helper(&self, atom: &Atom, visited: &mut HashSet<usize>) -> Permutation {
     match self {
-      Self::Tuple(ts) => Permutation::Tuple(ts.iter().map(|e| e.permutation(atom)).collect()),
-      Self::Value(vs) => Permutation::Value(
-        atom
+      Self::Tuple(ts) => Permutation::Tuple(ts.iter().map(|e| e.permutation_helper(atom, visited)).collect()),
+      Self::Value(vs) => {
+        let id = atom
           .args
           .iter()
           .position(|a| match a {
             Term::Variable(va) => vs == va,
             _ => false,
           })
-          .unwrap(),
-      ),
+          .unwrap();
+        if !visited.contains(&id) {
+          visited.insert(id);
+          Permutation::Value(id)
+        } else {
+          Permutation::Tuple(Box::new([]))
+        }
+      }
     }
   }
 

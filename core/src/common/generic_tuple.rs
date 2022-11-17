@@ -14,6 +14,14 @@ impl<T> GenericTuple<T> {
   pub fn empty() -> Self {
     Self::Tuple(Box::new([]))
   }
+
+  pub fn is_empty(&self) -> bool {
+    if let Self::Tuple(ts) = self {
+      ts.is_empty()
+    } else {
+      false
+    }
+  }
 }
 
 impl<T> std::ops::Index<usize> for GenericTuple<T> {

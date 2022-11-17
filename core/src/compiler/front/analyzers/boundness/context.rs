@@ -289,5 +289,6 @@ fn collect_vars_in_expr(expr: &Expr) -> Vec<(String, Loc)> {
       collect_vars_in_expr(i.else_br()),
     ]
     .concat(),
+    Expr::Call(c) => c.iter_args().map(|a| collect_vars_in_expr(a)).concat(),
   }
 }

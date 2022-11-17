@@ -1,12 +1,12 @@
 use super::*;
 
-pub struct DynamicAggregationSingleGroupDataflow<'a, T: Tag> {
+pub struct DynamicAggregationSingleGroupDataflow<'a, Prov: Provenance> {
   pub agg: DynamicAggregator,
-  pub d: Box<DynamicDataflow<'a, T>>,
-  pub ctx: &'a T::Context,
+  pub d: Box<DynamicDataflow<'a, Prov>>,
+  pub ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for DynamicAggregationSingleGroupDataflow<'a, T> {
+impl<'a, Prov: Provenance> Clone for DynamicAggregationSingleGroupDataflow<'a, Prov> {
   fn clone(&self) -> Self {
     Self {
       agg: self.agg.clone(),
@@ -16,8 +16,8 @@ impl<'a, T: Tag> Clone for DynamicAggregationSingleGroupDataflow<'a, T> {
   }
 }
 
-impl<'a, T: Tag> DynamicAggregationSingleGroupDataflow<'a, T> {
-  pub fn new(agg: DynamicAggregator, d: DynamicDataflow<'a, T>, ctx: &'a T::Context) -> Self {
+impl<'a, Prov: Provenance> DynamicAggregationSingleGroupDataflow<'a, Prov> {
+  pub fn new(agg: DynamicAggregator, d: DynamicDataflow<'a, Prov>, ctx: &'a Prov) -> Self {
     Self {
       agg,
       d: Box::new(d),
@@ -25,11 +25,11 @@ impl<'a, T: Tag> DynamicAggregationSingleGroupDataflow<'a, T> {
     }
   }
 
-  pub fn iter_stable(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     DynamicBatches::empty()
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     if let Some(b) = self.d.iter_recent().next() {
       let batch = b.collect::<Vec<_>>();
       DynamicBatches::single(DynamicBatch::source_vec(self.agg.aggregate(batch, self.ctx)))

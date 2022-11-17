@@ -81,15 +81,25 @@ impl AstNodeLocation {
     }
   }
 
-  pub fn report(&self, src: &Sources) {
+  pub fn report(&self, src: &Sources) -> String {
+    self.report_with_marker_color(src, Color::Red)
+  }
+
+  pub fn report_warning(&self, src: &Sources) -> String {
+    self.report_with_marker_color(src, Color::Yellow)
+  }
+
+  pub fn report_with_marker_color(&self, src: &Sources, color: Color) -> String {
     let arrow = "-->".yellow().bold();
     let bar = "|".yellow().bold();
 
     // Print the title
     let s = &src.sources[self.source_id];
-    if let Some(name) = s.name() {
-      println!(" {} {}:", arrow, name);
-    }
+    let mut result = if let Some(name) = s.name() {
+      format!(" {} {}:\n", arrow, name)
+    } else {
+      format!("")
+    };
 
     // Gather the lines to print
     let lines = match &self.loc_span {
@@ -129,9 +139,12 @@ impl AstNodeLocation {
     for (line_num, line, highlight) in lines {
       let padding_len = padding_length - line_num.len();
       let padding_str = (0..padding_len).map(|_| " ").collect::<String>();
-      println!("{}{} {} {}", padding_str, line_num.yellow().bold(), bar, line);
-      println!("{} {} {}", whole_padding_str, bar, highlight.red());
+      result += &format!("{}{} {} {}\n", padding_str, line_num.yellow().bold(), bar, line);
+      result += &format!("{} {} {}", whole_padding_str, bar, highlight.color(color));
     }
+
+    // Return
+    result
   }
 }
 
@@ -206,6 +219,16 @@ impl<N> AstNode<N> {
   pub fn source_id(&self) -> usize {
     self.loc.source_id
   }
+
+  pub fn clone_with_new_location(&self) -> Self
+  where
+    N: Clone,
+  {
+    Self {
+      loc: AstNodeLocation::default(),
+      node: self.node.clone(),
+    }
+  }
 }
 
 impl<N> From<N> for AstNode<N> {
@@ -216,10 +239,16 @@ impl<N> From<N> for AstNode<N> {
 
 pub trait WithLocation {
   fn location(&self) -> &AstNodeLocation;
+
+  fn location_mut(&mut self) -> &mut AstNodeLocation;
 }
 
 impl<N> WithLocation for AstNode<N> {
   fn location(&self) -> &AstNodeLocation {
     &self.loc
+  }
+
+  fn location_mut(&mut self) -> &mut AstNodeLocation {
+    &mut self.loc
   }
 }

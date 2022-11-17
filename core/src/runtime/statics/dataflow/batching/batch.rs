@@ -1,10 +1,10 @@
-use crate::runtime::provenance::Tag;
+use crate::runtime::provenance::*;
 use crate::runtime::statics::*;
 
-pub trait Batch<Tup, T>: Iterator<Item = StaticElement<Tup, T>> + Clone
+pub trait Batch<Tup, Prov>: Iterator<Item = StaticElement<Tup, Prov>> + Clone
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
   /// Step u steps
   fn step(&mut self, u: usize) {
@@ -14,7 +14,7 @@ where
   }
 
   /// Search until the given comparison function returns true on a given element
-  fn search_ahead<F>(&mut self, _: F) -> Option<StaticElement<Tup, T>>
+  fn search_ahead<F>(&mut self, _: F) -> Option<StaticElement<Tup, Prov>>
   where
     F: FnMut(&Tup) -> bool,
   {
@@ -22,16 +22,23 @@ where
   }
 }
 
-impl<Tup, T> Batch<Tup, T> for std::iter::Empty<StaticElement<Tup, T>>
+impl<Tup, Prov> Batch<Tup, Prov> for std::iter::Empty<StaticElement<Tup, Prov>>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
 }
 
-impl<Tup, T> Batch<Tup, T> for std::vec::IntoIter<StaticElement<Tup, T>>
+impl<Tup, Prov> Batch<Tup, Prov> for std::iter::Once<StaticElement<Tup, Prov>>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
+{
+}
+
+impl<Tup, Prov> Batch<Tup, Prov> for std::vec::IntoIter<StaticElement<Tup, Prov>>
+where
+  Tup: StaticTupleTrait,
+  Prov: Provenance,
 {
 }

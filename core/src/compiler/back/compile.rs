@@ -109,6 +109,10 @@ impl Program {
   }
 
   pub fn output_relations(&self) -> HashSet<String> {
-    self.outputs.iter().map(|(n, _)| n.clone()).collect()
+    self
+      .outputs
+      .iter()
+      .filter_map(|(n, o)| if o.is_not_hidden() { Some(n.clone()) } else { None })
+      .collect()
   }
 }

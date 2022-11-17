@@ -4,19 +4,19 @@ use super::*;
 use crate::runtime::provenance::*;
 
 #[derive(Clone)]
-pub struct StaticCollection<Tup: StaticTupleTrait, T: Tag> {
-  pub elements: Vec<StaticElement<Tup, T>>,
+pub struct StaticCollection<Tup: StaticTupleTrait, Prov: Provenance> {
+  pub elements: Vec<StaticElement<Tup, Prov>>,
 }
 
-impl<Tup: StaticTupleTrait, T: Tag + std::fmt::Debug> std::fmt::Debug for StaticCollection<Tup, T> {
+impl<Tup: StaticTupleTrait, Prov: Provenance> std::fmt::Debug for StaticCollection<Tup, Prov> where Prov::Tag: std::fmt::Debug {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_set().entries(&self.elements).finish()
   }
 }
 
-impl<Tup: StaticTupleTrait, T: Tag> std::fmt::Display for StaticCollection<Tup, T>
+impl<Tup: StaticTupleTrait, Prov: Provenance> std::fmt::Display for StaticCollection<Tup, Prov>
 where
-  StaticElement<Tup, T>: std::fmt::Display,
+  StaticElement<Tup, Prov>: std::fmt::Display,
 {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str("{")?;
@@ -30,16 +30,16 @@ where
   }
 }
 
-impl<Tup: StaticTupleTrait, T: Tag> StaticCollection<Tup, T> {
+impl<Tup: StaticTupleTrait, Prov: Provenance> StaticCollection<Tup, Prov> {
   pub fn empty() -> Self {
     Self { elements: vec![] }
   }
 
-  pub fn from_vec_unchecked(elements: Vec<StaticElement<Tup, T>>) -> Self {
+  pub fn from_vec_unchecked(elements: Vec<StaticElement<Tup, Prov>>) -> Self {
     Self { elements }
   }
 
-  pub fn from_vec(mut elements: Vec<StaticElement<Tup, T>>, ctx: &T::Context) -> Self {
+  pub fn from_vec(mut elements: Vec<StaticElement<Tup, Prov>>, ctx: &Prov) -> Self {
     elements.sort();
 
     let mut index = 0;
@@ -75,19 +75,19 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticCollection<Tup, T> {
     self.elements.is_empty()
   }
 
-  pub fn ith(&self, i: usize) -> Option<&StaticElement<Tup, T>> {
+  pub fn ith(&self, i: usize) -> Option<&StaticElement<Tup, Prov>> {
     self.elements.get(i)
   }
 
-  pub fn iter(&self) -> impl Iterator<Item = &StaticElement<Tup, T>> {
+  pub fn iter(&self) -> impl Iterator<Item = &StaticElement<Tup, Prov>> {
     self.elements.iter()
   }
 
-  pub fn into_iter(self) -> impl IntoIterator<Item = StaticElement<Tup, T>> {
+  pub fn into_iter(self) -> impl IntoIterator<Item = StaticElement<Tup, Prov>> {
     self.elements.into_iter()
   }
 
-  pub fn recover(self, ctx: &T::Context) -> StaticOutputCollection<Tup, T> {
+  pub fn recover(self, ctx: &Prov) -> StaticOutputCollection<Tup, Prov> {
     StaticOutputCollection::from(
       self
         .elements
@@ -96,7 +96,7 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticCollection<Tup, T> {
     )
   }
 
-  pub fn merge(self, other: Self, ctx: &T::Context) -> Self {
+  pub fn merge(self, other: Self, ctx: &Prov) -> Self {
     let Self {
       elements: mut elements1,
     } = self;
@@ -155,15 +155,15 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticCollection<Tup, T> {
   }
 }
 
-impl<Tup: StaticTupleTrait, T: Tag> std::ops::Deref for StaticCollection<Tup, T> {
-  type Target = [StaticElement<Tup, T>];
+impl<Tup: StaticTupleTrait, Prov: Provenance> std::ops::Deref for StaticCollection<Tup, Prov> {
+  type Target = [StaticElement<Tup, Prov>];
 
   fn deref(&self) -> &Self::Target {
     &self.elements[..]
   }
 }
 
-impl<Tup: StaticTupleTrait, T: Tag> std::ops::DerefMut for StaticCollection<Tup, T> {
+impl<Tup: StaticTupleTrait, Prov: Provenance> std::ops::DerefMut for StaticCollection<Tup, Prov> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.elements[..]
   }

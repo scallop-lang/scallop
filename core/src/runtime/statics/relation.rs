@@ -4,20 +4,21 @@ use std::rc::Rc;
 
 use super::dataflow::Dataflow;
 use super::*;
-use crate::common::tuple::{AsTuple, Tuple};
+use crate::common::input_tag::*;
+use crate::common::tuple::*;
 use crate::runtime::edb::*;
-use crate::runtime::monitor::Monitor;
+use crate::runtime::monitor::*;
 use crate::runtime::provenance::*;
-use crate::runtime::utils::gallop_index;
+use crate::runtime::utils::*;
 
 #[derive(Clone)]
-pub struct StaticRelation<Tup: StaticTupleTrait, T: Tag> {
-  pub stable: Rc<RefCell<Vec<StaticCollection<Tup, T>>>>,
-  pub recent: Rc<RefCell<StaticCollection<Tup, T>>>,
-  to_add: Rc<RefCell<Vec<StaticCollection<Tup, T>>>>,
+pub struct StaticRelation<Tup: StaticTupleTrait, Prov: Provenance> {
+  pub stable: Rc<RefCell<Vec<StaticCollection<Tup, Prov>>>>,
+  pub recent: Rc<RefCell<StaticCollection<Tup, Prov>>>,
+  to_add: Rc<RefCell<Vec<StaticCollection<Tup, Prov>>>>,
 }
 
-impl<Tup: StaticTupleTrait, T: Tag> StaticRelation<Tup, T> {
+impl<Tup: StaticTupleTrait, Prov: Provenance> StaticRelation<Tup, Prov> {
   pub fn new() -> Self {
     Self {
       stable: Rc::new(RefCell::new(Vec::new())),
@@ -26,40 +27,40 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticRelation<Tup, T> {
     }
   }
 
-  pub fn insert_untagged(&self, ctx: &mut T::Context, v: Vec<Tup>) {
+  pub fn insert_untagged(&self, ctx: &mut Prov, v: Vec<Tup>) {
     let data = v.into_iter().map(|tuple| (None, tuple)).collect::<Vec<_>>();
     self.insert_tagged(ctx, data)
   }
 
-  pub fn insert_untagged_with_monitor<M>(&self, ctx: &mut T::Context, v: Vec<Tup>, m: &M)
+  pub fn insert_untagged_with_monitor<M>(&self, ctx: &mut Prov, v: Vec<Tup>, m: &M)
   where
     Tuple: From<Tup>,
-    M: Monitor<T::Context>,
-    InputTagOf<T::Context>: std::fmt::Debug,
+    M: Monitor<Prov>,
+    InputTagOf<Prov>: std::fmt::Debug,
   {
     let data = v.into_iter().map(|tuple| (None, tuple)).collect::<Vec<_>>();
     self.insert_tagged_with_monitor(ctx, data, m)
   }
 
-  pub fn insert_one_tagged(&self, ctx: &mut T::Context, info: Option<InputTagOf<T::Context>>, tuple: Tup) {
+  pub fn insert_one_tagged(&self, ctx: &mut Prov, info: Option<InputTagOf<Prov>>, tuple: Tup) {
     self.insert_tagged(ctx, vec![(info, tuple)]);
   }
 
   pub fn insert_one_with_input_tag_and_monitor<M>(
     &self,
-    ctx: &mut T::Context,
-    info: Option<InputTagOf<T::Context>>,
+    ctx: &mut Prov,
+    info: Option<InputTagOf<Prov>>,
     tuple: Tup,
     m: &M,
   ) where
     Tuple: From<Tup>,
-    M: Monitor<T::Context>,
-    InputTagOf<T::Context>: std::fmt::Debug,
+    M: Monitor<Prov>,
+    InputTagOf<Prov>: std::fmt::Debug,
   {
     self.insert_tagged_with_monitor(ctx, vec![(info, tuple)], m);
   }
 
-  pub fn insert_from_edb(&self, ctx: &mut T::Context, relation: EDBRelation<T::Context>)
+  pub fn insert_from_edb(&self, ctx: &mut Prov, relation: EDBRelation<Prov>)
   where
     Tuple: AsTuple<Tup>,
   {
@@ -89,11 +90,11 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticRelation<Tup, T> {
     self.insert_tagged(ctx, non_disj_facts);
   }
 
-  pub fn insert_from_edb_with_monitor<M>(&self, ctx: &mut T::Context, relation: EDBRelation<T::Context>, m: &M)
+  pub fn insert_from_edb_with_monitor<M>(&self, ctx: &mut Prov, relation: EDBRelation<Prov>, m: &M)
   where
     Tuple: AsTuple<Tup> + From<Tup>,
-    M: Monitor<T::Context>,
-    InputTagOf<T::Context>: std::fmt::Debug,
+    M: Monitor<Prov>,
+    InputTagOf<Prov>: std::fmt::Debug,
   {
     let EDBRelation { facts, disjunctions } = relation;
 
@@ -121,23 +122,42 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticRelation<Tup, T> {
     self.insert_tagged_with_monitor(ctx, non_disj_facts, m);
   }
 
-  pub fn insert_tagged(&self, ctx: &mut T::Context, data: Vec<(Option<InputTagOf<T::Context>>, Tup)>) {
+  pub fn insert_dynamically_tagged(&self, ctx: &mut Prov, data: Vec<(InputTag, Tup)>) {
+    let elements = data
+      .into_iter()
+      .map(|(input_tag, tuple)| (FromInputTag::from_input_tag(&input_tag), tuple))
+      .collect::<Vec<_>>();
+    self.insert_tagged(ctx, elements);
+  }
+
+  pub fn insert_dynamically_tagged_with_monitor<M>(&self, ctx: &mut Prov, data: Vec<(InputTag, Tup)>, m: &M)
+  where
+    Tuple: From<Tup>,
+    M: Monitor<Prov>,
+  {
+    let elements = data
+      .into_iter()
+      .map(|(input_tag, tuple)| (FromInputTag::from_input_tag(&input_tag), tuple))
+      .collect::<Vec<_>>();
+    self.insert_tagged_with_monitor(ctx, elements, m);
+  }
+
+  pub fn insert_tagged(&self, ctx: &mut Prov, data: Vec<(Option<InputTagOf<Prov>>, Tup)>) {
     let elements = data
       .into_iter()
       .map(|(input_tag, tuple)| StaticElement::new(tuple, ctx.tagging_optional_fn(input_tag)))
       .collect::<Vec<_>>();
-    self.insert_dataflow_recent(ctx, elements);
+    self.insert_dataflow_recent(ctx, elements, false);
   }
 
   pub fn insert_tagged_with_monitor<M>(
     &self,
-    ctx: &mut T::Context,
-    data: Vec<(Option<InputTagOf<T::Context>>, Tup)>,
+    ctx: &mut Prov,
+    data: Vec<(Option<InputTagOf<Prov>>, Tup)>,
     m: &M,
   ) where
     Tuple: From<Tup>,
-    M: Monitor<T::Context>,
-    InputTagOf<T::Context>: std::fmt::Debug,
+    M: Monitor<Prov>,
   {
     let elements = data
       .into_iter()
@@ -147,10 +167,39 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticRelation<Tup, T> {
         StaticElement::new(tuple, tag)
       })
       .collect::<Vec<_>>();
-    self.insert_dataflow_recent(ctx, elements);
+    self.insert_dataflow_recent(ctx, elements, false);
   }
 
-  pub fn insert_annotated_disjunction(&self, ctx: &mut T::Context, facts: Vec<(Option<InputTagOf<T::Context>>, Tup)>) {
+  pub fn insert_dynamically_tagged_annotated_disjunction(&self, ctx: &mut Prov, facts: Vec<(InputTag, Tup)>) {
+    self.insert_annotated_disjunction(
+      ctx,
+      facts
+        .into_iter()
+        .map(|(tag, tup)| (FromInputTag::from_input_tag(&tag), tup))
+        .collect(),
+    )
+  }
+
+  pub fn insert_dynamically_tagged_annotated_disjunction_with_monitor<M>(
+    &self,
+    ctx: &mut Prov,
+    facts: Vec<(InputTag, Tup)>,
+    m: &M,
+  ) where
+    Tuple: From<Tup>,
+    M: Monitor<Prov>,
+  {
+    self.insert_annotated_disjunction_with_monitor(
+      ctx,
+      facts
+        .into_iter()
+        .map(|(tag, tup)| (FromInputTag::from_input_tag(&tag), tup))
+        .collect(),
+      m,
+    )
+  }
+
+  pub fn insert_annotated_disjunction(&self, ctx: &mut Prov, facts: Vec<(Option<InputTagOf<Prov>>, Tup)>) {
     let (tags, tuples) = facts.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();
     let internal_tags = ctx.tagging_disjunction_optional_fn(tags);
     let elems = tuples
@@ -158,18 +207,18 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticRelation<Tup, T> {
       .zip(internal_tags.into_iter())
       .map(|(tup, tag)| StaticElement::new(tup, tag))
       .collect::<Vec<_>>();
-    self.insert_dataflow_recent(ctx, elems);
+    self.insert_dataflow_recent(ctx, elems, false);
   }
 
   pub fn insert_annotated_disjunction_with_monitor<M>(
     &self,
-    ctx: &mut T::Context,
-    facts: Vec<(Option<InputTagOf<T::Context>>, Tup)>,
+    ctx: &mut Prov,
+    facts: Vec<(Option<InputTagOf<Prov>>, Tup)>,
     m: &M,
   ) where
     Tuple: From<Tup>,
-    M: Monitor<T::Context>,
-    InputTagOf<T::Context>: std::fmt::Debug,
+    M: Monitor<Prov>,
+    InputTagOf<Prov>: std::fmt::Debug,
   {
     let (input_tags, tuples) = facts.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();
     let tags = ctx.tagging_disjunction_optional_fn(input_tags.clone());
@@ -182,24 +231,10 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticRelation<Tup, T> {
         StaticElement::new(tup, tag)
       })
       .collect::<Vec<_>>();
-    self.insert_dataflow_recent(ctx, elems);
+    self.insert_dataflow_recent(ctx, elems, false);
   }
 
-  // pub fn insert_dynamic_with_input_tag(
-  //   &self,
-  //   ctx: &mut T::Context,
-  //   data: Vec<(Option<InputTagOf<T::Context>>, Tuple)>,
-  // ) where
-  //   Tuple: AsTuple<Tup>,
-  // {
-  //   let data = data
-  //     .into_iter()
-  //     .map(|(tag, tup)| StaticElement::new(<Tuple as AsTuple<Tup>>::as_tuple(&tup), ctx.tagging_optional_fn(tag)))
-  //     .collect::<Vec<_>>();
-  //   self.insert_dataflow_recent(ctx, data)
-  // }
-
-  pub fn insert_dynamic_elements(&self, ctx: &mut T::Context, data: Vec<crate::runtime::dynamic::DynamicElement<T>>)
+  pub fn insert_dynamic_elements(&self, ctx: &mut Prov, data: Vec<crate::runtime::dynamic::DynamicElement<Prov>>)
   where
     Tuple: AsTuple<Tup>,
   {
@@ -207,7 +242,7 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticRelation<Tup, T> {
       .into_iter()
       .map(|e| StaticElement::new(<Tuple as AsTuple<Tup>>::as_tuple(&e.tuple), e.tag.clone()))
       .collect::<Vec<_>>();
-    self.insert_dataflow_recent(ctx, data)
+    self.insert_dataflow_recent(ctx, data, false)
   }
 
   pub fn num_stable(&self) -> usize {
@@ -218,27 +253,35 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticRelation<Tup, T> {
     self.recent.borrow().len()
   }
 
-  pub fn insert_dataflow_recent<D>(&self, ctx: &T::Context, d: D)
+  pub fn insert_dataflow_recent<D>(&self, ctx: &Prov, d: D, early_discard: bool)
   where
-    D: Dataflow<Tup, T>,
+    D: Dataflow<Tup, Prov>,
   {
     for batch in d.iter_recent() {
-      let data = batch.filter(|e| !ctx.discard(&e.tag)).collect::<Vec<_>>();
+      let data = if early_discard {
+        batch.filter(|e| !ctx.discard(&e.tag)).collect::<Vec<_>>()
+      } else {
+        batch.collect::<Vec<_>>()
+      };
       self.to_add.borrow_mut().push(StaticCollection::from_vec(data, ctx));
     }
   }
 
-  pub fn insert_dataflow_stable<D>(&self, ctx: &T::Context, d: D)
+  pub fn insert_dataflow_stable<D>(&self, ctx: &Prov, d: D, early_discard: bool)
   where
-    D: Dataflow<Tup, T>,
+    D: Dataflow<Tup, Prov>,
   {
     for batch in d.iter_stable() {
-      let data = batch.filter(|e| !ctx.discard(&e.tag)).collect::<Vec<_>>();
+      let data = if early_discard {
+        batch.filter(|e| !ctx.discard(&e.tag)).collect::<Vec<_>>()
+      } else {
+        batch.collect::<Vec<_>>()
+      };
       self.to_add.borrow_mut().push(StaticCollection::from_vec(data, ctx));
     }
   }
 
-  pub fn complete(&self, ctx: &T::Context) -> StaticCollection<Tup, T> {
+  pub fn complete(&self, ctx: &Prov) -> StaticCollection<Tup, Prov> {
     assert!(self.recent.borrow().is_empty());
     assert!(self.to_add.borrow().is_empty());
     let mut result = StaticCollection::empty();
@@ -249,16 +292,16 @@ impl<Tup: StaticTupleTrait, T: Tag> StaticRelation<Tup, T> {
   }
 }
 
-pub trait StaticRelationTrait<T: Tag> {
-  fn changed(&mut self, semiring_ctx: &T::Context) -> bool;
+pub trait StaticRelationTrait<Prov: Provenance> {
+  fn changed(&mut self, semiring_ctx: &Prov) -> bool;
 }
 
-impl<Tup, T> StaticRelationTrait<T> for StaticRelation<Tup, T>
+impl<Tup, Prov> StaticRelationTrait<Prov> for StaticRelation<Tup, Prov>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  fn changed(&mut self, ctx: &T::Context) -> bool {
+  fn changed(&mut self, ctx: &Prov) -> bool {
     // 1. Merge self.recent into self.stable.
     if !self.recent.borrow().is_empty() {
       let mut recent = ::std::mem::replace(&mut (*self.recent.borrow_mut()), StaticCollection::empty());
@@ -284,8 +327,8 @@ where
         // Helper function to compute whether to retain a given stable element
         let compute_stable_retain =
           |index: usize,
-           to_add: &mut StaticCollection<Tup, T>,
-           stable_elem: &mut StaticElement<Tup, T>,
+           to_add: &mut StaticCollection<Tup, Prov>,
+           stable_elem: &mut StaticElement<Tup, Prov>,
            to_remove_to_add_indices: &mut HashSet<usize>| {
             // If going over to_add, then the stable element does not exist in to_add. Therefore we retain the stable element
             if index >= to_add.len() {
@@ -300,22 +343,20 @@ where
             } else {
               // If the two elements are equal, then we need to compute a new tag, while deciding where
               // to put the new element: stable or recent
-              let (new_tag, proceeding) = ctx.add_with_proceeding(&stable_elem.tag, &to_add_elem.tag);
-              match proceeding {
-                Proceeding::Recent => {
-                  // If we put the new element in recent, then we will not retain the stable element,
-                  // while updating tag of the element in `to_add`
-                  to_add_elem.tag = new_tag;
-                  false
-                }
-                Proceeding::Stable => {
-                  // If we put the new element in stable, then we retain the stable element and update
-                  // the tag of that element. Additionally, we will remove the element in the `to_add`
-                  // collection.
-                  stable_elem.tag = new_tag;
-                  to_remove_to_add_indices.insert(index.clone());
-                  true
-                }
+              let new_tag = ctx.add(&stable_elem.tag, &to_add_elem.tag);
+              let saturated = ctx.saturated(&stable_elem.tag, &new_tag);
+              if saturated {
+                // If we put the new element in stable, then we retain the stable element and update
+                // the tag of that element. Additionally, we will remove the element in the `to_add`
+                // collection.
+                stable_elem.tag = new_tag;
+                to_remove_to_add_indices.insert(index.clone());
+                true
+              } else {
+                // If we put the new element in recent, then we will not retain the stable element,
+                // while updating tag of the element in `to_add`
+                to_add_elem.tag = new_tag;
+                false
               }
             }
           };

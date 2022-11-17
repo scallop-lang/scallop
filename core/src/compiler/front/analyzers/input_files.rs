@@ -130,12 +130,10 @@ impl InputFilesAnalysis {
 }
 
 impl NodeVisitor for InputFilesAnalysis {
-  fn visit_input_decl(&mut self, input_decl: &InputDecl) {
-    self.process_attrs(input_decl.predicate(), input_decl.attributes());
-  }
-
-  fn visit_relation_type_decl(&mut self, relation_type_decl: &RelationTypeDecl) {
-    self.process_attrs(relation_type_decl.predicate(), relation_type_decl.attributes());
+  fn visit_relation_type_decl(&mut self, rela_type_decl: &RelationTypeDecl) {
+    for rela_type in rela_type_decl.relation_types() {
+      self.process_attrs(rela_type.predicate(), rela_type_decl.attributes());
+    }
   }
 }
 
@@ -172,107 +170,65 @@ pub enum InputFilesError {
   },
 }
 
-impl From<InputFilesError> for FrontCompileError {
-  fn from(e: InputFilesError) -> Self {
-    Self::InputFilesError(e)
+impl FrontCompileErrorClone for InputFilesError {
+  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
+    Box::new(self.clone())
   }
 }
 
-impl std::fmt::Display for InputFilesError {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      Self::InvalidNumAttrArgument {
-        actual_num_args,
-        attr_loc,
-      } => f.write_fmt(format_args!(
-        "{}Invalid number attributes of @file attribute. Expected 1, Found {}",
-        attr_loc.error_prefix(),
-        actual_num_args,
-      )),
-      Self::InvalidArgument { attr_arg_loc } => f.write_fmt(format_args!(
-        "{}Invalid argument of @file attribute. Expected String, found",
-        attr_arg_loc.error_prefix()
-      )),
-      Self::NoExtension { attr_arg_loc } => f.write_fmt(format_args!(
-        "{}Input file name does not have an extension",
-        attr_arg_loc.error_prefix()
-      )),
-      Self::UnknownExtension { ext, attr_arg_loc } => f.write_fmt(format_args!(
-        "{}Unknown input file extension `.{}`. Expected one from [`.csv`, `.txt`]",
-        attr_arg_loc.error_prefix(),
-        ext,
-      )),
-      Self::HasProbabilityNotBoolean { loc } => f.write_fmt(format_args!(
-        "{}`has_probability` attribute is not a boolean",
-        loc.error_prefix()
-      )),
-      Self::HasHeaderNotBoolean { loc } => f.write_fmt(format_args!(
-        "{}`has_header` attribute is not a boolean",
-        loc.error_prefix()
-      )),
-      Self::DeliminatorNotString { loc } => f.write_fmt(format_args!(
-        "{}`deliminator` attribute is not a string",
-        loc.error_prefix()
-      )),
-      Self::DeliminatorNotSingleCharacter { loc } => f.write_fmt(format_args!(
-        "{}`deliminator` attribute is not a single character string",
-        loc.error_prefix()
-      )),
-      Self::DeliminatorNotASCII { loc } => f.write_fmt(format_args!(
-        "{}`deliminator` attribute is not an ASCII character",
-        loc.error_prefix()
-      )),
-    }
+impl FrontCompileErrorTrait for InputFilesError {
+  fn error_type(&self) -> FrontCompileErrorType {
+    FrontCompileErrorType::Error
   }
-}
 
-impl InputFilesError {
-  pub fn report(&self, src: &Sources) {
+  fn report(&self, src: &Sources) -> String {
     match self {
       Self::InvalidNumAttrArgument {
         actual_num_args,
         attr_loc,
       } => {
-        println!(
-          "Invalid number attributes of @file attribute. Expected 1, Found {}",
-          actual_num_args
-        );
-        attr_loc.report(src);
+        format!(
+          "Invalid number attributes of @file attribute. Expected 1, Found {}\n{}",
+          actual_num_args,
+          attr_loc.report(src)
+        )
       }
       Self::InvalidArgument { attr_arg_loc } => {
-        println!("Invalid argument of @file attribute. Expected String, found");
-        attr_arg_loc.report(src);
+        format!(
+          "Invalid argument of @file attribute. Expected String, found\n{}",
+          attr_arg_loc.report(src)
+        )
       }
       Self::NoExtension { attr_arg_loc } => {
-        println!("Input file name does not have an extension");
-        attr_arg_loc.report(src);
+        format!(
+          "Input file name does not have an extension\n{}",
+          attr_arg_loc.report(src)
+        )
       }
       Self::UnknownExtension { ext, attr_arg_loc } => {
-        println!(
-          "Unknown input file extension `.{}`. Expected one from [`.csv`, `.txt`]",
-          ext
-        );
-        attr_arg_loc.report(src);
+        format!(
+          "Unknown input file extension `.{}`. Expected one from [`.csv`, `.txt`]\n{}",
+          ext,
+          attr_arg_loc.report(src)
+        )
       }
       Self::HasProbabilityNotBoolean { loc } => {
-        println!("`has_probability` attribute is not a boolean");
-        loc.report(src);
+        format!("`has_probability` attribute is not a boolean\n{}", loc.report(src))
       }
       Self::HasHeaderNotBoolean { loc } => {
-        println!("`has_header` attribute is not a boolean");
-        loc.report(src);
+        format!("`has_header` attribute is not a boolean\n{}", loc.report(src))
       }
       Self::DeliminatorNotString { loc } => {
-        println!("`deliminator` attribute is not a string");
-        loc.report(src);
+        format!("`deliminator` attribute is not a string\n{}", loc.report(src))
       }
       Self::DeliminatorNotSingleCharacter { loc } => {
-        println!("`deliminator` attribute is not a single character string");
-        loc.report(src);
+        format!(
+          "`deliminator` attribute is not a single character string\n{}",
+          loc.report(src)
+        )
       }
       Self::DeliminatorNotASCII { loc } => {
-        println!("`deliminator` attribute is not an ASCII character");
-        loc.report(src);
+        format!("`deliminator` attribute is not an ASCII character\n{}", loc.report(src))
       }
     }
   }

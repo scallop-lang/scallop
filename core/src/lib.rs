@@ -1,7 +1,5 @@
 #![feature(min_specialization)]
-#![feature(map_first_last)]
 #![feature(drain_filter)]
-#![feature(generic_associated_types)]
 
 pub mod common;
 pub mod compiler;

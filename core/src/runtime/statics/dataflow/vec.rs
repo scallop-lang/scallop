@@ -4,14 +4,14 @@ use super::*;
 ///
 /// It will not be producing any stable batches. It will be producing
 /// one single batch which contains the elements inside the vector.
-impl<Tup, T> Dataflow<Tup, T> for Vec<StaticElement<Tup, T>>
+impl<Tup, Prov> Dataflow<Tup, Prov> for Vec<StaticElement<Tup, Prov>>
 where
   Tup: StaticTupleTrait,
-  T: Tag,
+  Prov: Provenance,
 {
-  type Stable = EmptyBatches<std::iter::Empty<StaticElement<Tup, T>>>;
+  type Stable = EmptyBatches<std::iter::Empty<StaticElement<Tup, Prov>>>;
 
-  type Recent = SingleBatch<std::vec::IntoIter<StaticElement<Tup, T>>>;
+  type Recent = SingleBatch<std::vec::IntoIter<StaticElement<Tup, Prov>>>;
 
   fn iter_stable(&self) -> Self::Stable {
     Self::Stable::default()

@@ -7,7 +7,7 @@ mod max;
 mod min;
 mod prod;
 mod sum;
-mod unique;
+mod top_k;
 
 pub use aggregator::*;
 pub use argmax::*;
@@ -18,6 +18,6 @@ pub use max::*;
 pub use min::*;
 pub use prod::*;
 pub use sum::*;
-pub use unique::*;
+pub use top_k::*;
 
 use super::*;

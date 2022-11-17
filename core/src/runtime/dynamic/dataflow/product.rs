@@ -1,13 +1,13 @@
 use super::*;
 use crate::common::tuple::Tuple;
 
-pub struct DynamicProductDataflow<'a, T: Tag> {
-  pub d1: Box<DynamicDataflow<'a, T>>,
-  pub d2: Box<DynamicDataflow<'a, T>>,
-  pub ctx: &'a T::Context,
+pub struct DynamicProductDataflow<'a, Prov: Provenance> {
+  pub d1: Box<DynamicDataflow<'a, Prov>>,
+  pub d2: Box<DynamicDataflow<'a, Prov>>,
+  pub ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for DynamicProductDataflow<'a, T> {
+impl<'a, Prov: Provenance> Clone for DynamicProductDataflow<'a, Prov> {
   fn clone(&self) -> Self {
     Self {
       d1: self.d1.clone(),
@@ -17,13 +17,13 @@ impl<'a, T: Tag> Clone for DynamicProductDataflow<'a, T> {
   }
 }
 
-impl<'a, T: Tag> DynamicProductDataflow<'a, T> {
-  pub fn iter_stable(&self) -> DynamicBatches<'a, T> {
+impl<'a, Prov: Provenance> DynamicProductDataflow<'a, Prov> {
+  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     let op = ProductOp { ctx: self.ctx };
     DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_stable(), op.into())
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     let op = ProductOp { ctx: self.ctx };
     DynamicBatches::chain(vec![
       DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_recent(), op.clone().into()),
@@ -33,24 +33,24 @@ impl<'a, T: Tag> DynamicProductDataflow<'a, T> {
   }
 }
 
-pub struct ProductOp<'a, T: Tag> {
-  ctx: &'a T::Context,
+pub struct ProductOp<'a, Prov: Provenance> {
+  ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for ProductOp<'a, T> {
+impl<'a, Prov: Provenance> Clone for ProductOp<'a, Prov> {
   fn clone(&self) -> Self {
     Self { ctx: self.ctx }
   }
 }
 
-impl<'a, T: Tag> From<ProductOp<'a, T>> for BatchBinaryOp<'a, T> {
-  fn from(op: ProductOp<'a, T>) -> Self {
+impl<'a, Prov: Provenance> From<ProductOp<'a, Prov>> for BatchBinaryOp<'a, Prov> {
+  fn from(op: ProductOp<'a, Prov>) -> Self {
     Self::Product(op)
   }
 }
 
-impl<'a, T: Tag> ProductOp<'a, T> {
-  pub fn apply(&self, mut i1: DynamicBatch<'a, T>, i2: DynamicBatch<'a, T>) -> DynamicBatch<'a, T> {
+impl<'a, Prov: Provenance> ProductOp<'a, Prov> {
+  pub fn apply(&self, mut i1: DynamicBatch<'a, Prov>, i2: DynamicBatch<'a, Prov>) -> DynamicBatch<'a, Prov> {
     let i1_curr = i1.next();
     DynamicBatch::Product(DynamicProductBatch {
       i1: Box::new(i1),
@@ -62,15 +62,15 @@ impl<'a, T: Tag> ProductOp<'a, T> {
   }
 }
 
-pub struct DynamicProductBatch<'a, T: Tag> {
-  i1: Box<DynamicBatch<'a, T>>,
-  i1_curr: Option<DynamicElement<T>>,
-  i2_source: Box<DynamicBatch<'a, T>>,
-  i2_clone: Box<DynamicBatch<'a, T>>,
-  ctx: &'a T::Context,
+pub struct DynamicProductBatch<'a, Prov: Provenance> {
+  i1: Box<DynamicBatch<'a, Prov>>,
+  i1_curr: Option<DynamicElement<Prov>>,
+  i2_source: Box<DynamicBatch<'a, Prov>>,
+  i2_clone: Box<DynamicBatch<'a, Prov>>,
+  ctx: &'a Prov,
 }
 
-impl<'a, T: Tag> Clone for DynamicProductBatch<'a, T> {
+impl<'a, Prov: Provenance> Clone for DynamicProductBatch<'a, Prov> {
   fn clone(&self) -> Self {
     Self {
       i1: self.i1.clone(),
@@ -82,8 +82,8 @@ impl<'a, T: Tag> Clone for DynamicProductBatch<'a, T> {
   }
 }
 
-impl<'a, T: Tag> Iterator for DynamicProductBatch<'a, T> {
-  type Item = DynamicElement<T>;
+impl<'a, Prov: Provenance> Iterator for DynamicProductBatch<'a, Prov> {
+  type Item = DynamicElement<Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     loop {

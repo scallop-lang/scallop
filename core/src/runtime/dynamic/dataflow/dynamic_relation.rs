@@ -6,17 +6,17 @@ use crate::runtime::provenance::*;
 use super::batching::*;
 
 #[derive(Clone)]
-pub struct DynamicRelationDataflow<'a, T: Tag>(pub &'a DynamicRelation<T>);
+pub struct DynamicRelationDataflow<'a, Prov: Provenance>(pub &'a DynamicRelation<Prov>);
 
-impl<'a, T: Tag> DynamicRelationDataflow<'a, T> {
-  pub fn iter_stable(&self) -> DynamicBatches<'a, T> {
+impl<'a, Prov: Provenance> DynamicRelationDataflow<'a, Prov> {
+  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     DynamicBatches::DynamicRelationStable(DynamicRelationStableBatches {
       collections: self.0.stable.borrow(),
       rela_id: 0,
     })
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, T> {
+  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     let b = DynamicRelationRecentBatch {
       collection: self.0.recent.borrow(),
       elem_id: 0,
@@ -25,12 +25,12 @@ impl<'a, T: Tag> DynamicRelationDataflow<'a, T> {
   }
 }
 
-pub struct DynamicRelationStableBatches<'a, T: Tag> {
-  pub collections: Ref<'a, Vec<DynamicCollection<T>>>,
+pub struct DynamicRelationStableBatches<'a, Prov: Provenance> {
+  pub collections: Ref<'a, Vec<DynamicCollection<Prov>>>,
   pub rela_id: usize,
 }
 
-impl<'a, T: Tag> Clone for DynamicRelationStableBatches<'a, T> {
+impl<'a, Prov: Provenance> Clone for DynamicRelationStableBatches<'a, Prov> {
   fn clone(&self) -> Self {
     Self {
       collections: Ref::clone(&self.collections),
@@ -39,8 +39,8 @@ impl<'a, T: Tag> Clone for DynamicRelationStableBatches<'a, T> {
   }
 }
 
-impl<'a, T: Tag> Iterator for DynamicRelationStableBatches<'a, T> {
-  type Item = DynamicBatch<'a, T>;
+impl<'a, Prov: Provenance> Iterator for DynamicRelationStableBatches<'a, Prov> {
+  type Item = DynamicBatch<'a, Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     if self.rela_id < self.collections.len() {
@@ -57,13 +57,13 @@ impl<'a, T: Tag> Iterator for DynamicRelationStableBatches<'a, T> {
   }
 }
 
-pub struct DynamicRelationStableBatch<'a, T: Tag> {
-  pub collections: Ref<'a, Vec<DynamicCollection<T>>>,
+pub struct DynamicRelationStableBatch<'a, Prov: Provenance> {
+  pub collections: Ref<'a, Vec<DynamicCollection<Prov>>>,
   pub rela_id: usize,
   pub elem_id: usize,
 }
 
-impl<'a, T: Tag> Clone for DynamicRelationStableBatch<'a, T> {
+impl<'a, Prov: Provenance> Clone for DynamicRelationStableBatch<'a, Prov> {
   fn clone(&self) -> Self {
     Self {
       collections: Ref::clone(&self.collections),
@@ -73,8 +73,8 @@ impl<'a, T: Tag> Clone for DynamicRelationStableBatch<'a, T> {
   }
 }
 
-impl<'a, T: Tag> Iterator for DynamicRelationStableBatch<'a, T> {
-  type Item = DynamicElement<T>;
+impl<'a, Prov: Provenance> Iterator for DynamicRelationStableBatch<'a, Prov> {
+  type Item = DynamicElement<Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     let relation = &self.collections[self.rela_id];
@@ -88,12 +88,12 @@ impl<'a, T: Tag> Iterator for DynamicRelationStableBatch<'a, T> {
   }
 }
 
-pub struct DynamicRelationRecentBatch<'a, T: Tag> {
-  pub collection: Ref<'a, DynamicCollection<T>>,
+pub struct DynamicRelationRecentBatch<'a, Prov: Provenance> {
+  pub collection: Ref<'a, DynamicCollection<Prov>>,
   pub elem_id: usize,
 }
 
-impl<'a, T: Tag> Clone for DynamicRelationRecentBatch<'a, T> {
+impl<'a, Prov: Provenance> Clone for DynamicRelationRecentBatch<'a, Prov> {
   fn clone(&self) -> Self {
     Self {
       collection: Ref::clone(&self.collection),
@@ -102,8 +102,8 @@ impl<'a, T: Tag> Clone for DynamicRelationRecentBatch<'a, T> {
   }
 }
 
-impl<'a, T: Tag> Iterator for DynamicRelationRecentBatch<'a, T> {
-  type Item = DynamicElement<T>;
+impl<'a, Prov: Provenance> Iterator for DynamicRelationRecentBatch<'a, Prov> {
+  type Item = DynamicElement<Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
     if self.elem_id < self.collection.len() {

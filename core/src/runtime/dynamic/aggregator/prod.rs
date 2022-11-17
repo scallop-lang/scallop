@@ -7,7 +7,7 @@ use super::*;
 pub struct DynamicProd(pub ValueType);
 
 impl DynamicProd {
-  pub fn aggregate<T: Tag>(&self, batch: DynamicElements<T>, ctx: &T::Context) -> DynamicElements<T> {
+  pub fn aggregate<Prov: Provenance>(&self, batch: DynamicElements<Prov>, ctx: &Prov) -> DynamicElements<Prov> {
     ctx.dynamic_prod(&self.0, batch)
   }
 }

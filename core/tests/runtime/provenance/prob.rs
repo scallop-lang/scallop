@@ -6,10 +6,10 @@ use scallop_core::runtime::provenance::*;
 
 #[test]
 fn test_simple_probability_count() {
-  let mut ctx = min_max_prob::MinMaxProbContext::default();
+  let mut ctx = min_max_prob::MinMaxProbProvenance::default();
 
   let result_1 = {
-    let mut strata_1 = DynamicIteration::<min_max_prob::Prob>::new();
+    let mut strata_1 = DynamicIteration::<min_max_prob::MinMaxProbProvenance>::new();
     strata_1.create_dynamic_relation("color");
     strata_1.create_dynamic_relation("_color_rev");
     strata_1.get_dynamic_relation_unsafe("color").insert_tagged(
@@ -32,7 +32,7 @@ fn test_simple_probability_count() {
   };
 
   let result_2 = {
-    let mut strata_2 = DynamicIteration::<min_max_prob::Prob>::new();
+    let mut strata_2 = DynamicIteration::<min_max_prob::MinMaxProbProvenance>::new();
     strata_2.create_dynamic_relation("color_count");
     strata_2.add_input_dynamic_collection("_color_rev", &result_1["_color_rev"]);
     strata_2.add_update_dataflow(
@@ -48,10 +48,10 @@ fn test_simple_probability_count() {
 
 #[test]
 fn test_min_max_prob_count_max() {
-  let mut ctx = min_max_prob::MinMaxProbContext::default();
+  let mut ctx = min_max_prob::MinMaxProbProvenance::default();
 
   let result_1 = {
-    let mut strata_1 = DynamicIteration::<min_max_prob::Prob>::new();
+    let mut strata_1 = DynamicIteration::<min_max_prob::MinMaxProbProvenance>::new();
     strata_1.create_dynamic_relation("color");
     strata_1.create_dynamic_relation("_color_rev");
     strata_1.get_dynamic_relation_unsafe("color").insert_tagged(
@@ -74,7 +74,7 @@ fn test_min_max_prob_count_max() {
   };
 
   let result_2 = {
-    let mut strata_2 = DynamicIteration::<min_max_prob::Prob>::new();
+    let mut strata_2 = DynamicIteration::<min_max_prob::MinMaxProbProvenance>::new();
     strata_2.create_dynamic_relation("color_count");
     strata_2.add_input_dynamic_collection("_color_rev", &result_1["_color_rev"]);
     strata_2.add_update_dataflow(
@@ -88,7 +88,7 @@ fn test_min_max_prob_count_max() {
   println!("{:?}", result_2);
 
   let result_3 = {
-    let mut strata_3 = DynamicIteration::<min_max_prob::Prob>::new();
+    let mut strata_3 = DynamicIteration::<min_max_prob::MinMaxProbProvenance>::new();
     strata_3.create_dynamic_relation("max_color");
     strata_3.add_input_dynamic_collection("color_count", &result_2["color_count"]);
     strata_3.add_update_dataflow(
