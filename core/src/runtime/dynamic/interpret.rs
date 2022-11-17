@@ -23,9 +23,6 @@ pub struct InterpretOptions {
 
   /// The set of predicates that we expect to be printed from interpretation
   pub print_relations: PredicateSet,
-
-  /// Random seed
-  pub random_seed: u64,
 }
 
 impl Default for InterpretOptions {

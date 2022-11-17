@@ -1,3 +1,11 @@
+# v0.1.6, Nov 17, 2022
+
+`v0.1.6` introduces many improvements and features
+- `scallopy` forward function interface for better ergonomics
+- Better provenance context interface (saturation, sampling, etc.)
+- Multiple bug fixes on provenance structures
+- Better support for magic-set transformations on tagged-semantics
+
 # v0.1.5, August 21, 2022
 
 `v0.1.5` introduces JIT compilation and many more features
