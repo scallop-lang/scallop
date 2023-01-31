@@ -16,6 +16,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+          toolchain: ${{ steps.component.outputs.toolchain }}
+          override: true
+    - id: component
+      uses: actions-rs/components-nightly@v1
+      with:
+        component: clippy
     - name: Build
       run: cargo build --verbose
     - name: Run tests
