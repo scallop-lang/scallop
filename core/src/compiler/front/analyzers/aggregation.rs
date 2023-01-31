@@ -53,12 +53,6 @@ pub enum AggregationAnalysisError {
   ForallBodyNotImplies { loc: Loc },
 }
 
-impl FrontCompileErrorClone for AggregationAnalysisError {
-  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
-    Box::new(self.clone())
-  }
-}
-
 impl FrontCompileErrorTrait for AggregationAnalysisError {
   fn error_type(&self) -> FrontCompileErrorType {
     FrontCompileErrorType::Error

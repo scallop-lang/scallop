@@ -8,13 +8,13 @@ use crate::runtime::statics::*;
 use crate::utils::{PointerFamily, RcFamily};
 
 #[derive(Debug)]
-pub struct DiffTopBottomKClausesContext<T: Clone + 'static, P: PointerFamily = RcFamily> {
+pub struct DiffTopBottomKClausesProvenance<T: Clone + 'static, P: PointerFamily = RcFamily> {
   pub k: usize,
   pub diff_probs: P::Pointer<Vec<(f64, T)>>,
   pub disjunctions: Disjunctions,
 }
 
-impl<T: Clone + 'static, P: PointerFamily> Clone for DiffTopBottomKClausesContext<T, P> {
+impl<T: Clone + 'static, P: PointerFamily> Clone for DiffTopBottomKClausesProvenance<T, P> {
   fn clone(&self) -> Self {
     Self {
       k: self.k,
@@ -24,7 +24,7 @@ impl<T: Clone + 'static, P: PointerFamily> Clone for DiffTopBottomKClausesContex
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> DiffTopBottomKClausesContext<T, P> {
+impl<T: Clone + 'static, P: PointerFamily> DiffTopBottomKClausesProvenance<T, P> {
   pub fn new(k: usize) -> Self {
     Self {
       k,
@@ -42,7 +42,7 @@ impl<T: Clone + 'static, P: PointerFamily> DiffTopBottomKClausesContext<T, P> {
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> CNFDNFContextTrait for DiffTopBottomKClausesContext<T, P> {
+impl<T: Clone + 'static, P: PointerFamily> CNFDNFContextTrait for DiffTopBottomKClausesProvenance<T, P> {
   fn fact_probability(&self, id: &usize) -> f64 {
     self.diff_probs[*id].0
   }
@@ -52,10 +52,10 @@ impl<T: Clone + 'static, P: PointerFamily> CNFDNFContextTrait for DiffTopBottomK
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopBottomKClausesContext<T, P> {
+impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopBottomKClausesProvenance<T, P> {
   type Tag = CNFDNFFormula;
 
-  type InputTag = InputDiffProb<T>;
+  type InputTag = InputExclusiveDiffProb<T>;
 
   type OutputTag = OutputDiffProb<T>;
 
@@ -64,32 +64,19 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopBottomKClausesC
   }
 
   fn tagging_fn(&mut self, input_tag: Self::InputTag) -> Self::Tag {
-    let InputDiffProb(p, t) = input_tag;
-    let id = self.diff_probs.len();
-    P::get_mut(&mut self.diff_probs).push((p, t));
-    CNFDNFFormula::dnf_singleton(id)
-  }
+    let InputExclusiveDiffProb { prob, tag, exclusion } = input_tag;
 
-  fn tagging_disjunction_fn(&mut self, input_tags: Vec<Self::InputTag>) -> Vec<Self::Tag> {
-    let mut ids = vec![];
+    // First store the probability and generate the id
+    let fact_id = self.diff_probs.len();
+    P::get_mut(&mut self.diff_probs).push((prob, tag));
 
-    // Add base disjunctions
-    let tags = input_tags
-      .into_iter()
-      .map(|tag| {
-        let InputDiffProb(p, t) = tag;
-        let id = self.diff_probs.len();
-        P::get_mut(&mut self.diff_probs).push((p, t));
-        ids.push(id);
-        CNFDNFFormula::dnf_singleton(id)
-      })
-      .collect::<Vec<_>>();
+    // Store the mutual exclusivity
+    if let Some(disjunction_id) = exclusion {
+      self.disjunctions.add_disjunction(disjunction_id, fact_id);
+    }
 
-    // Add disjunction
-    self.disjunctions.add_disjunction(ids.clone().into_iter());
-
-    // Return tags
-    tags
+    // Finally return the formula
+    CNFDNFFormula::dnf_singleton(fact_id)
   }
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
@@ -134,6 +121,11 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopBottomKClausesC
 
   fn negate(&self, t: &Self::Tag) -> Option<Self::Tag> {
     Some(self.base_negate(t))
+  }
+
+  fn weight(&self, t: &Self::Tag) -> f64 {
+    let v = |i: &usize| self.diff_probs[i.clone()].0;
+    t.wmc(&RealSemiring::new(), &v)
   }
 
   fn dynamic_count(&self, batch: DynamicElements<Self>) -> DynamicElements<Self> {
@@ -189,10 +181,7 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopBottomKClausesC
     vec![t, f]
   }
 
-  fn static_count<Tup: StaticTupleTrait>(
-    &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<usize, Self> {
+  fn static_count<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<usize, Self> {
     if batch.is_empty() {
       vec![StaticElement::new(0, self.one())]
     } else {
@@ -233,10 +222,7 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopBottomKClausesC
     elems
   }
 
-  fn static_exists<Tup: StaticTupleTrait>(
-    &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<bool, Self> {
+  fn static_exists<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<bool, Self> {
     let mut exists_tag = self.zero();
     let mut not_exists_tag = self.one();
     for elem in batch {

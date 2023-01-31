@@ -1,5 +1,9 @@
+//! # Scallop Runtime
+
+pub mod database;
 pub mod dynamic;
-pub mod edb;
+pub mod env;
+pub mod error;
 pub mod monitor;
 pub mod provenance;
 pub mod statics;

@@ -8,13 +8,13 @@ use crate::runtime::statics::*;
 use crate::utils::{PointerFamily, RcFamily};
 
 #[derive(Debug)]
-pub struct TopBottomKClausesContext<P: PointerFamily = RcFamily> {
+pub struct TopBottomKClausesProvenance<P: PointerFamily = RcFamily> {
   pub k: usize,
   pub probs: P::Pointer<Vec<f64>>,
   pub disjunctions: Disjunctions,
 }
 
-impl<P: PointerFamily> Clone for TopBottomKClausesContext<P> {
+impl<P: PointerFamily> Clone for TopBottomKClausesProvenance<P> {
   fn clone(&self) -> Self {
     Self {
       k: self.k,
@@ -24,7 +24,7 @@ impl<P: PointerFamily> Clone for TopBottomKClausesContext<P> {
   }
 }
 
-impl<P: PointerFamily> TopBottomKClausesContext<P> {
+impl<P: PointerFamily> TopBottomKClausesProvenance<P> {
   pub fn new(k: usize) -> Self {
     Self {
       k,
@@ -38,7 +38,7 @@ impl<P: PointerFamily> TopBottomKClausesContext<P> {
   }
 }
 
-impl<P: PointerFamily> CNFDNFContextTrait for TopBottomKClausesContext<P> {
+impl<P: PointerFamily> CNFDNFContextTrait for TopBottomKClausesProvenance<P> {
   fn fact_probability(&self, id: &usize) -> f64 {
     self.probs[*id]
   }
@@ -48,10 +48,10 @@ impl<P: PointerFamily> CNFDNFContextTrait for TopBottomKClausesContext<P> {
   }
 }
 
-impl<P: PointerFamily> Provenance for TopBottomKClausesContext<P> {
+impl<P: PointerFamily> Provenance for TopBottomKClausesProvenance<P> {
   type Tag = CNFDNFFormula;
 
-  type InputTag = f64;
+  type InputTag = InputExclusiveProb;
 
   type OutputTag = f64;
 
@@ -59,31 +59,18 @@ impl<P: PointerFamily> Provenance for TopBottomKClausesContext<P> {
     "top-bottom-k-clauses"
   }
 
-  fn tagging_fn(&mut self, prob: Self::InputTag) -> Self::Tag {
-    let id = self.probs.len();
-    P::get_mut(&mut self.probs).push(prob);
-    CNFDNFFormula::dnf_singleton(id)
-  }
+  fn tagging_fn(&mut self, input_tag: Self::InputTag) -> Self::Tag {
+    // First generate id and push the probability into the list
+    let fact_id = self.probs.len();
+    P::get_mut(&mut self.probs).push(input_tag.prob);
 
-  fn tagging_disjunction_fn(&mut self, tags: Vec<Self::InputTag>) -> Vec<Self::Tag> {
-    let mut ids = vec![];
+    // Add exlusion if needed
+    if let Some(disj_id) = input_tag.exclusion {
+      self.disjunctions.add_disjunction(disj_id, fact_id);
+    }
 
-    // Add base disjunctions
-    let tags = tags
-      .into_iter()
-      .map(|tag| {
-        let id = self.probs.len();
-        P::get_mut(&mut self.probs).push(tag);
-        ids.push(id);
-        CNFDNFFormula::dnf_singleton(id)
-      })
-      .collect::<Vec<_>>();
-
-    // Add disjunction
-    self.disjunctions.add_disjunction(ids.clone().into_iter());
-
-    // Return tags
-    tags
+    // Return the formula
+    CNFDNFFormula::dnf_singleton(fact_id)
   }
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
@@ -118,6 +105,12 @@ impl<P: PointerFamily> Provenance for TopBottomKClausesContext<P> {
 
   fn negate(&self, t: &Self::Tag) -> Option<Self::Tag> {
     Some(self.base_negate(t))
+  }
+
+  fn weight(&self, t: &Self::Tag) -> f64 {
+    let s = RealSemiring;
+    let v = |i: &usize| -> f64 { self.probs[*i] };
+    t.wmc(&s, &v)
   }
 
   fn dynamic_count(&self, batch: DynamicElements<Self>) -> DynamicElements<Self> {
@@ -173,10 +166,7 @@ impl<P: PointerFamily> Provenance for TopBottomKClausesContext<P> {
     vec![t, f]
   }
 
-  fn static_count<Tup: StaticTupleTrait>(
-    &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<usize, Self> {
+  fn static_count<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<usize, Self> {
     if batch.is_empty() {
       vec![StaticElement::new(0, self.one())]
     } else {
@@ -217,10 +207,7 @@ impl<P: PointerFamily> Provenance for TopBottomKClausesContext<P> {
     elems
   }
 
-  fn static_exists<Tup: StaticTupleTrait>(
-    &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<bool, Self> {
+  fn static_exists<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<bool, Self> {
     let mut exists_tag = self.zero();
     let mut not_exists_tag = self.one();
     for elem in batch {

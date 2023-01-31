@@ -1,4 +1,5 @@
 use colored::*;
+use dyn_clone::DynClone;
 
 use super::*;
 
@@ -30,7 +31,7 @@ impl FrontCompileErrorType {
   }
 }
 
-pub trait FrontCompileErrorTrait: FrontCompileErrorClone + std::fmt::Debug {
+pub trait FrontCompileErrorTrait: DynClone + std::fmt::Debug {
   /// Get the error type of this error (warning/error)
   fn error_type(&self) -> FrontCompileErrorType;
 
@@ -38,17 +39,7 @@ pub trait FrontCompileErrorTrait: FrontCompileErrorClone + std::fmt::Debug {
   fn report(&self, src: &Sources) -> String;
 }
 
-pub trait FrontCompileErrorClone {
-  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait>;
-}
-
-impl Clone for Box<dyn FrontCompileErrorTrait> {
-  fn clone(&self) -> Box<dyn FrontCompileErrorTrait> {
-    self.clone_box()
-  }
-}
-
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct FrontCompileError {
   pub sources: Sources,
   pub errors: Vec<Box<dyn FrontCompileErrorTrait>>,
@@ -64,6 +55,15 @@ impl std::fmt::Display for FrontCompileError {
       ))?;
     }
     Ok(())
+  }
+}
+
+impl Clone for FrontCompileError {
+  fn clone(&self) -> Self {
+    Self {
+      sources: self.sources.clone(),
+      errors: self.errors.iter().map(|e| dyn_clone::clone_box(&**e)).collect(),
+    }
   }
 }
 

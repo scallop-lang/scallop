@@ -7,13 +7,13 @@ mod diff {
 
   #[test]
   fn test_diff_top_bottom_k_clauses_1() {
-    let mut ctx = DiffTopBottomKClausesContext::<(), RcFamily>::new(1);
+    let mut ctx = DiffTopBottomKClausesProvenance::<(), RcFamily>::new(1);
 
     // Create a few tags
-    let a = ctx.tagging_fn((0.9, ()).into());
-    let b = ctx.tagging_fn((0.8, ()).into());
-    let c = ctx.tagging_fn((0.2, ()).into());
-    let d = ctx.tagging_fn((0.1, ()).into());
+    let a = ctx.tagging_fn((0.9, (), None).into());
+    let b = ctx.tagging_fn((0.8, (), None).into());
+    let c = ctx.tagging_fn((0.2, (), None).into());
+    let d = ctx.tagging_fn((0.1, (), None).into());
 
     // First proof
     let ab = ctx.mult(&a, &b);
@@ -29,13 +29,13 @@ mod diff {
 
   #[test]
   fn test_diff_top_bottom_k_clauses_2() {
-    let mut ctx = DiffTopBottomKClausesContext::<(), RcFamily>::new(1);
+    let mut ctx = DiffTopBottomKClausesProvenance::<(), RcFamily>::new(1);
 
     // Create a few tags
-    let a = ctx.tagging_fn((0.1, ()).into());
-    let b = ctx.tagging_fn((0.2, ()).into());
-    let c = ctx.tagging_fn((0.8, ()).into());
-    let d = ctx.tagging_fn((0.9, ()).into());
+    let a = ctx.tagging_fn((0.1, (), None).into());
+    let b = ctx.tagging_fn((0.2, (), None).into());
+    let c = ctx.tagging_fn((0.8, (), None).into());
+    let d = ctx.tagging_fn((0.9, (), None).into());
 
     // First proof
     let nanb = ctx.mult(&ctx.negate(&a).unwrap(), &ctx.negate(&b).unwrap());

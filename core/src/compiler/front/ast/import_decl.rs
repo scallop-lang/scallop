@@ -1,6 +1,7 @@
 use super::*;
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct ImportFileNode {
   pub file_path: String,
 }
@@ -8,6 +9,7 @@ pub struct ImportFileNode {
 pub type ImportFile = AstNode<ImportFileNode>;
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct ImportDeclNode {
   pub attrs: Attributes,
   pub import_file: ImportFile,

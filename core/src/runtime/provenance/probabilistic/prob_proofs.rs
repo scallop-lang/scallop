@@ -108,7 +108,7 @@ pub struct ProbProofsProvenance {
 impl Provenance for ProbProofsProvenance {
   type Tag = ProbProofs;
 
-  type InputTag = f64;
+  type InputTag = InputExclusiveProb;
 
   type OutputTag = f64;
 
@@ -116,28 +116,18 @@ impl Provenance for ProbProofsProvenance {
     "prob-proofs"
   }
 
-  fn tagging_fn(&mut self, prob: Self::InputTag) -> Self::Tag {
-    let id = self.probabilities.len();
-    self.probabilities.push(prob);
-    Self::Tag::singleton(id)
-  }
+  fn tagging_fn(&mut self, input_tag: Self::InputTag) -> Self::Tag {
+    // First generate id and push the probability into the list
+    let fact_id = self.probabilities.len();
+    self.probabilities.push(input_tag.prob);
 
-  fn tagging_disjunction_fn(&mut self, tags: Vec<Self::InputTag>) -> Vec<Self::Tag> {
-    // Add base disjunctions
-    let ids = tags
-      .into_iter()
-      .map(|tag| {
-        let id = self.probabilities.len();
-        self.probabilities.push(tag);
-        id
-      })
-      .collect::<Vec<_>>();
+    // Add exlusion if needed
+    if let Some(disj_id) = input_tag.exclusion {
+      self.disjunctions.add_disjunction(disj_id, fact_id);
+    }
 
-    // Add disjunction
-    self.disjunctions.add_disjunction(ids.clone().into_iter());
-
-    // Return tags
-    ids.into_iter().map(Self::Tag::singleton).collect()
+    // Lastly return a tag
+    Self::Tag::singleton(fact_id)
   }
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
@@ -171,14 +161,20 @@ impl Provenance for ProbProofsProvenance {
   }
 
   fn negate(&self, _: &Self::Tag) -> Option<Self::Tag> {
-    panic!("Not implemented")
+    unimplemented!()
   }
 
   fn minus(&self, _: &Self::Tag, _: &Self::Tag) -> Option<Self::Tag> {
-    panic!("Not implemented")
+    unimplemented!()
   }
 
   fn saturated(&self, _: &Self::Tag, _: &Self::Tag) -> bool {
     unimplemented!()
+  }
+
+  fn weight(&self, t: &Self::Tag) -> f64 {
+    let s = RealSemiring;
+    let v = |i: &usize| -> f64 { self.probabilities[*i] };
+    AsBooleanFormula::wmc(t, &s, &v)
   }
 }

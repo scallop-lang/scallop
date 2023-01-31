@@ -9,12 +9,6 @@ pub enum BoundnessAnalysisError {
   ReduceArgUnbound { loc: Loc },
 }
 
-impl FrontCompileErrorClone for BoundnessAnalysisError {
-  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
-    Box::new(self.clone())
-  }
-}
-
 impl FrontCompileErrorTrait for BoundnessAnalysisError {
   fn error_type(&self) -> FrontCompileErrorType {
     FrontCompileErrorType::Error

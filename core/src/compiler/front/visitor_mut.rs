@@ -42,6 +42,7 @@ pub trait NodeVisitorMut {
   node_visitor_mut_func_def!(visit_implies, Implies);
   node_visitor_mut_func_def!(visit_constraint, Constraint);
   node_visitor_mut_func_def!(visit_reduce, Reduce);
+  node_visitor_mut_func_def!(visit_forall_exists_reduce, ForallExistsReduce);
   node_visitor_mut_func_def!(visit_variable_binding, VariableBinding);
   node_visitor_mut_func_def!(visit_expr, Expr);
   node_visitor_mut_func_def!(visit_binary_expr, BinaryExpr);
@@ -52,7 +53,7 @@ pub trait NodeVisitorMut {
   node_visitor_mut_func_def!(visit_variable, Variable);
   node_visitor_mut_func_def!(visit_wildcard, Wildcard);
   node_visitor_mut_func_def!(visit_identifier, Identifier);
-  node_visitor_mut_func_def!(visit_function, Function);
+  node_visitor_mut_func_def!(visit_function_identifier, FunctionIdentifier);
 
   fn walk_items(&mut self, items: &mut Vec<Item>) {
     for item in items {
@@ -255,6 +256,7 @@ pub trait NodeVisitorMut {
       Formula::Atom(a) => self.walk_atom(a),
       Formula::NegAtom(n) => self.walk_neg_atom(n),
       Formula::Reduce(r) => self.walk_reduce(r),
+      Formula::ForallExistsReduce(r) => self.walk_forall_exists_reduce(r),
     }
   }
 
@@ -300,6 +302,22 @@ pub trait NodeVisitorMut {
         VariableOrWildcard::Wildcard(w) => self.walk_wildcard(w),
       }
     }
+    self.walk_reduce_op(&mut reduce.node.operator);
+    for binding in &mut reduce.node.bindings {
+      self.walk_variable_binding(binding);
+    }
+    self.walk_formula(&mut reduce.node.body);
+    if let Some((key_vars, key_body)) = &mut reduce.node.group_by {
+      for binding in key_vars {
+        self.walk_variable_binding(binding);
+      }
+      self.walk_formula(&mut *key_body);
+    }
+  }
+
+  fn walk_forall_exists_reduce(&mut self, reduce: &mut ForallExistsReduce) {
+    self.visit_forall_exists_reduce(reduce);
+    self.visit_location(&mut reduce.loc);
     self.walk_reduce_op(&mut reduce.node.operator);
     for binding in &mut reduce.node.bindings {
       self.walk_variable_binding(binding);
@@ -393,7 +411,7 @@ pub trait NodeVisitorMut {
   fn walk_call_expr(&mut self, call: &mut CallExpr) {
     self.visit_call_expr(call);
     self.visit_location(&mut call.loc);
-    self.walk_function(call.function_mut());
+    self.walk_function_identifier(call.function_identifier_mut());
     for arg in call.iter_args_mut() {
       self.walk_expr(arg);
     }
@@ -425,9 +443,9 @@ pub trait NodeVisitorMut {
     self.visit_location(&mut identifier.loc);
   }
 
-  fn walk_function(&mut self, function: &mut Function) {
-    self.visit_function(function);
-    self.visit_location(&mut function.loc);
+  fn walk_function_identifier(&mut self, function_identifier: &mut FunctionIdentifier) {
+    self.visit_function_identifier(function_identifier);
+    self.visit_location(&mut function_identifier.loc);
   }
 
   fn walk_attributes(&mut self, attributes: &mut Attributes) {
@@ -494,6 +512,7 @@ macro_rules! impl_node_visitor_mut_tuple {
       node_visitor_mut_visit_node!(visit_implies, Implies, ($($id),*));
       node_visitor_mut_visit_node!(visit_constraint, Constraint, ($($id),*));
       node_visitor_mut_visit_node!(visit_reduce, Reduce, ($($id),*));
+      node_visitor_mut_visit_node!(visit_forall_exists_reduce, ForallExistsReduce, ($($id),*));
       node_visitor_mut_visit_node!(visit_variable_binding, VariableBinding, ($($id),*));
       node_visitor_mut_visit_node!(visit_expr, Expr, ($($id),*));
       node_visitor_mut_visit_node!(visit_binary_expr, BinaryExpr, ($($id),*));
@@ -503,6 +522,7 @@ macro_rules! impl_node_visitor_mut_tuple {
       node_visitor_mut_visit_node!(visit_variable, Variable, ($($id),*));
       node_visitor_mut_visit_node!(visit_wildcard, Wildcard, ($($id),*));
       node_visitor_mut_visit_node!(visit_identifier, Identifier, ($($id),*));
+      node_visitor_mut_visit_node!(visit_function_identifier, FunctionIdentifier, ($($id),*));
     }
   }
 }

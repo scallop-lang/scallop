@@ -123,12 +123,6 @@ pub enum DemandAttributeError {
   },
 }
 
-impl FrontCompileErrorClone for DemandAttributeError {
-  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
-    Box::new(self.clone())
-  }
-}
-
 impl FrontCompileErrorTrait for DemandAttributeError {
   fn error_type(&self) -> FrontCompileErrorType {
     FrontCompileErrorType::Error

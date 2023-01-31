@@ -65,13 +65,44 @@ where
   D1: Dataflow<(K, T1), Prov>,
   D2: Dataflow<(K, T2), Prov>,
 {
-  type Stable =
-    BatchesJoin<D1::Stable, D2::Stable, StableStableOp<'b, D1, D2, K, T1, T2, Prov>, (K, T1), (K, T2), (K, T1, T2), Prov>;
+  type Stable = BatchesJoin<
+    D1::Stable,
+    D2::Stable,
+    StableStableOp<'b, D1, D2, K, T1, T2, Prov>,
+    (K, T1),
+    (K, T2),
+    (K, T1, T2),
+    Prov,
+  >;
 
   type Recent = BatchesChain3<
-    BatchesJoin<D1::Recent, D2::Stable, RecentStableOp<'b, D1, D2, K, T1, T2, Prov>, (K, T1), (K, T2), (K, T1, T2), Prov>,
-    BatchesJoin<D1::Stable, D2::Recent, StableRecentOp<'b, D1, D2, K, T1, T2, Prov>, (K, T1), (K, T2), (K, T1, T2), Prov>,
-    BatchesJoin<D1::Recent, D2::Recent, RecentRecentOp<'b, D1, D2, K, T1, T2, Prov>, (K, T1), (K, T2), (K, T1, T2), Prov>,
+    BatchesJoin<
+      D1::Recent,
+      D2::Stable,
+      RecentStableOp<'b, D1, D2, K, T1, T2, Prov>,
+      (K, T1),
+      (K, T2),
+      (K, T1, T2),
+      Prov,
+    >,
+    BatchesJoin<
+      D1::Stable,
+      D2::Recent,
+      StableRecentOp<'b, D1, D2, K, T1, T2, Prov>,
+      (K, T1),
+      (K, T2),
+      (K, T1, T2),
+      Prov,
+    >,
+    BatchesJoin<
+      D1::Recent,
+      D2::Recent,
+      RecentRecentOp<'b, D1, D2, K, T1, T2, Prov>,
+      (K, T1),
+      (K, T2),
+      (K, T1, T2),
+      Prov,
+    >,
     (K, T1, T2),
     Prov,
   >;

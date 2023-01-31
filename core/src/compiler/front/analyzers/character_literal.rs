@@ -57,9 +57,3 @@ impl FrontCompileErrorTrait for CharacterLiteralAnalysisError {
     }
   }
 }
-
-impl FrontCompileErrorClone for CharacterLiteralAnalysisError {
-  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
-    Box::new(self.clone())
-  }
-}

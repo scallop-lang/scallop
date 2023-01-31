@@ -35,24 +35,6 @@ impl Display for Stratum {
               .join(", ")
           ))?;
         }
-        if !relation.disjunctive_facts.is_empty() {
-          f.write_fmt(format_args!(
-            ", disjunctions: {{{}}}",
-            relation
-              .disjunctive_facts
-              .iter()
-              .map(|disjunction| format!(
-                "{{{}}}",
-                disjunction
-                  .iter()
-                  .map(|f| format!("{}", f))
-                  .collect::<Vec<_>>()
-                  .join(", ")
-              ))
-              .collect::<Vec<_>>()
-              .join(", ")
-          ))?;
-        }
         f.write_str("\n")?;
       }
     }

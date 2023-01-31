@@ -67,12 +67,6 @@ pub enum HeadRelationError {
   RelationNotInHeadWarning { relation: String, occurred: Loc },
 }
 
-impl FrontCompileErrorClone for HeadRelationError {
-  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
-    Box::new(self.clone())
-  }
-}
-
 impl FrontCompileErrorTrait for HeadRelationError {
   fn error_type(&self) -> FrontCompileErrorType {
     match self {

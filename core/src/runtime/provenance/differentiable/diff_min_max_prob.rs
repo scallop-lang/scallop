@@ -35,7 +35,7 @@ impl std::fmt::Debug for Prob {
 
 impl Tag for Prob {}
 
-pub struct DiffMinMaxProbContext<T: Clone, P: PointerFamily> {
+pub struct DiffMinMaxProbProvenance<T: Clone, P: PointerFamily> {
   pub warned_disjunction: bool,
   pub valid_threshold: f64,
   pub zero_index: usize,
@@ -44,7 +44,7 @@ pub struct DiffMinMaxProbContext<T: Clone, P: PointerFamily> {
   pub negates: Vec<usize>,
 }
 
-impl<T: Clone, P: PointerFamily> Clone for DiffMinMaxProbContext<T, P> {
+impl<T: Clone, P: PointerFamily> Clone for DiffMinMaxProbProvenance<T, P> {
   fn clone(&self) -> Self {
     Self {
       warned_disjunction: self.warned_disjunction,
@@ -57,7 +57,7 @@ impl<T: Clone, P: PointerFamily> Clone for DiffMinMaxProbContext<T, P> {
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> DiffMinMaxProbContext<T, P> {
+impl<T: Clone + 'static, P: PointerFamily> DiffMinMaxProbProvenance<T, P> {
   pub fn probability(&self, id: usize) -> f64 {
     self.diff_probs[id].0
   }
@@ -103,7 +103,7 @@ impl<T: Clone + 'static, P: PointerFamily> DiffMinMaxProbContext<T, P> {
   }
 }
 
-impl<T: Clone, P: PointerFamily> Default for DiffMinMaxProbContext<T, P> {
+impl<T: Clone, P: PointerFamily> Default for DiffMinMaxProbProvenance<T, P> {
   fn default() -> Self {
     let mut diff_probs = Vec::new();
     diff_probs.push((0.0, Derivative::Zero));
@@ -144,7 +144,7 @@ impl<T: Clone + 'static> std::fmt::Display for OutputDiffProb<T> {
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffMinMaxProbContext<T, P> {
+impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffMinMaxProbProvenance<T, P> {
   type Tag = Prob;
 
   type InputTag = InputDiffProb<T>;
@@ -211,6 +211,10 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffMinMaxProbContext<
 
   fn negate(&self, p: &Self::Tag) -> Option<Self::Tag> {
     Some(Self::Tag::new(self.negates[p.0]))
+  }
+
+  fn weight(&self, t: &Self::Tag) -> f64 {
+    self.probability(t.0)
   }
 
   fn dynamic_count(&self, mut batch: DynamicElements<Self>) -> DynamicElements<Self> {
@@ -295,15 +299,7 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffMinMaxProbContext<
     }
   }
 
-  fn dynamic_top_k(&self, k: usize, batch: DynamicElements<Self>) -> DynamicElements<Self> {
-    let ids = aggregate_top_k_helper(batch.len(), k, |id| self.probability(batch[id].tag.0));
-    ids.into_iter().map(|id| batch[id].clone()).collect()
-  }
-
-  fn static_count<Tup: StaticTupleTrait>(
-    &self,
-    mut batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<usize, Self> {
+  fn static_count<Tup: StaticTupleTrait>(&self, mut batch: StaticElements<Tup, Self>) -> StaticElements<usize, Self> {
     if batch.is_empty() {
       vec![StaticElement::new(0usize, self.one())]
     } else {
@@ -317,10 +313,7 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffMinMaxProbContext<
     }
   }
 
-  fn static_sum<Tup: StaticTupleTrait + SumType>(
-    &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<Tup, Self> {
+  fn static_sum<Tup: StaticTupleTrait + SumType>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<Tup, Self> {
     let mut elems = vec![];
     for chosen_set in (0..batch.len()).powerset() {
       let chosen_elements = self.collect_chosen_elements(&batch, &chosen_set);
@@ -372,10 +365,7 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffMinMaxProbContext<
     elems
   }
 
-  fn static_exists<Tup: StaticTupleTrait>(
-    &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<bool, Self> {
+  fn static_exists<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<bool, Self> {
     let mut max_prob = 0.0;
     let mut max_id = None;
     for elem in batch {
@@ -392,14 +382,5 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffMinMaxProbContext<
     } else {
       vec![StaticElement::new(false, self.one())]
     }
-  }
-
-  fn static_top_k<Tup: StaticTupleTrait>(
-    &self,
-    k: usize,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<Tup, Self> {
-    let ids = aggregate_top_k_helper(batch.len(), k, |id| self.probability(batch[id].tag.0));
-    ids.into_iter().map(|id| batch[id].clone()).collect()
   }
 }

@@ -182,6 +182,7 @@ impl std::fmt::Debug for AstNodeLocation {
 }
 
 #[derive(Clone, PartialEq, Eq)]
+#[doc(hidden)]
 pub struct AstNode<N> {
   pub loc: AstNodeLocation,
   pub node: N,

@@ -2,8 +2,12 @@ use std::collections::*;
 
 use itertools::iproduct;
 
-use super::*;
+use crate::common::input_tag::*;
+use crate::runtime::dynamic::*;
+use crate::runtime::statics::*;
 use crate::utils::IdAllocator;
+
+use super::*;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Proof {
@@ -53,7 +57,9 @@ pub struct Proofs {
 
 impl Proofs {
   pub fn zero() -> Self {
-    Self { proofs: BTreeSet::new() }
+    Self {
+      proofs: BTreeSet::new(),
+    }
   }
 
   pub fn one() -> Self {
@@ -117,6 +123,22 @@ impl std::fmt::Display for Proofs {
 
 impl Tag for Proofs {}
 
+#[derive(Clone, Debug)]
+pub enum ProofsInputTag {
+  Independent,
+  Exclusive(usize),
+}
+
+impl FromInputTag for ProofsInputTag {
+  fn from_input_tag(t: &DynamicInputTag) -> Option<ProofsInputTag> {
+    match t {
+      DynamicInputTag::Exclusive(e) => Some(ProofsInputTag::Exclusive(e.clone())),
+      DynamicInputTag::ExclusiveFloat(_, e) => Some(ProofsInputTag::Exclusive(e.clone())),
+      _ => Some(ProofsInputTag::Independent),
+    }
+  }
+}
+
 #[derive(Clone, Default)]
 pub struct ProofsProvenance {
   id_allocator: IdAllocator,
@@ -126,7 +148,7 @@ pub struct ProofsProvenance {
 impl Provenance for ProofsProvenance {
   type Tag = Proofs;
 
-  type InputTag = ();
+  type InputTag = ProofsInputTag;
 
   type OutputTag = Proofs;
 
@@ -134,21 +156,16 @@ impl Provenance for ProofsProvenance {
     "proofs"
   }
 
-  fn tagging_fn(&mut self, _: Self::InputTag) -> Self::Tag {
-    let id = self.id_allocator.alloc();
-    Self::Tag::singleton(id)
-  }
+  fn tagging_fn(&mut self, exclusion: Self::InputTag) -> Self::Tag {
+    let fact_id = self.id_allocator.alloc();
 
-  fn tagging_disjunction_fn(&mut self, tags: Vec<Self::InputTag>) -> Vec<Self::Tag> {
-    let ids = tags.into_iter().map(|_| self.id_allocator.alloc()).collect::<Vec<_>>();
-    self.disjunctions.add_disjunction(ids.clone().into_iter());
-    ids.into_iter().map(Self::Tag::singleton).collect()
-  }
+    // Disjunction id
+    if let ProofsInputTag::Exclusive(disjunction_id) = exclusion {
+      self.disjunctions.add_disjunction(disjunction_id, fact_id)
+    }
 
-  fn tagging_disjunction_optional_fn(&mut self, tags: Vec<Option<Self::InputTag>>) -> Vec<Self::Tag> {
-    let ids = tags.into_iter().map(|_| self.id_allocator.alloc()).collect::<Vec<_>>();
-    self.disjunctions.add_disjunction(ids.clone().into_iter());
-    ids.into_iter().map(Self::Tag::singleton).collect()
+    // Return the proof
+    Self::Tag::singleton(fact_id)
   }
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
@@ -185,5 +202,13 @@ impl Provenance for ProofsProvenance {
 
   fn saturated(&self, t_old: &Self::Tag, t_new: &Self::Tag) -> bool {
     t_old == t_new
+  }
+
+  fn dynamic_top_k(&self, k: usize, batch: DynamicElements<Self>) -> DynamicElements<Self> {
+    unweighted_aggregate_top_k_helper(batch, k)
+  }
+
+  fn static_top_k<T: StaticTupleTrait>(&self, k: usize, batch: StaticElements<T, Self>) -> StaticElements<T, Self> {
+    unweighted_aggregate_top_k_helper(batch, k)
   }
 }

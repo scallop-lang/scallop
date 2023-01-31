@@ -43,7 +43,9 @@ pub trait StaticTupleIterator<'a, Tup: 'static + StaticTupleTrait> {
   fn iter_tuples(&'a self) -> Self::Output;
 }
 
-impl<'a, Tup: 'static + StaticTupleTrait, Prov: 'static + Provenance> StaticTupleIterator<'a, Tup> for StaticElements<Tup, Prov> {
+impl<'a, Tup: 'static + StaticTupleTrait, Prov: 'static + Provenance> StaticTupleIterator<'a, Tup>
+  for StaticElements<Tup, Prov>
+{
   type Output = StaticElementsTupleIterator<'a, Tup, Prov>;
 
   fn iter_tuples(&'a self) -> Self::Output {
@@ -63,7 +65,9 @@ impl<'a, Tup: StaticTupleTrait, Prov: Provenance> Iterator for StaticElementsTup
   }
 }
 
-impl<'a, Tup: 'static + StaticTupleTrait, Prov: Provenance> StaticTupleIterator<'a, Tup> for Vec<&'a StaticElement<Tup, Prov>> {
+impl<'a, Tup: 'static + StaticTupleTrait, Prov: Provenance> StaticTupleIterator<'a, Tup>
+  for Vec<&'a StaticElement<Tup, Prov>>
+{
   type Output = StaticElementsRefTupleIterator<'a, Tup, Prov>;
 
   fn iter_tuples(&'a self) -> Self::Output {

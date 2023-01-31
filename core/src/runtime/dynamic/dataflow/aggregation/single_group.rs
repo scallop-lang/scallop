@@ -25,14 +25,14 @@ impl<'a, Prov: Provenance> DynamicAggregationSingleGroupDataflow<'a, Prov> {
     }
   }
 
-  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_stable(&self, _: &RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     DynamicBatches::empty()
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
-    if let Some(b) = self.d.iter_recent().next() {
+  pub fn iter_recent(&self, runtime: &RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
+    if let Some(b) = self.d.iter_recent(runtime).next() {
       let batch = b.collect::<Vec<_>>();
-      DynamicBatches::single(DynamicBatch::source_vec(self.agg.aggregate(batch, self.ctx)))
+      DynamicBatches::single(DynamicBatch::source_vec(self.agg.aggregate(batch, self.ctx, runtime)))
     } else {
       DynamicBatches::empty()
     }

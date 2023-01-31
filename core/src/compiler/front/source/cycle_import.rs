@@ -14,12 +14,6 @@ impl CycleImportError {
   }
 }
 
-impl FrontCompileErrorClone for CycleImportError {
-  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
-    Box::new(self.clone())
-  }
-}
-
 impl FrontCompileErrorTrait for CycleImportError {
   fn error_type(&self) -> FrontCompileErrorType {
     FrontCompileErrorType::Error

@@ -43,6 +43,7 @@ impl FrontContext {
       facts,
       disjunctive_facts,
       rules,
+      function_registry: self.foreign_function_registry.clone(),
     }
   }
 
@@ -450,6 +451,7 @@ impl FrontContext {
       front::ReduceOperatorNode::Exists => AggregateOp::Exists,
       front::ReduceOperatorNode::Unique => AggregateOp::top_k(1),
       front::ReduceOperatorNode::TopK(k) => AggregateOp::top_k(k.clone()),
+      front::ReduceOperatorNode::CategoricalK(k) => AggregateOp::categorical_k(k.clone()),
       front::ReduceOperatorNode::Forall => {
         panic!("There should be no forall aggregator op. This is a bug");
       }

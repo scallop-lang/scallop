@@ -1,3 +1,4 @@
+# Base types
 i8 = "i8"
 i16 = "i16"
 i32 = "i32"
@@ -16,3 +17,11 @@ bool = "bool"
 char = "char"
 string = "String"
 # rc_string = "Rc<String>"
+
+# Type families
+Any = "Any"
+Number = "Number"
+Integer = "Integer"
+SignedInteger = "SignedInteger"
+UnsignedInteger = "UnsignedInteger"
+Float = "Float"

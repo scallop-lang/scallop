@@ -1,7 +1,7 @@
 use structopt::StructOpt;
 
 use scallop_core::compiler;
-use sclc::*;
+use sclc_core::*;
 
 fn main() {
   // Command line arguments

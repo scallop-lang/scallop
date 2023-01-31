@@ -1,90 +1,65 @@
-use scallop_core::utils::RcFamily;
-use std::collections::*;
 use wasm_bindgen::prelude::*;
 
-use scallop_core::compiler;
-use scallop_core::integrate::{self, IntegrateError};
-use scallop_core::runtime::dynamic;
+use scallop_core::integrate::*;
+use scallop_core::runtime::database::intentional::*;
 use scallop_core::runtime::provenance::*;
+use scallop_core::utils::*;
 
 #[wasm_bindgen]
 pub fn interpret(source: String) -> String {
-  result_to_string(integrate::interpret_string(source))
+  result_to_string(interpret_string(source))
 }
 
 #[wasm_bindgen]
 pub fn interpret_with_minmaxprob(source: String) -> String {
-  let ram = match compiler::compile_string_to_ram(source).map_err(IntegrateError::Compile) {
-    Ok(ram) => ram,
+  let ctx = min_max_prob::MinMaxProbProvenance::default();
+  match interpret_string_with_ctx(source, ctx) {
+    Ok(result) => result
+      .into_iter()
+      .map(|(r, c)| format!("{}: {}", r, c))
+      .collect::<Vec<_>>()
+      .join("\n"),
     Err(err) => {
-      return format!("{}", err);
+      format!("{}", err)
     }
-  };
-  let mut ctx = min_max_prob::MinMaxProbProvenance::default();
-  let result = match dynamic::interpret(ram, &mut ctx).map_err(IntegrateError::Runtime) {
-    Ok(result) => result,
-    Err(err) => {
-      return format!("{}", err);
-    }
-  };
-  result
-    .into_iter()
-    .map(|(r, c)| format!("{}: {}", r, c))
-    .collect::<Vec<_>>()
-    .join("\n")
+  }
 }
 
 #[wasm_bindgen]
 pub fn interpret_with_topkproofs(source: String, top_k: usize) -> String {
-  let mut ctx = top_k_proofs::TopKProofsContext::<RcFamily>::new(top_k);
-  let ram = match compiler::compile_string_to_ram(source).map_err(IntegrateError::Compile) {
-    Ok(ram) => ram,
+  let ctx = top_k_proofs::TopKProofsProvenance::<RcFamily>::new(top_k);
+  match interpret_string_with_ctx(source, ctx) {
+    Ok(result) => result
+      .into_iter()
+      .map(|(r, c)| format!("{}: {}", r, c))
+      .collect::<Vec<_>>()
+      .join("\n"),
     Err(err) => {
-      return format!("{}", err);
+      format!("{}", err)
     }
-  };
-  let result = match dynamic::interpret(ram, &mut ctx).map_err(IntegrateError::Runtime) {
-    Ok(result) => result,
-    Err(err) => {
-      return format!("{}", err);
-    }
-  };
-  result
-    .into_iter()
-    .map(|(r, c)| format!("{}: {}", r, c))
-    .collect::<Vec<_>>()
-    .join("\n")
+  }
 }
 
 #[wasm_bindgen]
 pub fn interpret_with_topbottomkclauses(source: String, k: usize) -> String {
-  let mut ctx = top_bottom_k_clauses::TopBottomKClausesContext::<RcFamily>::new(k);
-  let ram = match compiler::compile_string_to_ram(source).map_err(IntegrateError::Compile) {
-    Ok(ram) => ram,
+  let ctx = top_bottom_k_clauses::TopBottomKClausesProvenance::<RcFamily>::new(k);
+  match interpret_string_with_ctx(source, ctx) {
+    Ok(result) => result
+      .into_iter()
+      .map(|(r, c)| format!("{}: {}", r, c))
+      .collect::<Vec<_>>()
+      .join("\n"),
     Err(err) => {
-      return format!("{}", err);
+      format!("{}", err)
     }
-  };
-  let result = match dynamic::interpret(ram, &mut ctx).map_err(IntegrateError::Runtime) {
-    Ok(result) => result,
-    Err(err) => {
-      return format!("{}", err);
-    }
-  };
-  result
-    .into_iter()
-    .map(|(r, c)| format!("{}: {}", r, c))
-    .collect::<Vec<_>>()
-    .join("\n")
+  }
 }
 
-fn result_to_string<Prov: Provenance>(
-  result: Result<BTreeMap<String, dynamic::DynamicOutputCollection<Prov>>, IntegrateError>,
-) -> String {
+fn result_to_string<Prov: Provenance>(result: Result<IntentionalDatabase<Prov>, IntegrateError>) -> String {
   match result {
     Ok(result) => result
       .into_iter()
-      .map(|(k, v)| format!("{}: {}", k, v))
+      .map(|(k, v)| format!("{}: {}", k, v.recovered_facts))
       .collect::<Vec<_>>()
       .join("\n"),
     Err(err) => match err {

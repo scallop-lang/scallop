@@ -40,14 +40,14 @@ pub trait PythonProvenance: Provenance {
   /// Convert a python object into an optional input tag for this provenance context
   fn process_optional_py_tag(maybe_py_tag: Option<&PyAny>) -> PyResult<Option<Self::InputTag>> {
     if let Some(py_tag) = maybe_py_tag {
-      Ok(Some(Self::process_py_tag(py_tag)?))
+      Ok(Self::process_py_tag(py_tag)?)
     } else {
       Ok(None)
     }
   }
 
   /// Convert a python object into an optional input tag for this provenance context
-  fn process_py_tag(tag: &PyAny) -> PyResult<Self::InputTag>;
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>>;
 
   /// Convert an output collection into a python collection enum
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum;
@@ -61,8 +61,8 @@ impl PythonProvenance for unit::UnitProvenance {
     Ok((None, fact))
   }
 
-  fn process_py_tag(_: &PyAny) -> PyResult<Self::InputTag> {
-    Ok(())
+  fn process_py_tag(_: &PyAny) -> PyResult<Option<Self::InputTag>> {
+    Ok(None)
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum {
@@ -75,12 +75,9 @@ impl PythonProvenance for unit::UnitProvenance {
 }
 
 impl PythonProvenance for proofs::ProofsProvenance {
-  fn split_py_fact(fact: &PyAny) -> PyResult<(Option<&PyAny>, &PyAny)> {
-    Ok((None, fact))
-  }
-
-  fn process_py_tag(_: &PyAny) -> PyResult<Self::InputTag> {
-    Ok(())
+  fn process_py_tag(disj_id: &PyAny) -> PyResult<Option<Self::InputTag>> {
+    let disj_id: usize = disj_id.extract()?;
+    Ok(Some(proofs::ProofsInputTag::Exclusive(disj_id)))
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum {
@@ -100,8 +97,8 @@ impl PythonProvenance for proofs::ProofsProvenance {
 }
 
 impl PythonProvenance for min_max_prob::MinMaxProbProvenance {
-  fn process_py_tag(tag: &PyAny) -> PyResult<Self::InputTag> {
-    tag.extract()
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
+    tag.extract().map(Some)
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum {
@@ -113,9 +110,9 @@ impl PythonProvenance for min_max_prob::MinMaxProbProvenance {
   }
 }
 
-impl PythonProvenance for add_mult_prob::AddMultProbContext {
-  fn process_py_tag(tag: &PyAny) -> PyResult<Self::InputTag> {
-    tag.extract()
+impl PythonProvenance for add_mult_prob::AddMultProbProvenance {
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
+    tag.extract().map(Some)
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum {
@@ -127,9 +124,14 @@ impl PythonProvenance for add_mult_prob::AddMultProbContext {
   }
 }
 
-impl PythonProvenance for top_k_proofs::TopKProofsContext<ArcFamily> {
-  fn process_py_tag(tag: &PyAny) -> PyResult<Self::InputTag> {
-    tag.extract()
+impl PythonProvenance for top_k_proofs::TopKProofsProvenance<ArcFamily> {
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
+    let (prob, disj_id): (Option<f64>, Option<usize>) = tag.extract()?;
+    if let Some(prob) = prob {
+      Ok(Some((prob, disj_id).into()))
+    } else {
+      Ok(None)
+    }
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
@@ -144,9 +146,14 @@ impl PythonProvenance for top_k_proofs::TopKProofsContext<ArcFamily> {
   }
 }
 
-impl PythonProvenance for top_bottom_k_clauses::TopBottomKClausesContext<ArcFamily> {
-  fn process_py_tag(tag: &PyAny) -> PyResult<Self::InputTag> {
-    tag.extract()
+impl PythonProvenance for top_bottom_k_clauses::TopBottomKClausesProvenance<ArcFamily> {
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
+    let (prob, disj_id): (Option<f64>, Option<usize>) = tag.extract()?;
+    if let Some(prob) = prob {
+      Ok(Some((prob, disj_id).into()))
+    } else {
+      Ok(None)
+    }
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
@@ -161,11 +168,11 @@ impl PythonProvenance for top_bottom_k_clauses::TopBottomKClausesContext<ArcFami
   }
 }
 
-impl PythonProvenance for diff_min_max_prob::DiffMinMaxProbContext<Py<PyAny>, ArcFamily> {
-  fn process_py_tag(tag: &PyAny) -> PyResult<Self::InputTag> {
+impl PythonProvenance for diff_min_max_prob::DiffMinMaxProbProvenance<Py<PyAny>, ArcFamily> {
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let prob: f64 = tag.extract()?;
     let tag: Py<PyAny> = tag.into();
-    Ok((prob, tag).into())
+    Ok(Some((prob, tag).into()))
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
@@ -184,11 +191,11 @@ impl PythonProvenance for diff_min_max_prob::DiffMinMaxProbContext<Py<PyAny>, Ar
   }
 }
 
-impl PythonProvenance for diff_add_mult_prob::DiffAddMultProbContext<Py<PyAny>, ArcFamily> {
-  fn process_py_tag(tag: &PyAny) -> PyResult<Self::InputTag> {
+impl PythonProvenance for diff_add_mult_prob::DiffAddMultProbProvenance<Py<PyAny>, ArcFamily> {
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let prob: f64 = tag.extract()?;
     let tag: Py<PyAny> = tag.into();
-    Ok((prob, tag).into())
+    Ok(Some((prob, tag).into()))
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
@@ -203,11 +210,11 @@ impl PythonProvenance for diff_add_mult_prob::DiffAddMultProbContext<Py<PyAny>, 
   }
 }
 
-impl PythonProvenance for diff_nand_mult_prob::DiffNandMultProbContext<Py<PyAny>, ArcFamily> {
-  fn process_py_tag(tag: &PyAny) -> PyResult<Self::InputTag> {
+impl PythonProvenance for diff_nand_mult_prob::DiffNandMultProbProvenance<Py<PyAny>, ArcFamily> {
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let prob: f64 = tag.extract()?;
     let tag: Py<PyAny> = tag.into();
-    Ok((prob, tag).into())
+    Ok(Some((prob, tag).into()))
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
@@ -222,11 +229,11 @@ impl PythonProvenance for diff_nand_mult_prob::DiffNandMultProbContext<Py<PyAny>
   }
 }
 
-impl PythonProvenance for diff_max_mult_prob::DiffMaxMultProbContext<Py<PyAny>, ArcFamily> {
-  fn process_py_tag(tag: &PyAny) -> PyResult<Self::InputTag> {
+impl PythonProvenance for diff_max_mult_prob::DiffMaxMultProbProvenance<Py<PyAny>, ArcFamily> {
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let prob: f64 = tag.extract()?;
     let tag: Py<PyAny> = tag.into();
-    Ok((prob, tag).into())
+    Ok(Some((prob, tag).into()))
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
@@ -241,11 +248,11 @@ impl PythonProvenance for diff_max_mult_prob::DiffMaxMultProbContext<Py<PyAny>, 
   }
 }
 
-impl PythonProvenance for diff_nand_min_prob::DiffNandMinProbContext<Py<PyAny>, ArcFamily> {
-  fn process_py_tag(tag: &PyAny) -> PyResult<Self::InputTag> {
+impl PythonProvenance for diff_nand_min_prob::DiffNandMinProbProvenance<Py<PyAny>, ArcFamily> {
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let prob: f64 = tag.extract()?;
     let tag: Py<PyAny> = tag.into();
-    Ok((prob, tag).into())
+    Ok(Some((prob, tag).into()))
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
@@ -260,11 +267,15 @@ impl PythonProvenance for diff_nand_min_prob::DiffNandMinProbContext<Py<PyAny>, 
   }
 }
 
-impl PythonProvenance for diff_sample_k_proofs::DiffSampleKProofsContext<Py<PyAny>, ArcFamily> {
-  fn process_py_tag(tag: &PyAny) -> PyResult<Self::InputTag> {
-    let prob: f64 = tag.extract()?;
-    let tag: Py<PyAny> = tag.into();
-    Ok((prob, tag).into())
+impl PythonProvenance for diff_sample_k_proofs::DiffSampleKProofsProvenance<Py<PyAny>, ArcFamily> {
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
+    let tag_disj_id: (&PyAny, Option<usize>) = tag.extract()?;
+    if let Some(prob) = tag_disj_id.0.extract()? {
+      let tag: Py<PyAny> = tag_disj_id.0.into();
+      Ok(Some((prob, tag, tag_disj_id.1).into()))
+    } else {
+      Ok(None)
+    }
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
@@ -279,11 +290,15 @@ impl PythonProvenance for diff_sample_k_proofs::DiffSampleKProofsContext<Py<PyAn
   }
 }
 
-impl PythonProvenance for diff_top_k_proofs::DiffTopKProofsContext<Py<PyAny>, ArcFamily> {
-  fn process_py_tag(tag: &PyAny) -> PyResult<Self::InputTag> {
-    let prob: f64 = tag.extract()?;
-    let tag: Py<PyAny> = tag.into();
-    Ok((prob, tag).into())
+impl PythonProvenance for diff_top_k_proofs::DiffTopKProofsProvenance<Py<PyAny>, ArcFamily> {
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
+    let tag_disj_id: (&PyAny, Option<usize>) = tag.extract()?;
+    if let Some(prob) = tag_disj_id.0.extract()? {
+      let tag: Py<PyAny> = tag_disj_id.0.into();
+      Ok(Some((prob, tag, tag_disj_id.1).into()))
+    } else {
+      Ok(None)
+    }
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
@@ -298,11 +313,15 @@ impl PythonProvenance for diff_top_k_proofs::DiffTopKProofsContext<Py<PyAny>, Ar
   }
 }
 
-impl PythonProvenance for diff_top_k_proofs_indiv::DiffTopKProofsIndivContext<Py<PyAny>, ArcFamily> {
-  fn process_py_tag(tag: &PyAny) -> PyResult<Self::InputTag> {
-    let prob: f64 = tag.extract()?;
-    let tag: Py<PyAny> = tag.into();
-    Ok((prob, tag).into())
+impl PythonProvenance for diff_top_k_proofs_indiv::DiffTopKProofsIndivProvenance<Py<PyAny>, ArcFamily> {
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
+    let tag_disj_id: (&PyAny, Option<usize>) = tag.extract()?;
+    if let Some(prob) = tag_disj_id.0.extract()? {
+      let tag: Py<PyAny> = tag_disj_id.0.into();
+      Ok(Some((prob, tag, tag_disj_id.1).into()))
+    } else {
+      Ok(None)
+    }
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
@@ -317,11 +336,15 @@ impl PythonProvenance for diff_top_k_proofs_indiv::DiffTopKProofsIndivContext<Py
   }
 }
 
-impl PythonProvenance for diff_top_bottom_k_clauses::DiffTopBottomKClausesContext<Py<PyAny>, ArcFamily> {
-  fn process_py_tag(tag: &PyAny) -> PyResult<Self::InputTag> {
-    let prob: f64 = tag.extract()?;
-    let tag: Py<PyAny> = tag.into();
-    Ok((prob, tag).into())
+impl PythonProvenance for diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance<Py<PyAny>, ArcFamily> {
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
+    let tag_disj_id: (&PyAny, Option<usize>) = tag.extract()?;
+    if let Some(prob) = tag_disj_id.0.extract()? {
+      let tag: Py<PyAny> = tag_disj_id.0.into();
+      Ok(Some((prob, tag, tag_disj_id.1).into()))
+    } else {
+      Ok(None)
+    }
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
@@ -336,10 +359,10 @@ impl PythonProvenance for diff_top_bottom_k_clauses::DiffTopBottomKClausesContex
   }
 }
 
-impl PythonProvenance for custom_tag::CustomTagContext {
-  fn process_py_tag(tag: &PyAny) -> PyResult<Self::InputTag> {
+impl PythonProvenance for custom_tag::CustomProvenance {
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let tag: Py<PyAny> = tag.into();
-    Ok(tag)
+    Ok(Some(tag))
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum {

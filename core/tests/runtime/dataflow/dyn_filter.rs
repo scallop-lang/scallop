@@ -1,12 +1,14 @@
 use scallop_core::common::expr::*;
 use scallop_core::runtime::dynamic::dataflow::*;
 use scallop_core::runtime::dynamic::*;
+use scallop_core::runtime::env::*;
 use scallop_core::runtime::provenance::*;
 use scallop_core::testing::*;
 
 #[test]
 fn test_dynamic_filter_1() {
   let mut ctx = unit::UnitProvenance;
+  let mut rt = RuntimeEnvironment::default();
 
   // Relations
   let mut source = DynamicRelation::<unit::UnitProvenance>::new();
@@ -23,7 +25,7 @@ fn test_dynamic_filter_1() {
         DynamicDataflow::dynamic_relation(&source),
         Expr::access(1).gt(Expr::constant(1i8)),
       ),
-      true,
+      &mut rt,
     )
   }
 

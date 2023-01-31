@@ -27,26 +27,27 @@ impl<'a, Prov: Provenance> DynamicAggregationImplicitGroupDataflow<'a, Prov> {
     }
   }
 
-  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_stable(&self, _: &RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     DynamicBatches::Empty
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_recent(&self, runtime: &RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     // Sanitize input relation
-    let mut batch = if let Some(b) = self.d.iter_recent().next() {
+    let mut batch = if let Some(b) = self.d.iter_recent(runtime).next() {
       b
     } else {
       return DynamicBatches::empty();
     };
 
     // Temporary function to aggregate the group and populate the result
-    let consolidate_group = |result: &mut DynamicElements<Prov>, agg_key: Tuple, agg_group| {
-      let agg_results = self.agg.aggregate(agg_group, self.ctx);
-      let joined_results = agg_results
-        .into_iter()
-        .map(|agg_result| DynamicElement::new((agg_key.clone(), agg_result.tuple.clone()), agg_result.tag));
-      result.extend(joined_results);
-    };
+    let consolidate_group =
+      |result: &mut DynamicElements<Prov>, agg_key: Tuple, agg_group, runtime: &RuntimeEnvironment| {
+        let agg_results = self.agg.aggregate(agg_group, self.ctx, runtime);
+        let joined_results = agg_results
+          .into_iter()
+          .map(|agg_result| DynamicElement::new((agg_key.clone(), agg_result.tuple.clone()), agg_result.tag));
+        result.extend(joined_results);
+      };
 
     // Get the first element from the batch; otherwise, return empty
     let first_elem = if let Some(e) = batch.next() {
@@ -72,12 +73,12 @@ impl<'a, Prov: Provenance> DynamicAggregationImplicitGroupDataflow<'a, Prov> {
         std::mem::swap(&mut new_agg_key, &mut agg_key);
         let mut new_agg_group = vec![DynamicElement::new(curr_elem.tuple[1].clone(), curr_elem.tag.clone())];
         std::mem::swap(&mut new_agg_group, &mut agg_group);
-        consolidate_group(&mut result, new_agg_key, new_agg_group);
+        consolidate_group(&mut result, new_agg_key, new_agg_group, runtime);
       }
     }
 
     // Make sure we handle the last group
-    consolidate_group(&mut result, agg_key, agg_group);
+    consolidate_group(&mut result, agg_key, agg_group, runtime);
 
     // Return the result as a single batch
     DynamicBatches::single(DynamicBatch::source_vec(result))

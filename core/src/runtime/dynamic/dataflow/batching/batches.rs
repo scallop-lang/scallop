@@ -35,15 +35,17 @@ impl<'a, Prov: Provenance> DynamicBatches<'a, Prov> {
     }
   }
 
-  pub fn project(source: DynamicBatches<'a, Prov>, expression: Expr) -> Self {
+  pub fn project(runtime: &'a RuntimeEnvironment, source: DynamicBatches<'a, Prov>, expression: Expr) -> Self {
     Self::Project(DynamicProjectBatches {
+      runtime,
       source: Box::new(source),
       expression,
     })
   }
 
-  pub fn filter(source: DynamicBatches<'a, Prov>, filter: Expr) -> Self {
+  pub fn filter(runtime: &'a RuntimeEnvironment, source: DynamicBatches<'a, Prov>, filter: Expr) -> Self {
     Self::Filter(DynamicFilterBatches {
+      runtime,
       source: Box::new(source),
       filter,
     })

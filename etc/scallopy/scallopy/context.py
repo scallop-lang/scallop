@@ -11,6 +11,7 @@ from .collection import ScallopCollection
 from .provenance import ScallopProvenance, DiffAddMultProb2Semiring, DiffNandMultProb2Semiring, DiffMaxMultProb2Semiring
 from .io import CSVFileOptions
 from .utils import _mapping_tuple
+from .function import ForeignFunction
 from .history import HistoryAction, record_history
 from .sample_type import SAMPLE_TYPE_TOP_K
 
@@ -86,6 +87,7 @@ class ScallopContext(Context):
       self._input_retain_topk = {}
       self._input_non_probabilistic = {}
       self._input_is_singleton = {}
+      self._input_mutual_exclusions = 0
       self._sample_facts = {}
       self._k = k
       self._train_k = train_k
@@ -100,6 +102,7 @@ class ScallopContext(Context):
       self._input_retain_topk = deepcopy(fork_from._input_retain_topk)
       self._input_non_probabilistic = deepcopy(fork_from._input_non_probabilistic)
       self._input_is_singleton = deepcopy(fork_from._input_is_singleton)
+      self._input_mutual_exclusions = deepcopy(fork_from._input_mutual_exclusions)
       self._sample_facts = deepcopy(fork_from._sample_facts)
       self._k = deepcopy(fork_from._k)
       self._train_k = deepcopy(fork_from._train_k)
@@ -152,7 +155,7 @@ class ScallopContext(Context):
     """
     return ScallopContext(fork_from=self)
 
-  def run(self, iter_limit: Optional[int] = None):
+  def run(self):
     """
     Execute the code under the current context. This operation is incremental
     and might use as many as previous information as possible.
@@ -161,14 +164,13 @@ class ScallopContext(Context):
     ctx.run()
     ```
     """
-    self._internal.run(iter_limit)
+    self._internal.run()
 
   def run_batch(
     self,
     inputs: Dict[str, List[Union[Tuple[List[Tuple], Optional[List[List[int]]]], List[Tuple]]]],
     output_relation: Union[str, List[str]],
     parallel: bool = False,
-    iter_limit: Optional[int] = None,
   ):
     """
     Run the program in batch mode
@@ -176,7 +178,7 @@ class ScallopContext(Context):
     batch_size = len(list(inputs.values())[0])
     output_relations = output_relation if type(output_relation) == list else [output_relation] * batch_size
     inputs = {r: [i if type(i) == tuple else (i, None) for i in b] for (r, b) in inputs.items()}
-    internal_collections = self._internal.run_batch(iter_limit, output_relations, inputs, parallel)
+    internal_collections = self._internal.run_batch(output_relations, inputs, parallel)
     return [ScallopCollection(self.provenance, coll) for coll in internal_collections]
 
   @record_history
@@ -193,12 +195,18 @@ class ScallopContext(Context):
     """
     self._internal.add_program(program)
 
+  @record_history
+  def register_foreign_function(self, foreign_function: ForeignFunction):
+    if type(foreign_function) == ForeignFunction:
+      self._internal.register_foreign_function(foreign_function)
+    else:
+      raise Exception("Registering non-foreign-function. Consider decorating the function with @scallopy.foreign_function")
+
   def forward_function(
     self,
     output: Optional[str] = None,
     output_mapping: Optional[Union[List[Tuple], Tuple]] = None,
     output_mappings: Optional[Dict[str, List[Tuple]]] = None,
-    iter_limit: Optional[int] = None,
     dispatch: Optional[str] = "parallel",
     debug_provenance: bool = False,
     retain_graph: bool = False,
@@ -218,7 +226,6 @@ class ScallopContext(Context):
 
     :param output: the output relation name
     :param output_mapping: the output mapping for vectorization
-    :param iter_limit: the amount of maximum iteration.
     If not specified (i.e. None), will run until fixpoint
     """
     # Import ScallopForward to avoid circular dependency
@@ -233,7 +240,7 @@ class ScallopContext(Context):
     else: raise Exception("`forward_function` can only be called on context with differentiable provenance")
 
     # Forward function
-    return InternalScallopForwardFunction(self, output, output_mapping, output_mappings, iter_limit, dispatch, debug_provenance, retain_graph, jit, jit_name, recompile)
+    return InternalScallopForwardFunction(self, output, output_mapping, output_mappings, dispatch, debug_provenance, retain_graph, jit, jit_name, recompile)
 
   def _refresh_training_eval_state(self):
     if self._train_k is not None or self._test_k is not None:
@@ -398,7 +405,7 @@ class ScallopContext(Context):
     """
 
     # First normalize the probability format
-    if relation in self._input_non_probabilistic and self._input_non_probabilistic[relation] and self.requires_tag():
+    if self.relation_is_non_probabilistic(relation) and self.requires_tag():
       elems = [(None, t) for t in elems]
 
     # Then normalize the singleton tuple format
@@ -408,8 +415,11 @@ class ScallopContext(Context):
       else:
         elems = [(tup,) if type(tup) != tuple else tup for tup in elems]
 
+    # Add disjunction information if present
+    elems = self._process_disjunctive_elements(elems, disjunctions)
+
     # Add the facts
-    self._internal.add_facts(relation, elems, disjunctions)
+    self._internal.add_facts(relation, elems)
 
   @record_history
   def add_rule(self, rule: str, tag: Optional[Any] = None, demand: Optional[str] = None):
@@ -541,3 +551,57 @@ class ScallopContext(Context):
       return False
     else:
       return True
+
+  def relation_is_non_probabilistic(self, relation: str) -> bool:
+    if relation in self._input_non_probabilistic and self._input_non_probabilistic[relation]:
+      return True
+    else:
+      return False
+
+  def supports_disjunctions(self) -> bool:
+    PROVENANCE_SUPPORTING_DISJUNCTIONS = set([
+      "proofs",
+      "topkproofs",
+      "topbottomkclauses",
+      "diffsamplekproofs",
+      "difftopkproofs",
+      "difftopkproofsindiv",
+      "difftopbottomkclauses",
+    ])
+    return self.provenance in PROVENANCE_SUPPORTING_DISJUNCTIONS
+
+  def _process_disjunctive_elements(self, elems, disjunctions):
+    # Check if we the provenance supports handling disjunctions
+    if self.supports_disjunctions():
+
+      # Collect the facts occurred in disjunctions and those who don't
+      visited_fact_ids = set()
+
+      # If there are indeed disjunctions
+      if disjunctions and len(disjunctions) > 0:
+        # Go through each disjunction
+        for disjunction in disjunctions:
+          # Assign a new disjunction id for this one
+          disjunction_id = self._input_mutual_exclusions
+          self._input_mutual_exclusions += 1 # Increment the mutual exclusion count
+
+          # Go through the facts and update the tag to include disjunction id
+          for fact_id in disjunction:
+            visited_fact_ids.add(fact_id)
+            if self.requires_tag():
+              (tag, tup) = elems[fact_id]
+              elems[fact_id] = ((tag, disjunction_id), tup)
+            else:
+              elems[fact_id] = (disjunction_id, elems[fact_id])
+
+      # Update facts who is not inside of any disjunction
+      for (fact_id, fact) in enumerate(elems):
+        if fact_id not in visited_fact_ids:
+          if self.requires_tag():
+            (tag, tup) = fact
+            elems[fact_id] = ((tag, None), tup)
+          else:
+            elems[fact_id] = (None, fact)
+
+    # Return the processed elements
+    return elems

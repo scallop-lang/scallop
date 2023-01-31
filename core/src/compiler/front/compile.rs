@@ -5,8 +5,10 @@ use std::path::PathBuf;
 use super::analysis::*;
 use super::analyzers::*;
 use super::*;
-use crate::common::tuple_type::TupleType;
-use crate::common::value_type::ValueType;
+
+use crate::common::foreign_function::*;
+use crate::common::tuple_type::*;
+use crate::common::value_type::*;
 use crate::utils::CopyOnWrite;
 
 #[derive(Clone, Debug, Copy)]
@@ -14,29 +16,36 @@ pub struct SourceId(usize);
 
 #[derive(Clone, Debug)]
 pub struct FrontContext {
+  /// All the compilation sources
   pub sources: Sources,
-  pub items: Items,
 
-  // Import
+  /// The set of imported files (Paths)
   pub imported_files: HashSet<PathBuf>,
 
-  // Analysis
+  /// All the compiled program items
+  pub items: Items,
+
+  /// Foreign function registry holding all foreign functions
+  pub foreign_function_registry: ForeignFunctionRegistry,
+
+  /// Node ID annotator for giving AST node IDs.
   pub node_id_annotator: NodeIdAnnotator,
+
+  /// Front analysis which is Cow-ed, containing all the analyzed
   pub analysis: CopyOnWrite<Analysis>,
 }
 
 impl FrontContext {
   pub fn new() -> Self {
+    let function_registry = ForeignFunctionRegistry::std();
+    let analysis = Analysis::new(&function_registry);
     Self {
       sources: Sources::new(),
       items: Vec::new(),
-
-      // Import
+      foreign_function_registry: function_registry,
       imported_files: HashSet::new(),
-
-      // Annotator
       node_id_annotator: NodeIdAnnotator::new(),
-      analysis: CopyOnWrite::new(Analysis::new()),
+      analysis: CopyOnWrite::new(analysis),
     }
   }
 
@@ -53,6 +62,29 @@ impl FrontContext {
       .map(|i| format!("{}", i))
       .collect::<Vec<_>>()
       .join("\n")
+  }
+
+  pub fn register_foreign_function<F>(&mut self, f: F) -> Result<(), ForeignFunctionError>
+  where
+    F: ForeignFunction + Send + Sync + 'static,
+  {
+    // Prepare type inference data
+    let func_name = f.name();
+    let func_type = type_inference::FunctionType::from(&f);
+
+    // First add the function to the foreign function registry
+    // This process will make sure that the function is well formed and can be added
+    self.foreign_function_registry.register(f)?;
+
+    // If succeeded, we add it to the type inference module
+    self.analysis.modify(|analysis| {
+      analysis
+        .type_inference
+        .function_type_registry
+        .add_function_type(func_name, func_type)
+    });
+
+    Ok(())
   }
 
   pub fn compile_source<S: Source>(&mut self, s: S) -> Result<SourceId, FrontCompileError> {

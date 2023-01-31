@@ -7,14 +7,14 @@ use rand::rngs::StdRng;
 
 use super::*;
 
-pub struct SampleKProofsContext {
+pub struct SampleKProofsProvenance {
   pub k: usize,
   pub sampler: Rc<RefCell<StdRng>>,
   pub probs: Rc<Vec<f64>>,
   pub disjunctions: Disjunctions,
 }
 
-impl Clone for SampleKProofsContext {
+impl Clone for SampleKProofsProvenance {
   fn clone(&self) -> Self {
     Self {
       k: self.k,
@@ -25,7 +25,7 @@ impl Clone for SampleKProofsContext {
   }
 }
 
-impl SampleKProofsContext {
+impl SampleKProofsProvenance {
   pub fn new(k: usize) -> Self {
     Self::new_with_seed(k, 12345678)
   }
@@ -44,7 +44,7 @@ impl SampleKProofsContext {
   }
 }
 
-impl DNFContextTrait for SampleKProofsContext {
+impl DNFContextTrait for SampleKProofsProvenance {
   fn fact_probability(&self, id: &usize) -> f64 {
     self.probs[*id]
   }
@@ -54,10 +54,10 @@ impl DNFContextTrait for SampleKProofsContext {
   }
 }
 
-impl Provenance for SampleKProofsContext {
+impl Provenance for SampleKProofsProvenance {
   type Tag = DNFFormula;
 
-  type InputTag = f64;
+  type InputTag = InputExclusiveProb;
 
   type OutputTag = f64;
 
@@ -65,31 +65,18 @@ impl Provenance for SampleKProofsContext {
     "sample-k-proofs"
   }
 
-  fn tagging_fn(&mut self, prob: Self::InputTag) -> Self::Tag {
-    let id = self.probs.len();
-    Rc::get_mut(&mut self.probs).unwrap().push(prob);
-    DNFFormula::singleton(id)
-  }
+  fn tagging_fn(&mut self, input_tag: Self::InputTag) -> Self::Tag {
+    // First generate id and push the probability into the list
+    let fact_id = self.probs.len();
+    Rc::get_mut(&mut self.probs).unwrap().push(input_tag.prob);
 
-  fn tagging_disjunction_fn(&mut self, tags: Vec<Self::InputTag>) -> Vec<Self::Tag> {
-    let mut ids = vec![];
+    // Add exlusion if needed
+    if let Some(disj_id) = input_tag.exclusion {
+      self.disjunctions.add_disjunction(disj_id, fact_id);
+    }
 
-    // Add base disjunctions
-    let tags = tags
-      .into_iter()
-      .map(|tag| {
-        let id = self.probs.len();
-        Rc::get_mut(&mut self.probs).unwrap().push(tag);
-        ids.push(id);
-        DNFFormula::singleton(id)
-      })
-      .collect::<Vec<_>>();
-
-    // Add disjunction
-    self.disjunctions.add_disjunction(ids.clone().into_iter());
-
-    // Return tags
-    tags
+    // Lastly return a tag
+    Self::Tag::singleton(fact_id)
   }
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
@@ -118,8 +105,8 @@ impl Provenance for SampleKProofsContext {
     }
   }
 
-  fn saturated(&self, t_old: &Self::Tag, t_new: &Self::Tag) -> bool {
-    t_old == t_new
+  fn saturated(&self, _: &Self::Tag, _: &Self::Tag) -> bool {
+    true
   }
 
   fn mult(&self, t1: &Self::Tag, t2: &Self::Tag) -> Self::Tag {
@@ -137,5 +124,11 @@ impl Provenance for SampleKProofsContext {
 
   fn minus(&self, _: &Self::Tag, _: &Self::Tag) -> Option<Self::Tag> {
     panic!("Not implemented")
+  }
+
+  fn weight(&self, t: &Self::Tag) -> f64 {
+    let s = RealSemiring;
+    let v = |i: &usize| -> f64 { self.probs[*i] };
+    t.wmc(&s, &v)
   }
 }

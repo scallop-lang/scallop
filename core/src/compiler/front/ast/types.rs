@@ -2,6 +2,7 @@ use super::*;
 use crate::common::value_type::*;
 
 #[derive(Debug, Clone, PartialEq)]
+#[doc(hidden)]
 pub enum TypeNode {
   I8,
   I16,

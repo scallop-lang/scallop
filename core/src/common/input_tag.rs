@@ -1,14 +1,15 @@
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
-pub enum ExtInputTag<T: Clone + PartialEq + PartialOrd> {
+pub enum DynamicInputTag {
   None,
+  Exclusive(usize),
   Bool(bool),
   Float(f64),
-  TaggedFloat(f64, T),
+  ExclusiveFloat(f64, usize),
 }
 
-pub type InputTag = ExtInputTag<()>;
+pub type InputTag = DynamicInputTag;
 
-impl<T: Clone + PartialEq + PartialOrd> ExtInputTag<T> {
+impl DynamicInputTag {
   pub fn is_some(&self) -> bool {
     match self {
       Self::None => false,
@@ -22,54 +23,74 @@ impl<T: Clone + PartialEq + PartialOrd> ExtInputTag<T> {
       _ => false,
     }
   }
-}
 
-impl<T: Clone + PartialEq + PartialOrd> std::fmt::Display for ExtInputTag<T> {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+  pub fn with_exclusivity(&self, exclusion_id: usize) -> Self {
     match self {
-      Self::None => Ok(()),
-      Self::Bool(b) => b.fmt(f),
-      Self::Float(n) => n.fmt(f),
-      Self::TaggedFloat(n, _) => n.fmt(f),
+      Self::None => Self::Exclusive(exclusion_id),
+      Self::Float(f) => Self::ExclusiveFloat(f.clone(), exclusion_id),
+      Self::ExclusiveFloat(f, _) => Self::ExclusiveFloat(f.clone(), exclusion_id),
+      _ => self.clone(),
     }
   }
 }
 
-impl<T: Clone + PartialEq + PartialOrd> Default for ExtInputTag<T> {
+impl std::fmt::Display for DynamicInputTag {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Self::None => Ok(()),
+      Self::Exclusive(i) => f.write_str(&format!("[ME({})]", i)),
+      Self::Bool(b) => b.fmt(f),
+      Self::Float(n) => n.fmt(f),
+      Self::ExclusiveFloat(n, i) => f.write_str(&format!("{} [ME({})]", n, i)),
+    }
+  }
+}
+
+impl Default for DynamicInputTag {
   fn default() -> Self {
     Self::None
   }
 }
 
 pub trait FromInputTag: Sized {
-  fn from_input_tag<T: Clone + PartialEq + PartialOrd>(t: &ExtInputTag<T>) -> Option<Self>;
+  fn from_input_tag(t: &DynamicInputTag) -> Option<Self>;
 }
 
 impl<T> FromInputTag for T {
-  default fn from_input_tag<TP: Clone + PartialEq + PartialOrd>(_: &ExtInputTag<TP>) -> Option<T> {
+  default fn from_input_tag(_: &DynamicInputTag) -> Option<T> {
     None
   }
 }
 
 impl FromInputTag for bool {
-  fn from_input_tag<TP: Clone + PartialEq + PartialOrd>(t: &ExtInputTag<TP>) -> Option<bool> {
+  fn from_input_tag(t: &DynamicInputTag) -> Option<bool> {
     match t {
-      ExtInputTag::Bool(b) => Some(b.clone()),
+      DynamicInputTag::Bool(b) => Some(b.clone()),
       _ => None,
     }
   }
 }
 
 impl FromInputTag for f64 {
-  fn from_input_tag<TP: Clone + PartialEq + PartialOrd>(t: &ExtInputTag<TP>) -> Option<f64> {
+  fn from_input_tag(t: &DynamicInputTag) -> Option<f64> {
     match t {
-      ExtInputTag::Float(f) => Some(f.clone()),
+      DynamicInputTag::Float(f) => Some(f.clone()),
       _ => None,
     }
   }
 }
 
-impl<TP: Clone + PartialEq + PartialOrd> std::str::FromStr for ExtInputTag<TP> {
+impl FromInputTag for (f64, Option<usize>) {
+  fn from_input_tag(t: &DynamicInputTag) -> Option<(f64, Option<usize>)> {
+    match t {
+      DynamicInputTag::Float(f) => Some((f.clone(), None)),
+      DynamicInputTag::ExclusiveFloat(f, u) => Some((f.clone(), Some(u.clone()))),
+      _ => None,
+    }
+  }
+}
+
+impl std::str::FromStr for DynamicInputTag {
   type Err = ParseInputTagError;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {

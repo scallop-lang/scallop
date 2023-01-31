@@ -1,6 +1,7 @@
 use super::*;
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct RuleNode {
   pub head: Atom,
   pub body: Formula,

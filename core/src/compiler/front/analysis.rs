@@ -1,3 +1,5 @@
+use crate::common::foreign_function::ForeignFunctionRegistry;
+
 use super::analyzers::*;
 use super::*;
 
@@ -10,7 +12,6 @@ pub struct Analysis {
   pub aggregation_analysis: AggregationAnalysis,
   pub character_literal_analysis: CharacterLiteralAnalysis,
   pub constant_decl_analysis: ConstantDeclAnalysis,
-  pub function_analysis: FunctionAnalysis,
   pub head_relation_analysis: HeadRelationAnalysis,
   pub type_inference: TypeInference,
   pub boundness_analysis: BoundnessAnalysis,
@@ -18,7 +19,7 @@ pub struct Analysis {
 }
 
 impl Analysis {
-  pub fn new() -> Self {
+  pub fn new(function_registry: &ForeignFunctionRegistry) -> Self {
     Self {
       invalid_wildcard: InvalidWildcardAnalyzer::new(),
       input_files_analysis: InputFilesAnalysis::new(),
@@ -27,9 +28,8 @@ impl Analysis {
       aggregation_analysis: AggregationAnalysis::new(),
       character_literal_analysis: CharacterLiteralAnalysis::new(),
       constant_decl_analysis: ConstantDeclAnalysis::new(),
-      function_analysis: FunctionAnalysis::new(),
       head_relation_analysis: HeadRelationAnalysis::new(),
-      type_inference: TypeInference::new(),
+      type_inference: TypeInference::new(function_registry),
       boundness_analysis: BoundnessAnalysis::new(),
       demand_attr_analysis: DemandAttributeAnalysis::new(),
     }
@@ -43,7 +43,6 @@ impl Analysis {
       &mut self.aggregation_analysis,
       &mut self.character_literal_analysis,
       &mut self.constant_decl_analysis,
-      &mut self.function_analysis,
       &mut self.invalid_wildcard,
     );
     analyzers.walk_items(items);
@@ -76,7 +75,6 @@ impl Analysis {
     error_ctx.extend(&mut self.aggregation_analysis.errors);
     error_ctx.extend(&mut self.character_literal_analysis.errors);
     error_ctx.extend(&mut self.constant_decl_analysis.errors);
-    error_ctx.extend(&mut self.function_analysis.errors);
     error_ctx.extend(&mut self.head_relation_analysis.errors);
     error_ctx.extend(&mut self.type_inference.errors);
     error_ctx.extend(&mut self.boundness_analysis.errors);

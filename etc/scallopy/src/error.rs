@@ -1,6 +1,7 @@
 use pyo3::{exceptions::PyException, prelude::*};
 
-use scallop_core::{integrate::IntegrateError, runtime::dynamic::RuntimeError};
+use scallop_core::integrate::IntegrateError;
+use scallop_core::runtime::error::RuntimeError;
 
 #[derive(Debug)]
 pub enum BindingError {

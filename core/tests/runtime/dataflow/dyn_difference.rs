@@ -1,5 +1,6 @@
 use scallop_core::runtime::dynamic::dataflow::*;
 use scallop_core::runtime::dynamic::*;
+use scallop_core::runtime::env::*;
 use scallop_core::runtime::provenance::*;
 use scallop_core::testing::*;
 
@@ -18,6 +19,8 @@ where
   Prov::Tag: std::fmt::Debug,
   Prov: Provenance,
 {
+  let mut rt = RuntimeEnvironment::default();
+
   // Relations
   let mut source_1 = DynamicRelation::<Prov>::new();
   let mut source_2 = DynamicRelation::<Prov>::new();
@@ -36,7 +39,7 @@ where
     target.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::from(&source_1).difference(DynamicDataflow::dynamic_recent_collection(&source_2_coll), &ctx),
-      true,
+      &mut rt,
     )
   }
 

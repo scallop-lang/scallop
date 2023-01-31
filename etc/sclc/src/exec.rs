@@ -4,6 +4,7 @@ use std::env;
 use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
+use std::path::PathBuf;
 use std::process::Command;
 
 use scallop_core::compiler;
@@ -11,6 +12,43 @@ use scallop_core::compiler;
 use super::options::*;
 
 pub fn create_executable(opt: &Options, compile_opt: compiler::CompileOptions, ram: &compiler::ram::Program) {
+  let program_name = opt.input.file_prefix().unwrap().to_str().unwrap();
+
+  // Compile it to rust project
+  let (parent_dir, tmp_dir) = generate_exec_rust_project(opt, compile_opt, ram);
+
+  // Compile the file: create command
+  let mut cmd = Command::new("cargo");
+
+  // Add arguments
+  cmd.current_dir(&tmp_dir).arg("build").arg("--release");
+
+  // Run the command
+  let output = cmd.output().unwrap();
+  if output.status.success() {
+    // If we want to copy executable
+    if !opt.do_not_copy_artifact {
+      fs::copy(
+        tmp_dir.join(format!("target/release/{}", program_name)),
+        parent_dir.join(program_name),
+      )
+      .unwrap();
+    }
+
+    // If we do not want to keep the temporary directory
+    if opt.do_not_keep_temporary_directory {
+      fs::remove_dir_all(tmp_dir).unwrap();
+    }
+  } else {
+    println!("{}", std::str::from_utf8(&output.stderr).unwrap());
+  }
+}
+
+pub fn generate_exec_rust_project(
+  opt: &Options,
+  compile_opt: compiler::CompileOptions,
+  ram: &compiler::ram::Program,
+) -> (PathBuf, PathBuf) {
   // Turn the ram module into a sequence of rust tokens
   let module = ram.to_rs_module(&compile_opt);
 
@@ -83,31 +121,8 @@ structopt = "0.3"
   let mut main_rs_file = File::create(tmp_dir.join("src/main.rs")).unwrap();
   main_rs_file.write_all(file_content.as_bytes()).unwrap();
 
-  // Compile the file: create command
-  let mut cmd = Command::new("cargo");
-
-  // Add arguments
-  cmd.current_dir(&tmp_dir).arg("build").arg("--release");
-
-  // Run the command
-  let output = cmd.output().unwrap();
-  if output.status.success() {
-    // If we want to copy executable
-    if !opt.do_not_copy_artifact {
-      fs::copy(
-        tmp_dir.join(format!("target/release/{}", program_name)),
-        parent_dir.join(program_name),
-      )
-      .unwrap();
-    }
-
-    // If we do not want to keep the temporary directory
-    if opt.do_not_keep_temporary_directory {
-      fs::remove_dir_all(tmp_dir).unwrap();
-    }
-  } else {
-    println!("{}", std::str::from_utf8(&output.stderr).unwrap());
-  }
+  // Return
+  (parent_dir.to_path_buf(), tmp_dir)
 }
 
 fn cmd_line_option_struct(opt: &Options, program_name: &str) -> TokenStream {
@@ -141,10 +156,10 @@ fn main_body(opt: &Options) -> TokenStream {
     let top_k = opt.top_k;
     match p.as_str() {
       "unit" => quote! { run(unit::UnitProvenance::default()); },
-      "bool" => quote! { run(boolean::BooleanContext::default()); },
-      "minmaxprob" => quote! { run(min_max_prob::MinMaxProbContext::default()); },
-      "addmultprob" => quote! { run(add_mult_prob::AddMultProbContext::default()); },
-      "topkproofs" => quote! { run(top_k_proofs::TopKProofsContext::<RcFamily>::new(#top_k)); },
+      "bool" => quote! { run(boolean::BooleanProvenance::default()); },
+      "minmaxprob" => quote! { run(min_max_prob::MinMaxProbProvenance::default()); },
+      "addmultprob" => quote! { run(add_mult_prob::AddMultProbProvenance::default()); },
+      "topkproofs" => quote! { run(top_k_proofs::TopKProofsProvenance::<RcFamily>::new(#top_k)); },
       "samplekproofs" => quote! { run(sample_k_proofs::SampleKProofsContext::new(#top_k)); },
       "topbottomkclauses" => quote! { run(top_bottom_k_clauses::TopBottomKClausesContext::<RcFamily>::new(#top_k)); },
       p => panic!("Unknown provenance `{}`. Aborting", p),
@@ -154,12 +169,12 @@ fn main_body(opt: &Options) -> TokenStream {
       let opt = Options::from_args();
       match opt.provenance.as_str() {
         "unit" => run(unit::UnitProvenance::default()),
-        "bool" => run(unit::UnitProvenance::default()),
-        "minmaxprob" => run(min_max_prob::MinMaxProbContext::default()),
-        "addmultprob" => run(add_mult_prob::AddMultProbContext::default()),
-        "topkproofs" => run(top_k_proofs::TopKProofsContext::<RcFamily>::new(opt.top_k)),
-        "samplekproofs" => run(sample_k_proofs::SampleKProofsContext::new(opt.top_k)),
-        "topbottomkclauses" => run(top_bottom_k_clauses::TopBottomKClausesContext::<RcFamily>::new(opt.top_k)),
+        "bool" => run(boolean::BooleanProvenance::default()),
+        "minmaxprob" => run(min_max_prob::MinMaxProbProvenance::default()),
+        "addmultprob" => run(add_mult_prob::AddMultProbProvenance::default()),
+        "topkproofs" => run(top_k_proofs::TopKProofsProvenance::<RcFamily>::new(opt.top_k)),
+        "samplekproofs" => run(sample_k_proofs::SampleKProofsProvenance::new(opt.top_k)),
+        "topbottomkclauses" => run(top_bottom_k_clauses::TopBottomKClausesProvenance::<RcFamily>::new(opt.top_k)),
         p => println!("Unknown provenance `{}`. Aborting", p),
       }
     }

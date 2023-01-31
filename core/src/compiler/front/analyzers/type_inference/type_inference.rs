@@ -1,5 +1,6 @@
 use std::collections::*;
 
+use crate::common::foreign_function::ForeignFunctionRegistry;
 use crate::common::tuple_type::*;
 use crate::common::value_type::*;
 use crate::compiler::front::*;
@@ -10,6 +11,7 @@ use super::*;
 pub struct TypeInference {
   pub custom_types: HashMap<String, (ValueType, Loc)>,
   pub constant_types: HashMap<Loc, Type>,
+  pub function_type_registry: FunctionTypeRegistry,
   pub relation_type_decl_loc: HashMap<String, Loc>,
   pub inferred_relation_types: HashMap<String, (Vec<TypeSet>, Loc)>,
   pub rule_variable_type: HashMap<Loc, HashMap<String, TypeSet>>,
@@ -20,10 +22,11 @@ pub struct TypeInference {
 }
 
 impl TypeInference {
-  pub fn new() -> Self {
+  pub fn new(function_registry: &ForeignFunctionRegistry) -> Self {
     Self {
       custom_types: HashMap::new(),
       constant_types: HashMap::new(),
+      function_type_registry: FunctionTypeRegistry::from_foreign_function_registry(function_registry),
       relation_type_decl_loc: HashMap::new(),
       inferred_relation_types: HashMap::new(),
       rule_variable_type: HashMap::new(),
@@ -231,6 +234,7 @@ impl TypeInference {
           &self.custom_types,
           &self.constant_types,
           &self.inferred_relation_types,
+          &self.function_type_registry,
           &mut inferred_expr_types,
         )?;
         ctx.propagate_variable_types(&mut inferred_var_expr, &mut inferred_expr_types)?;

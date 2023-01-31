@@ -2,6 +2,7 @@ use scallop_core::common::aggregate_op::AggregateOp;
 use scallop_core::common::expr::*;
 use scallop_core::compiler::ram::*;
 use scallop_core::runtime::dynamic::*;
+use scallop_core::runtime::env::*;
 use scallop_core::runtime::provenance::*;
 use scallop_core::testing::*;
 
@@ -10,6 +11,7 @@ where
   Prov: Provenance<InputTag = ()> + Default,
 {
   let mut ctx = Prov::default();
+  let mut rt = RuntimeEnvironment::new();
 
   let result_1 = {
     let mut strata_1 = DynamicIteration::<Prov>::new();
@@ -33,7 +35,7 @@ where
     );
     strata_1.add_output_relation("_color_rev");
     strata_1.add_output_relation("_colors_key");
-    strata_1.run(&ctx)
+    strata_1.run(&ctx, &mut rt)
   };
 
   let mut result_2 = {
@@ -47,7 +49,7 @@ where
         .project((Expr::access(0), Expr::access(2))),
     );
     strata_2.add_output_relation("color_count");
-    strata_2.run(&ctx)
+    strata_2.run(&ctx, &mut rt)
   };
 
   result_2.remove("color_count").unwrap()

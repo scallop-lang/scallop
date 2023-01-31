@@ -1,12 +1,14 @@
 use super::*;
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct AttributeNode {
   pub name: Identifier,
   pub pos_args: Vec<Constant>,
   pub kw_args: Vec<(Identifier, Constant)>,
 }
 
+/// An attribute of the form `@attr(args...)`
 pub type Attribute = AstNode<AttributeNode>;
 
 impl Attribute {
@@ -40,4 +42,5 @@ impl Attribute {
   }
 }
 
+/// A list of attributes
 pub type Attributes = Vec<Attribute>;

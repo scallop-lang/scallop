@@ -1,10 +1,15 @@
+use std::collections::HashSet;
 use std::fmt::{Debug, Display};
+
+use rand::distributions::WeightedIndex;
+use rand::prelude::*;
 
 use super::*;
 
 use crate::common::tuples::*;
 use crate::common::value_type::*;
 use crate::runtime::dynamic::*;
+use crate::runtime::env::*;
 use crate::runtime::statics::*;
 
 pub trait Provenance: Clone + 'static {
@@ -23,28 +28,6 @@ pub trait Provenance: Clone + 'static {
       Some(et) => self.tagging_fn(et),
       None => self.one(),
     }
-  }
-
-  fn tagging_disjunction_fn(&mut self, tags: Vec<Self::InputTag>) -> Vec<Self::Tag> {
-    tags.into_iter().map(|t| self.tagging_fn(t)).collect()
-  }
-
-  fn tagging_disjunction_optional_fn(&mut self, tags: Vec<Option<Self::InputTag>>) -> Vec<Self::Tag> {
-    // First generate disjunctive tags for those with a tag
-    let disj_tags = self.tagging_disjunction_fn(tags.iter().filter_map(|t| t.clone()).collect());
-
-    // Then fill in self.one() for the None tags
-    let mut disj_tag_index = 0;
-    let mut all_return_tags = vec![];
-    for tag in tags {
-      if let Some(_) = tag {
-        all_return_tags.push(disj_tags[disj_tag_index].clone());
-        disj_tag_index += 1;
-      } else {
-        all_return_tags.push(self.one());
-      }
-    }
-    all_return_tags
   }
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag;
@@ -67,6 +50,10 @@ pub trait Provenance: Clone + 'static {
 
   fn minus(&self, t1: &Self::Tag, t2: &Self::Tag) -> Option<Self::Tag> {
     self.negate(t2).map(|neg_t2| self.mult(t1, &neg_t2))
+  }
+
+  fn weight(&self, _: &Self::Tag) -> f64 {
+    1.0
   }
 
   fn dynamic_count(&self, batch: DynamicElements<Self>) -> DynamicElements<Self> {
@@ -114,27 +101,44 @@ pub trait Provenance: Clone + 'static {
   }
 
   fn dynamic_top_k(&self, k: usize, batch: DynamicElements<Self>) -> DynamicElements<Self> {
-    batch.into_iter().take(k).collect()
+    let ids = aggregate_top_k_helper(batch.len(), k, |id| self.weight(&batch[id].tag));
+    ids.into_iter().map(|id| batch[id].clone()).collect()
+  }
+
+  fn dynamic_categorical_k(
+    &self,
+    k: usize,
+    batch: DynamicElements<Self>,
+    rt: &RuntimeEnvironment,
+  ) -> DynamicElements<Self> {
+    if batch.len() <= k {
+      batch
+    } else {
+      let weights = batch.iter().map(|e| self.weight(&e.tag)).collect::<Vec<_>>();
+      let dist = WeightedIndex::new(&weights).unwrap();
+      let sampled_ids = (0..k)
+        .map(|_| dist.sample(&mut *rt.rng.lock().unwrap()))
+        .collect::<HashSet<_>>();
+      batch
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, e)| if sampled_ids.contains(&i) { Some(e) } else { None })
+        .collect()
+    }
   }
 
   fn static_count<T: StaticTupleTrait>(&self, batch: StaticElements<T, Self>) -> StaticElements<usize, Self> {
     vec![StaticElement::new(batch.len(), self.one())]
   }
 
-  fn static_sum<T: StaticTupleTrait + SumType>(
-    &self,
-    batch: StaticElements<T, Self>,
-  ) -> StaticElements<T, Self> {
+  fn static_sum<T: StaticTupleTrait + SumType>(&self, batch: StaticElements<T, Self>) -> StaticElements<T, Self> {
     vec![StaticElement::new(
       <T as SumType>::sum(batch.iter_tuples().cloned()),
       self.one(),
     )]
   }
 
-  fn static_prod<T: StaticTupleTrait + ProdType>(
-    &self,
-    batch: StaticElements<T, Self>,
-  ) -> StaticElements<T, Self> {
+  fn static_prod<T: StaticTupleTrait + ProdType>(&self, batch: StaticElements<T, Self>) -> StaticElements<T, Self> {
     vec![StaticElement::new(
       <T as ProdType>::prod(batch.iter_tuples().cloned()),
       self.one(),
@@ -173,12 +177,31 @@ pub trait Provenance: Clone + 'static {
     vec![StaticElement::new(!batch.is_empty(), self.one())]
   }
 
-  fn static_top_k<T: StaticTupleTrait>(
+  fn static_top_k<T: StaticTupleTrait>(&self, k: usize, batch: StaticElements<T, Self>) -> StaticElements<T, Self> {
+    let ids = aggregate_top_k_helper(batch.len(), k, |id| self.weight(&batch[id].tag));
+    ids.into_iter().map(|id| batch[id].clone()).collect()
+  }
+
+  fn static_categorical_k<T: StaticTupleTrait>(
     &self,
     k: usize,
     batch: StaticElements<T, Self>,
+    rt: &RuntimeEnvironment,
   ) -> StaticElements<T, Self> {
-    batch.into_iter().take(k).collect()
+    if batch.len() <= k {
+      batch
+    } else {
+      let weights = batch.iter().map(|e| self.weight(&e.tag)).collect::<Vec<_>>();
+      let dist = WeightedIndex::new(&weights).unwrap();
+      let sampled_ids = (0..k)
+        .map(|_| dist.sample(&mut *rt.rng.lock().unwrap()))
+        .collect::<HashSet<_>>();
+      batch
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, e)| if sampled_ids.contains(&i) { Some(e) } else { None })
+        .collect()
+    }
   }
 }
 

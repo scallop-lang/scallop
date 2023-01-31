@@ -1,6 +1,7 @@
 mod aggregator;
 mod argmax;
 mod argmin;
+mod categorical_k;
 mod count;
 mod exists;
 mod max;
@@ -12,6 +13,7 @@ mod top_k;
 pub use aggregator::*;
 pub use argmax::*;
 pub use argmin::*;
+pub use categorical_k::*;
 pub use count::*;
 pub use exists::*;
 pub use max::*;

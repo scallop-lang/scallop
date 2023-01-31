@@ -2,15 +2,17 @@ use std::collections::*;
 
 use crate::common::aggregate_op::AggregateOp;
 use crate::common::expr::*;
+use crate::common::foreign_function::*;
 use crate::common::input_file::InputFile;
 use crate::common::input_tag::InputTag;
 use crate::common::output_option::OutputOption;
 use crate::common::tuple::{AsTuple, Tuple};
 use crate::common::tuple_type::TupleType;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Program {
   pub strata: Vec<Stratum>,
+  pub function_registry: ForeignFunctionRegistry,
   pub relation_to_stratum: HashMap<String, usize>,
 }
 
@@ -18,12 +20,39 @@ impl Program {
   pub fn new() -> Self {
     Self {
       strata: Vec::new(),
+      function_registry: ForeignFunctionRegistry::new(),
       relation_to_stratum: HashMap::new(),
     }
   }
 
+  pub fn new_with_function_registry(function_registry: ForeignFunctionRegistry) -> Self {
+    Self {
+      strata: Vec::new(),
+      function_registry,
+      relation_to_stratum: HashMap::new(),
+    }
+  }
+
+  pub fn relation(&self, name: &str) -> Option<&Relation> {
+    self
+      .relation_to_stratum
+      .get(name)
+      .and_then(|stratum_id| self.strata[*stratum_id].relations.get(name))
+  }
+
+  pub fn relation_unchecked(&self, name: &str) -> &Relation {
+    &self.strata[self.relation_to_stratum[name]].relations[name]
+  }
+
   pub fn relations(&self) -> impl Iterator<Item = &Relation> {
     self.strata.iter().flat_map(|s| s.relations.values())
+  }
+
+  pub fn relation_types<'a>(&'a self) -> impl 'a + Iterator<Item = (String, TupleType)> {
+    self
+      .strata
+      .iter()
+      .flat_map(|s| s.relations.iter().map(|(p, r)| (p.clone(), r.tuple_type.clone())))
   }
 
   pub fn relation_tuple_type(&self, predicate: &str) -> Option<TupleType> {
@@ -45,6 +74,13 @@ impl Program {
       })
     })
   }
+
+  pub fn output_option(&self, relation: &str) -> Option<OutputOption> {
+    self
+      .relation_to_stratum
+      .get(relation)
+      .map(|stratum_id| self.strata[*stratum_id].relations[relation].output.clone())
+  }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
@@ -54,25 +90,43 @@ pub struct Stratum {
   pub updates: Vec<Update>,
 }
 
+impl Stratum {
+  pub fn relation(&self, r: &str) -> Option<&Relation> {
+    self.relations.get(r)
+  }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
 pub struct Relation {
+  /// The name of the relation
   pub predicate: String,
+
+  /// The tuple type of the relation; will be always a one level tuple with no nested tuples
   pub tuple_type: TupleType,
+
+  /// Whether there is a input file where this relation should be loaded from
   pub input_file: Option<InputFile>,
+
+  /// Dynamic facts associated with this relation
   pub facts: Vec<Fact>,
-  pub disjunctive_facts: Vec<Vec<Fact>>,
+
+  /// The output option; whether it is hidden or returned or piped to a file
   pub output: OutputOption,
+
+  /// Whether the relation is immutable, i.e., not being populated by any rule
+  pub immutable: bool,
 }
 
 impl Relation {
-  pub fn new(predicate: String, tuple_type: TupleType) -> Self {
+  /// Create a hidden temporary relation with predicate name and type
+  pub fn hidden_relation(predicate: String, tuple_type: TupleType) -> Self {
     Self {
       predicate,
       tuple_type,
       input_file: None,
       facts: vec![],
-      disjunctive_facts: vec![],
       output: OutputOption::Hidden,
+      immutable: false,
     }
   }
 }

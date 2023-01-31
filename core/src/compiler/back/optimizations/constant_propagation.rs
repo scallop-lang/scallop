@@ -9,12 +9,38 @@ pub fn constant_prop(rule: &mut Rule) {
   let mut is_false = false;
 
   // Collect cannot substitute variables
-  for literal in rule.body_literals() {
-    match literal {
-      Literal::Reduce(reduce) => {
-        cannot_substitute.extend(reduce.variable_args().cloned());
+  let mut visited_literal_ids = HashSet::new();
+  loop {
+    let prev_cannot_substitute_size = cannot_substitute.len();
+
+    // Iterate through all the literals
+    for (id, literal) in rule.body_literals().enumerate() {
+      // Skip visited literals
+      if visited_literal_ids.contains(&id) {
+        continue;
       }
-      _ => {}
+
+      // Extend the cannot substitute variables
+      match literal {
+        Literal::Reduce(reduce) => {
+          visited_literal_ids.insert(id);
+          cannot_substitute.extend(reduce.variable_args().cloned());
+        }
+        Literal::Assign(assign) => {
+          for arg in assign.variable_args() {
+            if cannot_substitute.contains(arg) {
+              visited_literal_ids.insert(id);
+              cannot_substitute.insert(assign.left.clone());
+            }
+          }
+        }
+        _ => {}
+      }
+    }
+
+    // Exit the loop if there is no more new variable
+    if prev_cannot_substitute_size >= cannot_substitute.len() {
+      break;
     }
   }
 

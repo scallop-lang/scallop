@@ -1,5 +1,6 @@
 use super::*;
 
+/// A formula
 #[derive(Clone, Debug, PartialEq)]
 pub enum Formula {
   Atom(Atom),
@@ -9,6 +10,7 @@ pub enum Formula {
   Implies(Implies),
   Constraint(Constraint),
   Reduce(Reduce),
+  ForallExistsReduce(ForallExistsReduce),
 }
 
 impl Formula {
@@ -43,16 +45,22 @@ impl Formula {
         // TODO
         panic!("Cannot have aggregation inside negation")
       }
+      Self::ForallExistsReduce(_) => {
+        // TODO
+        panic!("Cannot have aggregation inside negation")
+      }
     }
   }
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct AtomNode {
   pub predicate: Identifier,
   pub args: Vec<Expr>,
 }
 
+/// A single atom, e.g. `color(x, "blue")`
 pub type Atom = AstNode<AtomNode>;
 
 impl Atom {
@@ -70,10 +78,12 @@ impl Atom {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct NegAtomNode {
   pub atom: Atom,
 }
 
+/// A negated atom, e.g. `not color(x, "blue")`
 pub type NegAtom = AstNode<NegAtomNode>;
 
 impl NegAtom {
@@ -83,10 +93,12 @@ impl NegAtom {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct ConjunctionNode {
   pub args: Vec<Formula>,
 }
 
+/// A conjunction (AND) formula, e.g. `color(x, "blue") and shape(x, "sphere")`
 pub type Conjunction = AstNode<ConjunctionNode>;
 
 impl Conjunction {
@@ -96,10 +108,12 @@ impl Conjunction {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct DisjunctionNode {
   pub args: Vec<Formula>,
 }
 
+/// A disjunction (OR) formula, e.g. `male(x) or female(x)`
 pub type Disjunction = AstNode<DisjunctionNode>;
 
 impl Disjunction {
@@ -109,11 +123,13 @@ impl Disjunction {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct ImpliesNode {
   pub left: Box<Formula>,
   pub right: Box<Formula>,
 }
 
+/// An implies formula, e.g. `person(p) implies father(p, _)`
 pub type Implies = AstNode<ImpliesNode>;
 
 impl Implies {
@@ -127,6 +143,7 @@ impl Implies {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct ConstraintNode {
   pub expr: Expr,
 }
@@ -137,6 +154,7 @@ impl ConstraintNode {
   }
 }
 
+/// A constraint, e.g. `x == y`
 pub type Constraint = AstNode<ConstraintNode>;
 
 impl Constraint {
@@ -153,6 +171,7 @@ impl Constraint {
   }
 }
 
+/// A variable or a wildcard, e.g. `x` or `_`
 #[derive(Clone, Debug, PartialEq)]
 pub enum VariableOrWildcard {
   Variable(Variable),
@@ -176,6 +195,7 @@ impl VariableOrWildcard {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct ReduceNode {
   pub left: Vec<VariableOrWildcard>,
   pub operator: ReduceOperator,
@@ -185,6 +205,7 @@ pub struct ReduceNode {
   pub group_by: Option<(Vec<VariableBinding>, Box<Formula>)>,
 }
 
+/// An aggregation operation, e.g. `n = count(p: person(p))`
 pub type Reduce = AstNode<ReduceNode>;
 
 impl Reduce {
@@ -225,6 +246,7 @@ impl Reduce {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub enum ReduceOperatorNode {
   Count,
   Sum,
@@ -235,9 +257,11 @@ pub enum ReduceOperatorNode {
   Forall,
   Unique,
   TopK(usize),
+  CategoricalK(usize),
   Unknown(String),
 }
 
+/// A reduce opeartor, e.g. `count`
 pub type ReduceOperator = AstNode<ReduceOperatorNode>;
 
 impl ReduceOperator {
@@ -259,6 +283,7 @@ impl ReduceOperator {
       ReduceOperatorNode::Forall => Some(1),
       ReduceOperatorNode::Unique => None,
       ReduceOperatorNode::TopK(_) => None,
+      ReduceOperatorNode::CategoricalK(_) => None,
       ReduceOperatorNode::Unknown(_) => None,
     }
   }
@@ -289,7 +314,43 @@ impl ReduceOperator {
       ReduceOperatorNode::Forall => "forall".to_string(),
       ReduceOperatorNode::Unique => "unique".to_string(),
       ReduceOperatorNode::TopK(k) => format!("top<{}>", k),
+      ReduceOperatorNode::CategoricalK(k) => format!("categorical<{}>", k),
       ReduceOperatorNode::Unknown(_) => "unknown".to_string(),
     }
+  }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
+pub struct ForallExistsReduceNode {
+  pub operator: ReduceOperator,
+  pub bindings: Vec<VariableBinding>,
+  pub body: Box<Formula>,
+  pub group_by: Option<(Vec<VariableBinding>, Box<Formula>)>,
+}
+
+/// An syntax sugar for forall/exists operation, e.g. `forall(p: person(p) => father(p, _))`.
+/// In this case, the assigned variable is omitted for abbrevity.
+pub type ForallExistsReduce = AstNode<ForallExistsReduceNode>;
+
+impl ForallExistsReduce {
+  pub fn operator(&self) -> &ReduceOperator {
+    &self.node.operator
+  }
+
+  pub fn bindings(&self) -> &Vec<VariableBinding> {
+    &self.node.bindings
+  }
+
+  pub fn binding_names(&self) -> impl Iterator<Item = &str> {
+    self.node.bindings.iter().map(|b| b.name())
+  }
+
+  pub fn body(&self) -> &Formula {
+    &self.node.body
+  }
+
+  pub fn group_by(&self) -> Option<(&Vec<VariableBinding>, &Formula)> {
+    self.node.group_by.as_ref().map(|(b, f)| (b, &**f))
   }
 }

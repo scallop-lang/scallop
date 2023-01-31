@@ -54,7 +54,11 @@ impl<'a, Prov: Provenance> DynamicBatch<'a, Prov> {
   where
     F: FnMut(&Tuple) -> bool,
   {
-    fn search_ahead_variable_helper_1<Prov, F>(collection: &DynamicCollection<Prov>, elem_id: &mut usize, mut cmp: F) -> bool
+    fn search_ahead_variable_helper_1<Prov, F>(
+      collection: &DynamicCollection<Prov>,
+      elem_id: &mut usize,
+      mut cmp: F,
+    ) -> bool
     where
       Prov: Provenance,
       F: FnMut(&Tuple) -> bool,

@@ -2,11 +2,13 @@ use scallop_core::common::aggregate_op::AggregateOp;
 use scallop_core::common::expr::*;
 use scallop_core::compiler::ram::*;
 use scallop_core::runtime::dynamic::*;
+use scallop_core::runtime::env::*;
 use scallop_core::runtime::provenance::*;
 
 #[test]
 fn test_simple_probability_count() {
   let mut ctx = min_max_prob::MinMaxProbProvenance::default();
+  let mut rt = RuntimeEnvironment::default();
 
   let result_1 = {
     let mut strata_1 = DynamicIteration::<min_max_prob::MinMaxProbProvenance>::new();
@@ -28,7 +30,7 @@ fn test_simple_probability_count() {
       Dataflow::relation("color").project((Expr::access(1), Expr::access(0))),
     );
     strata_1.add_output_relation("_color_rev");
-    strata_1.run(&ctx)
+    strata_1.run(&ctx, &mut rt)
   };
 
   let result_2 = {
@@ -40,7 +42,7 @@ fn test_simple_probability_count() {
       Dataflow::reduce(AggregateOp::Count, "_color_rev", ReduceGroupByType::Implicit),
     );
     strata_2.add_output_relation("color_count");
-    strata_2.run(&ctx)
+    strata_2.run(&ctx, &mut rt)
   };
 
   println!("{:?}", result_2)
@@ -49,6 +51,7 @@ fn test_simple_probability_count() {
 #[test]
 fn test_min_max_prob_count_max() {
   let mut ctx = min_max_prob::MinMaxProbProvenance::default();
+  let mut rt = RuntimeEnvironment::default();
 
   let result_1 = {
     let mut strata_1 = DynamicIteration::<min_max_prob::MinMaxProbProvenance>::new();
@@ -70,7 +73,7 @@ fn test_min_max_prob_count_max() {
       Dataflow::relation("color").project((Expr::access(1), Expr::access(0))),
     );
     strata_1.add_output_relation("_color_rev");
-    strata_1.run(&ctx)
+    strata_1.run(&ctx, &mut rt)
   };
 
   let result_2 = {
@@ -82,7 +85,7 @@ fn test_min_max_prob_count_max() {
       Dataflow::reduce(AggregateOp::Count, "_color_rev", ReduceGroupByType::Implicit),
     );
     strata_2.add_output_relation("color_count");
-    strata_2.run(&ctx)
+    strata_2.run(&ctx, &mut rt)
   };
 
   println!("{:?}", result_2);
@@ -96,7 +99,7 @@ fn test_min_max_prob_count_max() {
       Dataflow::reduce(AggregateOp::Argmax, "color_count", ReduceGroupByType::None),
     );
     strata_3.add_output_relation("max_color");
-    strata_3.run(&ctx)
+    strata_3.run(&ctx, &mut rt)
   };
 
   println!("{:?}", result_2["color_count"]);

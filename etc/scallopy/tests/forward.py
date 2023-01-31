@@ -182,5 +182,20 @@ class TestDirectForward(unittest.TestCase):
     result = compute_sum_2(digit_a=digit_a, digit_b=digit_b)
     self.assertEqual(result.shape, (16, 19))
 
+  def test_forward_with_non_probabilistic(self):
+    edge_path_program = """
+    type edge(usize, usize)
+    rel path(a, c) = edge(a, c) or (path(a, b) and edge(b, c))
+    """
+    compute_path = scallopy.ScallopForwardFunction(
+      program=edge_path_program,
+      provenance="difftopkproofs",
+      non_probabilistic=["edge"],
+      output_relation="path")
+    edges = [[(0, 1), (1, 2)]]
+    output_mapping, result = compute_path(edge=edges)
+    self.assertEqual(set(output_mapping), set([(0, 1), (0, 2), (1, 2)]))
+    self.assertEqual(result.shape, (1, 3))
+
 if __name__ == "__main__":
   unittest.main()

@@ -20,9 +20,3 @@ impl FrontCompileErrorTrait for SourceError {
     }
   }
 }
-
-impl FrontCompileErrorClone for SourceError {
-  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
-    Box::new(self.clone())
-  }
-}

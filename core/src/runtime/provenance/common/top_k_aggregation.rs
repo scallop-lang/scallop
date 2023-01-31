@@ -65,3 +65,11 @@ where
   // Return the list of ids in the heap
   heap.into_iter().map(|elem| elem.id).collect()
 }
+
+pub fn unweighted_aggregate_top_k_helper<T>(elements: Vec<T>, k: usize) -> Vec<T> {
+  if elements.len() <= k {
+    elements
+  } else {
+    elements.into_iter().take(k).collect()
+  }
+}

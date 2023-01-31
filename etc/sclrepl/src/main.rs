@@ -56,6 +56,10 @@ fn main() -> std::io::Result<()> {
       let ctx = runtime::provenance::min_max_prob::MinMaxProbProvenance::default();
       run(cmd_args, ctx)
     }
+    "topkproofs" => {
+      let ctx = runtime::provenance::top_k_proofs::TopKProofsProvenance::<RcFamily>::default();
+      run(cmd_args, ctx)
+    }
     _ => {
       println!("Unknown provenance semiring `{}`", cmd_args.provenance);
       Ok(())
@@ -74,7 +78,13 @@ where
   // Compile context
   let options = compiler::CompileOptions::from(&cmd_args);
   let mut front_context = compiler::front::FrontContext::new();
-  let mut exec_context = runtime::dynamic::DynamicExecutionContext::<_, RcFamily>::new();
+  let mut runtime_env = runtime::env::RuntimeEnvironment::default();
+  let mut exec_context =
+    runtime::dynamic::DynamicExecutionContext::<_, RcFamily>::new_with_options(runtime::dynamic::ExecutionOptions {
+      incremental_maintain: true,
+      retain_internal_when_recover: true,
+      ..Default::default()
+    });
 
   // Main Loop
   let mut repl_id = 0;
@@ -150,7 +160,7 @@ where
           }
 
           // Interpret the ram
-          match exec_context.execute(ram, &mut ctx) {
+          match exec_context.incremental_execute(ram, &mut runtime_env, &mut ctx) {
             Ok(()) => {}
             Err(e) => {
               println!("{:?}", e);
@@ -159,7 +169,8 @@ where
 
           // Print the result
           for q in &queries {
-            println!("{}: {}", q, exec_context.relation(q, &ctx).unwrap());
+            exec_context.recover(q, &ctx);
+            println!("{}: {}", q, exec_context.relation(q).unwrap());
           }
         }
       }

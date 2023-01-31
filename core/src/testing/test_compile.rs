@@ -1,9 +1,11 @@
 use crate::compiler;
 
+/// Expect the given program compiles; panics if there is compilation failure
 pub fn expect_compile(s: &str) {
   compiler::compile_string_to_ram(s.to_string()).expect("Compile Failure");
 }
 
+/// Expect the given program fails to compile; panics if the compilation succeed
 pub fn expect_compile_failure<F>(s: &str, f: F)
 where
   F: Fn(compiler::CompileError) -> bool,
@@ -21,6 +23,10 @@ where
   }
 }
 
+/// Expect the given program fails to compile in the FRONT compilation stage
+///
+/// The given `f` takes in an error `String` and returns whether that string
+/// represents a particular error that the user expected.
 pub fn expect_front_compile_failure<F>(s: &str, f: F)
 where
   F: Fn(String) -> bool,

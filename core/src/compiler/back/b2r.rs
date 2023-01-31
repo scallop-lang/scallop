@@ -98,7 +98,7 @@ impl Program {
             // Populate the permutated relation
             let perm_pred = Self::permutated_predicate_name(pred, perm);
             let perm_type = perm.permute(&relation.tuple_type);
-            let perm_relation = ram::Relation::new(perm_pred.clone(), perm_type);
+            let perm_relation = ram::Relation::hidden_relation(perm_pred.clone(), perm_type);
             perm_relations.insert(perm_pred.clone(), perm_relation);
 
             // Add permutation update
@@ -241,14 +241,21 @@ impl Program {
     let disjunctive_facts = self
       .disjunctive_facts
       .iter()
-      .filter_map(|disjunction| {
+      .enumerate()
+      .filter_map(|(disjunction_id, disjunction)| {
         assert!(disjunction.len() > 1);
         if &disjunction[0].predicate == pred {
-          Some(disjunction.iter().map(|f| self.fact_to_ram_fact(f)).collect())
+          Some(
+            disjunction
+              .iter()
+              .map(|f| self.exclusive_fact_to_ram_fact(disjunction_id.clone(), f))
+              .collect::<Vec<_>>(),
+          )
         } else {
           None
         }
       })
+      .flatten()
       .collect::<Vec<_>>();
 
     // Check input file
@@ -261,14 +268,17 @@ impl Program {
     // Check output file
     let output = self.outputs.get(pred).cloned().unwrap_or(OutputOption::Hidden);
 
+    // Check immutability, i.e., the relation is not updated by rules
+    let immutable = self.rules.iter().find_position(|r| &r.head.predicate == pred).is_none();
+
     // The Final Relation
     let ram_relation = ram::Relation {
       predicate: pred.clone(),
       tuple_type,
-      facts,
-      disjunctive_facts,
+      facts: vec![facts, disjunctive_facts].concat(),
       input_file,
       output,
+      immutable,
     };
 
     ram_relation
@@ -277,6 +287,13 @@ impl Program {
   fn fact_to_ram_fact(&self, fact: &Fact) -> ram::Fact {
     ram::Fact {
       tag: fact.tag.clone(),
+      tuple: Tuple::Tuple(fact.args.iter().map(|a| Tuple::Value(a.clone())).collect()),
+    }
+  }
+
+  fn exclusive_fact_to_ram_fact(&self, disj_id: usize, fact: &Fact) -> ram::Fact {
+    ram::Fact {
+      tag: fact.tag.with_exclusivity(disj_id),
       tuple: Tuple::Tuple(fact.args.iter().map(|a| Tuple::Value(a.clone())).collect()),
     }
   }
@@ -912,7 +929,7 @@ impl Program {
     // Create relation
     let relation_name = format!("#ntemp#{}", ctx.id_alloc.alloc());
     let relation_type = goal.tuple_type();
-    let relation = ram::Relation::new(relation_name.clone(), relation_type);
+    let relation = ram::Relation::hidden_relation(relation_name.clone(), relation_type);
 
     // Get the sources
     let sources = dataflow.source_relations().into_iter().cloned().collect::<HashSet<_>>();
@@ -932,7 +949,7 @@ impl Program {
     // Create relation
     let relation_name = format!("#temp#{}", ctx.id_alloc.alloc());
     let relation_type = goal.tuple_type();
-    let relation = ram::Relation::new(relation_name.clone(), relation_type);
+    let relation = ram::Relation::hidden_relation(relation_name.clone(), relation_type);
     ctx.relations.insert(relation_name.clone(), relation);
 
     // Insert temporary update

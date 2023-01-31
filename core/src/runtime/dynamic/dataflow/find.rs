@@ -8,12 +8,12 @@ pub struct DynamicFindDataflow<'a, Prov: Provenance> {
 }
 
 impl<'a, Prov: Provenance> DynamicFindDataflow<'a, Prov> {
-  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::find(self.source.iter_stable(), self.key.clone())
+  pub fn iter_stable(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
+    DynamicBatches::find(self.source.iter_stable(runtime), self.key.clone())
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::find(self.source.iter_recent(), self.key.clone())
+  pub fn iter_recent(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
+    DynamicBatches::find(self.source.iter_recent(runtime), self.key.clone())
   }
 }
 

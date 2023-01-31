@@ -28,7 +28,6 @@ class ScallopForwardFunction(torch.nn.Module):
     k: int = 3,
     train_k: Optional[int] = None,
     test_k: Optional[int] = None,
-    iter_limit: Optional[int] = None,
     retain_graph: bool = False,
     jit: bool = False,
     jit_name: str = "",
@@ -77,7 +76,6 @@ class ScallopForwardFunction(torch.nn.Module):
       output=output_relation,
       output_mapping=output_mapping,
       output_mappings=output_mappings,
-      iter_limit=iter_limit,
       dispatch=dispatch,
       retain_graph=retain_graph,
       jit=jit,
@@ -103,7 +101,6 @@ class InternalScallopForwardFunction(torch.nn.Module):
     output: Optional[str] = None,
     output_mapping: Optional[Union[List[Tuple], Tuple]] = None,
     output_mappings: Optional[Dict[str, List[Tuple]]] = None,
-    iter_limit: Optional[int] = None,
     dispatch: str = "parallel",
     debug_provenance: bool = False,
     retain_graph: bool = False,
@@ -115,7 +112,6 @@ class InternalScallopForwardFunction(torch.nn.Module):
 
     # Parameters
     self.ctx = ctx
-    self.iter_limit = iter_limit
     self.dispatch = dispatch
     self.debug_provenance = debug_provenance
     self.retain_graph = retain_graph
@@ -302,6 +298,7 @@ class InternalScallopForwardFunction(torch.nn.Module):
     input_facts: Dict[str, Union[Tensor, List]] = None,
   ):
     self.ctx._refresh_training_eval_state() # Set train/eval
+    self.ctx._internal.set_non_incremental()
     self.ctx._internal.compile() # Compile into back IR
 
     # First make sure that all facts share the same batch size
@@ -366,11 +363,11 @@ class InternalScallopForwardFunction(torch.nn.Module):
       processed_inputs[rela] = []
       for task_id in range(batch_size):
         ds = all_disjunctions[rela][task_id] if all_disjunctions is not None and rela in all_disjunctions else None
-        (facts, ds) = self._process_input_facts(rela, rela_facts[task_id], ds)
-        processed_inputs[rela].append((facts, ds))
+        facts = self._process_input_facts(rela, rela_facts[task_id], ds)
+        processed_inputs[rela].append(facts)
     return processed_inputs
 
-  def _process_input_facts(self, rela, rela_facts, disjunctions) -> Tuple[List[Tuple], Optional[List[List[int]]]]:
+  def _process_input_facts(self, rela, rela_facts, disjunctions) -> List[Tuple]:
     """
     Given input facts of one single relation (and its disjunctions), process it into
     a unified form of input facts along with its disjunctions.
@@ -379,7 +376,7 @@ class InternalScallopForwardFunction(torch.nn.Module):
     """
     if rela in self.ctx._input_non_probabilistic and self.ctx._input_non_probabilistic[rela]:
       # Add non-probabilistic facts; there will be no disjunctions
-      return ([(None, f) for f in rela_facts], None)
+      return [(None, f) for f in rela_facts]
     else:
       # Process the facts
       ty = type(rela_facts) # The type of relation facts
@@ -417,8 +414,11 @@ class InternalScallopForwardFunction(torch.nn.Module):
       # Remap disjunction
       remapped_disjs = [[index_mapping[i] for i in d if i in index_mapping] for d in disjunctions] if index_mapping is not None else disjunctions
 
+      # Process elements with this disjunction
+      facts = self.ctx._process_disjunctive_elements(facts, remapped_disjs)
+
       # Add the facts
-      return (facts, remapped_disjs)
+      return facts
 
   def _run_single(self, task_id, all_inputs, output_relations):
     """
@@ -435,14 +435,14 @@ class InternalScallopForwardFunction(torch.nn.Module):
     for (rela, rela_inputs) in all_inputs.items():
       if not self.ctx.has_relation(rela):
         raise Exception(f"Unknown relation `{rela}`")
-      (facts, disjunctions) = rela_inputs[task_id]
-      temp_ctx.add_facts(rela, facts, disjunctions=disjunctions)
+      facts = rela_inputs[task_id]
+      temp_ctx.add_facts(rela, facts)
 
     # Execute the context
     if self.debug_provenance:
-      temp_ctx._internal.run_with_debug_tag(iter_limit=self.iter_limit)
+      temp_ctx._internal.run_with_debug_tag()
     else:
-      temp_ctx.run(iter_limit=self.iter_limit)
+      temp_ctx.run()
 
     # Get input tags
     input_tags = temp_ctx._internal.input_tags()
@@ -461,7 +461,7 @@ class InternalScallopForwardFunction(torch.nn.Module):
     """
     Run a batch of tasks
     """
-    results = self.ctx._internal.run_batch(self.iter_limit, output_relations, all_inputs, parallel)
+    results = self.ctx._internal.run_batch(output_relations, all_inputs, parallel)
     input_tags, output_results = [], []
     for task_id in range(batch_size):
       input_tags.append(results[task_id][0].input_tags())
@@ -476,8 +476,10 @@ class InternalScallopForwardFunction(torch.nn.Module):
 
     # Add the facts into the context
     for (rela, rela_inputs) in all_inputs.items():
-      (facts, disjunctions) = rela_inputs[task_id]
-      temp_ctx.add_facts_with_disjunction(rela, facts, disjunctions)
+      if not self.ctx.has_relation(rela):
+        raise Exception(f"Unknown relation `{rela}`")
+      facts = rela_inputs[task_id]
+      temp_ctx.add_facts(rela, facts)
 
     # Execute the context
     temp_ctx.run()
@@ -688,6 +690,11 @@ class InternalScallopForwardFunction(torch.nn.Module):
     batch_size = len(output_batch)
     num_inputs = max(len(ts) for ts in input_tags)
     num_outputs = len(output_batch[0])
+
+    # Check if there is no input
+    if num_inputs == 0:
+      def do_nothing_hook(): pass
+      return do_nothing_hook
 
     # mat_i: Input matrix
     def pad_input(l):

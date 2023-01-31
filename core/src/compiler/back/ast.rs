@@ -2,6 +2,7 @@ use std::collections::*;
 
 use super::Attributes;
 use crate::common::aggregate_op::AggregateOp;
+use crate::common::foreign_function::ForeignFunctionRegistry;
 use crate::common::input_tag::InputTag;
 use crate::common::output_option::OutputOption;
 use crate::compiler::front;
@@ -10,13 +11,14 @@ pub type Type = crate::common::value_type::ValueType;
 
 pub type Constant = crate::common::value::Value;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Program {
   pub relations: Vec<Relation>,
   pub outputs: HashMap<String, OutputOption>,
   pub facts: Vec<Fact>,
   pub disjunctive_facts: Vec<Vec<Fact>>,
   pub rules: Vec<Rule>,
+  pub function_registry: ForeignFunctionRegistry,
 }
 
 impl Program {
@@ -29,11 +31,15 @@ impl Program {
   }
 
   pub fn is_demand_predicate(&self, pred: &String) -> Option<bool> {
-    self.relation_of_predicate(pred).map(|r| r.attributes.demand_attr().is_some())
+    self
+      .relation_of_predicate(pred)
+      .map(|r| r.attributes.demand_attr().is_some())
   }
 
   pub fn is_magic_set_predicate(&self, pred: &String) -> Option<bool> {
-    self.relation_of_predicate(pred).map(|r| r.attributes.magic_set_attr().is_some())
+    self
+      .relation_of_predicate(pred)
+      .map(|r| r.attributes.magic_set_attr().is_some())
   }
 
   pub fn set_output_relations(&mut self, outputs: Vec<&str>) {
@@ -219,7 +225,7 @@ impl Literal {
     })
   }
 
-  pub fn call_expr(left: Variable, function: Function, args: Vec<Term>) -> Self {
+  pub fn call_expr(left: Variable, function: String, args: Vec<Term>) -> Self {
     Self::Assign(Assign {
       left,
       right: AssignExpr::Call(CallExpr { function, args }),
@@ -374,11 +380,9 @@ pub struct IfThenElseAssignExpr {
   pub else_br: Term,
 }
 
-pub type Function = crate::common::functions::Function;
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct CallExpr {
-  pub function: Function,
+  pub function: String,
   pub args: Vec<Term>,
 }
 

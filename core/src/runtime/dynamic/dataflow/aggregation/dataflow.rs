@@ -31,19 +31,19 @@ impl<'a, Prov: Provenance> DynamicAggregationDataflow<'a, Prov> {
     Self::JoinGroup(DynamicAggregationJoinGroupDataflow::new(agg, d1, d2, ctx))
   }
 
-  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_stable(&self, runtime: &RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     match self {
-      Self::SingleGroup(s) => s.iter_stable(),
-      Self::ImplicitGroup(s) => s.iter_stable(),
-      Self::JoinGroup(s) => s.iter_stable(),
+      Self::SingleGroup(s) => s.iter_stable(runtime),
+      Self::ImplicitGroup(s) => s.iter_stable(runtime),
+      Self::JoinGroup(s) => s.iter_stable(runtime),
     }
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_recent(&self, runtime: &RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     match self {
-      Self::SingleGroup(s) => s.iter_recent(),
-      Self::ImplicitGroup(s) => s.iter_recent(),
-      Self::JoinGroup(s) => s.iter_recent(),
+      Self::SingleGroup(s) => s.iter_recent(runtime),
+      Self::ImplicitGroup(s) => s.iter_recent(runtime),
+      Self::JoinGroup(s) => s.iter_recent(runtime),
     }
   }
 }

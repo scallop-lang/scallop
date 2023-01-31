@@ -1,5 +1,5 @@
 use super::*;
-use crate::common::functions::Function;
+use crate::common::type_family::*;
 use crate::common::value_type::*;
 use crate::compiler::front::*;
 
@@ -10,6 +10,7 @@ pub enum TypeSet {
   Arith(AstNodeLocation),               // Numeric but with arithmetics, default integer i32
   Integer(AstNodeLocation),             // Only integer, default i32
   SignedInteger(AstNodeLocation),       // Only signed integer, default i32
+  UnsignedInteger(AstNodeLocation),     // Only unsigned integer, default u32
   Float(AstNodeLocation),               // Only float, default f32
   String(AstNodeLocation),              // Only string, default String
   Any(AstNodeLocation),                 // Any type, default i32
@@ -18,6 +19,21 @@ pub enum TypeSet {
 impl Default for TypeSet {
   fn default() -> Self {
     Self::Any(AstNodeLocation::default())
+  }
+}
+
+impl From<TypeFamily> for TypeSet {
+  fn from(value: TypeFamily) -> Self {
+    match value {
+      TypeFamily::Bottom => panic!("There is no type set for bottom type; aborting"),
+      TypeFamily::String => Self::String(Loc::default()),
+      TypeFamily::Float => Self::Float(Loc::default()),
+      TypeFamily::SignedInteger => Self::SignedInteger(Loc::default()),
+      TypeFamily::UnsignedInteger => Self::UnsignedInteger(Loc::default()),
+      TypeFamily::Integer => Self::Integer(Loc::default()),
+      TypeFamily::Number => Self::Numeric(Loc::default()),
+      TypeFamily::Any => Self::Any(Loc::default()),
+    }
   }
 }
 
@@ -83,6 +99,17 @@ impl std::cmp::PartialOrd for TypeSet {
       (Self::SignedInteger(_), Self::Any(_)) => Some(Less),
       (Self::Any(_), Self::SignedInteger(_)) => Some(Greater),
 
+      // Unsigned Integer less than Integer, Arith, Numeric, and Any
+      (Self::UnsignedInteger(_), Self::UnsignedInteger(_)) => Some(Equal),
+      (Self::UnsignedInteger(_), Self::Integer(_)) => Some(Less),
+      (Self::Integer(_), Self::UnsignedInteger(_)) => Some(Greater),
+      (Self::UnsignedInteger(_), Self::Arith(_)) => Some(Less),
+      (Self::Arith(_), Self::UnsignedInteger(_)) => Some(Greater),
+      (Self::UnsignedInteger(_), Self::Numeric(_)) => Some(Less),
+      (Self::Numeric(_), Self::UnsignedInteger(_)) => Some(Greater),
+      (Self::UnsignedInteger(_), Self::Any(_)) => Some(Less),
+      (Self::Any(_), Self::UnsignedInteger(_)) => Some(Greater),
+
       // Integer less than Arith, Numeric, and Any
       (Self::Integer(_), Self::Integer(_)) => Some(Equal),
       (Self::Integer(_), Self::Arith(_)) => Some(Less),
@@ -121,6 +148,7 @@ impl std::fmt::Display for TypeSet {
       Self::Arith(_) => f.write_str("arithmetic"),
       Self::Integer(_) => f.write_str("integer"),
       Self::SignedInteger(_) => f.write_str("signed integer"),
+      Self::UnsignedInteger(_) => f.write_str("unsigned integer"),
       Self::Float(_) => f.write_str("float"),
       Self::String(_) => f.write_str("string"),
       Self::Any(_) => f.write_str("any"),
@@ -161,46 +189,6 @@ impl TypeSet {
     }
   }
 
-  pub fn function_return_type(f: &Function) -> Self {
-    match f {
-      Function::Abs => Self::arith(),
-      Function::Hash => Self::base(ValueType::U64),
-      Function::StringConcat => Self::base(ValueType::String),
-      Function::StringLength => Self::base(ValueType::USize),
-      Function::Substring => Self::base(ValueType::String),
-      Function::StringCharAt => Self::base(ValueType::Char),
-    }
-  }
-
-  pub fn function_argument_type(f: &Function, i: usize) -> Self {
-    match f {
-      Function::Abs => Self::arith(),
-      Function::Hash => Self::any(),
-      Function::StringConcat => Self::string(),
-      Function::StringLength => Self::string(),
-      Function::Substring => {
-        if i == 0 {
-          Self::string()
-        } else if i == 1 {
-          Self::base(ValueType::USize)
-        } else if i == 2 {
-          Self::base(ValueType::USize)
-        } else {
-          panic!("There is no argument {} for the substring function", i)
-        }
-      }
-      Function::StringCharAt => {
-        if i == 0 {
-          Self::string()
-        } else if i == 1 {
-          Self::base(ValueType::USize)
-        } else {
-          panic!("There is no argument {} for the string_char_at function", i)
-        }
-      }
-    }
-  }
-
   pub fn can_type_cast(&self, base_ty: &ValueType) -> bool {
     // Shortcut: any type can be casted to String
     if &ValueType::String == base_ty {
@@ -214,6 +202,7 @@ impl TypeSet {
       (Self::Arith(_), base_ty) => base_ty.is_numeric(),
       (Self::Integer(_), base_ty) => base_ty.is_numeric(),
       (Self::SignedInteger(_), base_ty) => base_ty.is_numeric(),
+      (Self::UnsignedInteger(_), base_ty) => base_ty.is_numeric(),
       (Self::Float(_), base_ty) => base_ty.is_numeric(),
       (Self::String(_), base_ty) => base_ty.is_string() || base_ty.is_numeric(),
       (Self::Any(_), _) => false,
@@ -234,6 +223,7 @@ impl TypeSet {
       Self::Arith(l) => l,
       Self::Integer(l) => l,
       Self::SignedInteger(l) => l,
+      Self::UnsignedInteger(l) => l,
       Self::Float(l) => l,
       Self::String(l) => l,
       Self::Any(l) => l,
@@ -247,6 +237,7 @@ impl TypeSet {
       Self::Arith(_) => ValueType::I32,
       Self::Integer(_) => ValueType::I32,
       Self::SignedInteger(_) => ValueType::I32,
+      Self::UnsignedInteger(_) => ValueType::U32,
       Self::Float(_) => ValueType::F32,
       Self::String(_) => ValueType::String,
       Self::Any(_) => ValueType::USize,
@@ -260,6 +251,7 @@ impl TypeSet {
       (Self::Arith(_), Self::Arith(_)) => true,
       (Self::Integer(_), Self::Integer(_)) => true,
       (Self::SignedInteger(_), Self::SignedInteger(_)) => true,
+      (Self::UnsignedInteger(_), Self::UnsignedInteger(_)) => true,
       (Self::Float(_), Self::Float(_)) => true,
       (Self::String(_), Self::String(_)) => true,
       (Self::Any(_), Self::Any(_)) => true,

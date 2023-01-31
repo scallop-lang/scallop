@@ -129,12 +129,6 @@ pub enum OutputFilesError {
   },
 }
 
-impl FrontCompileErrorClone for OutputFilesError {
-  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
-    Box::new(self.clone())
-  }
-}
-
 impl FrontCompileErrorTrait for OutputFilesError {
   fn error_type(&self) -> FrontCompileErrorType {
     FrontCompileErrorType::Error

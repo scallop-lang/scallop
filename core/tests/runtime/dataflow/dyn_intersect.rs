@@ -1,11 +1,13 @@
 use scallop_core::runtime::dynamic::dataflow::*;
 use scallop_core::runtime::dynamic::*;
+use scallop_core::runtime::env::*;
 use scallop_core::runtime::provenance::*;
 use scallop_core::testing::*;
 
 #[test]
 fn test_dynamic_intersect_1() {
   let mut ctx = unit::UnitProvenance;
+  let mut rt = RuntimeEnvironment::new();
 
   // Relations
   let mut source_1 = DynamicRelation::<unit::UnitProvenance>::new();
@@ -21,7 +23,7 @@ fn test_dynamic_intersect_1() {
     target.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::from(&source_1).intersect(DynamicDataflow::from(&source_2), &ctx),
-      true,
+      &mut rt,
     )
   }
 

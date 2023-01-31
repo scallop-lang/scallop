@@ -39,7 +39,7 @@ fn codegen_edge_path_with_edb_2() {
   // Add things to edb
   let mut edb = edge_path::create_edb::<unit::UnitProvenance>();
   edb
-    .add_untagged_facts("edge", vec![(0usize, 1usize), (1, 2), (2, 3)])
+    .add_facts("edge", vec![(0usize, 1usize), (1, 2), (2, 3)])
     .expect("Cannot add edge");
 
   // Run with edb

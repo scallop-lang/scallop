@@ -6,6 +6,7 @@ pub fn apply_transformations(ast: &mut Vec<Item>, analysis: &Analysis) {
   let mut transform_atomic_query = TransformAtomicQuery::new();
   let mut transform_tagged_rule = TransformTaggedRule::new();
   let mut transform_non_const_fact = TransformNonConstantFactToRule;
+  let mut desugar_forall_exists = DesugarForallExists::new();
   let mut forall_to_not_exists = TransformForall;
   let mut implies_to_disjunction = TransformImplies;
   let mut visitors = (
@@ -13,6 +14,7 @@ pub fn apply_transformations(ast: &mut Vec<Item>, analysis: &Analysis) {
     &mut transform_const_var_to_const,
     &mut transform_tagged_rule,
     &mut transform_non_const_fact,
+    &mut desugar_forall_exists,
     &mut forall_to_not_exists, // Note: forall needs to go before implies transformation
     &mut implies_to_disjunction,
   );

@@ -1,6 +1,6 @@
 use crate::common::aggregate_op::AggregateOp;
-// use crate::common::tuple::Tuple;
 use crate::common::value_type::*;
+use crate::runtime::env::*;
 use crate::runtime::provenance::*;
 
 use super::*;
@@ -16,6 +16,7 @@ pub enum DynamicAggregator {
   Argmax(DynamicArgmax),
   Exists(DynamicExists),
   TopK(DynamicTopK),
+  CategoricalK(DynamicCategoricalK),
 }
 
 impl From<AggregateOp> for DynamicAggregator {
@@ -30,6 +31,7 @@ impl From<AggregateOp> for DynamicAggregator {
       AggregateOp::Argmax => Self::argmax(),
       AggregateOp::Exists => Self::exists(),
       AggregateOp::TopK(k) => Self::top_k(k),
+      AggregateOp::CategoricalK(k) => Self::categorical_k(k),
     }
   }
 }
@@ -85,7 +87,16 @@ impl DynamicAggregator {
     Self::TopK(DynamicTopK(k))
   }
 
-  pub fn aggregate<Prov: Provenance>(&self, batch: DynamicElements<Prov>, ctx: &Prov) -> DynamicElements<Prov> {
+  pub fn categorical_k(k: usize) -> Self {
+    Self::CategoricalK(DynamicCategoricalK(k))
+  }
+
+  pub fn aggregate<Prov: Provenance>(
+    &self,
+    batch: DynamicElements<Prov>,
+    ctx: &Prov,
+    rt: &RuntimeEnvironment,
+  ) -> DynamicElements<Prov> {
     match self {
       Self::Count(c) => c.aggregate(batch, ctx),
       Self::Sum(s) => s.aggregate(batch, ctx),
@@ -96,6 +107,7 @@ impl DynamicAggregator {
       Self::Argmax(m) => m.aggregate(batch, ctx),
       Self::Exists(e) => e.aggregate(batch, ctx),
       Self::TopK(t) => t.aggregate(batch, ctx),
+      Self::CategoricalK(c) => c.aggregate(batch, ctx, rt),
     }
   }
 }

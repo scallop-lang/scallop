@@ -35,18 +35,18 @@ impl<'a, Prov: Provenance> DynamicAggregationJoinGroupDataflow<'a, Prov> {
     }
   }
 
-  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_stable(&self, _: &RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     DynamicBatches::empty()
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
-    let mut group_by_c = if let Some(b1) = self.d1.iter_recent().next() {
+  pub fn iter_recent(&self, runtime: &RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
+    let mut group_by_c = if let Some(b1) = self.d1.iter_recent(runtime).next() {
       b1
     } else {
       return DynamicBatches::empty();
     };
 
-    let mut main_c = if let Some(b2) = self.d2.iter_recent().next() {
+    let mut main_c = if let Some(b2) = self.d2.iter_recent(runtime).next() {
       b2
     } else {
       return DynamicBatches::empty();
@@ -115,7 +115,7 @@ impl<'a, Prov: Provenance> DynamicAggregationJoinGroupDataflow<'a, Prov> {
           .iter()
           .map(|e| DynamicElement::new(e.tuple[1].clone(), e.tag.clone()))
           .collect::<Vec<_>>();
-        let agg_results = self.agg.aggregate(to_agg_tups, self.ctx);
+        let agg_results = self.agg.aggregate(to_agg_tups, self.ctx, runtime);
         iproduct!(group_by_vals, agg_results)
           .map(|((tag, t1), agg_result)| {
             DynamicElement::new(

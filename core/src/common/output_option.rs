@@ -26,6 +26,13 @@ impl OutputOption {
     }
   }
 
+  pub fn is_default(&self) -> bool {
+    match self {
+      Self::Default => true,
+      _ => false,
+    }
+  }
+
   pub fn is_not_hidden(&self) -> bool {
     !self.is_hidden()
   }

@@ -7,6 +7,10 @@ pub struct DynamicOutputCollection<Prov: Provenance> {
 }
 
 impl<Prov: Provenance> DynamicOutputCollection<Prov> {
+  pub fn empty() -> Self {
+    Self { elements: vec![] }
+  }
+
   /// Whether the collection is empty
   pub fn is_empty(&self) -> bool {
     self.elements.is_empty()
@@ -27,6 +31,13 @@ impl<Prov: Provenance> DynamicOutputCollection<Prov> {
 
   pub fn ith_tag(&self, i: usize) -> Option<&OutputTagOf<Prov>> {
     self.elements.get(i).map(|e| &e.0)
+  }
+
+  pub fn extend<I>(&mut self, iter: I)
+  where
+    I: Iterator<Item = (Prov::OutputTag, Tuple)>,
+  {
+    self.elements.extend(iter)
   }
 }
 

@@ -1,12 +1,14 @@
 use super::*;
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct ConstAssignmentNode {
   pub name: Identifier,
   pub ty: Option<Type>,
   pub value: Constant,
 }
 
+/// A single constant assignment, e.g. `X = 42`
 pub type ConstAssignment = AstNode<ConstAssignmentNode>;
 
 impl ConstAssignment {
@@ -40,11 +42,13 @@ impl ConstAssignment {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct ConstDeclNode {
   pub attrs: Attributes,
   pub assignments: Vec<ConstAssignment>,
 }
 
+/// A (series of) constant declaration, e.g. `const X = 42`
 pub type ConstDecl = AstNode<ConstDeclNode>;
 
 impl ConstDecl {

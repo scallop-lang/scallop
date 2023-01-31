@@ -8,7 +8,10 @@ pub struct StaticCollection<Tup: StaticTupleTrait, Prov: Provenance> {
   pub elements: Vec<StaticElement<Tup, Prov>>,
 }
 
-impl<Tup: StaticTupleTrait, Prov: Provenance> std::fmt::Debug for StaticCollection<Tup, Prov> where Prov::Tag: std::fmt::Debug {
+impl<Tup: StaticTupleTrait, Prov: Provenance> std::fmt::Debug for StaticCollection<Tup, Prov>
+where
+  Prov::Tag: std::fmt::Debug,
+{
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_set().entries(&self.elements).finish()
   }

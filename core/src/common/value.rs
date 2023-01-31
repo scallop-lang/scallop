@@ -1,5 +1,7 @@
 // use std::rc::Rc;
 
+use std::convert::*;
+
 use super::value_type::*;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -221,3 +223,38 @@ impl From<String> for Value {
 //     Self::RcString(s)
 //   }
 // }
+
+macro_rules! impl_try_into {
+  ($into_ty:ty, $variant:ident) => {
+    impl TryInto<$into_ty> for Value {
+      type Error = ValueConversionError;
+
+      fn try_into(self) -> Result<$into_ty, Self::Error> {
+        match self {
+          Self::$variant(i) => Ok(i),
+          _ => Err(ValueConversionError),
+        }
+      }
+    }
+  };
+}
+
+pub struct ValueConversionError;
+
+impl_try_into!(i8, I8);
+impl_try_into!(i16, I16);
+impl_try_into!(i32, I32);
+impl_try_into!(i64, I64);
+impl_try_into!(i128, I128);
+impl_try_into!(isize, ISize);
+impl_try_into!(u8, U8);
+impl_try_into!(u16, U16);
+impl_try_into!(u32, U32);
+impl_try_into!(u64, U64);
+impl_try_into!(u128, U128);
+impl_try_into!(usize, USize);
+impl_try_into!(f32, F32);
+impl_try_into!(f64, F64);
+impl_try_into!(bool, Bool);
+impl_try_into!(char, Char);
+impl_try_into!(String, String);

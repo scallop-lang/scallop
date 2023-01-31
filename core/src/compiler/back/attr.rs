@@ -79,7 +79,9 @@ where
   I: IntoIterator<Item = Attribute>,
 {
   fn from(i: I) -> Self {
-    Self { attrs: i.into_iter().collect() }
+    Self {
+      attrs: i.into_iter().collect(),
+    }
   }
 }
 

@@ -1,6 +1,8 @@
 use std::collections::*;
 
 use crate::compiler::ram::*;
+use crate::runtime::env::*;
+use crate::runtime::monitor::*;
 use crate::runtime::provenance::*;
 
 use super::dataflow::*;
@@ -8,7 +10,6 @@ use super::*;
 
 pub struct DynamicIteration<'a, Prov: Provenance> {
   pub iter_num: usize,
-  pub early_discard: bool,
   pub input_dynamic_collections: HashMap<String, &'a DynamicCollection<Prov>>,
   pub dynamic_relations: HashMap<String, DynamicRelation<Prov>>,
   pub output_relations: Vec<String>,
@@ -19,7 +20,6 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
   pub fn new() -> Self {
     Self {
       iter_num: 0,
-      early_discard: true,
       input_dynamic_collections: HashMap::new(),
       dynamic_relations: HashMap::new(),
       output_relations: Vec::new(),
@@ -45,11 +45,15 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
       .insert(name.to_string(), DynamicRelation::<Prov>::new());
   }
 
-  pub fn get_dynamic_relation<'b>(&'b mut self, name: &str) -> Option<&'b DynamicRelation<Prov>> {
+  pub fn can_access_relation(&self, name: &str) -> bool {
+    self.dynamic_relations.contains_key(name) || self.input_dynamic_collections.contains_key(name)
+  }
+
+  pub fn get_dynamic_relation<'c>(&'c mut self, name: &str) -> Option<&'c DynamicRelation<Prov>> {
     self.dynamic_relations.get(name).map(|r| r)
   }
 
-  pub fn get_dynamic_relation_unsafe<'b>(&'b mut self, name: &str) -> &'b DynamicRelation<Prov> {
+  pub fn get_dynamic_relation_unsafe<'c>(&'c mut self, name: &str) -> &'c DynamicRelation<Prov> {
     self.dynamic_relations.get(name).map(|r| r).unwrap()
   }
 
@@ -68,49 +72,15 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     self.output_relations.push(name.to_string())
   }
 
-  pub fn run(&'a mut self, ctx: &Prov) -> HashMap<String, DynamicCollection<Prov>> {
-    self.run_with_iter_limit(ctx, None)
-  }
-
-  fn need_to_iterate(&mut self, ctx: &Prov, iter_limit: Option<usize>) -> bool {
-    // Check if it has been changed
-    if self.changed(ctx) || self.is_first_iteration() {
-      // Check iter count; if reaching limit then we need to stop
-      if let Some(iter_limit) = iter_limit {
-        if self.iter_num > iter_limit {
-          self.changed(ctx);
-          return false;
-        }
-      }
-
-      // If not reaching limit then we need to iterate
-      return true;
-    }
-
-    // If it is no longer changing, but we are still less than expected iter limit, continue
-    if let Some(iter_limit) = iter_limit {
-      if self.iter_num < iter_limit {
-        return true;
-      }
-    }
-
-    // Finally, stop
-    return false;
-  }
-
-  pub fn run_with_iter_limit(
-    &'a mut self,
-    ctx: &Prov,
-    iter_limit: Option<usize>,
-  ) -> HashMap<String, DynamicCollection<Prov>> {
+  pub fn run(&'a mut self, ctx: &Prov, runtime: &RuntimeEnvironment) -> HashMap<String, DynamicCollection<Prov>> {
     // Iterate until fixpoint
-    while self.need_to_iterate(ctx, iter_limit) {
+    while self.need_to_iterate(ctx, &runtime.iter_limit) {
       // Perform updates
       for update in &self.updates {
         let dyn_update = self.build_dynamic_update(ctx, update);
         dyn_update
           .target
-          .insert_dataflow_recent(ctx, &dyn_update.dataflow, self.early_discard);
+          .insert_dataflow_recent(ctx, &dyn_update.dataflow, runtime);
       }
 
       // Update iteration number
@@ -124,6 +94,102 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
       result.insert(name.clone(), col);
     }
     result
+  }
+
+  fn need_to_iterate(&mut self, ctx: &Prov, iter_limit: &Option<usize>) -> bool {
+    // Check if it has been changed
+    if self.changed(ctx) || self.is_first_iteration() {
+      // Check iter count; if reaching limit then we need to stop
+      if let Some(iter_limit) = iter_limit {
+        if self.iter_num > *iter_limit {
+          self.changed(ctx);
+          return false;
+        }
+      }
+
+      // If not reaching limit then we need to iterate
+      return true;
+    }
+
+    // If it is no longer changing, but we are still less than expected iter limit, continue
+    if let Some(iter_limit) = iter_limit {
+      if self.iter_num < *iter_limit {
+        return true;
+      }
+    }
+
+    // Finally, stop
+    return false;
+  }
+
+  pub fn run_with_monitor<M>(
+    &'a mut self,
+    ctx: &Prov,
+    runtime: &RuntimeEnvironment,
+    m: &M,
+  ) -> HashMap<String, DynamicCollection<Prov>>
+  where
+    M: Monitor<Prov>,
+  {
+    // Iterate until fixpoint
+    while self.need_to_iterate_with_monitor(ctx, &runtime.iter_limit, m) {
+      // !SPECIAL MONITORING!
+      m.observe_stratum_iteration(self.iter_num);
+
+      // Perform updates
+      for update in &self.updates {
+        let dyn_update = self.build_dynamic_update(ctx, update);
+        dyn_update
+          .target
+          .insert_dataflow_recent(ctx, &dyn_update.dataflow, runtime);
+      }
+
+      // Update iteration number
+      self.step();
+    }
+
+    // Generate result
+    let mut result = HashMap::new();
+    for name in &self.output_relations {
+      let col = self.dynamic_relations.remove(name).unwrap().complete(ctx);
+      result.insert(name.clone(), col);
+    }
+    result
+  }
+
+  fn need_to_iterate_with_monitor<M>(&mut self, ctx: &Prov, iter_limit: &Option<usize>, m: &M) -> bool
+  where
+    M: Monitor<Prov>,
+  {
+    // Check if it has been changed
+    if self.changed(ctx) || self.is_first_iteration() {
+      // Check iter count; if reaching limit then we need to stop
+      if let Some(iter_limit) = iter_limit {
+        if self.iter_num > *iter_limit {
+          // !SPECIAL MONITORING!
+          m.observe_hitting_iteration_limit();
+
+          self.changed(ctx);
+          return false;
+        }
+      }
+
+      // If not reaching limit then we need to iterate
+      return true;
+    }
+
+    // If it is no longer changing, but we are still less than expected iter limit, continue
+    if let Some(iter_limit) = iter_limit {
+      if self.iter_num < *iter_limit {
+        return true;
+      }
+    }
+
+    // !SPECIAL MONITORING!
+    m.observe_converging();
+
+    // Finally, stop
+    return false;
   }
 
   fn changed(&mut self, ctx: &Prov) -> bool {

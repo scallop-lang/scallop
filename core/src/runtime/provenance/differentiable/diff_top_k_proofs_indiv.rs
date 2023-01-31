@@ -59,13 +59,13 @@ impl<T: Clone> std::fmt::Display for OutputIndivDiffProb<T> {
   }
 }
 
-pub struct DiffTopKProofsIndivContext<T: Clone, P: PointerFamily> {
+pub struct DiffTopKProofsIndivProvenance<T: Clone, P: PointerFamily> {
   pub k: usize,
   pub diff_probs: P::Pointer<Vec<(f64, T)>>,
   pub disjunctions: Disjunctions,
 }
 
-impl<T: Clone, P: PointerFamily> Clone for DiffTopKProofsIndivContext<T, P> {
+impl<T: Clone, P: PointerFamily> Clone for DiffTopKProofsIndivProvenance<T, P> {
   fn clone(&self) -> Self {
     Self {
       k: self.k,
@@ -75,7 +75,7 @@ impl<T: Clone, P: PointerFamily> Clone for DiffTopKProofsIndivContext<T, P> {
   }
 }
 
-impl<T: Clone, P: PointerFamily> DiffTopKProofsIndivContext<T, P> {
+impl<T: Clone, P: PointerFamily> DiffTopKProofsIndivProvenance<T, P> {
   pub fn new(k: usize) -> Self {
     Self {
       k,
@@ -97,7 +97,7 @@ impl<T: Clone, P: PointerFamily> DiffTopKProofsIndivContext<T, P> {
   }
 }
 
-impl<T: Clone, P: PointerFamily> DNFContextTrait for DiffTopKProofsIndivContext<T, P> {
+impl<T: Clone, P: PointerFamily> DNFContextTrait for DiffTopKProofsIndivProvenance<T, P> {
   fn fact_probability(&self, id: &usize) -> f64 {
     self.diff_probs[*id].0
   }
@@ -107,10 +107,10 @@ impl<T: Clone, P: PointerFamily> DNFContextTrait for DiffTopKProofsIndivContext<
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopKProofsIndivContext<T, P> {
+impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopKProofsIndivProvenance<T, P> {
   type Tag = DNFFormula;
 
-  type InputTag = InputDiffProb<T>;
+  type InputTag = InputExclusiveDiffProb<T>;
 
   type OutputTag = OutputIndivDiffProb<T>;
 
@@ -119,32 +119,19 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopKProofsIndivCon
   }
 
   fn tagging_fn(&mut self, input_tag: Self::InputTag) -> Self::Tag {
-    let InputDiffProb(p, t) = input_tag;
-    let id = self.diff_probs.len();
-    P::get_mut(&mut self.diff_probs).push((p, t));
-    DNFFormula::singleton(id)
-  }
+    let InputExclusiveDiffProb { prob, tag, exclusion } = input_tag;
 
-  fn tagging_disjunction_fn(&mut self, tags: Vec<Self::InputTag>) -> Vec<Self::Tag> {
-    let mut ids = vec![];
+    // First store the probability and generate the id
+    let fact_id = self.diff_probs.len();
+    P::get_mut(&mut self.diff_probs).push((prob, tag));
 
-    // Add base disjunctions
-    let tags = tags
-      .into_iter()
-      .map(|tag| {
-        let InputDiffProb(p, t) = tag;
-        let id = self.diff_probs.len();
-        P::get_mut(&mut self.diff_probs).push((p, t));
-        ids.push(id);
-        DNFFormula::singleton(id)
-      })
-      .collect::<Vec<_>>();
+    // Store the mutual exclusivity
+    if let Some(disjunction_id) = exclusion {
+      self.disjunctions.add_disjunction(disjunction_id, fact_id);
+    }
 
-    // Add disjunction
-    self.disjunctions.add_disjunction(ids.clone().into_iter());
-
-    // Return tags
-    tags
+    // Finally return the formula
+    DNFFormula::singleton(fact_id)
   }
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
@@ -196,6 +183,12 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopKProofsIndivCon
 
   fn negate(&self, t: &Self::Tag) -> Option<Self::Tag> {
     Some(self.top_k_negate(t, self.k))
+  }
+
+  fn weight(&self, t: &Self::Tag) -> f64 {
+    let s = RealSemiring::new();
+    let v = |i: &usize| self.diff_probs[i.clone()].0;
+    t.wmc(&s, &v)
   }
 
   fn dynamic_count(&self, batch: DynamicElements<Self>) -> DynamicElements<Self> {
@@ -251,10 +244,7 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopKProofsIndivCon
     vec![t, f]
   }
 
-  fn static_count<Tup: StaticTupleTrait>(
-    &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<usize, Self> {
+  fn static_count<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<usize, Self> {
     if batch.is_empty() {
       vec![StaticElement::new(0, self.one())]
     } else {
@@ -295,10 +285,7 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopKProofsIndivCon
     elems
   }
 
-  fn static_exists<Tup: StaticTupleTrait>(
-    &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<bool, Self> {
+  fn static_exists<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<bool, Self> {
     let mut exists_tag = self.zero();
     let mut not_exists_tag = self.one();
     for elem in batch {

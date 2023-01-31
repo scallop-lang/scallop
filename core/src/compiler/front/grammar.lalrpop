@@ -62,6 +62,8 @@ match {
   "if",
   "then",
   "else",
+  "exists",
+  "forall",
 
   // Type
   "i8",
@@ -474,6 +476,8 @@ VariableOrWildcard: VariableOrWildcard = {
 }
 
 ReduceOpNode: ReduceOperatorNode = {
+  "exists" => ReduceOperatorNode::Exists,
+  "forall" => ReduceOperatorNode::Forall,
   <n: Identifier> => {
     match n.name() {
       "count" => ReduceOperatorNode::Count,
@@ -481,8 +485,6 @@ ReduceOpNode: ReduceOperatorNode = {
       "prod" => ReduceOperatorNode::Prod,
       "min" => ReduceOperatorNode::Min,
       "max" => ReduceOperatorNode::Max,
-      "exists" => ReduceOperatorNode::Exists,
-      "forall" => ReduceOperatorNode::Forall,
       "unique" => ReduceOperatorNode::Unique,
       x => ReduceOperatorNode::Unknown(x.to_string()),
     }
@@ -493,6 +495,11 @@ ReduceOpNode: ReduceOperatorNode = {
         ReduceOperatorNode::TopK(k as usize)
       } else {
         ReduceOperatorNode::Unknown(format!("top<{}>", k))
+      },
+      "categorical" => if k > 0 {
+        ReduceOperatorNode::CategoricalK(k as usize)
+      } else {
+        ReduceOperatorNode::Unknown(format!("categorical<{}>", k))
       },
       x => ReduceOperatorNode::Unknown(x.to_string()),
     }
@@ -540,11 +547,32 @@ ReduceNode: ReduceNode = {
 
 Reduce = Spanned<ReduceNode>;
 
+ForallExistsReduceOpNode: ReduceOperatorNode = {
+  "exists" => ReduceOperatorNode::Exists,
+  "forall" => ReduceOperatorNode::Forall,
+}
+
+ForallExistsReduceOp = Spanned<ForallExistsReduceOpNode>;
+
+ForallExistsReduceNode: ForallExistsReduceNode = {
+  <op: ForallExistsReduceOp> "(" <bs: AtLeastOneSeparatedStrict<VariableBinding, ",">> ":" <f: Formula> <g: ReduceGroupBy?> ")" => {
+    ForallExistsReduceNode {
+      operator: op,
+      bindings: bs,
+      body: Box::new(f),
+      group_by: g,
+    }
+  }
+}
+
+ForallExistsReduce = Spanned<ForallExistsReduceNode>;
+
 UnitFormula: Formula = {
   "(" <f: ComplexFormula> ")" => f,
   <c: Constraint> => Formula::Constraint(c),
   <a: Atom> => Formula::Atom(a),
   <r: Reduce> => Formula::Reduce(r),
+  <r: ForallExistsReduce> => Formula::ForallExistsReduce(r),
 }
 
 ConstraintNode: ConstraintNode = {
@@ -720,14 +748,14 @@ ComplexExpr: Expr = {
   <u: Spanned<UnaryExprNode>> => Expr::Unary(u),
 }
 
-FunctionNode: FunctionNode = {
-  <n: Name> => FunctionNode::from_string(n),
+FunctionIdentifierNode: FunctionIdentifierNode = {
+  <n: Identifier> => FunctionIdentifierNode { id: n },
 }
 
-Function = Spanned<FunctionNode>;
+FunctionIdentifier = Spanned<FunctionIdentifierNode>;
 
 CallExprNode: CallExprNode = {
-  "$" <f: Function> "(" <args: Separated<Expr, ",">> ")" => {
+  "$" <f: FunctionIdentifier> "(" <args: Separated<Expr, ",">> ")" => {
     CallExprNode::new(f, args)
   }
 }

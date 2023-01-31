@@ -56,12 +56,6 @@ impl std::fmt::Display for ParserError {
   }
 }
 
-impl FrontCompileErrorClone for ParserError {
-  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
-    Box::new(self.clone())
-  }
-}
-
 impl FrontCompileErrorTrait for ParserError {
   fn error_type(&self) -> FrontCompileErrorType {
     FrontCompileErrorType::Error

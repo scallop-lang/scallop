@@ -1,8 +1,5 @@
-use crate::common::tuple_type::*;
-use crate::runtime::dynamic::*;
-use crate::runtime::provenance::*;
-
 use super::*;
+use crate::common::tuple_type::*;
 
 pub struct DynamicStableUnitDataflow<'a, Prov: Provenance> {
   ctx: &'a Prov,
@@ -23,13 +20,13 @@ impl<'a, Prov: Provenance> DynamicStableUnitDataflow<'a, Prov> {
     Self { ctx, tuple_type }
   }
 
-  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_stable(&self, _: &RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     let elem = DynamicElement::new(self.tuple_type.unit_value(), self.ctx.one());
     let batch = DynamicBatch::SourceVec(vec![elem].into_iter());
     DynamicBatches::Single(Some(batch))
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_recent(&self, _: &RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     DynamicBatches::Empty
   }
 }
@@ -53,11 +50,11 @@ impl<'a, Prov: Provenance> DynamicRecentUnitDataflow<'a, Prov> {
     Self { ctx, tuple_type }
   }
 
-  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_stable(&self, _: &RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     DynamicBatches::Empty
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_recent(&self, _: &RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     let elem = DynamicElement::new(self.tuple_type.unit_value(), self.ctx.one());
     let batch = DynamicBatch::SourceVec(vec![elem].into_iter());
     DynamicBatches::Single(Some(batch))

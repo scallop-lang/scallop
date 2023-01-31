@@ -1,11 +1,13 @@
 use scallop_core::runtime::dynamic::dataflow::*;
 use scallop_core::runtime::dynamic::*;
+use scallop_core::runtime::env::*;
 use scallop_core::runtime::provenance::*;
 use scallop_core::testing::*;
 
 #[test]
 fn test_dynamic_find_1() {
   let mut ctx = unit::UnitProvenance;
+  let mut rt = RuntimeEnvironment::default();
 
   // Relations
   let mut source = DynamicRelation::<unit::UnitProvenance>::new();
@@ -19,7 +21,7 @@ fn test_dynamic_find_1() {
     target.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::find(DynamicDataflow::dynamic_relation(&source), 1i8.into()),
-      true,
+      &mut rt,
     )
   }
 

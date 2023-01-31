@@ -27,6 +27,10 @@ pub enum TypeInferenceError {
     predicate: String,
     loc: AstNodeLocation,
   },
+  UnknownFunctionType {
+    function_name: String,
+    loc: AstNodeLocation,
+  },
   UnknownVariable {
     variable: String,
     loc: AstNodeLocation,
@@ -98,12 +102,6 @@ pub enum TypeInferenceError {
   },
 }
 
-impl FrontCompileErrorClone for TypeInferenceError {
-  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
-    Box::new(self.clone())
-  }
-}
-
 impl TypeInferenceError {
   pub fn annotate_location(&mut self, new_location: &AstNodeLocation) {
     match self {
@@ -157,6 +155,9 @@ impl FrontCompileErrorTrait for TypeInferenceError {
       }
       Self::UnknownQueryRelationType { predicate, loc } => {
         format!("unknown relation `{}` used in query\n{}", predicate, loc.report(src))
+      }
+      Self::UnknownFunctionType { function_name, loc } => {
+        format!("unknown function `{}`\n{}", function_name, loc.report(src))
       }
       Self::UnknownVariable { variable, loc } => {
         format!("unknown variable `{}` in the rule\n{}", variable, loc.report(src))

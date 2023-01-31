@@ -1,12 +1,14 @@
 use scallop_core::common::aggregate_op::AggregateOp;
 use scallop_core::runtime::dynamic::dataflow::*;
 use scallop_core::runtime::dynamic::*;
+use scallop_core::runtime::env::*;
 use scallop_core::runtime::provenance::*;
 use scallop_core::testing::*;
 
 #[test]
 fn test_dynamic_aggregate_count_1() {
   let mut ctx = unit::UnitProvenance::default();
+  let mut rt = RuntimeEnvironment::default();
 
   // Relations
   let mut source_1 = DynamicRelation::<unit::UnitProvenance>::new();
@@ -22,7 +24,7 @@ fn test_dynamic_aggregate_count_1() {
     target.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::from(&source_1).intersect(DynamicDataflow::from(&source_2), &ctx),
-      true,
+      &mut rt,
     )
   }
 
@@ -39,7 +41,7 @@ fn test_dynamic_aggregate_count_1() {
         &ctx,
       )
       .into(),
-      true,
+      &mut rt,
     );
     first_time = false;
   }

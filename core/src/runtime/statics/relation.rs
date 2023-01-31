@@ -6,7 +6,6 @@ use super::dataflow::Dataflow;
 use super::*;
 use crate::common::input_tag::*;
 use crate::common::tuple::*;
-use crate::runtime::edb::*;
 use crate::runtime::monitor::*;
 use crate::runtime::provenance::*;
 use crate::runtime::utils::*;
@@ -60,68 +59,6 @@ impl<Tup: StaticTupleTrait, Prov: Provenance> StaticRelation<Tup, Prov> {
     self.insert_tagged_with_monitor(ctx, vec![(info, tuple)], m);
   }
 
-  pub fn insert_from_edb(&self, ctx: &mut Prov, relation: EDBRelation<Prov>)
-  where
-    Tuple: AsTuple<Tup>,
-  {
-    let EDBRelation { facts, disjunctions } = relation;
-
-    // Collect disjunctions
-    let mut disj_i = HashSet::new();
-    disjunctions.into_iter().for_each(|disj| {
-      let disj_facts = disj
-        .into_iter()
-        .map(|i| {
-          disj_i.insert(i);
-          let f = facts[i].clone();
-          (f.tag, <Tuple as AsTuple<Tup>>::as_tuple(&f.tuple))
-        })
-        .collect::<Vec<_>>();
-      self.insert_annotated_disjunction(ctx, disj_facts);
-    });
-
-    // Collect non-disjuntion facts
-    let non_disj_facts = facts
-      .into_iter()
-      .enumerate()
-      .filter(|(i, _)| !disj_i.contains(i))
-      .map(|(_, f)| (f.tag, <Tuple as AsTuple<Tup>>::as_tuple(&f.tuple)))
-      .collect::<Vec<_>>();
-    self.insert_tagged(ctx, non_disj_facts);
-  }
-
-  pub fn insert_from_edb_with_monitor<M>(&self, ctx: &mut Prov, relation: EDBRelation<Prov>, m: &M)
-  where
-    Tuple: AsTuple<Tup> + From<Tup>,
-    M: Monitor<Prov>,
-    InputTagOf<Prov>: std::fmt::Debug,
-  {
-    let EDBRelation { facts, disjunctions } = relation;
-
-    // Collect disjunctions
-    let mut disj_i = HashSet::new();
-    disjunctions.into_iter().for_each(|disj| {
-      let disj_facts = disj
-        .into_iter()
-        .map(|i| {
-          disj_i.insert(i);
-          let f = facts[i].clone();
-          (f.tag, <Tuple as AsTuple<Tup>>::as_tuple(&f.tuple))
-        })
-        .collect::<Vec<_>>();
-      self.insert_annotated_disjunction_with_monitor(ctx, disj_facts, m);
-    });
-
-    // Collect non-disjuntion facts
-    let non_disj_facts = facts
-      .into_iter()
-      .enumerate()
-      .filter(|(i, _)| !disj_i.contains(i))
-      .map(|(_, f)| (f.tag, <Tuple as AsTuple<Tup>>::as_tuple(&f.tuple)))
-      .collect::<Vec<_>>();
-    self.insert_tagged_with_monitor(ctx, non_disj_facts, m);
-  }
-
   pub fn insert_dynamically_tagged(&self, ctx: &mut Prov, data: Vec<(InputTag, Tup)>) {
     let elements = data
       .into_iter()
@@ -150,12 +87,8 @@ impl<Tup: StaticTupleTrait, Prov: Provenance> StaticRelation<Tup, Prov> {
     self.insert_dataflow_recent(ctx, elements, false);
   }
 
-  pub fn insert_tagged_with_monitor<M>(
-    &self,
-    ctx: &mut Prov,
-    data: Vec<(Option<InputTagOf<Prov>>, Tup)>,
-    m: &M,
-  ) where
+  pub fn insert_tagged_with_monitor<M>(&self, ctx: &mut Prov, data: Vec<(Option<InputTagOf<Prov>>, Tup)>, m: &M)
+  where
     Tuple: From<Tup>,
     M: Monitor<Prov>,
   {
@@ -170,76 +103,23 @@ impl<Tup: StaticTupleTrait, Prov: Provenance> StaticRelation<Tup, Prov> {
     self.insert_dataflow_recent(ctx, elements, false);
   }
 
-  pub fn insert_dynamically_tagged_annotated_disjunction(&self, ctx: &mut Prov, facts: Vec<(InputTag, Tup)>) {
-    self.insert_annotated_disjunction(
-      ctx,
-      facts
-        .into_iter()
-        .map(|(tag, tup)| (FromInputTag::from_input_tag(&tag), tup))
-        .collect(),
-    )
-  }
-
-  pub fn insert_dynamically_tagged_annotated_disjunction_with_monitor<M>(
-    &self,
-    ctx: &mut Prov,
-    facts: Vec<(InputTag, Tup)>,
-    m: &M,
-  ) where
-    Tuple: From<Tup>,
-    M: Monitor<Prov>,
-  {
-    self.insert_annotated_disjunction_with_monitor(
-      ctx,
-      facts
-        .into_iter()
-        .map(|(tag, tup)| (FromInputTag::from_input_tag(&tag), tup))
-        .collect(),
-      m,
-    )
-  }
-
-  pub fn insert_annotated_disjunction(&self, ctx: &mut Prov, facts: Vec<(Option<InputTagOf<Prov>>, Tup)>) {
-    let (tags, tuples) = facts.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();
-    let internal_tags = ctx.tagging_disjunction_optional_fn(tags);
-    let elems = tuples
-      .into_iter()
-      .zip(internal_tags.into_iter())
-      .map(|(tup, tag)| StaticElement::new(tup, tag))
-      .collect::<Vec<_>>();
-    self.insert_dataflow_recent(ctx, elems, false);
-  }
-
-  pub fn insert_annotated_disjunction_with_monitor<M>(
-    &self,
-    ctx: &mut Prov,
-    facts: Vec<(Option<InputTagOf<Prov>>, Tup)>,
-    m: &M,
-  ) where
-    Tuple: From<Tup>,
-    M: Monitor<Prov>,
-    InputTagOf<Prov>: std::fmt::Debug,
-  {
-    let (input_tags, tuples) = facts.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();
-    let tags = ctx.tagging_disjunction_optional_fn(input_tags.clone());
-    let elems = tuples
-      .into_iter()
-      .zip(input_tags.into_iter())
-      .zip(tags.into_iter())
-      .map(|((tup, input_tag), tag)| {
-        m.observe_tagging(&tup.clone().into(), &input_tag, &tag);
-        StaticElement::new(tup, tag)
-      })
-      .collect::<Vec<_>>();
-    self.insert_dataflow_recent(ctx, elems, false);
-  }
-
-  pub fn insert_dynamic_elements(&self, ctx: &mut Prov, data: Vec<crate::runtime::dynamic::DynamicElement<Prov>>)
+  pub fn insert_dynamic_elements(&self, ctx: &Prov, data: Vec<crate::runtime::dynamic::DynamicElement<Prov>>)
   where
     Tuple: AsTuple<Tup>,
   {
     let data = data
       .into_iter()
+      .map(|e| StaticElement::new(<Tuple as AsTuple<Tup>>::as_tuple(&e.tuple), e.tag.clone()))
+      .collect::<Vec<_>>();
+    self.insert_dataflow_recent(ctx, data, false)
+  }
+
+  pub fn insert_dynamic_elements_ref(&self, ctx: &Prov, data: &Vec<crate::runtime::dynamic::DynamicElement<Prov>>)
+  where
+    Tuple: AsTuple<Tup>,
+  {
+    let data = data
+      .iter()
       .map(|e| StaticElement::new(<Tuple as AsTuple<Tup>>::as_tuple(&e.tuple), e.tag.clone()))
       .collect::<Vec<_>>();
     self.insert_dataflow_recent(ctx, data, false)

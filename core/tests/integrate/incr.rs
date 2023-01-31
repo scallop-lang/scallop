@@ -28,7 +28,7 @@ fn incr_edge_path_left_recursion() {
 
   // Result
   expect_output_collection(
-    ctx.computed_relation("path").unwrap(),
+    ctx.computed_relation_ref("path").unwrap(),
     vec![(0usize, 1usize), (0, 2), (1, 2)],
   );
 }
@@ -36,7 +36,7 @@ fn incr_edge_path_left_recursion() {
 #[test]
 fn incr_edge_path_left_branching_1() {
   let prov_ctx = provenance::unit::UnitProvenance::default();
-  let mut ctx = integrate::IntegrateContext::<_, RcFamily>::new(prov_ctx);
+  let mut ctx = integrate::IntegrateContext::<_>::new_incremental(prov_ctx);
 
   // Base context
   ctx.add_relation("edge(usize, usize)").unwrap();
@@ -48,7 +48,10 @@ fn incr_edge_path_left_branching_1() {
     )
     .unwrap();
   ctx.run().unwrap();
-  expect_output_collection(ctx.computed_relation("edge").unwrap(), vec![(0usize, 1usize), (1, 2)]);
+  expect_output_collection(
+    ctx.computed_relation_ref("edge").unwrap(),
+    vec![(0usize, 1usize), (1, 2)],
+  );
 
   // First branch
   let mut first_branch = ctx.clone();
@@ -57,7 +60,7 @@ fn incr_edge_path_left_branching_1() {
     .unwrap();
   first_branch.run().unwrap();
   expect_output_collection(
-    first_branch.computed_relation("path").unwrap(),
+    first_branch.computed_relation_ref("path").unwrap(),
     vec![(0usize, 1usize), (0, 2), (1, 2)],
   );
 
@@ -68,7 +71,7 @@ fn incr_edge_path_left_branching_1() {
     .unwrap();
   second_branch.run().unwrap();
   expect_output_collection(
-    second_branch.computed_relation("path").unwrap(),
+    second_branch.computed_relation_ref("path").unwrap(),
     vec![(0usize, 1usize), (0, 2), (1, 2)],
   );
 
@@ -76,7 +79,51 @@ fn incr_edge_path_left_branching_1() {
   second_branch.add_rule(r#"result(1, y) = path(1, y)"#).unwrap();
   second_branch.run().unwrap();
   expect_output_collection(
-    second_branch.computed_relation("result").unwrap(),
+    second_branch.computed_relation_ref("result").unwrap(),
     vec![(1usize, 2usize)],
+  );
+}
+
+#[test]
+fn incr_fib_test_0() {
+  let prov_ctx = provenance::unit::UnitProvenance::default();
+  let mut ctx = integrate::IntegrateContext::<_>::new_incremental(prov_ctx);
+
+  ctx.add_relation("fib(i32, i32)").expect("Compile error");
+  ctx
+    .add_rule("fib(x, a + b) :- fib(x - 1, a), fib(x - 2, b), x <= 5")
+    .expect("Compile error");
+  ctx
+    .edb()
+    .add_facts("fib", vec![(0i32, 1i32), (1, 1)])
+    .expect("Cannot add facts");
+
+  ctx.run().expect("Runtime error");
+
+  expect_output_collection(
+    ctx.computed_relation_ref("fib").unwrap(),
+    vec![(0i32, 1i32), (1, 1), (2, 2), (3, 3), (4, 5), (5, 8)],
+  );
+}
+
+#[test]
+fn incr_fib_test_1() {
+  let prov_ctx = provenance::unit::UnitProvenance::default();
+  let mut ctx = integrate::IntegrateContext::<_>::new_incremental(prov_ctx);
+
+  ctx
+    .add_program(
+      r#"
+      rel fib = {(0, 1), (1, 1)}
+      rel fib(x, a + b) = fib(x - 1, a) and fib(x - 2, b) and x <= 5
+    "#,
+    )
+    .expect("Compile error");
+
+  ctx.run().expect("Runtime error");
+
+  expect_output_collection(
+    ctx.computed_relation_ref("fib").unwrap(),
+    vec![(0i32, 1i32), (1, 1), (2, 2), (3, 3), (4, 5), (5, 8)],
   );
 }

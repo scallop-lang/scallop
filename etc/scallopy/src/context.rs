@@ -17,6 +17,7 @@ use crate::custom_tag;
 
 use super::collection::*;
 use super::error::*;
+use super::foreign_function::*;
 use super::io::*;
 use super::provenance::*;
 use super::tuple::*;
@@ -28,19 +29,21 @@ pub enum ContextEnum {
   Unit(IntegrateContext<unit::UnitProvenance, AF>),
   Proofs(IntegrateContext<proofs::ProofsProvenance, AF>),
   MinMaxProb(IntegrateContext<min_max_prob::MinMaxProbProvenance, AF>),
-  AddMultProb(IntegrateContext<add_mult_prob::AddMultProbContext, AF>),
-  TopKProofs(IntegrateContext<top_k_proofs::TopKProofsContext<AF>, AF>),
-  TopBottomKClauses(IntegrateContext<top_bottom_k_clauses::TopBottomKClausesContext<AF>, AF>),
-  DiffMinMaxProb(IntegrateContext<diff_min_max_prob::DiffMinMaxProbContext<Py<PyAny>, AF>, AF>),
-  DiffAddMultProb(IntegrateContext<diff_add_mult_prob::DiffAddMultProbContext<Py<PyAny>, AF>, AF>),
-  DiffNandMultProb(IntegrateContext<diff_nand_mult_prob::DiffNandMultProbContext<Py<PyAny>, AF>, AF>),
-  DiffMaxMultProb(IntegrateContext<diff_max_mult_prob::DiffMaxMultProbContext<Py<PyAny>, AF>, AF>),
-  DiffNandMinProb(IntegrateContext<diff_nand_min_prob::DiffNandMinProbContext<Py<PyAny>, AF>, AF>),
-  DiffSampleKProofs(IntegrateContext<diff_sample_k_proofs::DiffSampleKProofsContext<Py<PyAny>, AF>, AF>),
-  DiffTopKProofs(IntegrateContext<diff_top_k_proofs::DiffTopKProofsContext<Py<PyAny>, AF>, AF>),
-  DiffTopKProofsIndiv(IntegrateContext<diff_top_k_proofs_indiv::DiffTopKProofsIndivContext<Py<PyAny>, AF>, AF>),
-  DiffTopBottomKClauses(IntegrateContext<diff_top_bottom_k_clauses::DiffTopBottomKClausesContext<Py<PyAny>, AF>, AF>),
-  Custom(IntegrateContext<custom_tag::CustomTagContext, AF>),
+  AddMultProb(IntegrateContext<add_mult_prob::AddMultProbProvenance, AF>),
+  TopKProofs(IntegrateContext<top_k_proofs::TopKProofsProvenance<AF>, AF>),
+  TopBottomKClauses(IntegrateContext<top_bottom_k_clauses::TopBottomKClausesProvenance<AF>, AF>),
+  DiffMinMaxProb(IntegrateContext<diff_min_max_prob::DiffMinMaxProbProvenance<Py<PyAny>, AF>, AF>),
+  DiffAddMultProb(IntegrateContext<diff_add_mult_prob::DiffAddMultProbProvenance<Py<PyAny>, AF>, AF>),
+  DiffNandMultProb(IntegrateContext<diff_nand_mult_prob::DiffNandMultProbProvenance<Py<PyAny>, AF>, AF>),
+  DiffMaxMultProb(IntegrateContext<diff_max_mult_prob::DiffMaxMultProbProvenance<Py<PyAny>, AF>, AF>),
+  DiffNandMinProb(IntegrateContext<diff_nand_min_prob::DiffNandMinProbProvenance<Py<PyAny>, AF>, AF>),
+  DiffSampleKProofs(IntegrateContext<diff_sample_k_proofs::DiffSampleKProofsProvenance<Py<PyAny>, AF>, AF>),
+  DiffTopKProofs(IntegrateContext<diff_top_k_proofs::DiffTopKProofsProvenance<Py<PyAny>, AF>, AF>),
+  DiffTopKProofsIndiv(IntegrateContext<diff_top_k_proofs_indiv::DiffTopKProofsIndivProvenance<Py<PyAny>, AF>, AF>),
+  DiffTopBottomKClauses(
+    IntegrateContext<diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance<Py<PyAny>, AF>, AF>,
+  ),
+  Custom(IntegrateContext<custom_tag::CustomProvenance, AF>),
 }
 
 macro_rules! match_context {
@@ -86,72 +89,80 @@ impl Context {
     // Check provenance type
     match provenance {
       "unit" => Ok(Self {
-        ctx: ContextEnum::Unit(IntegrateContext::new(unit::UnitProvenance::default())),
+        ctx: ContextEnum::Unit(IntegrateContext::new_incremental(unit::UnitProvenance::default())),
       }),
       "proofs" => Ok(Self {
-        ctx: ContextEnum::Proofs(IntegrateContext::new(proofs::ProofsProvenance::default())),
+        ctx: ContextEnum::Proofs(IntegrateContext::new_incremental(proofs::ProofsProvenance::default())),
       }),
       "minmaxprob" => Ok(Self {
-        ctx: ContextEnum::MinMaxProb(IntegrateContext::new(min_max_prob::MinMaxProbProvenance::default())),
+        ctx: ContextEnum::MinMaxProb(IntegrateContext::new_incremental(
+          min_max_prob::MinMaxProbProvenance::default(),
+        )),
       }),
       "addmultprob" => Ok(Self {
-        ctx: ContextEnum::AddMultProb(IntegrateContext::new(add_mult_prob::AddMultProbContext::default())),
+        ctx: ContextEnum::AddMultProb(IntegrateContext::new_incremental(
+          add_mult_prob::AddMultProbProvenance::default(),
+        )),
       }),
       "topkproofs" => Ok(Self {
-        ctx: ContextEnum::TopKProofs(IntegrateContext::new(top_k_proofs::TopKProofsContext::new(k))),
+        ctx: ContextEnum::TopKProofs(IntegrateContext::new_incremental(
+          top_k_proofs::TopKProofsProvenance::new(k),
+        )),
       }),
       "topbottomkclauses" => Ok(Self {
-        ctx: ContextEnum::TopBottomKClauses(IntegrateContext::new(
-          top_bottom_k_clauses::TopBottomKClausesContext::new(k),
+        ctx: ContextEnum::TopBottomKClauses(IntegrateContext::new_incremental(
+          top_bottom_k_clauses::TopBottomKClausesProvenance::new(k),
         )),
       }),
       "diffminmaxprob" => Ok(Self {
-        ctx: ContextEnum::DiffMinMaxProb(IntegrateContext::new(
-          diff_min_max_prob::DiffMinMaxProbContext::default(),
+        ctx: ContextEnum::DiffMinMaxProb(IntegrateContext::new_incremental(
+          diff_min_max_prob::DiffMinMaxProbProvenance::default(),
         )),
       }),
       "diffaddmultprob" => Ok(Self {
-        ctx: ContextEnum::DiffAddMultProb(IntegrateContext::new(
-          diff_add_mult_prob::DiffAddMultProbContext::default(),
+        ctx: ContextEnum::DiffAddMultProb(IntegrateContext::new_incremental(
+          diff_add_mult_prob::DiffAddMultProbProvenance::default(),
         )),
       }),
       "diffnandmultprob" => Ok(Self {
-        ctx: ContextEnum::DiffNandMultProb(IntegrateContext::new(
-          diff_nand_mult_prob::DiffNandMultProbContext::default(),
+        ctx: ContextEnum::DiffNandMultProb(IntegrateContext::new_incremental(
+          diff_nand_mult_prob::DiffNandMultProbProvenance::default(),
         )),
       }),
       "diffmaxmultprob" => Ok(Self {
-        ctx: ContextEnum::DiffMaxMultProb(IntegrateContext::new(
-          diff_max_mult_prob::DiffMaxMultProbContext::default(),
+        ctx: ContextEnum::DiffMaxMultProb(IntegrateContext::new_incremental(
+          diff_max_mult_prob::DiffMaxMultProbProvenance::default(),
         )),
       }),
       "diffnandminprob" => Ok(Self {
-        ctx: ContextEnum::DiffNandMinProb(IntegrateContext::new(
-          diff_nand_min_prob::DiffNandMinProbContext::default(),
+        ctx: ContextEnum::DiffNandMinProb(IntegrateContext::new_incremental(
+          diff_nand_min_prob::DiffNandMinProbProvenance::default(),
         )),
       }),
       "diffsamplekproofs" => Ok(Self {
-        ctx: ContextEnum::DiffSampleKProofs(IntegrateContext::new(
-          diff_sample_k_proofs::DiffSampleKProofsContext::new(k),
+        ctx: ContextEnum::DiffSampleKProofs(IntegrateContext::new_incremental(
+          diff_sample_k_proofs::DiffSampleKProofsProvenance::new(k),
         )),
       }),
       "difftopkproofs" => Ok(Self {
-        ctx: ContextEnum::DiffTopKProofs(IntegrateContext::new(diff_top_k_proofs::DiffTopKProofsContext::new(k))),
+        ctx: ContextEnum::DiffTopKProofs(IntegrateContext::new_incremental(
+          diff_top_k_proofs::DiffTopKProofsProvenance::new(k),
+        )),
       }),
       "difftopkproofsindiv" => Ok(Self {
-        ctx: ContextEnum::DiffTopKProofsIndiv(IntegrateContext::new(
-          diff_top_k_proofs_indiv::DiffTopKProofsIndivContext::new(k),
+        ctx: ContextEnum::DiffTopKProofsIndiv(IntegrateContext::new_incremental(
+          diff_top_k_proofs_indiv::DiffTopKProofsIndivProvenance::new(k),
         )),
       }),
       "difftopbottomkclauses" => Ok(Self {
-        ctx: ContextEnum::DiffTopBottomKClauses(IntegrateContext::new(
-          diff_top_bottom_k_clauses::DiffTopBottomKClausesContext::new(k),
+        ctx: ContextEnum::DiffTopBottomKClauses(IntegrateContext::new_incremental(
+          diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance::new(k),
         )),
       }),
       "custom" => {
         if let Some(py_ctx) = custom_provenance {
           Ok(Self {
-            ctx: ContextEnum::Custom(IntegrateContext::new(custom_tag::CustomTagContext(py_ctx))),
+            ctx: ContextEnum::Custom(IntegrateContext::new_incremental(custom_tag::CustomProvenance(py_ctx))),
           })
         } else {
           Err(BindingError::InvalidCustomProvenance)
@@ -164,6 +175,11 @@ impl Context {
   /// Creates a clone of the scallopy context
   fn clone(&self) -> Self {
     Self { ctx: self.ctx.clone() }
+  }
+
+  /// Set the current context to be non-incremental
+  fn set_non_incremental(&mut self) {
+    match_context!(&mut self.ctx, c, c.set_non_incremental())
   }
 
   /// Compile the surface program stored in the scallopy context into the ram program.
@@ -190,13 +206,13 @@ impl Context {
     let ram = match_context!(&self.ctx, c, c.ram());
 
     // Invoke sclc to compile the ram into rust code
-    let opt = sclc::options::Options {
+    let opt = sclc_core::options::Options {
       input: std::path::PathBuf::from(target_file),
       do_not_copy_artifact: true,
       ..Default::default()
     };
     let compile_opt = compiler::CompileOptions::default();
-    sclc::pylib::create_pylib(&opt, compile_opt, &ram).expect("Compile Error");
+    sclc_core::pylib::create_pylib(&opt, compile_opt, &ram).expect("Compile Error");
 
     // Return result
     Ok(())
@@ -325,13 +341,8 @@ impl Context {
   }
 
   /// Add a list of facts to a relation
-  fn add_facts(
-    &mut self,
-    relation: &str,
-    elems: &PyList,
-    disjunctions: Option<Vec<Vec<usize>>>,
-  ) -> Result<(), BindingError> {
-    match_context!(&mut self.ctx, c, add_py_facts(c, relation, elems, disjunctions))
+  fn add_facts(&mut self, relation: &str, elems: &PyList) -> Result<(), BindingError> {
+    match_context!(&mut self.ctx, c, add_py_facts(c, relation, elems))
   }
 
   /// Add a rule
@@ -352,19 +363,26 @@ impl Context {
     match_context!(&mut self.ctx, c, add_py_rule(c, rule, tag, attrs))
   }
 
+  /// Register a foreign function
+  fn register_foreign_function(&mut self, f: PyObject) -> Result<(), BindingError> {
+    let ff = PythonForeignFunction::new(f);
+    match_context!(&mut self.ctx, c, c.register_foreign_function(ff)?);
+    Ok(())
+  }
+
   /// Execute the program
   ///
   /// If the context's ram program is already compiled, the program will be directly executed.
   /// Otherwise, the ram program will be compiled and than be executed.
-  fn run(&mut self, iter_limit: Option<usize>) -> Result<(), BindingError> {
-    match_context!(&mut self.ctx, c, c.run_with_iter_limit(iter_limit)?);
+  fn run(&mut self) -> Result<(), BindingError> {
+    match_context!(&mut self.ctx, c, c.run()?);
     Ok(())
   }
 
   /// Execute the program while monitoring the provenance and tags
-  fn run_with_debug_tag(&mut self, iter_limit: Option<usize>) -> Result<(), BindingError> {
+  fn run_with_debug_tag(&mut self) -> Result<(), BindingError> {
     let m = monitor::DebugTagsMonitor;
-    match_context!(&mut self.ctx, c, c.run_with_iter_limit_and_monitor(iter_limit, &m)?);
+    match_context!(&mut self.ctx, c, c.run_with_monitor(&m)?);
     Ok(())
   }
 
@@ -394,9 +412,8 @@ impl Context {
   /// * `parallel` - whether the batch is to be executed in parallel
   fn run_batch(
     &self,
-    iter_limit: Option<usize>,
     output_relations: Vec<Vec<&str>>,
-    inputs: HashMap<String, Vec<(&PyList, Option<Vec<Vec<usize>>>)>>,
+    inputs: HashMap<String, Vec<&PyList>>,
     parallel: bool,
   ) -> Result<Vec<Vec<Collection>>, BindingError> {
     // Sanity check: has input
@@ -416,9 +433,9 @@ impl Context {
 
     // Depending on whether parallelism is enabled, choose the subsequent function to call
     if parallel {
-      self.run_batch_parallel(iter_limit, output_relations, inputs)
+      self.run_batch_parallel(output_relations, inputs)
     } else {
-      self.run_batch_serial(iter_limit, output_relations, inputs)
+      self.run_batch_serial(output_relations, inputs)
     }
   }
 
@@ -477,16 +494,14 @@ impl Context {
 impl Context {
   fn run_batch_parallel(
     &self,
-    iter_limit: Option<usize>,
     output_relations: Vec<Vec<&str>>,
-    inputs: HashMap<String, Vec<(&PyList, Option<Vec<Vec<usize>>>)>>,
+    inputs: HashMap<String, Vec<&PyList>>,
   ) -> Result<Vec<Vec<Collection>>, BindingError> {
     // Helper function for running batch parallel
     fn run<C>(
       c: &IntegrateContext<C, AF>,
-      iter_limit: Option<usize>,
       output_relations: Vec<Vec<&str>>,
-      inputs: HashMap<String, Vec<(&PyList, Option<Vec<Vec<usize>>>)>>,
+      inputs: HashMap<String, Vec<&PyList>>,
     ) -> Result<Vec<Vec<Collection>>, BindingError>
     where
       C: PythonProvenance + Clone + std::marker::Sync,
@@ -496,27 +511,26 @@ impl Context {
     {
       let batch_size = inputs.iter().next().unwrap().1.len();
       let inputs = process_batched_inputs::<C, _>(inputs, |r| c.relation_type(r))?;
-      run_batch_parallel(c, batch_size, inputs, output_relations, iter_limit)
+      run_batch_parallel(c, batch_size, inputs, output_relations)
     }
 
     // Run the helper for each context
-    match_context!(&self.ctx, c, run(c, iter_limit, output_relations, inputs))
+    match_context!(&self.ctx, c, run(c, output_relations, inputs))
   }
 
   fn run_batch_serial(
     &self,
-    iter_limit: Option<usize>,
     output_relation: Vec<Vec<&str>>,
-    inputs: HashMap<String, Vec<(&PyList, Option<Vec<Vec<usize>>>)>>,
+    inputs: HashMap<String, Vec<&PyList>>,
   ) -> Result<Vec<Vec<Collection>>, BindingError> {
     let batch_size = inputs.iter().next().unwrap().1.len();
     (0..batch_size)
       .map(|i| {
         let mut temp_ctx = self.clone();
         for (relation, relation_inputs) in &inputs {
-          temp_ctx.add_facts(relation, relation_inputs[i].0, relation_inputs[i].1.clone())?;
+          temp_ctx.add_facts(relation, relation_inputs[i])?;
         }
-        temp_ctx.run(iter_limit)?;
+        temp_ctx.run()?;
         output_relation[i].iter().map(|r| temp_ctx.relation(r)).collect()
       })
       .collect()
@@ -537,18 +551,13 @@ where
   Ok(())
 }
 
-fn add_py_facts<C>(
-  c: &mut IntegrateContext<C, AF>,
-  relation: &str,
-  elems: &PyList,
-  disjunctions: Option<Vec<Vec<usize>>>,
-) -> Result<(), BindingError>
+fn add_py_facts<C>(c: &mut IntegrateContext<C, AF>, relation: &str, elems: &PyList) -> Result<(), BindingError>
 where
   C: PythonProvenance,
 {
   if let Some(tuple_type) = c.relation_type(relation) {
     let tuples = C::process_typed_py_facts(elems, &tuple_type)?;
-    c.add_facts_with_disjunction(relation, tuples, disjunctions, false)?;
+    c.add_facts(relation, tuples, false)?;
     Ok(())
   } else {
     Err(BindingError::UnknownRelation(relation.to_string()).into())
@@ -583,14 +592,9 @@ where
 }
 
 fn process_batched_inputs<C, G>(
-  inputs: HashMap<String, Vec<(&PyList, Option<Vec<Vec<usize>>>)>>,
+  inputs: HashMap<String, Vec<&PyList>>,
   get_relation_type: G,
-) -> PyResult<
-  Vec<(
-    String,
-    Vec<(Vec<(Option<C::InputTag>, Tuple)>, Option<Vec<Vec<usize>>>)>,
-  )>,
->
+) -> PyResult<Vec<(String, Vec<Vec<(Option<C::InputTag>, Tuple)>>)>>
 where
   C: PythonProvenance,
   G: Fn(&str) -> Option<TupleType>,
@@ -601,10 +605,7 @@ where
       let tuple_type = get_relation_type(&r).ok_or(BindingError::UnknownRelation(r.clone()))?;
       let batch = b
         .into_iter()
-        .map(|(elems, disj)| {
-          let tuples = C::process_typed_py_facts(elems, &tuple_type)?;
-          Ok((tuples, disj))
-        })
+        .map(|elems| C::process_typed_py_facts(elems, &tuple_type))
         .collect::<PyResult<Vec<_>>>()?;
       Ok((r, batch))
     })
@@ -614,12 +615,8 @@ where
 fn run_batch_parallel<C>(
   integrate_context: &IntegrateContext<C, AF>,
   batch_size: usize,
-  inputs: Vec<(
-    String,
-    Vec<(Vec<(Option<C::InputTag>, Tuple)>, Option<Vec<Vec<usize>>>)>,
-  )>,
+  inputs: Vec<(String, Vec<Vec<(Option<C::InputTag>, Tuple)>>)>,
   batch_output_relations: Vec<Vec<&str>>,
-  iter_limit: Option<usize>,
 ) -> Result<Vec<Vec<Collection>>, BindingError>
 where
   C: PythonProvenance + Clone + std::marker::Sync,
@@ -634,14 +631,14 @@ where
       let output_relations = &batch_output_relations[i];
       let mut temp_ctx = internal.clone();
       for (relation, batch) in &inputs {
-        temp_ctx.add_facts_with_disjunction(relation, batch[i].0.clone(), batch[i].1.clone(), false)?;
+        temp_ctx.add_facts(relation, batch[i].clone(), false)?;
       }
-      temp_ctx.run_with_iter_limit(iter_limit)?;
+      temp_ctx.run()?;
       output_relations
         .iter()
         .map(|r| {
           let computed = temp_ctx
-            .computed_rc_relation(r)
+            .computed_relation(r)
             .ok_or(BindingError::RelationNotComputed(r.to_string()))?;
           Ok(C::to_collection_enum(computed, temp_ctx.provenance_context()).into())
         })
@@ -659,7 +656,7 @@ where
   C: PythonProvenance,
 {
   if c.has_relation(r) {
-    if let Some(collection) = c.computed_rc_relation(r) {
+    if let Some(collection) = c.computed_relation(r) {
       Ok(C::to_collection_enum(
         ArcFamily::clone_ptr(&collection),
         c.provenance_context(),
@@ -682,7 +679,7 @@ where
   M: monitor::Monitor<C>,
 {
   if c.has_relation(r) {
-    if let Some(collection) = c.computed_rc_relation_with_monitor(r, m) {
+    if let Some(collection) = c.computed_relation_with_monitor(r, m) {
       Ok(C::to_collection_enum(
         ArcFamily::clone_ptr(&collection),
         c.provenance_context(),

@@ -88,13 +88,14 @@ impl ast::Program {
       use scallop_core::common::input_tag::*;
       use scallop_core::runtime::provenance::*;
       use scallop_core::runtime::statics::*;
-      use scallop_core::runtime::edb::*;
+      use scallop_core::runtime::database::extensional::*;
       #(#strata_rs)*
       #final_result_struct_decl
       pub fn run<C: Provenance>(ctx: &mut C) -> OutputRelations<C> {
-        run_with_edb(ctx, EDB::new())
+        run_with_edb(ctx, ExtensionalDatabase::new())
       }
-      pub fn run_with_edb<C: Provenance>(ctx: &mut C, mut edb: EDB<C>) -> OutputRelations<C> {
+      pub fn run_with_edb<C: Provenance>(ctx: &mut C, mut edb: ExtensionalDatabase<C>) -> OutputRelations<C> {
+        edb.internalize(ctx);
         #(#exec_strata)*
         #output_relations
       }
@@ -117,10 +118,10 @@ impl ast::Program {
       mod create_edb_fn {
         use scallop_core::common::tuple_type::TupleType;
         use scallop_core::common::value_type::FromType;
-        use scallop_core::runtime::edb::*;
+        use scallop_core::runtime::database::extensional::*;
         use scallop_core::runtime::provenance::*;
-        pub fn create_edb<C: Provenance>() -> EDB<C> {
-          EDB::new_with_types(vec![ #(#relation_types),* ].into_iter())
+        pub fn create_edb<C: Provenance>() -> ExtensionalDatabase<C> {
+          ExtensionalDatabase::with_relation_types(vec![ #(#relation_types),* ].into_iter())
         }
       }
       pub use create_edb_fn::create_edb;
@@ -217,29 +218,12 @@ impl ast::Stratum {
           quote! { #rs_rel_name.insert_dynamically_tagged(iter.provenance_context, vec![#(#tuples),*]); }
         };
 
-        // 1.3. Add disjunctions
-        let add_disj_stmts = relation
-          .disjunctive_facts
-          .iter()
-          .map(|fs| {
-            let tuples = fs
-              .iter()
-              .map(|f| {
-                let tag = input_tag_to_rs_input_tag(&f.tag);
-                let tup = tuple_to_rs_tuple(&f.tuple);
-                quote! { (#tag, #tup) }
-              })
-              .collect::<Vec<_>>();
-            quote! { #rs_rel_name.insert_dynamically_tagged_annotated_disjunction(iter.provenance_context, vec![#(#tuples),*]); }
-          })
-          .collect::<Vec<_>>();
-
-        // 1.4. Load from edb
+        // 1.3. Load from edb
         let load_from_edb_stmt =
           quote! { edb.load_into_static_relation(#predicate, iter.provenance_context, &#rs_rel_name); };
 
         // Ensemble statements
-        quote! { #create_stmt #add_fact_stmt #(#add_disj_stmts)* #load_from_edb_stmt }
+        quote! { #create_stmt #add_fact_stmt #load_from_edb_stmt }
       })
       .collect::<Vec<_>>();
 
@@ -267,7 +251,7 @@ impl ast::Stratum {
 
     // Final function
     quote! {
-      fn #fn_name<C: Provenance>(ctx: &mut C, edb: &mut EDB<C>, #(#args)*) -> #ret_ty<C> {
+      fn #fn_name<C: Provenance>(ctx: &mut C, edb: &mut ExtensionalDatabase<C>, #(#args)*) -> #ret_ty<C> {
         let mut iter = StaticIteration::<C>::new(ctx);
         #(#create_relation_stmts)*
         while iter.changed() || iter.is_first_iteration() {
@@ -384,6 +368,7 @@ impl ast::Dataflow {
           AggregateOp::Argmin => quote! { ArgminAggregator::new() },
           AggregateOp::Exists => quote! { ExistsAggregator::new() },
           AggregateOp::TopK(k) => quote! { TopKAggregator::new(#k) },
+          AggregateOp::CategoricalK(_) => unimplemented! {},
         };
 
         // Get the dataflow
@@ -517,9 +502,10 @@ fn expr_to_rs_expr(expr: &Expr) -> TokenStream {
 fn input_tag_to_rs_input_tag(tag: &InputTag) -> TokenStream {
   match tag {
     InputTag::None => quote! { InputTag::None },
+    InputTag::Exclusive(i) => quote! { InputTag::Exclusive(#i) },
     InputTag::Bool(b) => quote! { InputTag::Bool(#b) },
     InputTag::Float(f) => quote! { InputTag::Float(#f) },
-    InputTag::TaggedFloat(_, _) => quote! { InputTag::None },
+    InputTag::ExclusiveFloat(f, u) => quote! { InputTag::ExclusiveFloat(#f, #u) },
   }
 }
 

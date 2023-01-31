@@ -51,12 +51,6 @@ pub enum InvalidWildcardError {
   },
 }
 
-impl FrontCompileErrorClone for InvalidWildcardError {
-  fn clone_box(&self) -> Box<dyn FrontCompileErrorTrait> {
-    Box::new(self.clone())
-  }
-}
-
 impl FrontCompileErrorTrait for InvalidWildcardError {
   fn error_type(&self) -> FrontCompileErrorType {
     FrontCompileErrorType::Error

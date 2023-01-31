@@ -1,6 +1,7 @@
 use super::*;
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct ConstantTupleNode {
   pub elems: Vec<ConstantOrVariable>,
 }
@@ -14,6 +15,7 @@ impl ConstantTuple {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct ConstantSetTupleNode {
   pub tag: Tag,
   pub tuple: ConstantTuple,
@@ -36,6 +38,7 @@ impl ConstantSetTuple {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct ConstantSetNode {
   pub tuples: Vec<ConstantSetTuple>,
   pub is_disjunction: bool,
@@ -50,6 +53,7 @@ impl ConstantSet {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct ConstantSetDeclNode {
   pub attrs: Attributes,
   pub name: Identifier,
@@ -85,6 +89,7 @@ impl ConstantSetDecl {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct FactDeclNode {
   pub attrs: Attributes,
   pub tag: Tag,
@@ -135,6 +140,7 @@ impl FactDecl {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct RuleDeclNode {
   pub attrs: Attributes,
   pub tag: Tag,
@@ -172,6 +178,7 @@ impl RuleDecl {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub enum RelationDeclNode {
   Set(ConstantSetDecl),
   Fact(FactDecl),

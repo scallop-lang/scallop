@@ -41,8 +41,30 @@ test:
 	@echo "[Info] Performing scallopy test..."
 	@make test-scallopy
 
+test-all:
+	@echo "[Info] Performing cargo test..."
+	@make test-cargo
+	@echo "[Info] Performing cargo test [ignored]..."
+	@make test-cargo-ignored
+	@echo "[Info] Performing scallopy test..."
+	@make test-scallopy
+
 test-cargo:
 	cargo test --workspace
 
+test-cargo-ignored:
+	cargo test --workspace -- --ignored
+
 test-scallopy:
 	python3 etc/scallopy/tests/test.py
+
+doc:
+	cargo doc
+
+serve-doc:
+	@echo "Starting Scallop Rust documentation server on port 8192..."
+	@cd target/doc; python3 -m http.server 8192 > /dev/null 2>&1 & open http://localhost:8192/scallop_core
+
+stop-serve-doc:
+	@echo "Stopping documentation server on port 8192..."
+	@lsof -t -i:8192 | xargs kill

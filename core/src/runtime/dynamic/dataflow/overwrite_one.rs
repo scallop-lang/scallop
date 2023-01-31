@@ -15,16 +15,16 @@ impl<'a, Prov: Provenance> Clone for DynamicOverwriteOneDataflow<'a, Prov> {
 }
 
 impl<'a, Prov: Provenance> DynamicOverwriteOneDataflow<'a, Prov> {
-  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_stable(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     DynamicBatches::OverwriteOne(DynamicOverwriteOneBatches {
-      source: Box::new(self.source.iter_stable()),
+      source: Box::new(self.source.iter_stable(runtime)),
       ctx: self.ctx,
     })
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_recent(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     DynamicBatches::OverwriteOne(DynamicOverwriteOneBatches {
-      source: Box::new(self.source.iter_recent()),
+      source: Box::new(self.source.iter_recent(runtime)),
       ctx: self.ctx,
     })
   }
@@ -59,8 +59,9 @@ impl<'a, Prov: Provenance> Iterator for DynamicOverwriteOneBatch<'a, Prov> {
   type Item = DynamicElement<Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
-    self.source.next().map(|elem| {
-      DynamicElement::new(elem.tuple, self.ctx.one())
-    })
+    self
+      .source
+      .next()
+      .map(|elem| DynamicElement::new(elem.tuple, self.ctx.one()))
   }
 }

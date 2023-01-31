@@ -1,6 +1,7 @@
 use super::*;
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub enum QueryNode {
   Predicate(Identifier),
   Atom(Atom),
@@ -30,6 +31,7 @@ impl Into<Vec<Item>> for Query {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct QueryDeclNode {
   pub attrs: Attributes,
   pub query: Query,

@@ -11,16 +11,16 @@ mod sum_2 {
 }
 
 fn main() {
-  // First set the unit context
-  let mut ctx = top_k_proofs::TopKProofsContext::new(3);
+  // First set the top-k-proofs provenance context
+  let mut ctx = top_k_proofs::TopKProofsProvenance::new(3);
 
   // Then create an edb and populate facts inside of it
-  let mut edb = sum_2::create_edb::<top_k_proofs::TopKProofsContext>();
+  let mut edb = sum_2::create_edb::<top_k_proofs::TopKProofsProvenance>();
   edb
-    .add_annotated_disjunction("digit_1", vec![(0.9, (0,)), (0.01, (1,)), (0.01, (2,))])
+    .add_exclusive_probabilistic_facts("digit_1", vec![(0.9, (0,)), (0.01, (1,)), (0.01, (2,))])
     .unwrap();
   edb
-    .add_annotated_disjunction("digit_2", vec![(0.01, (0,)), (0.01, (1,)), (0.98, (2,))])
+    .add_exclusive_probabilistic_facts("digit_2", vec![(0.01, (0,)), (0.01, (1,)), (0.98, (2,))])
     .unwrap();
 
   // Run with edb

@@ -22,7 +22,7 @@ impl Program {
       // Enter the loop of constant folding/propagation
       loop {
         let cloned = rule.clone();
-        optimizations::constant_fold(rule);
+        optimizations::constant_fold(rule, &self.function_registry);
         optimizations::constant_prop(rule);
         if &cloned == rule {
           break;
@@ -104,6 +104,7 @@ impl Program {
     // Create
     Ok(ram::Program {
       strata: ram_strata,
+      function_registry: self.function_registry.clone(),
       relation_to_stratum,
     })
   }

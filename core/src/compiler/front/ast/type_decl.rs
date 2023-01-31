@@ -1,6 +1,7 @@
 use super::*;
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub enum TypeDeclNode {
   Subtype(SubtypeDecl),
   Alias(AliasTypeDecl),
@@ -28,6 +29,7 @@ impl TypeDecl {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct SubtypeDeclNode {
   pub attrs: Attributes,
   pub name: Identifier,
@@ -55,6 +57,7 @@ impl SubtypeDecl {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct AliasTypeDeclNode {
   pub attrs: Attributes,
   pub name: Identifier,
@@ -82,6 +85,7 @@ impl AliasTypeDecl {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct ArgTypeBindingNode {
   pub name: Option<Identifier>,
   pub ty: Type,
@@ -100,6 +104,7 @@ impl ArgTypeBinding {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct RelationTypeNode {
   pub name: Identifier,
   pub arg_types: Vec<ArgTypeBinding>,
@@ -133,6 +138,7 @@ impl RelationType {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct RelationTypeDeclNode {
   pub attrs: Attributes,
   pub rel_types: Vec<RelationType>,

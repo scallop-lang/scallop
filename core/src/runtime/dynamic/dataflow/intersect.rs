@@ -17,17 +17,29 @@ impl<'a, Prov: Provenance> Clone for DynamicIntersectDataflow<'a, Prov> {
 }
 
 impl<'a, Prov: Provenance> DynamicIntersectDataflow<'a, Prov> {
-  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_stable(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     let op = IntersectOp { ctx: self.ctx };
-    DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_stable(), op.into())
+    DynamicBatches::binary(self.d1.iter_stable(runtime), self.d2.iter_stable(runtime), op.into())
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_recent(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     let op = IntersectOp { ctx: self.ctx };
     DynamicBatches::chain(vec![
-      DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_recent(), op.clone().into()),
-      DynamicBatches::binary(self.d1.iter_recent(), self.d2.iter_stable(), op.clone().into()),
-      DynamicBatches::binary(self.d1.iter_recent(), self.d2.iter_recent(), op.clone().into()),
+      DynamicBatches::binary(
+        self.d1.iter_stable(runtime),
+        self.d2.iter_recent(runtime),
+        op.clone().into(),
+      ),
+      DynamicBatches::binary(
+        self.d1.iter_recent(runtime),
+        self.d2.iter_stable(runtime),
+        op.clone().into(),
+      ),
+      DynamicBatches::binary(
+        self.d1.iter_recent(runtime),
+        self.d2.iter_recent(runtime),
+        op.clone().into(),
+      ),
     ])
   }
 }

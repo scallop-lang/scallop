@@ -6,11 +6,11 @@ use crate::runtime::dynamic::*;
 use crate::runtime::statics::*;
 
 #[derive(Clone, Debug)]
-pub struct AddMultProbContext {
+pub struct AddMultProbProvenance {
   valid_threshold: f64,
 }
 
-impl AddMultProbContext {
+impl AddMultProbProvenance {
   fn tag_of_chosen_set<E: Element<Self>>(&self, all: &Vec<E>, chosen_ids: &Vec<usize>) -> f64 {
     all
       .iter()
@@ -33,7 +33,7 @@ impl AddMultProbContext {
   }
 }
 
-impl Default for AddMultProbContext {
+impl Default for AddMultProbProvenance {
   fn default() -> Self {
     Self {
       valid_threshold: 0.0000,
@@ -41,7 +41,7 @@ impl Default for AddMultProbContext {
   }
 }
 
-impl Provenance for AddMultProbContext {
+impl Provenance for AddMultProbProvenance {
   type Tag = f64;
 
   type InputTag = f64;
@@ -88,6 +88,10 @@ impl Provenance for AddMultProbContext {
     true
   }
 
+  fn weight(&self, t: &Self::Tag) -> f64 {
+    *t as f64
+  }
+
   fn dynamic_count(&self, batch: DynamicElements<Self>) -> DynamicElements<Self> {
     if batch.is_empty() {
       vec![DynamicElement::new(0usize, self.one())]
@@ -122,15 +126,7 @@ impl Provenance for AddMultProbContext {
     }
   }
 
-  fn dynamic_top_k(&self, k: usize, batch: DynamicElements<Self>) -> DynamicElements<Self> {
-    let ids = aggregate_top_k_helper(batch.len(), k, |id| batch[id].tag);
-    ids.into_iter().map(|id| batch[id].clone()).collect()
-  }
-
-  fn static_count<Tup: StaticTupleTrait>(
-    &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<usize, Self> {
+  fn static_count<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<usize, Self> {
     let mut result = vec![];
     if batch.is_empty() {
       result.push(StaticElement::new(0usize, self.one()));
@@ -144,10 +140,7 @@ impl Provenance for AddMultProbContext {
     result
   }
 
-  fn static_exists<Tup: StaticTupleTrait>(
-    &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<bool, Self> {
+  fn static_exists<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<bool, Self> {
     let mut max_prob = 0.0;
     let mut max_info = None;
     for elem in batch {
@@ -165,14 +158,5 @@ impl Provenance for AddMultProbContext {
       let e = StaticElement::new(false, self.one());
       vec![e]
     }
-  }
-
-  fn static_top_k<Tup: StaticTupleTrait>(
-    &self,
-    k: usize,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<Tup, Self> {
-    let ids = aggregate_top_k_helper(batch.len(), k, |id| batch[id].tag);
-    ids.into_iter().map(|id| batch[id].clone()).collect()
   }
 }

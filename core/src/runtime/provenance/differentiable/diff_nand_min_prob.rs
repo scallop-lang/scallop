@@ -6,13 +6,13 @@ use crate::runtime::dynamic::*;
 use crate::runtime::statics::*;
 use crate::utils::PointerFamily;
 
-pub struct DiffNandMinProbContext<T: Clone, P: PointerFamily> {
+pub struct DiffNandMinProbProvenance<T: Clone, P: PointerFamily> {
   pub warned_disjunction: bool,
   pub valid_threshold: f64,
   pub storage: P::Pointer<Vec<T>>,
 }
 
-impl<T: Clone, P: PointerFamily> Clone for DiffNandMinProbContext<T, P> {
+impl<T: Clone, P: PointerFamily> Clone for DiffNandMinProbProvenance<T, P> {
   fn clone(&self) -> Self {
     Self {
       warned_disjunction: self.warned_disjunction,
@@ -22,7 +22,7 @@ impl<T: Clone, P: PointerFamily> Clone for DiffNandMinProbContext<T, P> {
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> DiffNandMinProbContext<T, P> {
+impl<T: Clone + 'static, P: PointerFamily> DiffNandMinProbProvenance<T, P> {
   pub fn input_tags(&self) -> Vec<T> {
     self.storage.iter().cloned().collect()
   }
@@ -45,7 +45,7 @@ impl<T: Clone + 'static, P: PointerFamily> DiffNandMinProbContext<T, P> {
   }
 }
 
-impl<T: Clone, P: PointerFamily> Default for DiffNandMinProbContext<T, P> {
+impl<T: Clone, P: PointerFamily> Default for DiffNandMinProbProvenance<T, P> {
   fn default() -> Self {
     Self {
       warned_disjunction: false,
@@ -55,7 +55,7 @@ impl<T: Clone, P: PointerFamily> Default for DiffNandMinProbContext<T, P> {
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffNandMinProbContext<T, P> {
+impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffNandMinProbProvenance<T, P> {
   type Tag = DualNumber2;
 
   type InputTag = InputDiffProb<T>;
@@ -113,6 +113,10 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffNandMinProbContext
     true
   }
 
+  fn weight(&self, t: &Self::Tag) -> f64 {
+    t.real
+  }
+
   fn dynamic_count(&self, batch: DynamicElements<Self>) -> DynamicElements<Self> {
     let mut result = vec![];
     if batch.is_empty() {
@@ -147,15 +151,7 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffNandMinProbContext
     }
   }
 
-  fn dynamic_top_k(&self, k: usize, batch: DynamicElements<Self>) -> DynamicElements<Self> {
-    let ids = aggregate_top_k_helper(batch.len(), k, |id| batch[id].tag.real);
-    ids.into_iter().map(|id| batch[id].clone()).collect()
-  }
-
-  fn static_count<Tup: StaticTupleTrait>(
-    &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<usize, Self> {
+  fn static_count<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<usize, Self> {
     let mut result = vec![];
     if batch.is_empty() {
       result.push(StaticElement::new(0usize, self.one()));
@@ -169,10 +165,7 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffNandMinProbContext
     result
   }
 
-  fn static_exists<Tup: StaticTupleTrait>(
-    &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<bool, Self> {
+  fn static_exists<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<bool, Self> {
     let mut max_prob = 0.0;
     let mut max_info = None;
     for elem in batch {
@@ -190,14 +183,5 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffNandMinProbContext
       let e = StaticElement::new(false, self.one());
       vec![e]
     }
-  }
-
-  fn static_top_k<Tup: StaticTupleTrait>(
-    &self,
-    k: usize,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<Tup, Self> {
-    let ids = aggregate_top_k_helper(batch.len(), k, |id| batch[id].tag.real);
-    ids.into_iter().map(|id| batch[id].clone()).collect()
   }
 }

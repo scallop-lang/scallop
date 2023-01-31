@@ -1,8 +1,6 @@
 use crate::common::expr::Expr;
 use crate::common::tuple::Tuple;
 use crate::common::tuple_type::TupleType;
-use crate::runtime::dynamic::*;
-use crate::runtime::provenance::*;
 
 use super::*;
 
@@ -135,47 +133,47 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
     })
   }
 
-  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_stable(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     match self {
-      Self::StableUnit(i) => i.iter_stable(),
-      Self::RecentUnit(i) => i.iter_stable(),
+      Self::StableUnit(i) => i.iter_stable(runtime),
+      Self::RecentUnit(i) => i.iter_stable(runtime),
       Self::Vec(_) => DynamicBatches::Empty,
-      Self::DynamicStableCollection(dc) => dc.iter_stable(),
-      Self::DynamicRecentCollection(dc) => dc.iter_stable(),
-      Self::DynamicRelation(dr) => dr.iter_stable(),
-      Self::OverwriteOne(d) => d.iter_stable(),
-      Self::Project(p) => p.iter_stable(),
-      Self::Filter(f) => f.iter_stable(),
-      Self::Find(f) => f.iter_stable(),
-      Self::Intersect(i) => i.iter_stable(),
-      Self::Join(j) => j.iter_stable(),
-      Self::Product(p) => p.iter_stable(),
-      Self::Union(u) => u.iter_stable(),
-      Self::Difference(d) => d.iter_stable(),
-      Self::Antijoin(a) => a.iter_stable(),
-      Self::Aggregate(a) => a.iter_stable(),
+      Self::DynamicStableCollection(dc) => dc.iter_stable(runtime),
+      Self::DynamicRecentCollection(dc) => dc.iter_stable(runtime),
+      Self::DynamicRelation(dr) => dr.iter_stable(runtime),
+      Self::OverwriteOne(d) => d.iter_stable(runtime),
+      Self::Project(p) => p.iter_stable(runtime),
+      Self::Filter(f) => f.iter_stable(runtime),
+      Self::Find(f) => f.iter_stable(runtime),
+      Self::Intersect(i) => i.iter_stable(runtime),
+      Self::Join(j) => j.iter_stable(runtime),
+      Self::Product(p) => p.iter_stable(runtime),
+      Self::Union(u) => u.iter_stable(runtime),
+      Self::Difference(d) => d.iter_stable(runtime),
+      Self::Antijoin(a) => a.iter_stable(runtime),
+      Self::Aggregate(a) => a.iter_stable(runtime),
     }
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_recent(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     match self {
-      Self::StableUnit(i) => i.iter_recent(),
-      Self::RecentUnit(i) => i.iter_recent(),
+      Self::StableUnit(i) => i.iter_recent(runtime),
+      Self::RecentUnit(i) => i.iter_recent(runtime),
       Self::Vec(v) => DynamicBatches::single(DynamicBatch::vec(v)),
-      Self::DynamicStableCollection(dc) => dc.iter_recent(),
-      Self::DynamicRecentCollection(dc) => dc.iter_recent(),
-      Self::DynamicRelation(dr) => dr.iter_recent(),
-      Self::OverwriteOne(d) => d.iter_recent(),
-      Self::Project(p) => p.iter_recent(),
-      Self::Filter(f) => f.iter_recent(),
-      Self::Find(f) => f.iter_recent(),
-      Self::Intersect(i) => i.iter_recent(),
-      Self::Join(j) => j.iter_recent(),
-      Self::Product(p) => p.iter_recent(),
-      Self::Union(u) => u.iter_recent(),
-      Self::Difference(d) => d.iter_recent(),
-      Self::Antijoin(a) => a.iter_recent(),
-      Self::Aggregate(a) => a.iter_recent(),
+      Self::DynamicStableCollection(dc) => dc.iter_recent(runtime),
+      Self::DynamicRecentCollection(dc) => dc.iter_recent(runtime),
+      Self::DynamicRelation(dr) => dr.iter_recent(runtime),
+      Self::OverwriteOne(d) => d.iter_recent(runtime),
+      Self::Project(p) => p.iter_recent(runtime),
+      Self::Filter(f) => f.iter_recent(runtime),
+      Self::Find(f) => f.iter_recent(runtime),
+      Self::Intersect(i) => i.iter_recent(runtime),
+      Self::Join(j) => j.iter_recent(runtime),
+      Self::Product(p) => p.iter_recent(runtime),
+      Self::Union(u) => u.iter_recent(runtime),
+      Self::Difference(d) => d.iter_recent(runtime),
+      Self::Antijoin(a) => a.iter_recent(runtime),
+      Self::Aggregate(a) => a.iter_recent(runtime),
     }
   }
 }

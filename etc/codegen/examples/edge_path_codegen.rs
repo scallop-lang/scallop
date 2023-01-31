@@ -16,7 +16,7 @@ fn main() {
   // Then create an edb and populate facts inside of it
   let mut edb = edge_path::create_edb::<unit::UnitProvenance>();
   edb
-    .add_untagged_facts("edge", vec![(0usize, 1usize), (1, 2), (2, 3), (3, 4)])
+    .add_facts("edge", vec![(0usize, 1usize), (1, 2), (2, 3), (3, 4)])
     .unwrap();
 
   // Run with edb

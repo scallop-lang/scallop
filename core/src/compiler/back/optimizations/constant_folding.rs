@@ -1,11 +1,14 @@
 use crate::common::binary_op::BinaryOp;
 use crate::common::expr::{BinaryExpr, Expr, UnaryExpr};
+use crate::common::foreign_function::*;
 use crate::common::unary_op::UnaryOp;
 use crate::common::value::Value;
+use crate::runtime::env::*;
 
 use super::super::*;
 
-pub fn constant_fold(rule: &mut Rule) {
+pub fn constant_fold(rule: &mut Rule, function_registry: &ForeignFunctionRegistry) {
+  let runtime = RuntimeEnvironment::new_with_function_registry(function_registry.clone());
   for lit in rule.body_literals_mut() {
     match lit {
       Literal::Assign(a) => match &a.right {
@@ -16,7 +19,7 @@ pub fn constant_fold(rule: &mut Rule) {
               op1: Box::new(Expr::Constant(c1.clone())),
               op2: Box::new(Expr::Constant(c2.clone())),
             };
-            let maybe_result = expr.eval(&().into());
+            let maybe_result = runtime.eval_binary(&expr, &().into());
             if let Some(result) = maybe_result {
               *lit = Literal::Constraint(Constraint::Binary(BinaryConstraint {
                 op: BinaryConstraintOp::Eq,
@@ -35,7 +38,7 @@ pub fn constant_fold(rule: &mut Rule) {
               op: u.op.clone().into(),
               op1: Box::new(Expr::Constant(c1.clone())),
             };
-            let maybe_result = expr.eval(&().into());
+            let maybe_result = runtime.eval_unary(&expr, &().into());
             if let Some(result) = maybe_result {
               *lit = Literal::Constraint(Constraint::Binary(BinaryConstraint {
                 op: BinaryConstraintOp::Eq,
@@ -68,16 +71,18 @@ pub fn constant_fold(rule: &mut Rule) {
         AssignExpr::Call(c) => {
           let all_constant = c.args.iter().all(|a| a.is_constant());
           if all_constant {
-            let args = c.args.iter().map(|a| a.as_constant().unwrap().clone()).collect();
-            let maybe_value = c.function.call(args);
-            if let Some(value) = maybe_value {
-              *lit = Literal::Constraint(Constraint::Binary(BinaryConstraint {
-                op: BinaryConstraintOp::Eq,
-                op1: Term::Variable(a.left.clone()),
-                op2: Term::Constant(value),
-              }))
-            } else {
-              *lit = Literal::False
+            if let Some(f) = runtime.function_registry.get(&c.function) {
+              let args = c.args.iter().map(|a| a.as_constant().unwrap().clone()).collect();
+              let maybe_value = f.execute(args);
+              if let Some(value) = maybe_value {
+                *lit = Literal::Constraint(Constraint::Binary(BinaryConstraint {
+                  op: BinaryConstraintOp::Eq,
+                  op1: Term::Variable(a.left.clone()),
+                  op2: Term::Constant(value),
+                }))
+              } else {
+                *lit = Literal::False
+              }
             }
           }
         }
@@ -90,7 +95,7 @@ pub fn constant_fold(rule: &mut Rule) {
               op1: Box::new(Expr::Constant(c1.clone())),
               op2: Box::new(Expr::Constant(c2.clone())),
             };
-            let maybe_result = expr.eval(&().into());
+            let maybe_result = runtime.eval_binary(&expr, &().into());
             if let Some(result) = maybe_result {
               if result.as_bool() {
                 *lit = Literal::True;
@@ -115,7 +120,7 @@ pub fn constant_fold(rule: &mut Rule) {
               op: UnaryOp::from(&u.op),
               op1: Box::new(Expr::Constant(c1.clone())),
             };
-            let maybe_result = expr.eval(&().into());
+            let maybe_result = runtime.eval_unary(&expr, &().into());
             if let Some(result) = maybe_result {
               if result.as_bool() {
                 *lit = Literal::True;

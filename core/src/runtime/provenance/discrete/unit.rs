@@ -1,4 +1,6 @@
 use super::*;
+use crate::runtime::dynamic::*;
+use crate::runtime::statics::*;
 
 #[derive(Clone, Debug, Default)]
 pub struct Unit;
@@ -59,5 +61,13 @@ impl Provenance for UnitProvenance {
 
   fn saturated(&self, _: &Self::Tag, _: &Self::Tag) -> bool {
     true
+  }
+
+  fn dynamic_top_k(&self, k: usize, batch: DynamicElements<Self>) -> DynamicElements<Self> {
+    unweighted_aggregate_top_k_helper(batch, k)
+  }
+
+  fn static_top_k<T: StaticTupleTrait>(&self, k: usize, batch: StaticElements<T, Self>) -> StaticElements<T, Self> {
+    unweighted_aggregate_top_k_helper(batch, k)
   }
 }

@@ -21,6 +21,10 @@ impl Default for MinMaxProbProvenance {
 }
 
 impl MinMaxProbProvenance {
+  pub fn new() -> Self {
+    Self::default()
+  }
+
   pub fn cmp(x: &f64, y: &f64) -> bool {
     x == y
   }
@@ -71,6 +75,10 @@ impl Provenance for MinMaxProbProvenance {
 
   fn negate(&self, p: &Self::Tag) -> Option<Self::Tag> {
     Some(1.0 - p)
+  }
+
+  fn weight(&self, t: &Self::Tag) -> f64 {
+    *t
   }
 
   fn dynamic_count(&self, mut batch: DynamicElements<Self>) -> DynamicElements<Self> {
@@ -149,15 +157,7 @@ impl Provenance for MinMaxProbProvenance {
     ]
   }
 
-  fn dynamic_top_k(&self, k: usize, batch: DynamicElements<Self>) -> DynamicElements<Self> {
-    let ids = aggregate_top_k_helper(batch.len(), k, |id| batch[id].tag);
-    ids.into_iter().map(|id| batch[id].clone()).collect()
-  }
-
-  fn static_count<Tup: StaticTupleTrait>(
-    &self,
-    mut batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<usize, Self> {
+  fn static_count<Tup: StaticTupleTrait>(&self, mut batch: StaticElements<Tup, Self>) -> StaticElements<usize, Self> {
     if batch.is_empty() {
       vec![StaticElement::new(0usize, self.one())]
     } else {
@@ -171,10 +171,7 @@ impl Provenance for MinMaxProbProvenance {
     }
   }
 
-  fn static_sum<Tup: StaticTupleTrait + SumType>(
-    &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<Tup, Self> {
+  fn static_sum<Tup: StaticTupleTrait + SumType>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<Tup, Self> {
     let mut elems = vec![];
     for chosen_set in (0..batch.len()).powerset() {
       let chosen_elements = collect_chosen_elements(&batch, &chosen_set);
@@ -226,10 +223,7 @@ impl Provenance for MinMaxProbProvenance {
     elems
   }
 
-  fn static_exists<Tup: StaticTupleTrait>(
-    &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<bool, Self> {
+  fn static_exists<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<bool, Self> {
     let mut max_prob = 0.0;
     let mut max_id = None;
     for elem in batch {
@@ -247,18 +241,12 @@ impl Provenance for MinMaxProbProvenance {
       vec![StaticElement::new(false, self.one())]
     }
   }
-
-  fn static_top_k<Tup: StaticTupleTrait>(
-    &self,
-    k: usize,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<Tup, Self> {
-    let ids = aggregate_top_k_helper(batch.len(), k, |id| batch[id].tag);
-    ids.into_iter().map(|id| batch[id].clone()).collect()
-  }
 }
 
-fn min_prob_of_chosen_set<E>(all: &Vec<E>, chosen_ids: &Vec<usize>) -> f64 where E: Element<MinMaxProbProvenance> {
+fn min_prob_of_chosen_set<E>(all: &Vec<E>, chosen_ids: &Vec<usize>) -> f64
+where
+  E: Element<MinMaxProbProvenance>,
+{
   let prob = all
     .iter()
     .enumerate()
@@ -273,7 +261,10 @@ fn min_prob_of_chosen_set<E>(all: &Vec<E>, chosen_ids: &Vec<usize>) -> f64 where
   prob.into()
 }
 
-fn max_min_prob_of_k_count<E>(sorted_set: &Vec<E>, k: usize) -> f64 where E: Element<MinMaxProbProvenance> {
+fn max_min_prob_of_k_count<E>(sorted_set: &Vec<E>, k: usize) -> f64
+where
+  E: Element<MinMaxProbProvenance>,
+{
   let prob = sorted_set
     .iter()
     .enumerate()

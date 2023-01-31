@@ -12,6 +12,7 @@ pub enum Expr {
 }
 
 impl Expr {
+  /// Create a unary expression
   pub fn unary(op: UnaryOp, expr: Expr) -> Self {
     Self::Unary(UnaryExpr::default(UnaryExprNode {
       op,
@@ -19,12 +20,23 @@ impl Expr {
     }))
   }
 
+  /// Create a binary expression
   pub fn binary(op: BinaryOp, op1: Expr, op2: Expr) -> Self {
     Self::Binary(BinaryExpr::default(BinaryExprNode {
       op,
       op1: Box::new(op1),
       op2: Box::new(op2),
     }))
+  }
+
+  /// Create an expression which is a constant of boolean true value
+  pub fn boolean_true() -> Self {
+    Self::Constant(ConstantNode::Boolean(true).into())
+  }
+
+  /// Create an expression which is a constant of boolean false value
+  pub fn boolean_false() -> Self {
+    Self::Constant(ConstantNode::Boolean(false).into())
   }
 
   pub fn location(&self) -> &AstNodeLocation {
@@ -102,6 +114,7 @@ impl Expr {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct VariableNode {
   pub name: Identifier,
 }
@@ -131,6 +144,7 @@ impl std::fmt::Display for Variable {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct VariableBindingNode {
   pub name: Identifier,
   pub ty: Option<Type>,
@@ -152,10 +166,12 @@ impl VariableBinding {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct WildcardNode;
 
 pub type Wildcard = AstNode<WildcardNode>;
 
+#[doc(hidden)]
 pub type BinaryOpNode = crate::common::binary_op::BinaryOp;
 
 pub type BinaryOp = AstNode<BinaryOpNode>;
@@ -191,6 +207,7 @@ impl BinaryOp {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct BinaryExprNode {
   pub op: BinaryOp,
   pub op1: Box<Expr>,
@@ -214,6 +231,7 @@ impl BinaryExpr {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub enum UnaryOpNode {
   Neg,
   Pos,
@@ -251,6 +269,7 @@ impl UnaryOp {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct UnaryExprNode {
   pub op: UnaryOp,
   pub op1: Box<Expr>,
@@ -269,6 +288,7 @@ impl UnaryExpr {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct IfThenElseExprNode {
   pub cond: Box<Expr>,
   pub then_br: Box<Expr>,
@@ -292,14 +312,18 @@ impl IfThenElseExpr {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct CallExprNode {
-  pub function: Function,
+  pub function_identifier: FunctionIdentifier,
   pub args: Vec<Expr>,
 }
 
 impl CallExprNode {
-  pub fn new(function: Function, args: Vec<Expr>) -> Self {
-    Self { function, args }
+  pub fn new(function_identifier: FunctionIdentifier, args: Vec<Expr>) -> Self {
+    Self {
+      function_identifier,
+      args,
+    }
   }
 }
 
@@ -318,53 +342,26 @@ impl CallExpr {
     self.node.args.iter_mut()
   }
 
-  pub fn function(&self) -> &Function {
-    &self.node.function
+  pub fn function_identifier(&self) -> &FunctionIdentifier {
+    &self.node.function_identifier
   }
 
-  pub fn function_mut(&mut self) -> &mut Function {
-    &mut self.node.function
+  pub fn function_identifier_mut(&mut self) -> &mut FunctionIdentifier {
+    &mut self.node.function_identifier
   }
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum FunctionNode {
-  Abs,
-  Hash,
-  StringConcat,
-  StringLength,
-  Substring,
-  StringCharAt,
-  Unknown(String),
+#[doc(hidden)]
+pub struct FunctionIdentifierNode {
+  pub id: Identifier,
 }
 
-impl FunctionNode {
-  pub fn from_string(s: String) -> Self {
-    match s.as_str() {
-      "abs" => Self::Abs,
-      "hash" => Self::Hash,
-      "string_concat" => Self::StringConcat,
-      "string_length" => Self::StringLength,
-      "substring" => Self::Substring,
-      "string_char_at" => Self::StringCharAt,
-      _ => Self::Unknown(s),
-    }
-  }
-}
+/// The identifier of a function, i.e. `$abs`
+pub type FunctionIdentifier = AstNode<FunctionIdentifierNode>;
 
-pub type Function = AstNode<FunctionNode>;
-
-impl Function {
-  pub fn function(&self) -> Option<crate::common::functions::Function> {
-    use crate::common::functions::Function;
-    match &self.node {
-      FunctionNode::Abs => Some(Function::Abs),
-      FunctionNode::Hash => Some(Function::Hash),
-      FunctionNode::StringConcat => Some(Function::StringConcat),
-      FunctionNode::StringLength => Some(Function::StringLength),
-      FunctionNode::Substring => Some(Function::Substring),
-      FunctionNode::StringCharAt => Some(Function::StringCharAt),
-      FunctionNode::Unknown(_) => None,
-    }
+impl FunctionIdentifier {
+  pub fn name(&self) -> &str {
+    self.node.id.name()
   }
 }

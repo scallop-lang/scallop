@@ -24,54 +24,56 @@ pub enum CollectionEnum {
     collection: Arc<DynamicOutputCollection<min_max_prob::MinMaxProbProvenance>>,
   },
   AddMultProb {
-    collection: Arc<DynamicOutputCollection<add_mult_prob::AddMultProbContext>>,
+    collection: Arc<DynamicOutputCollection<add_mult_prob::AddMultProbProvenance>>,
   },
   TopKProofs {
-    collection: Arc<DynamicOutputCollection<top_k_proofs::TopKProofsContext<ArcFamily>>>,
+    collection: Arc<DynamicOutputCollection<top_k_proofs::TopKProofsProvenance<ArcFamily>>>,
     tags: Arc<Vec<f64>>,
   },
   TopBottomKClauses {
-    collection: Arc<DynamicOutputCollection<top_bottom_k_clauses::TopBottomKClausesContext<ArcFamily>>>,
+    collection: Arc<DynamicOutputCollection<top_bottom_k_clauses::TopBottomKClausesProvenance<ArcFamily>>>,
     tags: Arc<Vec<f64>>,
   },
   DiffMinMaxProb {
-    collection: Arc<DynamicOutputCollection<diff_min_max_prob::DiffMinMaxProbContext<Py<PyAny>, ArcFamily>>>,
+    collection: Arc<DynamicOutputCollection<diff_min_max_prob::DiffMinMaxProbProvenance<Py<PyAny>, ArcFamily>>>,
     tags: Arc<Vec<(f64, diff_min_max_prob::Derivative<Py<PyAny>>)>>,
   },
   DiffAddMultProb {
-    collection: Arc<DynamicOutputCollection<diff_add_mult_prob::DiffAddMultProbContext<Py<PyAny>, ArcFamily>>>,
+    collection: Arc<DynamicOutputCollection<diff_add_mult_prob::DiffAddMultProbProvenance<Py<PyAny>, ArcFamily>>>,
     tags: Arc<Vec<Py<PyAny>>>,
   },
   DiffNandMultProb {
-    collection: Arc<DynamicOutputCollection<diff_nand_mult_prob::DiffNandMultProbContext<Py<PyAny>, ArcFamily>>>,
+    collection: Arc<DynamicOutputCollection<diff_nand_mult_prob::DiffNandMultProbProvenance<Py<PyAny>, ArcFamily>>>,
     tags: Arc<Vec<Py<PyAny>>>,
   },
   DiffMaxMultProb {
-    collection: Arc<DynamicOutputCollection<diff_max_mult_prob::DiffMaxMultProbContext<Py<PyAny>, ArcFamily>>>,
+    collection: Arc<DynamicOutputCollection<diff_max_mult_prob::DiffMaxMultProbProvenance<Py<PyAny>, ArcFamily>>>,
     tags: Arc<Vec<Py<PyAny>>>,
   },
   DiffNandMinProb {
-    collection: Arc<DynamicOutputCollection<diff_nand_min_prob::DiffNandMinProbContext<Py<PyAny>, ArcFamily>>>,
+    collection: Arc<DynamicOutputCollection<diff_nand_min_prob::DiffNandMinProbProvenance<Py<PyAny>, ArcFamily>>>,
     tags: Arc<Vec<Py<PyAny>>>,
   },
   DiffSampleKProofs {
-    collection: Arc<DynamicOutputCollection<diff_sample_k_proofs::DiffSampleKProofsContext<Py<PyAny>, ArcFamily>>>,
+    collection: Arc<DynamicOutputCollection<diff_sample_k_proofs::DiffSampleKProofsProvenance<Py<PyAny>, ArcFamily>>>,
     tags: Arc<Vec<(f64, Py<PyAny>)>>,
   },
   DiffTopKProofs {
-    collection: Arc<DynamicOutputCollection<diff_top_k_proofs::DiffTopKProofsContext<Py<PyAny>, ArcFamily>>>,
+    collection: Arc<DynamicOutputCollection<diff_top_k_proofs::DiffTopKProofsProvenance<Py<PyAny>, ArcFamily>>>,
     tags: Arc<Vec<(f64, Py<PyAny>)>>,
   },
   DiffTopKProofsIndiv {
-    collection: Arc<DynamicOutputCollection<diff_top_k_proofs_indiv::DiffTopKProofsIndivContext<Py<PyAny>, ArcFamily>>>,
+    collection:
+      Arc<DynamicOutputCollection<diff_top_k_proofs_indiv::DiffTopKProofsIndivProvenance<Py<PyAny>, ArcFamily>>>,
     tags: Arc<Vec<(f64, Py<PyAny>)>>,
   },
   DiffTopBottomKClauses {
-    collection: Arc<DynamicOutputCollection<diff_top_bottom_k_clauses::DiffTopBottomKClausesContext<Py<PyAny>, ArcFamily>>>,
+    collection:
+      Arc<DynamicOutputCollection<diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance<Py<PyAny>, ArcFamily>>>,
     tags: Arc<Vec<(f64, Py<PyAny>)>>,
   },
   Custom {
-    collection: Arc<DynamicOutputCollection<custom_tag::CustomTagContext>>,
+    collection: Arc<DynamicOutputCollection<custom_tag::CustomProvenance>>,
   },
 }
 

@@ -65,6 +65,9 @@ impl DisjunctionContext {
       Formula::NegAtom(a) => vec![ConjunctionContext::from_neg_atom(a)],
       Formula::Constraint(a) => vec![ConjunctionContext::from_constraint(a)],
       Formula::Reduce(r) => vec![ConjunctionContext::from_reduce(r)],
+      Formula::ForallExistsReduce(_) => {
+        panic!("Unexpected `forall/exists` visited during boundness analysis; forall/exists should be rewritten by previous transformations")
+      }
     };
     Self { conjuncts }
   }

@@ -300,6 +300,7 @@ impl Display for Formula {
       Self::Implies(i) => i.fmt(f),
       Self::Constraint(a) => a.fmt(f),
       Self::Reduce(a) => a.fmt(f),
+      Self::ForallExistsReduce(a) => a.fmt(f),
     }
   }
 }
@@ -381,6 +382,22 @@ impl Display for Reduce {
   }
 }
 
+impl Display for ForallExistsReduce {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    self.operator().fmt(f)?;
+    f.write_fmt(format_args!(
+      "({}: {})",
+      self
+        .bindings()
+        .iter()
+        .map(|b| format!("{}", b))
+        .collect::<Vec<_>>()
+        .join(", "),
+      self.body()
+    ))
+  }
+}
+
 impl Display for ReduceOperator {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     f.write_str(&self.to_string())
@@ -422,7 +439,7 @@ impl std::fmt::Display for Expr {
       )),
       Self::Call(c) => f.write_fmt(format_args!(
         "${}({})",
-        c.function(),
+        c.function_identifier(),
         c.iter_args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(", ")
       )),
     }
@@ -468,16 +485,8 @@ impl std::fmt::Display for UnaryExpr {
   }
 }
 
-impl std::fmt::Display for Function {
+impl std::fmt::Display for FunctionIdentifier {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match &self.node {
-      FunctionNode::Abs => f.write_str("abs"),
-      FunctionNode::Hash => f.write_str("hash"),
-      FunctionNode::StringConcat => f.write_str("string_concat"),
-      FunctionNode::StringLength => f.write_str("string_length"),
-      FunctionNode::Substring => f.write_str("substring"),
-      FunctionNode::StringCharAt => f.write_str("string_char_at"),
-      FunctionNode::Unknown(u) => u.fmt(f),
-    }
+    f.write_str(self.name())
   }
 }

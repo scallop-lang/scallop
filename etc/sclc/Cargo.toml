@@ -1,6 +1,6 @@
 [package]
-name = "sclc"
-version = "0.1.6"
+name = "sclc-core"
+version = "0.1.7"
 authors = ["Ziyang Li <liby99@icloud.com>"]
 edition = "2018"
 
@@ -9,3 +9,6 @@ scallop-core = { path = "../../core" }
 structopt = "0.3"
 proc-macro2 = "1.0"
 quote = "1.0"
+
+[dev-dependencies]
+tempfile = "3.3"

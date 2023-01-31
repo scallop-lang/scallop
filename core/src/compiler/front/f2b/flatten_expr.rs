@@ -36,7 +36,7 @@ pub enum FlattenedNode {
   },
   Call {
     left: back::Variable,
-    function: back::Function,
+    function: String,
     args: Vec<Loc>,
   },
 }
@@ -52,6 +52,7 @@ impl FlattenedNode {
   }
 }
 
+#[doc(hidden)]
 pub type FlattenedLeaf = back::Term;
 
 impl<'a> FlattenExprContext<'a> {
@@ -200,7 +201,7 @@ impl<'a> FlattenExprContext<'a> {
   pub fn collect_flattened_literals_of_call_op(
     &self,
     left: &back::Variable,
-    function: &back::Function,
+    function: &String,
     args: &Vec<Loc>,
   ) -> Vec<back::Literal> {
     let mut curr_literals = vec![];
@@ -316,7 +317,11 @@ impl<'a> FlattenExprContext<'a> {
       Formula::Atom(atom) => self.atom_to_back_literals(atom),
       Formula::NegAtom(neg_atom) => self.neg_atom_to_back_literals(neg_atom),
       Formula::Constraint(c) => self.constraint_to_back_literal(c),
-      Formula::Conjunction(_) | Formula::Disjunction(_) | Formula::Implies(_) | Formula::Reduce(_) => {
+      Formula::Conjunction(_)
+      | Formula::Disjunction(_)
+      | Formula::Implies(_)
+      | Formula::Reduce(_)
+      | Formula::ForallExistsReduce(_) => {
         panic!("[Internal Error] Should not contain conjunction, disjunction, implies, or reduce");
       }
     }
@@ -395,7 +400,7 @@ impl<'a> NodeVisitor for FlattenExprContext<'a> {
 
   fn visit_call_expr(&mut self, c: &ast::CallExpr) {
     let tmp_var_name = self.allocate_tmp_var();
-    let function = c.function().function().unwrap(); // Note: Unwrap is fine here since function analysis confirms it
+    let function = c.function_identifier().name().to_string();
     self.internal.insert(
       c.location().clone(),
       FlattenedNode::Call {

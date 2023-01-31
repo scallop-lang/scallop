@@ -45,7 +45,8 @@ where
   }
 }
 
-impl<'a, A, D1, D2, K, T1, T2, Prov> Dataflow<(K, T1, A::Output), Prov> for AggregationJoinGroup<'a, A, D1, D2, K, T1, T2, Prov>
+impl<'a, A, D1, D2, K, T1, T2, Prov> Dataflow<(K, T1, A::Output), Prov>
+  for AggregationJoinGroup<'a, A, D1, D2, K, T1, T2, Prov>
 where
   K: StaticTupleTrait,
   T1: StaticTupleTrait,

@@ -1,3 +1,4 @@
+use scallop_core::runtime::provenance::*;
 use scallop_core::testing::*;
 
 #[test]
@@ -241,6 +242,17 @@ fn expr_test_1() {
       query result
     "#,
     ("result", vec![(0i32,)]),
+  );
+}
+
+#[test]
+fn fib_test_0() {
+  expect_interpret_result(
+    r#"
+      rel fib :- {(0, 1), (1, 1)}
+      rel fib(x, a + b) :- fib(x - 1, a), fib(x - 2, b), x <= 5
+    "#,
+    ("fib", vec![(0i32, 1i32), (1, 1), (2, 2), (3, 3), (4, 5), (5, 8)]),
   );
 }
 
@@ -681,6 +693,33 @@ fn test_exists_with_where_clause() {
 }
 
 #[test]
+fn test_exists_with_where_clause_2() {
+  expect_interpret_multi_result(
+    r#"
+      // A set of all the shapes
+      rel all_shapes = {"cube", "cylinder", "sphere"}
+
+      // Each object has two attributes: color and shape
+      rel color = {(0, "red"), (1, "green"), (2, "blue"), (3, "blue")}
+      rel shape = {(0, "cube"), (1, "cylinder"), (2, "sphere"), (3, "cube")}
+
+      // Is there a blue object?
+      rel exists_blue_obj() = exists(o: color(o, "blue"))
+
+      // For each shape, is there a blue object of that shape?
+      rel exists_blue_obj_of_shape(s) :- exists(o: color(o, "blue"), shape(o, s) where s: all_shapes(s))
+    "#,
+    vec![
+      ("exists_blue_obj", vec![()].into()),
+      (
+        "exists_blue_obj_of_shape",
+        vec![("cube".to_string(),), ("sphere".to_string(),)].into(),
+      ),
+    ],
+  )
+}
+
+#[test]
 fn type_cast_to_string_1() {
   expect_interpret_result(
     r#"
@@ -797,6 +836,24 @@ fn forall_3() {
 }
 
 #[test]
+fn forall_4() {
+  expect_interpret_result(
+    r#"
+    rel all_colors = {"blue", "red", "green"}
+
+    // Scene graph
+    rel color = {(1, "blue"), (2, "red"), (3, "red")}
+    rel shape = {(1, "cube"), (2, "sphere"), (3, "cube")}
+    rel material = {(1, "metal"), (2, "metal"), (3, "rubber")}
+
+    // For each color `c`, is all the cube of material rubber?
+    rel answer(c) = forall(o: color(o, c) and shape(o, "cube") => material(o, "rubber") where c: all_colors(c))
+    "#,
+    ("answer", vec![("red".to_string(),), ("green".to_string(),)]),
+  )
+}
+
+#[test]
 fn string_to_usize() {
   expect_interpret_result(
     r#"
@@ -857,6 +914,28 @@ fn string_char_at_failure_1() {
     rel output($string_char_at("", 0))
     "#,
     "output",
+  )
+}
+
+#[test]
+fn ff_max_1() {
+  expect_interpret_result(
+    r#"
+    rel output($max(0, 1, 2, 3))
+    "#,
+    ("output", vec![(3usize,)]),
+  )
+}
+
+#[test]
+fn ff_max_2() {
+  expect_interpret_result(
+    r#"
+    rel R = {1}
+    rel S = {3}
+    rel output($max(a, b)) = R(a), S(b)
+    "#,
+    ("output", vec![(3usize,)]),
   )
 }
 
@@ -927,5 +1006,71 @@ fn const_variable_6() {
     rel r(UP, RIGHT, DOWN, LEFT)
     "#,
     ("r", vec![(0u8, 1u32, 2i32, 3usize)]),
+  )
+}
+
+#[test]
+fn sat_1() {
+  let ctx = proofs::ProofsProvenance::default();
+  expect_interpret_result_with_tag(
+    r#"
+    type assign(String, bool)
+
+    // Assignments to variables A, B, and C
+    rel assign = {1.0::("A", true); 1.0::("A", false)}
+    rel assign = {1.0::("B", true); 1.0::("B", false)}
+    rel assign = {1.0::("C", true); 1.0::("C", false)}
+
+    // Boolean formula (A and !B) or (B and !C)
+    rel bf_var = {(1, "A"), (2, "B"), (3, "B"), (4, "C")}
+    rel bf_not = {(5, 2), (6, 4)}
+    rel bf_and = {(7, 1, 5), (8, 3, 6)}
+    rel bf_or = {(9, 7, 8)}
+    rel bf_root = {9}
+
+    // Evaluation
+    rel eval_bf(bf, r) :- bf_var(bf, v), assign(v, r)
+    rel eval_bf(bf, !r) :- bf_not(bf, c), eval_bf(c, r)
+    rel eval_bf(bf, lr && rr) :- bf_and(bf, lbf, rbf), eval_bf(lbf, lr), eval_bf(rbf, rr)
+    rel eval_bf(bf, lr || rr) :- bf_or(bf, lbf, rbf), eval_bf(lbf, lr), eval_bf(rbf, rr)
+    rel eval(r) :- bf_root(bf), eval_bf(bf, r)
+    "#,
+    ctx,
+    (
+      "eval",
+      vec![(proofs::Proofs::one(), (false,)), (proofs::Proofs::one(), (true,))],
+    ),
+    |_, _| true,
+  )
+}
+
+#[test]
+fn sat_2() {
+  let ctx = proofs::ProofsProvenance::default();
+  expect_interpret_result_with_tag(
+    r#"
+    type assign(String, bool)
+
+    // Assignments to variables A and B
+    rel assign = {1.0::("A", true); 1.0::("A", false)}
+    rel assign = {1.0::("B", true); 1.0::("B", false)}
+
+    // Boolean formula (A and !A) or (B and !B)
+    rel bf_var = {(1, "A"), (2, "B")}
+    rel bf_not = {(3, 1), (4, 2)}
+    rel bf_and = {(5, 1, 3), (6, 2, 4)}
+    rel bf_or = {(7, 5, 6)}
+    rel bf_root = {7}
+
+    // Evaluation
+    rel eval_bf(bf, r) :- bf_var(bf, v), assign(v, r)
+    rel eval_bf(bf, !r) :- bf_not(bf, c), eval_bf(c, r)
+    rel eval_bf(bf, lr && rr) :- bf_and(bf, lbf, rbf), eval_bf(lbf, lr), eval_bf(rbf, rr)
+    rel eval_bf(bf, lr || rr) :- bf_or(bf, lbf, rbf), eval_bf(lbf, lr), eval_bf(rbf, rr)
+    rel eval(r) :- bf_root(bf), eval_bf(bf, r)
+    "#,
+    ctx,
+    ("eval", vec![(proofs::Proofs::one(), (false,))]),
+    |_, _| true,
   )
 }

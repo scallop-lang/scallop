@@ -1,3 +1,5 @@
+//! # Binary Operations
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BinaryOp {
   Add,

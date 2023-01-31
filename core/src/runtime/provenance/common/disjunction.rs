@@ -7,6 +7,10 @@ pub struct Disjunction {
 }
 
 impl Disjunction {
+  pub fn add_fact_id(&mut self, fact_id: usize) {
+    self.facts.insert(fact_id);
+  }
+
   /// Note: Assumes that the #facts > 2
   pub fn has_conflict(&self, facts: &BTreeSet<usize>) -> bool {
     // Short cut 1
@@ -66,18 +70,24 @@ impl FromIterator<usize> for Disjunction {
 
 #[derive(Clone, Debug, Default)]
 pub struct Disjunctions {
+  id_map: HashMap<usize, usize>,
   disjunctions: Vec<Disjunction>,
 }
 
 impl Disjunctions {
   pub fn new() -> Self {
     Self {
+      id_map: HashMap::new(),
       disjunctions: Vec::new(),
     }
   }
 
   pub fn is_empty(&self) -> bool {
     self.disjunctions.is_empty()
+  }
+
+  pub fn len(&self) -> usize {
+    self.disjunctions.len()
   }
 
   pub fn has_conflict(&self, facts: &BTreeSet<usize>) -> bool {
@@ -95,10 +105,14 @@ impl Disjunctions {
     false
   }
 
-  pub fn add_disjunction<I>(&mut self, i: I)
-  where
-    I: Iterator<Item = usize>,
-  {
-    self.disjunctions.push(i.collect())
+  pub fn add_disjunction(&mut self, disj_id: usize, fact_id: usize) {
+    if let Some(internal_disj_id) = self.id_map.get(&disj_id) {
+      self.disjunctions[*internal_disj_id].add_fact_id(fact_id)
+    } else {
+      let new_disj = Disjunction::from_iter(std::iter::once(fact_id));
+      let internal_disj_id = self.disjunctions.len();
+      self.disjunctions.push(new_disj);
+      self.id_map.insert(disj_id, internal_disj_id);
+    }
   }
 }

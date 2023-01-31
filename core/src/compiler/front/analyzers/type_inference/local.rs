@@ -111,6 +111,7 @@ impl LocalTypeInferenceContext {
     custom_types: &HashMap<String, (ValueType, Loc)>,
     constant_types: &HashMap<Loc, Type>,
     inferred_relation_types: &HashMap<String, (Vec<TypeSet>, Loc)>,
+    function_type_registry: &FunctionTypeRegistry,
     inferred_expr_types: &mut HashMap<Loc, TypeSet>,
   ) -> Result<(), TypeInferenceError> {
     for unif in &self.unifications {
@@ -118,6 +119,7 @@ impl LocalTypeInferenceContext {
         custom_types,
         constant_types,
         inferred_relation_types,
+        function_type_registry,
         inferred_expr_types,
       )?;
     }
@@ -388,7 +390,7 @@ impl NodeVisitor for LocalTypeInferenceContext {
           self.var_types.insert(n.to_string(), (ty, loc.clone()));
         }
       }
-      ReduceOperatorNode::Unique | ReduceOperatorNode::TopK(_) => {
+      ReduceOperatorNode::Unique | ReduceOperatorNode::TopK(_) | ReduceOperatorNode::CategoricalK(_) => {
         if vars.len() == bindings.len() {
           for (var, binding) in vars.iter().zip(bindings.iter()) {
             if let Some(n) = var.name() {
@@ -474,16 +476,11 @@ impl NodeVisitor for LocalTypeInferenceContext {
   }
 
   fn visit_call_expr(&mut self, c: &CallExpr) {
-    match c.function().function() {
-      Some(f) => {
-        let unif = Unification::Call(
-          f,
-          c.iter_args().map(|a| a.location().clone()).collect(),
-          c.location().clone(),
-        );
-        self.unifications.push(unif)
-      }
-      _ => {}
-    }
+    let unif = Unification::Call(
+      c.function_identifier().name().to_string(),
+      c.iter_args().map(|a| a.location().clone()).collect(),
+      c.location().clone(),
+    );
+    self.unifications.push(unif)
   }
 }

@@ -4,28 +4,54 @@ use super::*;
 use crate::common::value_type::*;
 use crate::compiler::front::*;
 
+/// The structure storing unification relationships
 #[derive(Clone, Debug)]
 pub enum Unification {
+  /// The i-th element of a relation: arg, relation, argument ID
   IthArgOfRelation(Loc, String, usize),
+
+  /// V, Variable Name
   OfVariable(Loc, String),
+
+  /// C, Type Set of C
   OfConstant(Loc, TypeSet),
-  AddSubMulDivMod(Loc, Loc, Loc),                          // op1, op2, op1 X op2
-  EqNeq(Loc, Loc, Loc),                                    // op1, op2, op1 == op2
-  AndOrXor(Loc, Loc, Loc),                                 // op1, op2, op1 && op2
-  LtLeqGtGeq(Loc, Loc, Loc),                               // op1, op2, op1 <> op2
-  PosNeg(Loc, Loc),                                        // op1, -op1
-  Not(Loc, Loc),                                           // op1, !op1
-  IfThenElse(Loc, Loc, Loc, Loc),                          // if X then Y else Z, X, Y, Z
-  TypeCast(Loc, Loc, Type),                                // op1, op1 as TY, TY
-  Call(crate::common::functions::Function, Vec<Loc>, Loc), // f, ops*, $f(ops*)
+
+  /// op1, op2, op1 X op2
+  AddSubMulDivMod(Loc, Loc, Loc),
+
+  /// op1, op2, op1 == op2
+  EqNeq(Loc, Loc, Loc),
+
+  /// op1, op2, op1 && op2
+  AndOrXor(Loc, Loc, Loc),
+
+  /// op1, op2, op1 <> op2
+  LtLeqGtGeq(Loc, Loc, Loc),
+
+  /// op1, -op1
+  PosNeg(Loc, Loc),
+
+  /// op1, !op1
+  Not(Loc, Loc),
+
+  /// if X then Y else Z, X, Y, Z
+  IfThenElse(Loc, Loc, Loc, Loc),
+
+  /// op1, op1 as TY, TY
+  TypeCast(Loc, Loc, Type),
+
+  /// f, ops*, $f(ops*)
+  Call(String, Vec<Loc>, Loc),
 }
 
 impl Unification {
+  /// Try unifying the data types, and store the expression types to `inferred_expr_types`
   pub fn unify(
     &self,
     custom_types: &HashMap<String, (ValueType, Loc)>,
     constant_types: &HashMap<Loc, Type>,
     inferred_relation_types: &HashMap<String, (Vec<TypeSet>, Loc)>,
+    function_type_registry: &FunctionTypeRegistry,
     inferred_expr_types: &mut HashMap<Loc, TypeSet>,
   ) -> Result<(), TypeInferenceError> {
     match self {
@@ -210,56 +236,91 @@ impl Unification {
         Ok(())
       }
       Self::Call(function, args, e) => {
-        use crate::common::functions::Function;
-        match function {
-          Function::Abs => {
-            if args.len() == 1 {
-              let arg_ty = unify_arith(&args[0], inferred_expr_types)?;
-              let e_ty = unify_arith(e, inferred_expr_types)?;
-              match arg_ty.unify(&e_ty) {
-                Ok(new_ty) => {
-                  inferred_expr_types.insert(e.clone(), new_ty.clone());
-                  inferred_expr_types.insert(args[0].clone(), new_ty.clone());
-                  Ok(())
+        // First check if there is such function
+        if let Some(function_type) = function_type_registry.get(function) {
+          // Then check if the provided number of arguments is valid
+          if function_type.is_valid_num_args(args.len()) {
+            // Store a collection of all the type parameters
+            let mut generic_type_param_instances = HashMap::<usize, Vec<Loc>>::new();
+
+            // Iterate through all the arguments
+            for (i, arg) in args.iter().enumerate() {
+              // NOTE: unwrap is ok since argument number is already checked
+              let expected_arg_type = function_type.type_of_ith_argument(i).unwrap();
+              match expected_arg_type {
+                FunctionArgumentType::Generic(generic_type_param_id) => {
+                  // Add this argument to the to-unify generic type param list
+                  generic_type_param_instances
+                    .entry(generic_type_param_id)
+                    .or_default()
+                    .push(arg.clone());
                 }
-                Err(mut err) => {
-                  err.annotate_location(e);
-                  Err(err)
+                FunctionArgumentType::TypeSet(ts) => {
+                  // Unify arg type for non-generic ones
+                  unify_ty(arg, ts, inferred_expr_types)?;
                 }
               }
-            } else {
-              Err(TypeInferenceError::FunctionArityMismatch {
-                function: "abs".to_string(),
-                actual: args.len(),
-                loc: e.clone(),
-              })
             }
-          }
-          Function::Hash
-          | Function::StringConcat
-          | Function::StringLength
-          | Function::Substring
-          | Function::StringCharAt => {
-            // Resulting type should be function return type
-            let ret_ty = TypeSet::function_return_type(function);
-            unify_ty(e, ret_ty, inferred_expr_types)?;
 
-            // Args should be of their respective type
-            if function.is_acceptable_num_args(args.len()) {
-              for (i, arg) in args.iter().enumerate() {
-                let ts = TypeSet::function_argument_type(function, i);
-                unify_ty(arg, ts, inferred_expr_types)?;
+            // Get the return type
+            match &function_type.return_type {
+              FunctionReturnType::Generic(generic_type_param_id) => {
+                // Add the whole function expression to the to-unify generic type param list
+                generic_type_param_instances
+                  .entry(*generic_type_param_id)
+                  .or_default()
+                  .push(e.clone());
               }
-            } else {
-              return Err(TypeInferenceError::FunctionArityMismatch {
-                function: format!("{}", function),
-                actual: args.len(),
-                loc: e.clone(),
-              });
+              FunctionReturnType::BaseType(t) => {
+                // Unify the return type with the base type
+                let ts = TypeSet::base(t.clone());
+                unify_ty(e, ts, inferred_expr_types)?;
+              }
             }
 
+            // Unify for each generic type parameter
+            //
+            // There are two goals:
+            // 1. All arguments of each generic type parameter should be unified with the type family
+            // 2. All arguments of each generic type parameter should be the same
+            for (i, generic_type_family) in function_type.generic_type_parameters.iter().enumerate() {
+              // Check if there is actually instance
+              if let Some(instances) = generic_type_param_instances.get(&i) {
+                if instances.len() >= 1 {
+                  // Keep an aggregated unified ts starting from the first instance
+                  let mut agg_unified_ts = unify_ty(&instances[0], generic_type_family.clone(), inferred_expr_types)?;
+
+                  // Iterate from the next instance
+                  for j in 1..instances.len() {
+                    // Make sure the current type conform to the generic type parameter
+                    let curr_unified_ts = unify_ty(&instances[j], generic_type_family.clone(), inferred_expr_types)?;
+
+                    // Unify with the aggregated type set
+                    agg_unified_ts = agg_unified_ts.unify(&curr_unified_ts)?;
+                  }
+
+                  // At the end, update all instances to have the `agg_unified_ts` type
+                  for instance in instances {
+                    inferred_expr_types.insert(instance.clone(), agg_unified_ts.clone());
+                  }
+                }
+              }
+            }
+
+            // No more error
             Ok(())
+          } else {
+            Err(TypeInferenceError::FunctionArityMismatch {
+              function: function.clone(),
+              actual: args.len(),
+              loc: e.clone(),
+            })
           }
+        } else {
+          Err(TypeInferenceError::UnknownFunctionType {
+            function_name: function.clone(),
+            loc: e.clone(),
+          })
         }
       }
     }

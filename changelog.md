@@ -1,3 +1,11 @@
+# v0.1.7, Jan 12, 2022
+
+- Better integration with Extensional Databases (EDB) and memory optimizations
+- Better handling of mutual exclusive facts in probabilistic/differentiable reasoning
+- Add categorical-k and top-k samplers
+- Add foreign function interface available to Python through `scallopy`
+- Add syntax sugars for `forall` and `exists` aggregators
+
 # v0.1.6, Nov 17, 2022
 
 `v0.1.6` introduces many improvements and features

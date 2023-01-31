@@ -1,5 +1,4 @@
 use pyo3::{Py, PyAny, Python};
-// use scallop_core::runtime::dynamic;
 use scallop_core::runtime::provenance;
 
 #[derive(Clone, Debug)]
@@ -20,9 +19,9 @@ impl std::fmt::Display for CustomTag {
 impl provenance::Tag for CustomTag {}
 
 #[derive(Clone, Debug)]
-pub struct CustomTagContext(pub Py<PyAny>);
+pub struct CustomProvenance(pub Py<PyAny>);
 
-impl provenance::Provenance for CustomTagContext {
+impl provenance::Provenance for CustomProvenance {
   type Tag = CustomTag;
 
   type InputTag = Py<PyAny>;
@@ -37,24 +36,6 @@ impl provenance::Provenance for CustomTagContext {
     Python::with_gil(|py| {
       let result = self.0.call_method(py, "tagging_fn", (i,), None).unwrap();
       Self::Tag::new(result)
-    })
-  }
-
-  fn tagging_disjunction_fn(&mut self, i: Vec<Self::InputTag>) -> Vec<Self::Tag> {
-    Python::with_gil(|py| {
-      let result: Vec<Py<PyAny>> = self
-        .0
-        .call_method(py, "tagging_disjunction_fn", (i,), None)
-        .unwrap()
-        .extract(py)
-        .unwrap();
-      result
-        .into_iter()
-        .map(|t| {
-          let t: Py<PyAny> = t.into();
-          Self::Tag::new(t)
-        })
-        .collect()
     })
   }
 

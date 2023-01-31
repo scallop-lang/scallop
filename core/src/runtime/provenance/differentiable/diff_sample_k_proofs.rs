@@ -4,14 +4,14 @@ use rand::rngs::StdRng;
 use super::*;
 use crate::utils::PointerFamily;
 
-pub struct DiffSampleKProofsContext<T: Clone, P: PointerFamily> {
+pub struct DiffSampleKProofsProvenance<T: Clone, P: PointerFamily> {
   pub k: usize,
   pub sampler: P::Cell<StdRng>,
   pub diff_probs: P::Pointer<Vec<(f64, T)>>,
   pub disjunctions: Disjunctions,
 }
 
-impl<T: Clone, P: PointerFamily> Clone for DiffSampleKProofsContext<T, P> {
+impl<T: Clone, P: PointerFamily> Clone for DiffSampleKProofsProvenance<T, P> {
   fn clone(&self) -> Self {
     Self {
       k: self.k,
@@ -22,7 +22,7 @@ impl<T: Clone, P: PointerFamily> Clone for DiffSampleKProofsContext<T, P> {
   }
 }
 
-impl<T: Clone, P: PointerFamily> DiffSampleKProofsContext<T, P> {
+impl<T: Clone, P: PointerFamily> DiffSampleKProofsProvenance<T, P> {
   pub fn new(k: usize) -> Self {
     Self::new_with_seed(k, 12345678)
   }
@@ -45,7 +45,7 @@ impl<T: Clone, P: PointerFamily> DiffSampleKProofsContext<T, P> {
   }
 }
 
-impl<T: Clone, P: PointerFamily> DNFContextTrait for DiffSampleKProofsContext<T, P> {
+impl<T: Clone, P: PointerFamily> DNFContextTrait for DiffSampleKProofsProvenance<T, P> {
   fn fact_probability(&self, id: &usize) -> f64 {
     self.diff_probs[id.clone()].0
   }
@@ -55,10 +55,10 @@ impl<T: Clone, P: PointerFamily> DNFContextTrait for DiffSampleKProofsContext<T,
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffSampleKProofsContext<T, P> {
+impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffSampleKProofsProvenance<T, P> {
   type Tag = DNFFormula;
 
-  type InputTag = InputDiffProb<T>;
+  type InputTag = InputExclusiveDiffProb<T>;
 
   type OutputTag = OutputDiffProb<T>;
 
@@ -67,32 +67,19 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffSampleKProofsConte
   }
 
   fn tagging_fn(&mut self, input_tag: Self::InputTag) -> Self::Tag {
-    let InputDiffProb(p, t) = input_tag;
-    let id = self.diff_probs.len();
-    P::get_mut(&mut self.diff_probs).push((p, t));
-    DNFFormula::singleton(id)
-  }
+    let InputExclusiveDiffProb { prob, tag, exclusion } = input_tag;
 
-  fn tagging_disjunction_fn(&mut self, tags: Vec<Self::InputTag>) -> Vec<Self::Tag> {
-    let mut ids = vec![];
+    // First store the probability and generate the id
+    let fact_id = self.diff_probs.len();
+    P::get_mut(&mut self.diff_probs).push((prob, tag));
 
-    // Add base disjunctions
-    let tags = tags
-      .into_iter()
-      .map(|tag| {
-        let InputDiffProb(p, t) = tag;
-        let id = self.diff_probs.len();
-        P::get_mut(&mut self.diff_probs).push((p, t));
-        ids.push(id);
-        DNFFormula::singleton(id)
-      })
-      .collect::<Vec<_>>();
+    // Store the mutual exclusivity
+    if let Some(disjunction_id) = exclusion {
+      self.disjunctions.add_disjunction(disjunction_id, fact_id);
+    }
 
-    // Add disjunction
-    self.disjunctions.add_disjunction(ids.clone().into_iter());
-
-    // Return tags
-    tags
+    // Finally return the formula
+    DNFFormula::singleton(fact_id)
   }
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
@@ -136,6 +123,11 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffSampleKProofsConte
 
   fn saturated(&self, t_old: &Self::Tag, t_new: &Self::Tag) -> bool {
     t_old == t_new
+  }
+
+  fn weight(&self, t: &Self::Tag) -> f64 {
+    let v = |i: &usize| self.diff_probs[i.clone()].0;
+    t.wmc(&RealSemiring::new(), &v)
   }
 
   fn mult(&self, t1: &Self::Tag, t2: &Self::Tag) -> Self::Tag {

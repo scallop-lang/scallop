@@ -10,7 +10,10 @@ pub struct DynamicCollection<Prov: Provenance> {
   pub elements: Vec<DynamicElement<Prov>>,
 }
 
-impl<Prov: Provenance> std::fmt::Debug for DynamicCollection<Prov> where Prov::Tag: std::fmt::Debug {
+impl<Prov: Provenance> std::fmt::Debug for DynamicCollection<Prov>
+where
+  Prov::Tag: std::fmt::Debug,
+{
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_set().entries(&self.elements).finish()
   }
@@ -87,6 +90,10 @@ impl<Prov: Provenance> DynamicCollection<Prov> {
 
   pub fn into_iter(self) -> impl IntoIterator<Item = DynamicElement<Prov>> {
     self.elements.into_iter()
+  }
+
+  pub fn drain<'a>(&'a mut self) -> impl 'a + Iterator<Item = DynamicElement<Prov>> {
+    self.elements.drain(..)
   }
 
   pub fn apply_recover_fn<F, S>(self, mut f: F) -> impl Iterator<Item = (S, Tuple)>

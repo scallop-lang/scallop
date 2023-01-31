@@ -1,22 +1,20 @@
 use std::cell::Ref;
 
-use crate::runtime::dynamic::*;
-use crate::runtime::provenance::*;
-
 use super::batching::*;
+use super::*;
 
 #[derive(Clone)]
 pub struct DynamicRelationDataflow<'a, Prov: Provenance>(pub &'a DynamicRelation<Prov>);
 
 impl<'a, Prov: Provenance> DynamicRelationDataflow<'a, Prov> {
-  pub fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_stable(&self, _: &RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     DynamicBatches::DynamicRelationStable(DynamicRelationStableBatches {
       collections: self.0.stable.borrow(),
       rela_id: 0,
     })
   }
 
-  pub fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
+  pub fn iter_recent(&self, _: &RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     let b = DynamicRelationRecentBatch {
       collection: self.0.recent.borrow(),
       elem_id: 0,

@@ -4,8 +4,10 @@ use super::*;
 use crate::common::{input_tag::InputTag, value::Value, value_type::ValueType};
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct TagNode(pub InputTag);
 
+/// A tag associated with a fact
 pub type Tag = AstNode<TagNode>;
 
 impl Tag {
@@ -23,6 +25,7 @@ impl Tag {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub enum ConstantNode {
   Integer(i64),
   Float(f64),
@@ -31,6 +34,7 @@ pub enum ConstantNode {
   String(String),
 }
 
+/// A constant, which could be an integer, floating point, character, boolean, or string.
 pub type Constant = AstNode<ConstantNode>;
 
 impl Constant {
@@ -74,6 +78,7 @@ impl Constant {
   }
 }
 
+/// A constant or a variable
 #[derive(Clone, Debug, PartialEq)]
 pub enum ConstantOrVariable {
   Constant(Constant),
@@ -111,6 +116,7 @@ impl ConstantOrVariable {
 }
 
 #[derive(Clone, PartialEq)]
+#[doc(hidden)]
 pub struct IdentifierNode {
   pub name: String,
 }
@@ -121,6 +127,7 @@ impl IdentifierNode {
   }
 }
 
+/// An identifier, e.g. `predicate`
 pub type Identifier = AstNode<IdentifierNode>;
 
 impl Identifier {

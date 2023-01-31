@@ -1,3 +1,5 @@
+//! # Aggregate Operations
+
 use super::value_type::*;
 
 /// The aggregate operators for low level representation
@@ -12,6 +14,7 @@ pub enum AggregateOp {
   Argmax,
   Exists,
   TopK(usize),
+  CategoricalK(usize),
 }
 
 impl std::fmt::Display for AggregateOp {
@@ -26,6 +29,7 @@ impl std::fmt::Display for AggregateOp {
       Self::Argmax => f.write_str("argmax"),
       Self::Exists => f.write_str("exists"),
       Self::TopK(k) => f.write_fmt(format_args!("top<{}>", k)),
+      Self::CategoricalK(k) => f.write_fmt(format_args!("categorical<{}>", k)),
     }
   }
 }
@@ -49,5 +53,9 @@ impl AggregateOp {
 
   pub fn top_k(k: usize) -> Self {
     Self::TopK(k)
+  }
+
+  pub fn categorical_k(k: usize) -> Self {
+    Self::CategoricalK(k)
   }
 }

@@ -5,13 +5,13 @@ use crate::runtime::dynamic::*;
 use crate::runtime::statics::*;
 use crate::utils::*;
 
-pub struct TopKProofsContext<P: PointerFamily = RcFamily> {
+pub struct TopKProofsProvenance<P: PointerFamily = RcFamily> {
   pub k: usize,
   pub probs: P::Pointer<Vec<f64>>,
   pub disjunctions: Disjunctions,
 }
 
-impl<P: PointerFamily> Default for TopKProofsContext<P> {
+impl<P: PointerFamily> Default for TopKProofsProvenance<P> {
   fn default() -> Self {
     Self {
       k: 3,
@@ -21,7 +21,7 @@ impl<P: PointerFamily> Default for TopKProofsContext<P> {
   }
 }
 
-impl<P: PointerFamily> Clone for TopKProofsContext<P> {
+impl<P: PointerFamily> Clone for TopKProofsProvenance<P> {
   fn clone(&self) -> Self {
     Self {
       k: self.k,
@@ -31,7 +31,7 @@ impl<P: PointerFamily> Clone for TopKProofsContext<P> {
   }
 }
 
-impl<P: PointerFamily> TopKProofsContext<P> {
+impl<P: PointerFamily> TopKProofsProvenance<P> {
   pub fn new(k: usize) -> Self {
     Self {
       k,
@@ -45,7 +45,7 @@ impl<P: PointerFamily> TopKProofsContext<P> {
   }
 }
 
-impl<P: PointerFamily> DNFContextTrait for TopKProofsContext<P> {
+impl<P: PointerFamily> DNFContextTrait for TopKProofsProvenance<P> {
   fn fact_probability(&self, id: &usize) -> f64 {
     self.probs[*id]
   }
@@ -55,10 +55,10 @@ impl<P: PointerFamily> DNFContextTrait for TopKProofsContext<P> {
   }
 }
 
-impl<P: PointerFamily> Provenance for TopKProofsContext<P> {
+impl<P: PointerFamily> Provenance for TopKProofsProvenance<P> {
   type Tag = DNFFormula;
 
-  type InputTag = f64;
+  type InputTag = InputExclusiveProb;
 
   type OutputTag = f64;
 
@@ -66,31 +66,18 @@ impl<P: PointerFamily> Provenance for TopKProofsContext<P> {
     "top-k-proofs"
   }
 
-  fn tagging_fn(&mut self, prob: Self::InputTag) -> Self::Tag {
-    let id = self.probs.len();
-    P::get_mut(&mut self.probs).push(prob);
-    DNFFormula::singleton(id)
-  }
+  fn tagging_fn(&mut self, input_tag: Self::InputTag) -> Self::Tag {
+    // First generate id and push the probability into the list
+    let fact_id = self.probs.len();
+    P::get_mut(&mut self.probs).push(input_tag.prob);
 
-  fn tagging_disjunction_fn(&mut self, tags: Vec<Self::InputTag>) -> Vec<Self::Tag> {
-    let mut ids = vec![];
+    // Add exlusion if needed
+    if let Some(disj_id) = input_tag.exclusion {
+      self.disjunctions.add_disjunction(disj_id, fact_id);
+    }
 
-    // Add base disjunctions
-    let tags = tags
-      .into_iter()
-      .map(|tag| {
-        let id = self.probs.len();
-        P::get_mut(&mut self.probs).push(tag);
-        ids.push(id);
-        DNFFormula::singleton(id)
-      })
-      .collect::<Vec<_>>();
-
-    // Add disjunction
-    self.disjunctions.add_disjunction(ids.clone().into_iter());
-
-    // Return tags
-    tags
+    // Lastly return a tag
+    Self::Tag::singleton(fact_id)
   }
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
@@ -125,6 +112,12 @@ impl<P: PointerFamily> Provenance for TopKProofsContext<P> {
 
   fn negate(&self, t: &Self::Tag) -> Option<Self::Tag> {
     Some(self.top_k_negate(t, self.k))
+  }
+
+  fn weight(&self, t: &Self::Tag) -> f64 {
+    let s = RealSemiring;
+    let v = |i: &usize| -> f64 { self.probs[*i] };
+    t.wmc(&s, &v)
   }
 
   fn dynamic_count(&self, batch: DynamicElements<Self>) -> DynamicElements<Self> {
@@ -180,25 +173,7 @@ impl<P: PointerFamily> Provenance for TopKProofsContext<P> {
     vec![t, f]
   }
 
-  fn dynamic_top_k(&self, k: usize, batch: DynamicElements<Self>) -> DynamicElements<Self> {
-    let ids = aggregate_top_k_helper(batch.len(), k, |id| {
-      let clauses = &batch[id].tag.clauses;
-      if clauses.len() > 0 {
-        clauses
-          .iter()
-          .map(|c| self.clause_probability(c))
-          .fold(f64::NAN, f64::max)
-      } else {
-        1.0
-      }
-    });
-    ids.into_iter().map(|id| batch[id].clone()).collect()
-  }
-
-  fn static_count<Tup: StaticTupleTrait>(
-    &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<usize, Self> {
+  fn static_count<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<usize, Self> {
     if batch.is_empty() {
       vec![StaticElement::new(0, self.one())]
     } else {
@@ -239,10 +214,7 @@ impl<P: PointerFamily> Provenance for TopKProofsContext<P> {
     elems
   }
 
-  fn static_exists<Tup: StaticTupleTrait>(
-    &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<bool, Self> {
+  fn static_exists<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<bool, Self> {
     let mut exists_tag = self.zero();
     let mut not_exists_tag = self.one();
     for elem in batch {
@@ -252,24 +224,5 @@ impl<P: PointerFamily> Provenance for TopKProofsContext<P> {
     let t = StaticElement::new(true, exists_tag);
     let f = StaticElement::new(false, not_exists_tag);
     vec![t, f]
-  }
-
-  fn static_top_k<Tup: StaticTupleTrait>(
-    &self,
-    k: usize,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<Tup, Self> {
-    let ids = aggregate_top_k_helper(batch.len(), k, |id| {
-      let clauses = &batch[id].tag.clauses;
-      if clauses.len() > 0 {
-        clauses
-          .iter()
-          .map(|c| self.clause_probability(c))
-          .fold(f64::NAN, f64::max)
-      } else {
-        1.0
-      }
-    });
-    ids.into_iter().map(|id| batch[id].clone()).collect()
   }
 }

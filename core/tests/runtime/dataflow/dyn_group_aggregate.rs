@@ -2,12 +2,14 @@ use scallop_core::common::aggregate_op::AggregateOp;
 use scallop_core::common::expr::*;
 use scallop_core::runtime::dynamic::dataflow::*;
 use scallop_core::runtime::dynamic::*;
+use scallop_core::runtime::env::*;
 use scallop_core::runtime::provenance::*;
 use scallop_core::testing::*;
 
 #[test]
 fn test_dynamic_group_and_count_1() {
   let mut ctx = unit::UnitProvenance;
+  let mut rt = RuntimeEnvironment::new();
 
   // Relations
   let mut color = DynamicRelation::<unit::UnitProvenance>::new();
@@ -34,7 +36,7 @@ fn test_dynamic_group_and_count_1() {
         DynamicDataflow::dynamic_relation(&color),
         (Expr::access(1), Expr::access(0)).into(),
       ),
-      true,
+      &mut rt,
     )
   }
 
@@ -53,7 +55,7 @@ fn test_dynamic_group_and_count_1() {
         &ctx,
       )
       .into(),
-      true,
+      &mut rt,
     );
     first_time = false;
   }
@@ -67,6 +69,7 @@ fn test_dynamic_group_and_count_1() {
 #[test]
 fn test_dynamic_group_count_max_1() {
   let mut ctx = unit::UnitProvenance;
+  let mut rt = RuntimeEnvironment::default();
 
   // Relations
   let mut color = DynamicRelation::<unit::UnitProvenance>::new();
@@ -93,7 +96,7 @@ fn test_dynamic_group_count_max_1() {
         DynamicDataflow::dynamic_relation(&color),
         Expr::Tuple(vec![Expr::Access(1.into()), Expr::Access(0.into())]),
       ),
-      true,
+      &mut rt,
     )
   }
 
@@ -112,7 +115,7 @@ fn test_dynamic_group_count_max_1() {
         &ctx,
       )
       .into(),
-      true,
+      &mut rt,
     );
     iter_1_first_time = false;
   }
@@ -132,7 +135,7 @@ fn test_dynamic_group_count_max_1() {
         &ctx,
       )
       .into(),
-      true,
+      &mut rt,
     );
     iter_2_first_time = false;
   }

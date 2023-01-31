@@ -7,6 +7,7 @@ use super::*;
 use crate::common::input_tag::FromInputTag;
 use crate::common::input_tag::InputTag;
 use crate::common::tuple::Tuple;
+use crate::runtime::env::*;
 use crate::runtime::monitor::*;
 use crate::runtime::provenance::*;
 use crate::runtime::utils::*;
@@ -102,15 +103,11 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
       .map(|(info, tuple)| DynamicElement::new(tuple.into(), ctx.tagging_optional_fn(info)))
       .collect::<Vec<_>>();
     let dataflow = DynamicDataflow::Vec(&elements);
-    self.insert_dataflow_recent(ctx, &dataflow, false);
+    self.insert_dataflow_recent(ctx, &dataflow, &RuntimeEnvironment::default());
   }
 
-  pub fn insert_tagged_with_monitor<Tup, M>(
-    &self,
-    ctx: &mut Prov,
-    data: Vec<(Option<InputTagOf<Prov>>, Tup)>,
-    m: &M,
-  ) where
+  pub fn insert_tagged_with_monitor<Tup, M>(&self, ctx: &mut Prov, data: Vec<(Option<InputTagOf<Prov>>, Tup)>, m: &M)
+  where
     Tup: Into<Tuple>,
     M: Monitor<Prov>,
   {
@@ -124,92 +121,7 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
       })
       .collect::<Vec<_>>();
     let dataflow = DynamicDataflow::Vec(&elements);
-    self.insert_dataflow_recent(ctx, &dataflow, false);
-  }
-
-  pub fn insert_annotated_disjunction<Tup>(
-    &self,
-    ctx: &mut Prov,
-    data: Vec<(Option<InputTagOf<Prov>>, Tup)>,
-  ) where
-    Tup: Into<Tuple>,
-  {
-    let (base_infos, tuples): (Vec<_>, Vec<Tup>) = data.into_iter().unzip();
-    let tags = ctx.tagging_disjunction_optional_fn(base_infos);
-    let new_data = tags
-      .into_iter()
-      .zip(tuples.into_iter().map(|t| t.into()))
-      .map(|(tag, tup)| DynamicElement::new(tup, tag))
-      .collect::<Vec<_>>();
-    let dataflow = DynamicDataflow::Vec(&new_data);
-    self.insert_dataflow_recent(ctx, &dataflow, false);
-  }
-
-  pub fn insert_annotated_disjunction_with_monitor<Tup, M>(
-    &self,
-    ctx: &mut Prov,
-    data: Vec<(Option<InputTagOf<Prov>>, Tup)>,
-    m: &M,
-  ) where
-    Tup: Into<Tuple>,
-    M: Monitor<Prov>,
-  {
-    let (input_tags, tuples): (Vec<_>, Vec<Tup>) = data.into_iter().unzip();
-    let tags = ctx.tagging_disjunction_optional_fn(input_tags.clone());
-    let elems = tuples
-      .into_iter()
-      .map(|t| t.into())
-      .zip(input_tags.into_iter())
-      .zip(tags.into_iter())
-      .map(|((tup, input_tag), tag)| {
-        m.observe_tagging(&tup, &input_tag, &tag);
-        DynamicElement::new(tup, tag)
-      })
-      .collect::<Vec<_>>();
-    let dataflow = DynamicDataflow::Vec(&elems);
-    self.insert_dataflow_recent(ctx, &dataflow, false);
-  }
-
-  pub fn insert_dynamically_tagged_annotated_disjunction<Tup>(&self, ctx: &mut Prov, data: Vec<(InputTag, Tup)>)
-  where
-    Tup: Into<Tuple>,
-  {
-    let (dyn_input_tags, tuples): (Vec<_>, Vec<Tup>) = data.into_iter().unzip();
-    let input_tags: Vec<_> = dyn_input_tags.iter().map(FromInputTag::from_input_tag).collect();
-    let tags = ctx.tagging_disjunction_optional_fn(input_tags);
-    let elements = tags
-      .into_iter()
-      .zip(tuples.into_iter().map(|t| t.into()))
-      .map(|(tag, tup)| DynamicElement::new(tup, tag))
-      .collect::<Vec<_>>();
-    let dataflow = DynamicDataflow::Vec(&elements);
-    self.insert_dataflow_recent(ctx, &dataflow, false);
-  }
-
-  pub fn insert_dynamically_tagged_annotated_disjunction_with_monitor<Tup, M>(
-    &self,
-    ctx: &mut Prov,
-    data: Vec<(InputTag, Tup)>,
-    m: &M,
-  ) where
-    Tup: Into<Tuple>,
-    M: Monitor<Prov>,
-  {
-    let (dyn_input_tags, tuples): (Vec<_>, Vec<Tup>) = data.into_iter().unzip();
-    let input_tags: Vec<_> = dyn_input_tags.iter().map(FromInputTag::from_input_tag).collect();
-    let tags = ctx.tagging_disjunction_optional_fn(input_tags.clone());
-    let elements = tuples
-      .into_iter()
-      .map(|t| t.into())
-      .zip(input_tags.into_iter())
-      .zip(tags.into_iter())
-      .map(|((tup, input_tag), tag)| {
-        m.observe_tagging(&tup, &input_tag, &tag);
-        DynamicElement::new(tup, tag)
-      })
-      .collect::<Vec<_>>();
-    let dataflow = DynamicDataflow::Vec(&elements);
-    self.insert_dataflow_recent(ctx, &dataflow, false);
+    self.insert_dataflow_recent(ctx, &dataflow, &RuntimeEnvironment::default());
   }
 
   pub fn num_stable(&self) -> usize {
@@ -310,9 +222,9 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     !self.recent.borrow().is_empty()
   }
 
-  pub fn insert_dataflow_recent<'a>(&self, ctx: &Prov, d: &DynamicDataflow<'a, Prov>, early_discard: bool) {
-    for batch in d.iter_recent() {
-      let data = if early_discard {
+  pub fn insert_dataflow_recent<'a>(&self, ctx: &Prov, d: &DynamicDataflow<'a, Prov>, runtime: &'a RuntimeEnvironment) {
+    for batch in d.iter_recent(runtime) {
+      let data = if runtime.early_discard {
         batch.filter(|e| !ctx.discard(&e.tag)).collect::<Vec<_>>()
       } else {
         batch.collect::<Vec<_>>()
@@ -321,9 +233,9 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     }
   }
 
-  pub fn insert_dataflow_stable<'a>(&self, ctx: &Prov, d: &DynamicDataflow<'a, Prov>, early_discard: bool) {
-    for batch in d.iter_stable() {
-      let data = if early_discard {
+  pub fn insert_dataflow_stable<'a>(&self, ctx: &Prov, d: &DynamicDataflow<'a, Prov>, runtime: &'a RuntimeEnvironment) {
+    for batch in d.iter_stable(runtime) {
+      let data = if runtime.early_discard {
         batch.filter(|e| !ctx.discard(&e.tag)).collect::<Vec<_>>()
       } else {
         batch.collect::<Vec<_>>()

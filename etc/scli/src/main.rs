@@ -1,12 +1,15 @@
-use scallop_core::common::predicate_set::PredicateSet;
-use scallop_core::utils::RcFamily;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
+use scallop_core::common::constants::*;
+use scallop_core::common::predicate_set::*;
 use scallop_core::compiler;
+use scallop_core::integrate;
 use scallop_core::runtime::dynamic;
+use scallop_core::runtime::env;
 use scallop_core::runtime::monitor;
 use scallop_core::runtime::provenance;
+use scallop_core::utils::*;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "scli", about = "Scallop Interpreter")]
@@ -25,6 +28,9 @@ struct Options {
 
   #[structopt(long)]
   iter_limit: Option<usize>,
+
+  #[structopt(long)]
+  seed: Option<u64>,
 
   /// General debug option
   #[structopt(short, long)]
@@ -46,27 +52,51 @@ struct Options {
   #[structopt(long)]
   debug_tag: bool,
 
+  /// Monitor runtime
+  #[structopt(long)]
+  debug_runtime: bool,
+
   /// Output all relations (including hidden ones)
   #[structopt(long)]
   output_all: bool,
+
+  /// Random seed
+  #[structopt(long)]
+  no_early_discard: bool,
 
   /// Do not remove unused relations
   #[structopt(long)]
   do_not_remove_unused_relations: bool,
 }
 
-impl From<&Options> for compiler::CompileOptions {
+struct MonitorOptions {
+  pub debug_tag: bool,
+  pub debug_runtime: bool,
+}
+
+impl From<&Options> for MonitorOptions {
   fn from(opt: &Options) -> Self {
     Self {
-      debug: opt.debug,
-      debug_front: opt.debug_front,
-      debug_back: opt.debug_back,
-      debug_ram: opt.debug_ram,
-      do_not_remove_unused_relations: opt.do_not_remove_unused_relations,
-      output_all: opt.output_all,
-      report_front_errors: false,
-      ..Default::default()
+      debug_tag: opt.debug_tag,
+      debug_runtime: opt.debug_runtime,
     }
+  }
+}
+
+impl MonitorOptions {
+  fn needs_monitor(&self) -> bool {
+    self.debug_tag || self.debug_runtime
+  }
+
+  fn build<Prov: provenance::Provenance>(&self) -> monitor::DynamicMonitors<Prov> {
+    let mut monitor = monitor::DynamicMonitors::new();
+    if self.debug_tag {
+      monitor.add(monitor::DebugTagsMonitor);
+    }
+    if self.debug_runtime {
+      monitor.add(monitor::DebugRuntimeMonitor);
+    }
+    monitor
   }
 }
 
@@ -74,109 +104,101 @@ fn main() {
   // Command line arguments
   let opt = Options::from_args();
 
-  // Compile
-  let compile_opt = compiler::CompileOptions::from(&opt);
-  let ram = match compiler::compile_file_to_ram_with_options(&opt.input, &compile_opt) {
-    Ok(ram) => ram,
-    Err(errs) => {
-      for err in errs {
-        println!("{}", err);
-      }
+  // Integration options
+  let integrate_opt = integrate::IntegrateOptions {
+    compiler_options: compiler::CompileOptions {
+      debug: opt.debug,
+      debug_front: opt.debug_front,
+      debug_back: opt.debug_back,
+      debug_ram: opt.debug_ram,
+      do_not_remove_unused_relations: opt.do_not_remove_unused_relations,
+      output_all: opt.output_all,
+      ..Default::default()
+    },
+    execution_options: dynamic::ExecutionOptions {
+      type_check: false,
+      incremental_maintain: false,
+      retain_internal_when_recover: false,
+    },
+    runtime_environment_options: env::RuntimeEnvironmentOptions {
+      random_seed: opt.seed.unwrap_or(DEFAULT_RANDOM_SEED),
+      early_discard: !opt.no_early_discard,
+      iter_limit: opt.iter_limit,
+    },
+  };
+
+  // Create a set of output predicates
+  let predicate_set = if let Some(q) = &opt.query {
+    PredicateSet::Some(vec![q.clone()])
+  } else {
+    PredicateSet::All
+  };
+
+  // Monitor options
+  let monitor_options = MonitorOptions::from(&opt);
+
+  // Use the specified provenance
+  match opt.provenance.as_str() {
+    "unit" => {
+      let ctx = provenance::unit::UnitProvenance::default();
+      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options);
+    }
+    "bool" => {
+      let ctx = provenance::boolean::BooleanProvenance::default();
+      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options);
+    }
+    "proofs" => {
+      let ctx = provenance::proofs::ProofsProvenance::default();
+      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options);
+    }
+    "minmaxprob" => {
+      let ctx = provenance::min_max_prob::MinMaxProbProvenance::default();
+      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options);
+    }
+    "addmultprob" => {
+      let ctx = provenance::add_mult_prob::AddMultProbProvenance::default();
+      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options);
+    }
+    "topkproofs" => {
+      let ctx = provenance::top_k_proofs::TopKProofsProvenance::<RcFamily>::new(opt.top_k);
+      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options);
+    }
+    "topbottomkclauses" => {
+      let ctx = provenance::top_bottom_k_clauses::TopBottomKClausesProvenance::<RcFamily>::new(opt.top_k);
+      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options);
+    }
+    _ => {
+      println!("Unknown provenance semiring `{}`", opt.provenance);
       return;
     }
   };
+}
 
-  // Generate interpret options
-  let interpret_options = dynamic::InterpretOptions {
-    // We do not need anything to be returned
-    return_relations: PredicateSet::None,
+fn interpret<Prov: provenance::Provenance>(
+  prov: Prov,
+  file_name: &PathBuf,
+  opt: integrate::IntegrateOptions,
+  predicate_set: PredicateSet,
+  monitor_options: MonitorOptions,
+) {
+  let mut interpret_ctx = integrate::InterpretContext::<_, RcFamily>::new_from_file_with_options(file_name, prov, opt)
+    .expect("Initialization Error");
 
-    // Iteration limit
-    iter_limit: opt.iter_limit,
-
-    // We want everything to be printed
-    print_relations: if let Some(q) = &opt.query {
-      PredicateSet::Some(vec![q.clone()])
-    } else {
-      PredicateSet::All
-    },
-
-    // Others options are set to default
-    ..Default::default()
-  };
-
-  // Run the ram program
-  if !opt.debug_tag {
-    match opt.provenance.as_str() {
-      "unit" => {
-        let mut ctx = provenance::unit::UnitProvenance::default();
-        dynamic::interpret_with_options(ram, &mut ctx, &interpret_options).expect("Runtime error");
-      }
-      "bool" => {
-        let mut ctx = provenance::boolean::BooleanProvenance::default();
-        dynamic::interpret_with_options(ram, &mut ctx, &interpret_options).expect("Runtime error");
-      }
-      "proofs" => {
-        let mut ctx = provenance::proofs::ProofsProvenance::default();
-        dynamic::interpret_with_options(ram, &mut ctx, &interpret_options).expect("Runtime error");
-      }
-      "minmaxprob" => {
-        let mut ctx = provenance::min_max_prob::MinMaxProbProvenance::default();
-        dynamic::interpret_with_options(ram, &mut ctx, &interpret_options).expect("Runtime error");
-      }
-      "addmultprob" => {
-        let mut ctx = provenance::add_mult_prob::AddMultProbContext::default();
-        dynamic::interpret_with_options(ram, &mut ctx, &interpret_options).expect("Runtime error");
-      }
-      "topkproofs" => {
-        let mut ctx = provenance::top_k_proofs::TopKProofsContext::<RcFamily>::new(opt.top_k);
-        dynamic::interpret_with_options(ram, &mut ctx, &interpret_options).expect("Runtime error");
-      }
-      "topbottomkclauses" => {
-        let mut ctx = provenance::top_bottom_k_clauses::TopBottomKClausesContext::<RcFamily>::new(opt.top_k);
-        dynamic::interpret_with_options(ram, &mut ctx, &interpret_options).expect("Runtime error");
-      }
-      _ => {
-        println!("Unknown provenance semiring `{}`", opt.provenance);
-        return;
-      }
-    };
+  // Check if we have any specified monitors, and run the program
+  if !monitor_options.needs_monitor() {
+    // If not, directly run without monitor
+    interpret_ctx.run().expect("Runtime Error");
   } else {
-    let m = monitor::DebugTagsMonitor;
+    // And then run the context with monitor
+    let monitor = monitor_options.build();
+    interpret_ctx.run_with_monitor(&monitor).expect("Runtime Error");
+  }
 
-    match opt.provenance.as_str() {
-      "unit" => {
-        let mut ctx = provenance::unit::UnitProvenance::default();
-        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
-      }
-      "bool" => {
-        let mut ctx = provenance::boolean::BooleanProvenance::default();
-        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
-      }
-      "proofs" => {
-        let mut ctx = provenance::proofs::ProofsProvenance::default();
-        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
-      }
-      "minmaxprob" => {
-        let mut ctx = provenance::min_max_prob::MinMaxProbProvenance::default();
-        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
-      }
-      "addmultprob" => {
-        let mut ctx = provenance::add_mult_prob::AddMultProbContext::default();
-        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
-      }
-      "topkproofs" => {
-        let mut ctx = provenance::top_k_proofs::TopKProofsContext::<RcFamily>::new(opt.top_k);
-        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
-      }
-      "topbottomkclauses" => {
-        let mut ctx = provenance::top_bottom_k_clauses::TopBottomKClausesContext::<RcFamily>::new(opt.top_k);
-        dynamic::interpret_with_options_and_monitor(ram, &mut ctx, &interpret_options, &m).expect("Runtime error");
-      }
-      _ => {
-        println!("Unknown provenance semiring `{}`", opt.provenance);
-        return;
-      }
-    };
+  // Get the resulting IDB, and print them
+  let idb = interpret_ctx.idb();
+  for (predicate, relation) in idb {
+    if predicate_set.contains(&predicate) {
+      println!("{}: {}", predicate, relation);
+    }
   }
 }

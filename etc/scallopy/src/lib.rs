@@ -2,6 +2,7 @@ mod collection;
 mod context;
 mod custom_tag;
 mod error;
+mod foreign_function;
 mod io;
 mod provenance;
 mod tuple;
