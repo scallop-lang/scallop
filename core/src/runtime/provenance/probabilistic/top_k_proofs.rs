@@ -7,16 +7,16 @@ use crate::utils::*;
 
 pub struct TopKProofsProvenance<P: PointerFamily = RcFamily> {
   pub k: usize,
-  pub probs: P::Pointer<Vec<f64>>,
-  pub disjunctions: Disjunctions,
+  pub probs: P::Cell<Vec<f64>>,
+  pub disjunctions: P::Cell<Disjunctions>,
 }
 
 impl<P: PointerFamily> Default for TopKProofsProvenance<P> {
   fn default() -> Self {
     Self {
       k: 3,
-      probs: P::new(Vec::new()),
-      disjunctions: Disjunctions::new(),
+      probs: P::new_cell(Vec::new()),
+      disjunctions: P::new_cell(Disjunctions::new()),
     }
   }
 }
@@ -25,8 +25,8 @@ impl<P: PointerFamily> Clone for TopKProofsProvenance<P> {
   fn clone(&self) -> Self {
     Self {
       k: self.k,
-      probs: P::new((&*self.probs).clone()),
-      disjunctions: self.disjunctions.clone(),
+      probs: P::clone_cell(&self.probs),
+      disjunctions: P::clone_cell(&self.disjunctions),
     }
   }
 }
@@ -35,9 +35,13 @@ impl<P: PointerFamily> TopKProofsProvenance<P> {
   pub fn new(k: usize) -> Self {
     Self {
       k,
-      probs: P::new(Vec::new()),
-      disjunctions: Disjunctions::new(),
+      probs: P::new_cell(Vec::new()),
+      disjunctions: P::new_cell(Disjunctions::new()),
     }
+  }
+
+  pub fn num_facts(&self) -> usize {
+    P::get_cell(&self.probs, |p| p.len())
   }
 
   pub fn set_k(&mut self, k: usize) {
@@ -47,11 +51,11 @@ impl<P: PointerFamily> TopKProofsProvenance<P> {
 
 impl<P: PointerFamily> DNFContextTrait for TopKProofsProvenance<P> {
   fn fact_probability(&self, id: &usize) -> f64 {
-    self.probs[*id]
+    P::get_cell(&self.probs, |p| p[*id])
   }
 
   fn has_disjunction_conflict(&self, pos_facts: &std::collections::BTreeSet<usize>) -> bool {
-    self.disjunctions.has_conflict(pos_facts)
+    P::get_cell(&self.disjunctions, |d| d.has_conflict(pos_facts))
   }
 }
 
@@ -66,14 +70,14 @@ impl<P: PointerFamily> Provenance for TopKProofsProvenance<P> {
     "top-k-proofs"
   }
 
-  fn tagging_fn(&mut self, input_tag: Self::InputTag) -> Self::Tag {
+  fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {
     // First generate id and push the probability into the list
-    let fact_id = self.probs.len();
-    P::get_mut(&mut self.probs).push(input_tag.prob);
+    let fact_id = self.num_facts();
+    P::get_cell_mut(&self.probs, |p| p.push(input_tag.prob));
 
     // Add exlusion if needed
     if let Some(disj_id) = input_tag.exclusion {
-      self.disjunctions.add_disjunction(disj_id, fact_id);
+      P::get_cell_mut(&self.disjunctions, |d| d.add_disjunction(disj_id, fact_id));
     }
 
     // Lastly return a tag
@@ -82,7 +86,7 @@ impl<P: PointerFamily> Provenance for TopKProofsProvenance<P> {
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
     let s = RealSemiring;
-    let v = |i: &usize| -> f64 { self.probs[*i] };
+    let v = |i: &usize| -> f64 { self.fact_probability(i) };
     t.wmc(&s, &v)
   }
 
@@ -116,7 +120,7 @@ impl<P: PointerFamily> Provenance for TopKProofsProvenance<P> {
 
   fn weight(&self, t: &Self::Tag) -> f64 {
     let s = RealSemiring;
-    let v = |i: &usize| -> f64 { self.probs[*i] };
+    let v = |i: &usize| -> f64 { self.fact_probability(i) };
     t.wmc(&s, &v)
   }
 

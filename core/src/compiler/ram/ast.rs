@@ -3,16 +3,19 @@ use std::collections::*;
 use crate::common::aggregate_op::AggregateOp;
 use crate::common::expr::*;
 use crate::common::foreign_function::*;
+use crate::common::foreign_predicate::*;
 use crate::common::input_file::InputFile;
-use crate::common::input_tag::InputTag;
+use crate::common::input_tag::DynamicInputTag;
 use crate::common::output_option::OutputOption;
 use crate::common::tuple::{AsTuple, Tuple};
 use crate::common::tuple_type::TupleType;
+use crate::common::value::Value;
 
 #[derive(Debug, Clone)]
 pub struct Program {
   pub strata: Vec<Stratum>,
   pub function_registry: ForeignFunctionRegistry,
+  pub predicate_registry: ForeignPredicateRegistry,
   pub relation_to_stratum: HashMap<String, usize>,
 }
 
@@ -21,14 +24,7 @@ impl Program {
     Self {
       strata: Vec::new(),
       function_registry: ForeignFunctionRegistry::new(),
-      relation_to_stratum: HashMap::new(),
-    }
-  }
-
-  pub fn new_with_function_registry(function_registry: ForeignFunctionRegistry) -> Self {
-    Self {
-      strata: Vec::new(),
-      function_registry,
+      predicate_registry: ForeignPredicateRegistry::new(),
       relation_to_stratum: HashMap::new(),
     }
   }
@@ -160,7 +156,7 @@ impl std::cmp::Ord for Relation {
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Fact {
-  pub tag: InputTag,
+  pub tag: DynamicInputTag,
   pub tuple: Tuple,
 }
 
@@ -194,23 +190,30 @@ pub enum Dataflow {
   Filter(Box<Dataflow>, Expr),
   Find(Box<Dataflow>, Tuple),
   OverwriteOne(Box<Dataflow>),
+  ForeignPredicateGround(String, Vec<Value>),
+  ForeignPredicateConstraint(Box<Dataflow>, String, Vec<Expr>),
+  ForeignPredicateJoin(Box<Dataflow>, String, Vec<Expr>),
   Reduce(Reduce),
   Relation(String),
 }
 
 impl Dataflow {
+  /// Create a new unit dataflow given a tuple type
   pub fn unit(tuple_type: TupleType) -> Self {
     Self::Unit(tuple_type)
   }
 
+  /// Create a union dataflow
   pub fn union(self, d2: Dataflow) -> Self {
     Self::Union(Box::new(self), Box::new(d2))
   }
 
+  /// Create a join-ed dataflow from two dataflows
   pub fn join(self, d2: Dataflow) -> Self {
     Self::Join(Box::new(self), Box::new(d2))
   }
 
+  /// Create an intersection dataflow from two dataflows
   pub fn intersect(self, d2: Dataflow) -> Self {
     Self::Intersect(Box::new(self), Box::new(d2))
   }
@@ -243,6 +246,14 @@ impl Dataflow {
     Self::OverwriteOne(Box::new(self))
   }
 
+  pub fn foreign_predicate_constraint(self, predicate: String, args: Vec<Expr>) -> Self {
+    Self::ForeignPredicateConstraint(Box::new(self), predicate, args)
+  }
+
+  pub fn foreign_predicate_join(self, predicate: String, args: Vec<Expr>) -> Self {
+    Self::ForeignPredicateJoin(Box::new(self), predicate, args)
+  }
+
   pub fn reduce<S: ToString>(op: AggregateOp, predicate: S, group_by: ReduceGroupByType) -> Self {
     Self::Reduce(Reduce {
       op,
@@ -264,9 +275,15 @@ impl Dataflow {
       | Self::Product(d1, d2)
       | Self::Antijoin(d1, d2)
       | Self::Difference(d1, d2) => d1.source_relations().union(&d2.source_relations()).cloned().collect(),
-      Self::Project(d, _) | Self::Filter(d, _) | Self::Find(d, _) | Self::OverwriteOne(d) => d.source_relations(),
+      Self::Project(d, _)
+      | Self::Filter(d, _)
+      | Self::Find(d, _)
+      | Self::OverwriteOne(d)
+      | Self::ForeignPredicateConstraint(d, _, _)
+      | Self::ForeignPredicateJoin(d, _, _) => d.source_relations(),
       Self::Reduce(r) => std::iter::once(r.source_relation()).collect(),
       Self::Relation(r) => std::iter::once(r).collect(),
+      Self::ForeignPredicateGround(_, _) => HashSet::new(),
     }
   }
 }

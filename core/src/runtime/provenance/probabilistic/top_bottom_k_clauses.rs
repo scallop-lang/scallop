@@ -10,16 +10,16 @@ use crate::utils::{PointerFamily, RcFamily};
 #[derive(Debug)]
 pub struct TopBottomKClausesProvenance<P: PointerFamily = RcFamily> {
   pub k: usize,
-  pub probs: P::Pointer<Vec<f64>>,
-  pub disjunctions: Disjunctions,
+  pub probs: P::Cell<Vec<f64>>,
+  pub disjunctions: P::Cell<Disjunctions>,
 }
 
 impl<P: PointerFamily> Clone for TopBottomKClausesProvenance<P> {
   fn clone(&self) -> Self {
     Self {
       k: self.k,
-      probs: P::new((&*self.probs).clone()),
-      disjunctions: self.disjunctions.clone(),
+      probs: P::clone_cell(&self.probs),
+      disjunctions: P::clone_cell(&self.disjunctions),
     }
   }
 }
@@ -28,8 +28,8 @@ impl<P: PointerFamily> TopBottomKClausesProvenance<P> {
   pub fn new(k: usize) -> Self {
     Self {
       k,
-      probs: P::new(Vec::new()),
-      disjunctions: Disjunctions::new(),
+      probs: P::new_cell(Vec::new()),
+      disjunctions: P::new_cell(Disjunctions::new()),
     }
   }
 
@@ -40,11 +40,11 @@ impl<P: PointerFamily> TopBottomKClausesProvenance<P> {
 
 impl<P: PointerFamily> CNFDNFContextTrait for TopBottomKClausesProvenance<P> {
   fn fact_probability(&self, id: &usize) -> f64 {
-    self.probs[*id]
+    P::get_cell(&self.probs, |p| p[*id])
   }
 
   fn has_disjunction_conflict(&self, pos_facts: &BTreeSet<usize>) -> bool {
-    self.disjunctions.has_conflict(pos_facts)
+    P::get_cell(&self.disjunctions, |d| d.has_conflict(pos_facts))
   }
 }
 
@@ -59,14 +59,14 @@ impl<P: PointerFamily> Provenance for TopBottomKClausesProvenance<P> {
     "top-bottom-k-clauses"
   }
 
-  fn tagging_fn(&mut self, input_tag: Self::InputTag) -> Self::Tag {
+  fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {
     // First generate id and push the probability into the list
-    let fact_id = self.probs.len();
-    P::get_mut(&mut self.probs).push(input_tag.prob);
+    let fact_id = P::get_cell(&self.probs, |p| p.len());
+    P::get_cell_mut(&self.probs, |p| p.push(input_tag.prob));
 
     // Add exlusion if needed
     if let Some(disj_id) = input_tag.exclusion {
-      self.disjunctions.add_disjunction(disj_id, fact_id);
+      P::get_cell_mut(&self.disjunctions, |d| d.add_disjunction(disj_id, fact_id));
     }
 
     // Return the formula
@@ -75,7 +75,7 @@ impl<P: PointerFamily> Provenance for TopBottomKClausesProvenance<P> {
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
     let s = RealSemiring;
-    let v = |i: &usize| -> f64 { self.probs[*i] };
+    let v = |i: &usize| -> f64 { self.fact_probability(i) };
     t.wmc(&s, &v)
   }
 
@@ -109,7 +109,7 @@ impl<P: PointerFamily> Provenance for TopBottomKClausesProvenance<P> {
 
   fn weight(&self, t: &Self::Tag) -> f64 {
     let s = RealSemiring;
-    let v = |i: &usize| -> f64 { self.probs[*i] };
+    let v = |i: &usize| -> f64 { self.fact_probability(i) };
     t.wmc(&s, &v)
   }
 

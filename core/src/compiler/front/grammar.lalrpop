@@ -1,7 +1,8 @@
 use std::str::FromStr;
 
 use super::ast::*;
-use crate::common::input_tag::InputTag;
+use crate::common::input_tag::DynamicInputTag;
+use crate::utils;
 
 grammar;
 
@@ -85,6 +86,8 @@ match {
   "&str",
   "String",
   "Rc<String>",
+  "DateTime",
+  "Duration",
 
   // Boolean keywords
   "true",
@@ -106,6 +109,8 @@ match {
   r"-?[0-9]+" => int,
   r"-?\d+(\.\d+)(e-?\d+)?" => float,
   r#""[^"]*""# => string,
+  r#"t"[^"]*""# => date_time_string,
+  r#"d"[^"]*""# => duration_string,
   r#"'[^']*'"# => character,
 
   // Comments and Whitespaces
@@ -172,6 +177,8 @@ TypeNode: TypeNode = {
   "&str" => TypeNode::Str,
   "String" => TypeNode::String,
   // "Rc<String>" => TypeNode::RcString,
+  "DateTime" => TypeNode::DateTime,
+  "Duration" => TypeNode::Duration,
   <n: Identifier> => TypeNode::Named(n),
 }
 
@@ -234,10 +241,40 @@ RelationTypeDeclNode: RelationTypeDeclNode = {
 
 RelationTypeDecl = Spanned<RelationTypeDeclNode>;
 
+EnumTypeDeclNode: EnumTypeDeclNode = {
+  <attrs: Attributes> "type" <n: Identifier> "=" <ms: AtLeastTwoSeparatedStrict<EnumTypeMember, "|">> => {
+    EnumTypeDeclNode {
+      attrs,
+      name: n,
+      members: ms,
+    }
+  }
+}
+
+EnumTypeDecl = Spanned<EnumTypeDeclNode>;
+
+EnumTypeMemberNode: EnumTypeMemberNode = {
+  <n: Identifier> => {
+    EnumTypeMemberNode {
+      name: n,
+      assigned_num: None,
+    }
+  },
+  <n: Identifier> "=" <c: Constant> => {
+    EnumTypeMemberNode {
+      name: n,
+      assigned_num: Some(c),
+    }
+  }
+}
+
+EnumTypeMember = Spanned<EnumTypeMemberNode>;
+
 TypeDeclNode: TypeDeclNode = {
   <s: SubtypeDecl> => TypeDeclNode::Subtype(s),
   <a: AliasTypeDecl> => TypeDeclNode::Alias(a),
   <r: RelationTypeDecl> => TypeDeclNode::Relation(r),
+  <e: EnumTypeDecl> => TypeDeclNode::Enum(e),
 }
 
 TypeDecl: TypeDecl = Spanned<TypeDeclNode>;
@@ -296,8 +333,8 @@ RelationDeclNode: RelationDeclNode = {
 RelationDecl: RelationDecl = Spanned<RelationDeclNode>;
 
 TagNode: TagNode = {
-  <f: Float> => TagNode(InputTag::Float(f)),
-  <b: Bool> => TagNode(InputTag::Bool(b)),
+  <f: Float> => TagNode(DynamicInputTag::Float(f)),
+  <b: Bool> => TagNode(DynamicInputTag::Bool(b)),
 }
 
 Tag: Tag = Spanned<TagNode>;
@@ -307,6 +344,18 @@ ConstantNode: ConstantNode = {
   <i: Int> => ConstantNode::Integer(i),
   <f: Float> => ConstantNode::Float(f),
   <s: StringLiteral> => ConstantNode::String(s),
+  <s: DateTimeLiteral> => {
+    match utils::parse_date_time_string(&s) {
+      Some(v) => ConstantNode::DateTime(v),
+      None => ConstantNode::Invalid(format!("Cannot parse date time `{}`", s)),
+    }
+  },
+  <s: DurationLiteral> => {
+    match utils::parse_duration_string(&s) {
+      Some(v) => ConstantNode::Duration(v),
+      None => ConstantNode::Invalid(format!("Cannot parse duration `{}`", s)),
+    }
+  },
   <c: CharLiteral> => ConstantNode::Char(c),
 }
 
@@ -393,7 +442,7 @@ ConjDisjFormula = {
 }
 
 CommaConjunctionNode: ConjunctionNode = {
-  <args: AtLeastTwoSeparatedStrict<NegAtomFormula, ",">> => ConjunctionNode { args }
+  <args: AtLeastTwoSeparatedStrict<AnnotatedAtomFormula, ",">> => ConjunctionNode { args }
 }
 
 CommaConjunction = Spanned<CommaConjunctionNode>;
@@ -438,7 +487,7 @@ DisjunctionFormula = {
 ConjunctionKeyword = { "/\\", "and" }
 
 ConjunctionNode: ConjunctionNode = {
-  <args: AtLeastTwoSeparatedStrict<NegAtomFormula, ConjunctionKeyword>> => {
+  <args: AtLeastTwoSeparatedStrict<AnnotatedAtomFormula, ConjunctionKeyword>> => {
     ConjunctionNode { args }
   }
 }
@@ -447,17 +496,18 @@ Conjunction = Spanned<ConjunctionNode>;
 
 ConjunctionFormula: Formula = {
   <c: Conjunction> => Formula::Conjunction(c),
-  NegAtomFormula,
+  AnnotatedAtomFormula,
 }
 
+NegateKeyword = { "~", "not" }
+
 NegAtomNode: NegAtomNode = {
-  "~" <a: Atom> => NegAtomNode { atom: a },
-  "not" <a: Atom> => NegAtomNode { atom: a },
+  NegateKeyword <a: Atom> => NegAtomNode { atom: a },
 }
 
 NegAtom = Spanned<NegAtomNode>;
 
-NegAtomFormula: Formula = {
+AnnotatedAtomFormula: Formula = {
   <n: NegAtom> => Formula::NegAtom(n),
   UnitFormula,
 }
@@ -874,6 +924,14 @@ Float: f64 = float => f64::from_str(<>).unwrap();
 
 StringLiteral: String = <s: string> => {
   s[1..s.len() - 1].replace("\\t", "\t").replace("\\n", "\n").replace("\\\\", "\\").into()
+};
+
+DateTimeLiteral: String = <s: date_time_string> => {
+  s[2..s.len() - 1].replace("\\t", "\t").replace("\\n", "\n").replace("\\\\", "\\").into()
+};
+
+DurationLiteral: String = <s: duration_string> => {
+  s[2..s.len() - 1].replace("\\t", "\t").replace("\\n", "\n").replace("\\\\", "\\").into()
 };
 
 CharLiteral: String = <s: character> => {

@@ -1,7 +1,8 @@
 use std::collections::*;
 
+use crate::common::foreign_predicate::*;
 use crate::compiler::back;
-use crate::compiler::front::analyzers::TypeInference;
+use crate::compiler::front::analyzers::*;
 use crate::compiler::front::utils::*;
 use crate::compiler::front::*;
 use crate::utils::IdAllocator;
@@ -9,6 +10,7 @@ use crate::utils::IdAllocator;
 #[derive(Clone, Debug)]
 pub struct FlattenExprContext<'a> {
   pub type_inference: &'a TypeInference,
+  pub foreign_predicate_registry: &'a ForeignPredicateRegistry,
   pub id_allocator: IdAllocator,
   pub ignore_exprs: HashSet<Loc>,
   pub internal: HashMap<Loc, FlattenedNode>,
@@ -56,9 +58,13 @@ impl FlattenedNode {
 pub type FlattenedLeaf = back::Term;
 
 impl<'a> FlattenExprContext<'a> {
-  pub fn new(type_inference: &'a TypeInference) -> Self {
+  pub fn new(
+    type_inference: &'a TypeInference,
+    foreign_predicate_registry: &'a ForeignPredicateRegistry,
+  ) -> Self {
     Self {
       type_inference,
+      foreign_predicate_registry,
       id_allocator: IdAllocator::default(),
       ignore_exprs: HashSet::new(),
       internal: HashMap::new(),
@@ -225,11 +231,14 @@ impl<'a> FlattenExprContext<'a> {
 
     // First get the atom
     let back_atom_args = atom.iter_arguments().map(|a| self.get_expr_term(a)).collect();
-    let back_atom = back::Literal::Atom(back::Atom {
+    let back_atom = back::Atom {
       predicate: atom.predicate().clone(),
       args: back_atom_args,
-    });
-    literals.push(back_atom);
+    };
+
+    // Depending on whether the atom is foreign, add the literal differently
+    let back_literal = back::Literal::Atom(back_atom);
+    literals.push(back_literal);
 
     // Then collect all the intermediate variables
     for arg in atom.iter_arguments() {
@@ -240,6 +249,34 @@ impl<'a> FlattenExprContext<'a> {
   }
 
   pub fn neg_atom_to_back_literals(&self, neg_atom: &NegAtom) -> Vec<back::Literal> {
+    let mut literals = vec![];
+
+    // First get the atom
+    let back_atom_args = neg_atom
+      .atom()
+      .iter_arguments()
+      .map(|a| self.get_expr_term(a))
+      .collect();
+    let back_atom = back::NegAtom {
+      atom: back::Atom {
+        predicate: neg_atom.predicate().clone(),
+        args: back_atom_args,
+      },
+    };
+
+    // Then generate a literal
+    let back_literal = back::Literal::NegAtom(back_atom);
+    literals.push(back_literal);
+
+    // Then collect all the intermediate variables
+    for arg in neg_atom.atom().iter_arguments() {
+      literals.extend(self.collect_flattened_literals(arg.location()));
+    }
+
+    literals
+  }
+
+  pub fn domestic_neg_atom_to_back_literals(&self, neg_atom: &NegAtom) -> Vec<back::Literal> {
     let mut literals = vec![];
 
     // First get the atom

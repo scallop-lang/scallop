@@ -5,6 +5,7 @@ use itertools::Itertools;
 use super::*;
 use crate::common::binary_op::BinaryOp;
 use crate::common::expr::Expr;
+use crate::common::foreign_predicate::ForeignPredicate;
 use crate::common::output_option::OutputOption;
 use crate::common::tuple::Tuple;
 use crate::common::tuple_access::TupleAccessor;
@@ -162,7 +163,7 @@ impl Program {
     // All the updates
     for predicate in &stratum.predicates {
       for rule in self.rules_of_predicate(predicate.clone()) {
-        let ctx = QueryPlanContext::from_rule(stratum, rule);
+        let ctx = QueryPlanContext::from_rule(stratum, &self.predicate_registry, rule);
         let plan = ctx.query_plan();
         updates.push(self.plan_to_ram_update(&mut b2r_context, &rule.head, &plan));
       }
@@ -343,6 +344,9 @@ impl Program {
       HighRamNode::Join(d1, d2) => self.join_plan_to_ram_dataflow(ctx, goal, &*d1, &*d2, prop),
       HighRamNode::Antijoin(d1, d2) => self.antijoin_plan_to_ram_dataflow(ctx, goal, &*d1, &*d2, prop),
       HighRamNode::Reduce(r) => self.reduce_plan_to_ram_dataflow(ctx, goal, r, prop),
+      HighRamNode::ForeignPredicateGround(a) => self.fp_ground_plan_to_ram_dataflow(ctx, goal, a, prop),
+      HighRamNode::ForeignPredicateConstraint(d, a) => self.fp_constraint_plan_to_ram_dataflow(ctx, goal, &*d, a, prop),
+      HighRamNode::ForeignPredicateJoin(d, a) => self.fp_join_plan_to_ram_dataflow(ctx, goal, &*d, a, prop),
     }
   }
 
@@ -791,6 +795,100 @@ impl Program {
 
     // Check if we need to store into temporary variable
     Self::process_dataflow(ctx, goal, dataflow, prop)
+  }
+
+  fn fp_ground_plan_to_ram_dataflow(
+    &self,
+    ctx: &mut B2RContext,
+    goal: &VariableTuple,
+    atom: &Atom,
+    prop: DataflowProp,
+  ) -> ram::Dataflow {
+    // Find the foreign predicate in the registry
+    let fp = self.predicate_registry.get(&atom.predicate).unwrap();
+
+    // Get information from the atom
+    let pred: String = atom.predicate.clone();
+    let inputs: Vec<Constant> = atom.args.iter().take(fp.num_bounded()).map(|arg| arg.as_constant().unwrap()).cloned().collect();
+    let ground_dataflow = ram::Dataflow::ForeignPredicateGround(pred, inputs);
+
+    // Get the projection onto the variable tuple
+    let var_tuple = atom.args.iter().skip(fp.num_bounded()).map(|arg| arg.as_variable().unwrap()).cloned();
+    let project = VariableTuple::from_vars(var_tuple, false).projection(goal);
+
+    // Project the dataflow
+    let dataflow = ram::Dataflow::project(ground_dataflow, project);
+    Self::process_dataflow(ctx, goal, dataflow, prop)
+  }
+
+  fn fp_constraint_plan_to_ram_dataflow(
+    &self,
+    ctx: &mut B2RContext,
+    goal: &VariableTuple,
+    d: &Plan,
+    atom: &Atom,
+    prop: DataflowProp,
+  ) -> ram::Dataflow {
+    // Generate a sub-dataflow
+    let sub_goal = VariableTuple::from_vars(d.bounded_vars.iter().cloned(), false);
+    let sub_dataflow: ram::Dataflow = self.plan_to_ram_dataflow(ctx, &sub_goal, d, prop.with_need_sorted(false));
+
+    // Generate information for foreign predicate constraint
+    let pred: String = atom.predicate.clone();
+    let exprs: Vec<Expr> = atom.args.iter().map(|arg| {
+      match arg {
+        Term::Constant(c) => Expr::Constant(c.clone()),
+        Term::Variable(v) => Expr::Access(sub_goal.accessor_of(v).unwrap()),
+      }
+    }).collect();
+
+    // Return a foreign predicate constraint dataflow
+    let dataflow = sub_dataflow.foreign_predicate_constraint(pred, exprs);
+
+    // Get the projection onto the variable tuple
+    let projection = sub_goal.projection(goal);
+    let dataflow = ram::Dataflow::project(dataflow, projection);
+    Self::process_dataflow(ctx, goal, dataflow, prop)
+  }
+
+  fn fp_join_plan_to_ram_dataflow(
+    &self,
+    ctx: &mut B2RContext,
+    goal: &VariableTuple,
+    d: &Plan,
+    atom: &Atom,
+    prop: DataflowProp,
+  ) -> ram::Dataflow {
+    // Find the foreign predicate in the registry
+    let fp = self.predicate_registry.get(&atom.predicate).unwrap();
+
+    // Generate a sub-dataflow
+    let left_goal = VariableTuple::from_vars(d.bounded_vars.iter().cloned(), false);
+    let left_dataflow: ram::Dataflow = self.plan_to_ram_dataflow(ctx, &left_goal, d, prop.with_need_sorted(false));
+
+    // Generate information for foreign predicate constraint
+    let pred: String = atom.predicate.clone();
+    let exprs: Vec<Expr> = atom.args.iter().take(fp.num_bounded()).map(|arg| {
+      match arg {
+        Term::Constant(c) => Expr::Constant(c.clone()),
+        Term::Variable(v) => {
+          Expr::Access(left_goal.accessor_of(v).unwrap())
+        },
+      }
+    }).collect();
+
+    // Generate the joint dataflow
+    let join_dataflow = left_dataflow.foreign_predicate_join(pred, exprs);
+
+    // Get the variable tuple of the joined output
+    let free_vars: Vec<_> = atom.args.iter().skip(fp.num_bounded()).map(|arg| arg.as_variable().unwrap()).cloned().collect();
+    let right_tuple = VariableTuple::from_vars(free_vars.iter().cloned(), false);
+    let var_tuple = VariableTuple::from((left_goal, right_tuple));
+
+    // Project the dataflow
+    let projection = var_tuple.projection(goal);
+    let project_dataflow = ram::Dataflow::project(join_dataflow, projection);
+    Self::process_dataflow(ctx, goal, project_dataflow, prop)
   }
 
   fn process_dataflow(

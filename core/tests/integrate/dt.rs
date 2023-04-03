@@ -35,7 +35,7 @@ fn dt_edge_path_1() {
       rel path(a, b) = edge(a, b) \/ path(a, c) /\ edge(c, b)
       query path(_, 3)
     "#,
-    ("path(_, 3)", vec![(0usize, 3usize), (1, 3), (2, 3)]),
+    ("path(_, 3)", vec![(0, 3), (1, 3), (2, 3)]),
   );
 }
 
@@ -48,6 +48,6 @@ fn dt_edge_path_2() {
       rel path(a, b) = edge(a, b) \/ path(a, c) /\ edge(c, b)
       query path(0, _)
     "#,
-    ("path(0, _)", vec![(0usize, 1usize), (0, 2), (0, 3)]),
+    ("path(0, _)", vec![(0, 1), (0, 2), (0, 3)]),
   );
 }

@@ -84,6 +84,20 @@ impl Dataflow {
           r.op, r.predicate, group_by_predicate
         ))
       }
+      Self::ForeignPredicateGround(pred, args) => {
+        let args = args.iter().map(|a| format!("{:?}", a)).collect::<Vec<_>>();
+        f.write_fmt(format_args!("ForeignPredicateGround[{}({})]", pred, args.join(", ")))
+      }
+      Self::ForeignPredicateConstraint(d, pred, args) => {
+        let args = args.iter().map(|a| format!("{:?}", a)).collect::<Vec<_>>();
+        f.write_fmt(format_args!("ForeignPredicateConstraint[{}({})]\n{}", pred, args.join(", "), padding))?;
+        d.pretty_print(f, next_indent, indent_size)
+      }
+      Self::ForeignPredicateJoin(d, pred, args) => {
+        let args = args.iter().map(|a| format!("{:?}", a)).collect::<Vec<_>>();
+        f.write_fmt(format_args!("ForeignPredicateJoin[{}({})]\n{}", pred, args.join(", "), padding))?;
+        d.pretty_print(f, next_indent, indent_size)
+      }
       Self::OverwriteOne(d) => {
         f.write_fmt(format_args!("OverwriteOne\n{}", padding))?;
         d.pretty_print(f, next_indent, indent_size)

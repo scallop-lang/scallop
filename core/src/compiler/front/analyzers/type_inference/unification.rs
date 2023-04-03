@@ -1,13 +1,14 @@
 use std::collections::*;
 
 use super::*;
+
 use crate::common::value_type::*;
 use crate::compiler::front::*;
 
 /// The structure storing unification relationships
 #[derive(Clone, Debug)]
 pub enum Unification {
-  /// The i-th element of a relation: arg, relation, argument ID
+  /// The i-th element of a relation: arg, relation name, argument ID
   IthArgOfRelation(Loc, String, usize),
 
   /// V, Variable Name
@@ -16,8 +17,20 @@ pub enum Unification {
   /// C, Type Set of C
   OfConstant(Loc, TypeSet),
 
-  /// op1, op2, op1 X op2
-  AddSubMulDivMod(Loc, Loc, Loc),
+  /// op1, op2, op1 + op2
+  Add(Loc, Loc, Loc),
+
+  /// op1, op2, op1 - op2
+  Sub(Loc, Loc, Loc),
+
+  /// op1, op2, op1 * op2
+  Mult(Loc, Loc, Loc),
+
+  /// op1, op2, op1 / op2
+  Div(Loc, Loc, Loc),
+
+  /// op1, op2, op1 % op2
+  Mod(Loc, Loc, Loc),
 
   /// op1, op2, op1 == op2
   EqNeq(Loc, Loc, Loc),
@@ -52,22 +65,51 @@ impl Unification {
     constant_types: &HashMap<Loc, Type>,
     inferred_relation_types: &HashMap<String, (Vec<TypeSet>, Loc)>,
     function_type_registry: &FunctionTypeRegistry,
+    predicate_type_registry: &PredicateTypeRegistry,
     inferred_expr_types: &mut HashMap<Loc, TypeSet>,
   ) -> Result<(), TypeInferenceError> {
     match self {
       Self::IthArgOfRelation(e, p, i) => {
-        let (tys, loc) = inferred_relation_types.get(p).unwrap();
-        if i < &tys.len() {
-          let ty = tys[(*i)].clone();
-          unify_ty(e, ty, inferred_expr_types)?;
-          Ok(())
+        if let Some(tys) = predicate_type_registry.get(p) {
+          if i < &tys.len() {
+            // It is a foreign predicate in the registry; we get the i-th type
+            let ty = TypeSet::base(tys[*i].clone());
+
+            // Unify the type
+            match unify_ty(e, ty.clone(), inferred_expr_types) {
+              Ok(_) => Ok(()),
+              Err(_) => {
+                Err(TypeInferenceError::CannotUnifyForeignPredicateArgument {
+                  pred: p.clone(),
+                  i: *i,
+                  expected_ty: ty,
+                  actual_ty: inferred_expr_types.get(e).unwrap().clone(),
+                  loc: e.clone(),
+                })
+              }
+            }
+          } else {
+            Err(TypeInferenceError::InvalidForeignPredicateArgIndex {
+              predicate: p.clone(),
+              index: i.clone(),
+              access_loc: e.clone(),
+            })
+          }
         } else {
-          Err(TypeInferenceError::InvalidArgIndex {
-            predicate: p.clone(),
-            index: i.clone(),
-            source_loc: loc.clone(),
-            access_loc: e.clone(),
-          })
+          // It is user defined predicate
+          let (tys, loc) = inferred_relation_types.get(p).unwrap();
+          if i < &tys.len() {
+            let ty = tys[*i].clone();
+            unify_ty(e, ty, inferred_expr_types)?;
+            Ok(())
+          } else {
+            Err(TypeInferenceError::InvalidArgIndex {
+              predicate: p.clone(),
+              index: i.clone(),
+              source_loc: loc.clone(),
+              access_loc: e.clone(),
+            })
+          }
         }
       }
       Self::OfVariable(_, _) => Ok(()),
@@ -98,7 +140,19 @@ impl Unification {
           Ok(())
         }
       }
-      Self::AddSubMulDivMod(op1, op2, e) => {
+      Self::Add(op1, op2, e) => {
+        unify_polymorphic_binary_expression(op1, op2, e, inferred_expr_types, &ADD_TYPING_RULES)
+      }
+      Self::Sub(op1, op2, e) => {
+        unify_polymorphic_binary_expression(op1, op2, e, inferred_expr_types, &SUB_TYPING_RULES)
+      }
+      Self::Mult(op1, op2, e) => {
+        unify_polymorphic_binary_expression(op1, op2, e, inferred_expr_types, &MULT_TYPING_RULES)
+      }
+      Self::Div(op1, op2, e) => {
+        unify_polymorphic_binary_expression(op1, op2, e, inferred_expr_types, &DIV_TYPING_RULES)
+      }
+      Self::Mod(op1, op2, e) => {
         let e_ty = inferred_expr_types
           .entry(e.clone())
           .or_insert(TypeSet::Arith(e.clone()))
@@ -153,25 +207,7 @@ impl Unification {
         Ok(())
       }
       Self::LtLeqGtGeq(op1, op2, e) => {
-        // e should be boolean
-        unify_boolean(e, inferred_expr_types)?;
-
-        // op1 and op2 are numeric
-        let t1 = unify_arith(op1, inferred_expr_types)?;
-        let t2 = unify_arith(op2, inferred_expr_types)?;
-
-        // op1 and op2 are of the same type
-        match t1.unify(&t2) {
-          Ok(new_ty) => {
-            inferred_expr_types.insert(op1.clone(), new_ty.clone());
-            inferred_expr_types.insert(op2.clone(), new_ty.clone());
-            Ok(())
-          }
-          Err(mut err) => {
-            err.annotate_location(e);
-            Err(err)
-          }
-        }
+        unify_comparison_expression(op1, op2, e, inferred_expr_types, &COMPARE_TYPING_RULES)
       }
       Self::PosNeg(op1, e) => {
         let e_ty = inferred_expr_types
@@ -327,8 +363,121 @@ impl Unification {
   }
 }
 
+enum AppliedRules<T> {
+  None,
+  One(T),
+  Multiple,
+}
+
+impl<T> AppliedRules<T> {
+  fn new() -> Self {
+    Self::None
+  }
+
+  fn add(self, rule: T) -> Self {
+    match self {
+      Self::None => Self::One(rule),
+      Self::One(_) => Self::Multiple,
+      Self::Multiple => Self::Multiple,
+    }
+  }
+}
+
 fn get_or_insert_ty(e: &Loc, ty: TypeSet, inferred_expr_types: &mut HashMap<Loc, TypeSet>) -> TypeSet {
   inferred_expr_types.entry(e.clone()).or_insert(ty).clone()
+}
+
+fn unify_polymorphic_binary_expression(
+  op1: &Loc,
+  op2: &Loc,
+  e: &Loc,
+  inferred_expr_types: &mut HashMap<Loc, TypeSet>,
+  rules: &[(ValueType, ValueType, ValueType)],
+) -> Result<(), TypeInferenceError> {
+  // First get the already inferred types of op1, op2, and e
+  let op1_ty = unify_any(op1, inferred_expr_types)?;
+  let op2_ty = unify_any(op2, inferred_expr_types)?;
+  let e_ty = unify_any(e, inferred_expr_types)?;
+
+  // Then iterate through all the rules to see if any could be applied
+  let mut applied_rules = AppliedRules::new();
+  for (t1, t2, te) in rules {
+    if op1_ty.contains_value_type(t1) && op2_ty.contains_value_type(t2) && e_ty.contains_value_type(te) {
+      applied_rules = applied_rules.add((t1.clone(), t2.clone(), te.clone()));
+    }
+  }
+
+  // Finally, check if there is any rule applied
+  match applied_rules {
+    AppliedRules::None => {
+      // If no rule can be applied, then the type inference is failed
+      Err(TypeInferenceError::NoMatchingTripletRule {
+        op1_ty,
+        op2_ty,
+        e_ty,
+        location: e.clone(),
+      })
+    },
+    AppliedRules::One((t1, t2, te)) => {
+      // If there is exactly one rule that can be applied, then unify them with the exact types
+      unify_ty(op1, TypeSet::BaseType(t1, e.clone()), inferred_expr_types)?;
+      unify_ty(op2, TypeSet::BaseType(t2, e.clone()), inferred_expr_types)?;
+      unify_ty(e, TypeSet::BaseType(te, e.clone()), inferred_expr_types)?;
+      Ok(())
+    }
+    AppliedRules::Multiple => {
+      // If ther are multiple rules that can be applied, we are not sure about the exact types,
+      // but the type inference is still successful
+      Ok(())
+    },
+  }
+}
+
+fn unify_comparison_expression(
+  op1: &Loc,
+  op2: &Loc,
+  e: &Loc,
+  inferred_expr_types: &mut HashMap<Loc, TypeSet>,
+  rules: &[(ValueType, ValueType)],
+) -> Result<(), TypeInferenceError> {
+  // The result should be a boolean
+  let e_ty = unify_boolean(e, inferred_expr_types)?;
+
+  // First get the already inferred types of op1, op2, and e
+  let op1_ty = unify_any(op1, inferred_expr_types)?;
+  let op2_ty = unify_any(op2, inferred_expr_types)?;
+
+  // Then iterate through all the rules to see if any could be applied
+  let mut applied_rules = AppliedRules::new();
+  for (t1, t2) in rules {
+    if op1_ty.contains_value_type(t1) && op2_ty.contains_value_type(t2) {
+      applied_rules = applied_rules.add((t1.clone(), t2.clone()));
+    }
+  }
+
+  // Finally, check if there is any rule applied
+  match applied_rules {
+    AppliedRules::None => {
+      // If no rule can be applied, then the type inference is failed
+      Err(TypeInferenceError::NoMatchingTripletRule {
+        op1_ty,
+        op2_ty,
+        e_ty,
+        location: e.clone(),
+      })
+    },
+    AppliedRules::One((t1, t2)) => {
+      // If there is exactly one rule that can be applied, then unify them with the exact types
+      unify_ty(op1, TypeSet::BaseType(t1, e.clone()), inferred_expr_types)?;
+      unify_ty(op2, TypeSet::BaseType(t2, e.clone()), inferred_expr_types)?;
+      Ok(())
+    }
+    AppliedRules::Multiple => {
+      // If ther are multiple rules that can be applied, we are not sure about the exact types,
+      // but the type inference is still successful
+      Ok(())
+    },
+  }
 }
 
 fn unify_ty(
@@ -351,11 +500,6 @@ fn unify_ty(
 
 fn unify_any(e: &Loc, inferred_expr_types: &mut HashMap<Loc, TypeSet>) -> Result<TypeSet, TypeInferenceError> {
   let e_ty = TypeSet::Any(e.clone());
-  unify_ty(e, e_ty, inferred_expr_types)
-}
-
-fn unify_arith(e: &Loc, inferred_expr_types: &mut HashMap<Loc, TypeSet>) -> Result<TypeSet, TypeInferenceError> {
-  let e_ty = TypeSet::Arith(e.clone());
   unify_ty(e, e_ty, inferred_expr_types)
 }
 

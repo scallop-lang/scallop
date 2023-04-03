@@ -1,20 +1,20 @@
 #[derive(Clone)]
-pub struct OutputDiffProb<T: Clone + 'static>(pub f64, pub Vec<(usize, f64, T)>);
+pub struct OutputDiffProb(pub f64, pub Vec<(usize, f64)>);
 
-impl<T: Clone + 'static> std::fmt::Debug for OutputDiffProb<T> {
+impl std::fmt::Debug for OutputDiffProb {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_tuple("")
       .field(&self.0)
-      .field(&self.1.iter().map(|(id, weight, _)| (id, weight)).collect::<Vec<_>>())
+      .field(&self.1.iter().map(|(id, weight)| (id, weight)).collect::<Vec<_>>())
       .finish()
   }
 }
 
-impl<T: Clone + 'static> std::fmt::Display for OutputDiffProb<T> {
+impl std::fmt::Display for OutputDiffProb {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_tuple("")
       .field(&self.0)
-      .field(&self.1.iter().map(|(id, weight, _)| (id, weight)).collect::<Vec<_>>())
+      .field(&self.1.iter().map(|(id, weight)| (id, weight)).collect::<Vec<_>>())
       .finish()
   }
 }

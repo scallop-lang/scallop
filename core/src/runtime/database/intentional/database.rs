@@ -74,7 +74,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalDatabase<Prov, Ptr> {
       IntentionalRelation {
         recovered: true,
         internal_facts: DynamicCollection::empty(),
-        recovered_facts: Ptr::new(DynamicOutputCollection::from(
+        recovered_facts: Ptr::new_rc(DynamicOutputCollection::from(
           edb_relation
             .internal
             .iter()
@@ -109,17 +109,17 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalDatabase<Prov, Ptr> {
   pub fn get_output_collection_ref(&self, relation: &str) -> Option<&DynamicOutputCollection<Prov>> {
     self.intentional_relations.get(relation).and_then(|r| {
       if r.recovered {
-        Some(Ptr::get(&r.recovered_facts))
+        Some(Ptr::get_rc(&r.recovered_facts))
       } else {
         None
       }
     })
   }
 
-  pub fn get_output_collection(&self, relation: &str) -> Option<Ptr::Pointer<DynamicOutputCollection<Prov>>> {
+  pub fn get_output_collection(&self, relation: &str) -> Option<Ptr::Rc<DynamicOutputCollection<Prov>>> {
     self.intentional_relations.get(relation).and_then(|r| {
       if r.recovered {
-        Some(Ptr::clone_ptr(&r.recovered_facts))
+        Some(Ptr::clone_rc(&r.recovered_facts))
       } else {
         None
       }

@@ -20,8 +20,12 @@ impl Formula {
 
   pub fn negate(&self) -> Self {
     match self {
-      Self::Atom(a) => Self::NegAtom(NegAtom::new(a.location().clone(), NegAtomNode { atom: a.clone() })),
-      Self::NegAtom(n) => Self::Atom(n.atom().clone()),
+      Self::Atom(a) => {
+        Self::NegAtom(NegAtom::new(a.location().clone(), NegAtomNode { atom: a.clone() }))
+      }
+      Self::NegAtom(n) => {
+        Self::Atom(n.atom().clone())
+      },
       Self::Disjunction(d) => Self::Conjunction(Conjunction::new(
         d.location().clone(),
         ConjunctionNode {
@@ -89,6 +93,10 @@ pub type NegAtom = AstNode<NegAtomNode>;
 impl NegAtom {
   pub fn atom(&self) -> &Atom {
     &self.node.atom
+  }
+
+  pub fn predicate(&self) -> &String {
+    self.atom().predicate()
   }
 }
 

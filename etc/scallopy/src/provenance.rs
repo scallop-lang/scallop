@@ -50,7 +50,7 @@ pub trait PythonProvenance: Provenance {
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>>;
 
   /// Convert an output collection into a python collection enum
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum;
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum<ArcFamily>;
 
   /// Convert an output tag into a python object
   fn to_output_py_tag(tag: &Self::OutputTag) -> Py<PyAny>;
@@ -65,7 +65,7 @@ impl PythonProvenance for unit::UnitProvenance {
     Ok(None)
   }
 
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum {
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum<ArcFamily> {
     CollectionEnum::Unit { collection: col }
   }
 
@@ -74,13 +74,13 @@ impl PythonProvenance for unit::UnitProvenance {
   }
 }
 
-impl PythonProvenance for proofs::ProofsProvenance {
+impl PythonProvenance for proofs::ProofsProvenance<ArcFamily> {
   fn process_py_tag(disj_id: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let disj_id: usize = disj_id.extract()?;
     Ok(Some(proofs::ProofsInputTag::Exclusive(disj_id)))
   }
 
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum {
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum<ArcFamily> {
     CollectionEnum::Proofs { collection: col }
   }
 
@@ -101,7 +101,7 @@ impl PythonProvenance for min_max_prob::MinMaxProbProvenance {
     tag.extract().map(Some)
   }
 
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum {
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum<ArcFamily> {
     CollectionEnum::MinMaxProb { collection: col }
   }
 
@@ -115,7 +115,7 @@ impl PythonProvenance for add_mult_prob::AddMultProbProvenance {
     tag.extract().map(Some)
   }
 
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum {
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum<ArcFamily> {
     CollectionEnum::AddMultProb { collection: col }
   }
 
@@ -134,10 +134,9 @@ impl PythonProvenance for top_k_proofs::TopKProofsProvenance<ArcFamily> {
     }
   }
 
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum<ArcFamily> {
     CollectionEnum::TopKProofs {
       collection: col.clone(),
-      tags: ctx.probs.clone(),
     }
   }
 
@@ -156,10 +155,9 @@ impl PythonProvenance for top_bottom_k_clauses::TopBottomKClausesProvenance<ArcF
     }
   }
 
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum<ArcFamily> {
     CollectionEnum::TopBottomKClauses {
       collection: col.clone(),
-      tags: ctx.probs.clone(),
     }
   }
 
@@ -172,13 +170,13 @@ impl PythonProvenance for diff_min_max_prob::DiffMinMaxProbProvenance<Py<PyAny>,
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let prob: f64 = tag.extract()?;
     let tag: Py<PyAny> = tag.into();
-    Ok(Some((prob, tag).into()))
+    Ok(Some((prob, Some(tag)).into()))
   }
 
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum<ArcFamily> {
     CollectionEnum::DiffMinMaxProb {
       collection: col,
-      tags: ctx.diff_probs.clone(),
+      tags: ctx.storage.clone(),
     }
   }
 
@@ -195,10 +193,10 @@ impl PythonProvenance for diff_add_mult_prob::DiffAddMultProbProvenance<Py<PyAny
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let prob: f64 = tag.extract()?;
     let tag: Py<PyAny> = tag.into();
-    Ok(Some((prob, tag).into()))
+    Ok(Some((prob, Some(tag)).into()))
   }
 
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum<ArcFamily> {
     CollectionEnum::DiffAddMultProb {
       collection: col,
       tags: ctx.storage.clone(),
@@ -214,10 +212,10 @@ impl PythonProvenance for diff_nand_mult_prob::DiffNandMultProbProvenance<Py<PyA
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let prob: f64 = tag.extract()?;
     let tag: Py<PyAny> = tag.into();
-    Ok(Some((prob, tag).into()))
+    Ok(Some((prob, Some(tag)).into()))
   }
 
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum<ArcFamily> {
     CollectionEnum::DiffNandMultProb {
       collection: col,
       tags: ctx.storage.clone(),
@@ -233,10 +231,10 @@ impl PythonProvenance for diff_max_mult_prob::DiffMaxMultProbProvenance<Py<PyAny
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let prob: f64 = tag.extract()?;
     let tag: Py<PyAny> = tag.into();
-    Ok(Some((prob, tag).into()))
+    Ok(Some((prob, Some(tag)).into()))
   }
 
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum<ArcFamily> {
     CollectionEnum::DiffMaxMultProb {
       collection: col,
       tags: ctx.storage.clone(),
@@ -252,10 +250,10 @@ impl PythonProvenance for diff_nand_min_prob::DiffNandMinProbProvenance<Py<PyAny
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let prob: f64 = tag.extract()?;
     let tag: Py<PyAny> = tag.into();
-    Ok(Some((prob, tag).into()))
+    Ok(Some((prob, Some(tag)).into()))
   }
 
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum<ArcFamily> {
     CollectionEnum::DiffNandMinProb {
       collection: col,
       tags: ctx.storage.clone(),
@@ -278,10 +276,10 @@ impl PythonProvenance for diff_sample_k_proofs::DiffSampleKProofsProvenance<Py<P
     }
   }
 
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum<ArcFamily> {
     CollectionEnum::DiffSampleKProofs {
       collection: col,
-      tags: ctx.diff_probs.clone(),
+      tags: ctx.storage.clone_rc(),
     }
   }
 
@@ -301,10 +299,10 @@ impl PythonProvenance for diff_top_k_proofs::DiffTopKProofsProvenance<Py<PyAny>,
     }
   }
 
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum<ArcFamily> {
     CollectionEnum::DiffTopKProofs {
       collection: col,
-      tags: ctx.diff_probs.clone(),
+      tags: ctx.storage.clone_rc(),
     }
   }
 
@@ -324,10 +322,10 @@ impl PythonProvenance for diff_top_k_proofs_indiv::DiffTopKProofsIndivProvenance
     }
   }
 
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum<ArcFamily> {
     CollectionEnum::DiffTopKProofsIndiv {
       collection: col,
-      tags: ctx.diff_probs.clone(),
+      tags: ctx.storage.clone_rc(),
     }
   }
 
@@ -347,10 +345,10 @@ impl PythonProvenance for diff_top_bottom_k_clauses::DiffTopBottomKClausesProven
     }
   }
 
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum {
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum<ArcFamily> {
     CollectionEnum::DiffTopBottomKClauses {
       collection: col,
-      tags: ctx.diff_probs.clone(),
+      tags: ctx.storage.clone_rc(),
     }
   }
 
@@ -365,7 +363,7 @@ impl PythonProvenance for custom_tag::CustomProvenance {
     Ok(Some(tag))
   }
 
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum {
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum<ArcFamily> {
     CollectionEnum::Custom { collection: col }
   }
 

@@ -4,8 +4,7 @@ use std::rc::Rc;
 
 use super::dataflow::*;
 use super::*;
-use crate::common::input_tag::FromInputTag;
-use crate::common::input_tag::InputTag;
+use crate::common::input_tag::*;
 use crate::common::tuple::Tuple;
 use crate::runtime::env::*;
 use crate::runtime::monitor::*;
@@ -65,21 +64,21 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     self.insert_tagged_with_monitor(ctx, vec![(input_tag, tuple)], m);
   }
 
-  pub fn insert_dynamically_tagged<Tup>(&self, ctx: &mut Prov, data: Vec<(InputTag, Tup)>)
+  pub fn insert_dynamically_tagged<Tup>(&self, ctx: &mut Prov, data: Vec<(DynamicInputTag, Tup)>)
   where
     Tup: Into<Tuple>,
   {
     let elements = data
       .into_iter()
       .map(|(tag, tup)| {
-        let input_tag = FromInputTag::from_input_tag(&tag);
+        let input_tag = StaticInputTag::from_dynamic_input_tag(&tag);
         (input_tag, tup)
       })
       .collect();
     self.insert_tagged(ctx, elements);
   }
 
-  pub fn insert_dynamically_tagged_with_monitor<Tup, M>(&self, ctx: &mut Prov, data: Vec<(InputTag, Tup)>, m: &M)
+  pub fn insert_dynamically_tagged_with_monitor<Tup, M>(&self, ctx: &mut Prov, data: Vec<(DynamicInputTag, Tup)>, m: &M)
   where
     Tup: Into<Tuple>,
     M: Monitor<Prov>,
@@ -87,7 +86,7 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     let elements = data
       .into_iter()
       .map(|(tag, tup)| {
-        let input_tag = FromInputTag::from_input_tag(&tag);
+        let input_tag = StaticInputTag::from_dynamic_input_tag(&tag);
         (input_tag, tup)
       })
       .collect();

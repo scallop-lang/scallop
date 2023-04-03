@@ -2,20 +2,28 @@ use std::collections::*;
 
 use super::super::*;
 use super::*;
+
+use crate::common::foreign_predicate::*;
 use crate::compiler::front::*;
 
 #[derive(Clone, Debug)]
 pub struct BoundnessAnalysis {
+  pub predicate_bindings: ForeignPredicateBindings,
   pub rule_contexts: HashMap<Loc, (Rule, RuleContext, bool)>,
   pub errors: Vec<BoundnessAnalysisError>,
 }
 
 impl BoundnessAnalysis {
-  pub fn new() -> Self {
+  pub fn new(registry: &ForeignPredicateRegistry) -> Self {
     Self {
+      predicate_bindings: registry.into(),
       rule_contexts: HashMap::new(),
       errors: Vec::new(),
     }
+  }
+
+  pub fn add_foreign_predicate<F: ForeignPredicate>(&mut self, fp: &F) {
+    self.predicate_bindings.add(fp)
   }
 
   pub fn get_rule_context(&self, loc: &Loc) -> Option<&RuleContext> {
@@ -42,7 +50,7 @@ impl BoundnessAnalysis {
         };
 
         // Compute the boundness
-        match ctx.compute_boundness(&bounded_exprs) {
+        match ctx.compute_boundness(&self.predicate_bindings, &bounded_exprs) {
           Ok(_) => {}
           Err(errs) => {
             self.errors.extend(errs);

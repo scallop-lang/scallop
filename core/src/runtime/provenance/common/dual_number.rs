@@ -22,6 +22,14 @@ impl DualNumberSemiring {
       deriv: CsVec::new(self.dim, vec![id], vec![1.0]),
     }
   }
+
+  /// Create a constant dual number
+  pub fn constant(&self, real: f64) -> DualNumber {
+    DualNumber {
+      real,
+      deriv: CsVec::new(self.dim, vec![], vec![]),
+    }
+  }
 }
 
 impl sdd::Semiring for DualNumberSemiring {

@@ -1,4 +1,18 @@
-# v0.1.7, Jan 12, 2022
+# latest
+
+- Fixed a bug so that NaN would not appear in the value computation
+- Fixed a bug in `scallopy` where disjunctive facts are not processed correctly
+
+# v0.1.8, Mar 27, 2023
+
+- Add foreign predicates including soft comparisons,
+- Add `DateTime` and `Duration` support
+- Add input-mapping support for multi-dimensional inputs in `scallopy`
+- Fixing floating point support by rejecting `NaN` values
+- Adding back iteration-limit to runtime environment
+- Add Scallop book repository
+
+# v0.1.7, Jan 12, 2023
 
 - Better integration with Extensional Databases (EDB) and memory optimizations
 - Better handling of mutual exclusive facts in probabilistic/differentiable reasoning

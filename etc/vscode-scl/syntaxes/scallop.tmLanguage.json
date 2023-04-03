@@ -10,6 +10,12 @@
 			"include": "#strings"
 		},
 		{
+			"include": "#datetime"
+		},
+		{
+			"include": "#duration"
+		},
+		{
 			"include": "#chars"
 		},
 		{
@@ -226,6 +232,28 @@
 		"strings": {
 			"name": "string.quoted.double.scallop",
 			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.scallop",
+					"match": "\\\\."
+				}
+			]
+		},
+		"datetime": {
+			"name": "string.quoted.double.scallop",
+			"begin": "t\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.scallop",
+					"match": "\\\\."
+				}
+			]
+		},
+		"duration": {
+			"name": "string.quoted.double.scallop",
+			"begin": "d\"",
 			"end": "\"",
 			"patterns": [
 				{

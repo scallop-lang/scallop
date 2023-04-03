@@ -3,6 +3,7 @@
 use std::convert::*;
 
 use super::value_type::*;
+use chrono::{DateTime, Duration, Utc};
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Value {
@@ -24,12 +25,28 @@ pub enum Value {
   Bool(bool),
   Str(&'static str),
   String(String),
+  DateTime(DateTime<Utc>),
+  Duration(Duration),
   // RcString(Rc<String>),
 }
 
 impl Value {
   pub fn value_type(&self) -> ValueType {
     ValueType::type_of(self)
+  }
+
+  pub fn as_date_time(&self) -> DateTime<Utc> {
+    match self {
+      Self::DateTime(d) => d.clone(),
+      _ => panic!("Not a DateTime")
+    }
+  }
+
+  pub fn as_duration(&self) -> Duration {
+    match self {
+      Self::Duration(d) => d.clone(),
+      _ => panic!("Not a Duration")
+    }
   }
 
   pub fn as_usize(&self) -> usize {
@@ -80,6 +97,8 @@ impl std::hash::Hash for Value {
       Self::Bool(b) => b.hash(state),
       Self::Str(s) => s.hash(state),
       Self::String(s) => s.hash(state),
+      Self::DateTime(d) => d.hash(state),
+      Self::Duration(d) => d.hash(state),
     }
   }
 }
@@ -105,6 +124,8 @@ impl std::fmt::Display for Value {
       Self::Bool(i) => f.write_fmt(format_args!("{}", i)),
       Self::Str(i) => f.write_fmt(format_args!("{:?}", i)),
       Self::String(i) => f.write_fmt(format_args!("{:?}", i)),
+      Self::DateTime(i) => f.write_fmt(format_args!("t\"{}\"", i)),
+      Self::Duration(i) => f.write_fmt(format_args!("d\"{}\"", i)),
       // Self::RcString(i) => f.write_fmt(format_args!("{:?}", i)),
     }
   }
@@ -218,6 +239,18 @@ impl From<String> for Value {
   }
 }
 
+impl From<DateTime<Utc>> for Value {
+  fn from(dt: DateTime<Utc>) -> Self {
+    Self::DateTime(dt)
+  }
+}
+
+impl From<Duration> for Value {
+  fn from(d: Duration) -> Self {
+    Self::Duration(d)
+  }
+}
+
 // impl From<Rc<String>> for Value {
 //   fn from(s: Rc<String>) -> Self {
 //     Self::RcString(s)
@@ -239,6 +272,7 @@ macro_rules! impl_try_into {
   };
 }
 
+#[derive(Clone, Debug, Default)]
 pub struct ValueConversionError;
 
 impl_try_into!(i8, I8);

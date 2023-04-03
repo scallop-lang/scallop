@@ -613,7 +613,7 @@ fn generate_helper_functions() -> TokenStream {
       }
     }
 
-    impl PythonProvenance for proofs::ProofsProvenance {
+    impl PythonProvenance for proofs::ProofsProvenance<ArcFamily> {
       fn process_py_tag(disj_id: &PyAny) -> Result<Option<Self::InputTag>, BindingError> {
         let disj_id: usize = disj_id.extract()?;
         Ok(Some(proofs::ProofsInputTag::Exclusive(disj_id)))
@@ -685,7 +685,7 @@ fn generate_helper_functions() -> TokenStream {
       fn process_py_tag(tag: &PyAny) -> Result<Option<Self::InputTag>, BindingError> {
         let prob: f64 = tag.extract().map_err(BindingError::from)?;
         let tag: Py<PyAny> = tag.into();
-        Ok(Some((prob, tag).into()))
+        Ok(Some((prob, Some(tag)).into()))
       }
 
       fn to_output_py_tag(tag: &Self::OutputTag) -> Py<PyAny> {
@@ -701,7 +701,7 @@ fn generate_helper_functions() -> TokenStream {
       fn process_py_tag(tag: &PyAny) -> Result<Option<Self::InputTag>, BindingError> {
         let prob: f64 = tag.extract().map_err(BindingError::from)?;
         let tag: Py<PyAny> = tag.into();
-        Ok(Some((prob, tag).into()))
+        Ok(Some((prob, Some(tag)).into()))
       }
 
       fn to_output_py_tag(tag: &Self::OutputTag) -> Py<PyAny> {
@@ -717,7 +717,7 @@ fn generate_helper_functions() -> TokenStream {
       fn process_py_tag(tag: &PyAny) -> Result<Option<Self::InputTag>, BindingError> {
         let prob: f64 = tag.extract().map_err(BindingError::from)?;
         let tag: Py<PyAny> = tag.into();
-        Ok(Some((prob, tag).into()))
+        Ok(Some((prob, Some(tag)).into()))
       }
 
       fn to_output_py_tag(tag: &Self::OutputTag) -> Py<PyAny> {
@@ -733,7 +733,7 @@ fn generate_helper_functions() -> TokenStream {
       fn process_py_tag(tag: &PyAny) -> Result<Option<Self::InputTag>, BindingError> {
         let prob: f64 = tag.extract().map_err(BindingError::from)?;
         let tag: Py<PyAny> = tag.into();
-        Ok(Some((prob, tag).into()))
+        Ok(Some((prob, Some(tag)).into()))
       }
 
       fn to_output_py_tag(tag: &Self::OutputTag) -> Py<PyAny> {
@@ -749,7 +749,7 @@ fn generate_helper_functions() -> TokenStream {
       fn process_py_tag(tag: &PyAny) -> Result<Option<Self::InputTag>, BindingError> {
         let prob: f64 = tag.extract()?;
         let tag: Py<PyAny> = tag.into();
-        Ok(Some((prob, tag).into()))
+        Ok(Some((prob, Some(tag)).into()))
       }
 
       fn to_output_py_tag(tag: &Self::OutputTag) -> Py<PyAny> {

@@ -21,13 +21,15 @@ class ScallopForwardFunction(torch.nn.Module):
     provenance: str = "difftopkproofs",
     custom_provenance: Optional[ScallopProvenance] = None,
     non_probabilistic: Optional[List[str]] = None,
-    input_mappings: Optional[Dict[str, List]] = None,
+    input_mappings: Optional[Dict[str, Any]] = None,
     output_relation: Optional[str] = None,
     output_mapping: Optional[List] = None,
     output_mappings: Optional[Dict[str, List]] = None,
     k: int = 3,
     train_k: Optional[int] = None,
     test_k: Optional[int] = None,
+    early_discard: Optional[bool] = None,
+    iter_limit: Optional[int] = None,
     retain_graph: bool = False,
     jit: bool = False,
     jit_name: str = "",
@@ -70,6 +72,14 @@ class ScallopForwardFunction(torch.nn.Module):
     if facts is not None:
       for (relation, elems) in facts.items():
         self.ctx.add_facts(relation, elems)
+
+    # Configurations: iteration limit
+    if iter_limit is not None:
+      self.ctx.set_iter_limit(iter_limit)
+
+    # Configurations: early discarding
+    if early_discard is not None:
+      self.ctx.set_early_discard(early_discard)
 
     # Create the forward function
     self.forward_fn = self.ctx.forward_function(
@@ -381,6 +391,8 @@ class InternalScallopForwardFunction(torch.nn.Module):
       # Process the facts
       ty = type(rela_facts) # The type of relation facts
       index_mapping = None # The index mapping of given facts and preprocessed facts if there is removal of facts
+
+      # If the facts are directly provided as list
       if ty == list:
         facts = rela_facts
         if rela in self.ctx._input_retain_topk:
@@ -391,31 +403,22 @@ class InternalScallopForwardFunction(torch.nn.Module):
             facts = [f for (_, f) in indexed_facts]
           else:
             facts = sorted(facts, key=lambda x: x[0].item(), reverse=True)[:k]
+
+        # Remap disjunction
+        remapped_disjs = [[index_mapping[i] for i in d if i in index_mapping] for d in disjunctions] if index_mapping is not None else disjunctions
+
+        # Process elements with this disjunction
+        facts = self.ctx._process_disjunctive_elements(facts, remapped_disjs)
+
+      # If the facts are provided as Tensor
       elif ty == Tensor:
         if rela not in self.ctx._input_mappings:
           raise Exception(f"scallopy.forward receives vectorized Tensor input. However there is no `input_mapping` provided for relation `{rela}`")
-        probs = rela_facts
-        single_element = self.ctx._input_mappings[rela][1]
-        if single_element:
-          fact = self.ctx._input_mappings[rela][0][0]
-          facts = [(probs, fact)]
-        else:
-          if rela in self.ctx._input_retain_topk and self.ctx._input_retain_topk[rela]:
-            k = min(self.ctx._input_retain_topk[rela], len(probs))
-            (top_probs, top_prob_ids) = torch.topk(probs, k)
-            facts = [(p, self.ctx._input_mappings[rela][0][i]) for (p, i) in zip(top_probs, top_prob_ids)]
-            if disjunctions is not None:
-              index_mapping = {j: i for (i, j) in enumerate(top_prob_ids)}
-          else:
-            facts = list(zip(probs, self.ctx._input_mappings[rela][0]))
+
+        # Use the input mapping to process
+        facts = self.ctx._input_mappings[rela].process_tensor(rela_facts)
       else:
         raise Exception(f"Unknown input facts type. Expected Tensor or List, found {ty}")
-
-      # Remap disjunction
-      remapped_disjs = [[index_mapping[i] for i in d if i in index_mapping] for d in disjunctions] if index_mapping is not None else disjunctions
-
-      # Process elements with this disjunction
-      facts = self.ctx._process_disjunctive_elements(facts, remapped_disjs)
 
       # Add the facts
       return facts
@@ -436,7 +439,7 @@ class InternalScallopForwardFunction(torch.nn.Module):
       if not self.ctx.has_relation(rela):
         raise Exception(f"Unknown relation `{rela}`")
       facts = rela_inputs[task_id]
-      temp_ctx.add_facts(rela, facts)
+      temp_ctx._internal.add_facts(rela, facts)
 
     # Execute the context
     if self.debug_provenance:
@@ -707,7 +710,7 @@ class InternalScallopForwardFunction(torch.nn.Module):
       for (output_id, output_tag) in enumerate(task_result): # output_size
         if output_tag is not None:
           (_, deriv) = output_tag
-          for (input_id, weight, _) in deriv:
+          for (input_id, weight) in deriv:
             mat_w[batch_id, output_id, input_id] = weight
 
     # backward hook

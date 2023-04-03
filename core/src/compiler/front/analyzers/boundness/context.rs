@@ -32,8 +32,12 @@ impl RuleContext {
     Self { head_vars, body }
   }
 
-  pub fn compute_boundness(&self, bounded_exprs: &Vec<Expr>) -> Result<BTreeSet<String>, Vec<BoundnessAnalysisError>> {
-    let bounded_vars = self.body.compute_boundness(bounded_exprs)?;
+  pub fn compute_boundness(
+    &self,
+    predicate_bindings: &ForeignPredicateBindings,
+    bounded_exprs: &Vec<Expr>,
+  ) -> Result<BTreeSet<String>, Vec<BoundnessAnalysisError>> {
+    let bounded_vars = self.body.compute_boundness(predicate_bindings, bounded_exprs)?;
     for (var_name, var_loc) in &self.head_vars {
       if !bounded_vars.contains(var_name) {
         let err = BoundnessAnalysisError::HeadExprUnbound { loc: var_loc.clone() };
@@ -72,16 +76,20 @@ impl DisjunctionContext {
     Self { conjuncts }
   }
 
-  pub fn compute_boundness(&self, bounded_exprs: &Vec<Expr>) -> Result<BTreeSet<String>, Vec<BoundnessAnalysisError>> {
+  pub fn compute_boundness(
+    &self,
+    predicate_bindings: &ForeignPredicateBindings,
+    bounded_exprs: &Vec<Expr>,
+  ) -> Result<BTreeSet<String>, Vec<BoundnessAnalysisError>> {
     if self.conjuncts.is_empty() {
       Ok(BTreeSet::new())
     } else if self.conjuncts.len() == 1 {
-      self.conjuncts[0].compute_boundness(bounded_exprs)
+      self.conjuncts[0].compute_boundness(predicate_bindings, bounded_exprs)
     } else {
-      let set1 = self.conjuncts[0].compute_boundness(bounded_exprs)?;
+      let set1 = self.conjuncts[0].compute_boundness(predicate_bindings, bounded_exprs)?;
       let other_sets = self.conjuncts[1..]
         .iter()
-        .map(|c| c.compute_boundness(bounded_exprs))
+        .map(|c| c.compute_boundness(predicate_bindings, bounded_exprs))
         .collect::<Result<Vec<BTreeSet<_>>, _>>()?;
       Ok(
         set1
@@ -141,13 +149,17 @@ impl ConjunctionContext {
     }
   }
 
-  pub fn compute_boundness(&self, bounded_exprs: &Vec<Expr>) -> Result<BTreeSet<String>, Vec<BoundnessAnalysisError>> {
-    let mut local_ctx = LocalBoundnessAnalysisContext::new();
+  pub fn compute_boundness(
+    &self,
+    predicate_bindings: &ForeignPredicateBindings,
+    bounded_exprs: &Vec<Expr>,
+  ) -> Result<BTreeSet<String>, Vec<BoundnessAnalysisError>> {
+    let mut local_ctx = LocalBoundnessAnalysisContext::new(predicate_bindings);
 
     // First check if the aggregation's boundness is okay
     for agg_context in &self.agg_contexts {
       // The bounded variables inside the aggregation is part of the bounded vars
-      let bounded_args = agg_context.compute_boundness(bounded_exprs)?;
+      let bounded_args = agg_context.compute_boundness(predicate_bindings, bounded_exprs)?;
       local_ctx.bounded_variables.extend(bounded_args);
     }
 
@@ -240,17 +252,21 @@ impl AggregationContext {
     }
   }
 
-  pub fn compute_boundness(&self, bounded_exprs: &Vec<Expr>) -> Result<HashSet<String>, Vec<BoundnessAnalysisError>> {
+  pub fn compute_boundness(
+    &self,
+    predicate_bindings: &ForeignPredicateBindings,
+    bounded_exprs: &Vec<Expr>,
+  ) -> Result<HashSet<String>, Vec<BoundnessAnalysisError>> {
     // Construct the bounded
     let mut bounded = HashSet::new();
 
     // If group_by is presented, check the gruop_by binding variables are properly bounded
     if let Some((group_by_ctx, _, _)) = &self.group_by {
-      group_by_ctx.compute_boundness(bounded_exprs)?;
+      group_by_ctx.compute_boundness(predicate_bindings, bounded_exprs)?;
     }
 
     // Add all the bounded variables in the aggregation body
-    bounded.extend(self.joined_body.compute_boundness(bounded_exprs)?);
+    bounded.extend(self.joined_body.compute_boundness(predicate_bindings, bounded_exprs)?);
 
     // Remove the qualified variable
     for binding_name in &self.binding_vars {

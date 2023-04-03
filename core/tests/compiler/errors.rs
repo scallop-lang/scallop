@@ -118,3 +118,13 @@ fn conflicting_constant_decl_type_3() {
     |e| e.contains("cannot unify"),
   )
 }
+
+#[test]
+fn bad_enum_type_decl() {
+  expect_front_compile_failure(
+    r#"
+    type K = A = 3 | B | C = 4 | D
+    "#,
+    |e| e.contains("has already been assigned"),
+  )
+}

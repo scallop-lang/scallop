@@ -53,6 +53,11 @@ pub enum TypeInferenceError {
     source_loc: AstNodeLocation,
     access_loc: AstNodeLocation,
   },
+  InvalidForeignPredicateArgIndex {
+    predicate: String,
+    index: usize,
+    access_loc: AstNodeLocation,
+  },
   ConstantSetArityMismatch {
     predicate: String,
     decl_loc: AstNodeLocation,
@@ -62,10 +67,31 @@ pub enum TypeInferenceError {
     expected: ValueType,
     found: TypeSet,
   },
+  BadEnumValueKind {
+    found: &'static str,
+    loc: AstNodeLocation,
+  },
+  NegativeEnumValue {
+    found: i64,
+    loc: AstNodeLocation,
+  },
   CannotUnifyTypes {
     t1: TypeSet,
     t2: TypeSet,
     loc: Option<AstNodeLocation>,
+  },
+  CannotUnifyForeignPredicateArgument {
+    pred: String,
+    i: usize,
+    expected_ty: TypeSet,
+    actual_ty: TypeSet,
+    loc: AstNodeLocation,
+  },
+  NoMatchingTripletRule {
+    op1_ty: TypeSet,
+    op2_ty: TypeSet,
+    e_ty: TypeSet,
+    location: AstNodeLocation,
   },
   CannotUnifyVariables {
     v1: String,
@@ -98,6 +124,14 @@ pub enum TypeInferenceError {
   InvalidUniqueNumParams {
     num_output_vars: usize,
     num_binding_vars: usize,
+    loc: AstNodeLocation,
+  },
+  CannotRedefineForeignPredicate {
+    pred: String,
+    loc: AstNodeLocation,
+  },
+  CannotQueryForeignPredicate {
+    pred: String,
     loc: AstNodeLocation,
   },
 }
@@ -196,6 +230,16 @@ impl FrontCompileErrorTrait for TypeInferenceError {
           index, predicate, source_loc.report(src), access_loc.report(src)
         )
       }
+      Self::InvalidForeignPredicateArgIndex {
+        predicate,
+        index,
+        access_loc,
+      } => {
+        format!(
+          "Invalid `{}`-th argument for foreign predicate `{}`:\n{}",
+          index, predicate, access_loc.report(src)
+        )
+      }
       Self::ConstantSetArityMismatch {
         predicate,
         mismatch_tuple_loc,
@@ -215,6 +259,20 @@ impl FrontCompileErrorTrait for TypeInferenceError {
           found.location().report(src)
         )
       }
+      Self::BadEnumValueKind { found, loc } => {
+        format!(
+          "bad enum value. Expected unsigned integers, found `{}`\n{}",
+          found,
+          loc.report(src),
+        )
+      }
+      Self::NegativeEnumValue { found, loc } => {
+        format!(
+          "enum value `{}` found to be negative. Expected unsigned integers\n{}",
+          found,
+          loc.report(src),
+        )
+      }
       Self::CannotUnifyTypes { t1, t2, loc } => match loc {
         Some(l) => {
           format!("cannot unify types `{}` and `{}` in\n{}\nwhere the first is inferred here\n{}\nand the second is inferred here\n{}", t1, t2, l.report(src), t1.location().report(src), t2.location().report(src))
@@ -225,7 +283,17 @@ impl FrontCompileErrorTrait for TypeInferenceError {
             t1, t2, t1.location().report(src), t2.location().report(src)
           )
         }
-      },
+      }
+      Self::CannotUnifyForeignPredicateArgument { pred, i, expected_ty, actual_ty, loc } => {
+        format!(
+          "cannot unify the type of {}-th argument of foreign predicate `{}`, expected type `{}`, found `{}`:\n{}",
+          i,
+          pred,
+          expected_ty,
+          actual_ty,
+          loc.report(src),
+        )
+      }
       Self::CannotUnifyVariables { v1, t1, v2, t2, loc } => {
         format!(
           "cannot unify variable types: `{}` has `{}` type, `{}` has `{}` type, but they should be unified\n{}",
@@ -234,6 +302,15 @@ impl FrontCompileErrorTrait for TypeInferenceError {
           v2,
           t2,
           loc.report(src)
+        )
+      }
+      Self::NoMatchingTripletRule { op1_ty, op2_ty, e_ty, location } => {
+        format!(
+          "no matching rule found; two operands have type `{}` and `{}`, while the expression has type `{}`:\n{}",
+          op1_ty,
+          op2_ty,
+          e_ty,
+          location.report(src)
         )
       }
       Self::CannotTypeCast { t1, t2, loc } => {
@@ -282,6 +359,20 @@ impl FrontCompileErrorTrait for TypeInferenceError {
         format!(
           "expected same amount of output variables and binding variables for aggregation `unique`, but found {} output variables and {} binding variables\n{}",
           num_output_vars, num_binding_vars, loc.report(src)
+        )
+      }
+      Self::CannotRedefineForeignPredicate { pred, loc } => {
+        format!(
+          "the predicate `{}` is being defined here, but it is also a foreign predicate which cannot be populated\n{}",
+          pred,
+          loc.report(src),
+        )
+      }
+      Self::CannotQueryForeignPredicate { pred, loc } => {
+        format!(
+          "the foreign predicate `{}` cannot be queried\n{}",
+          pred,
+          loc.report(src),
         )
       }
     }

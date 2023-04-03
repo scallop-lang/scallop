@@ -59,22 +59,22 @@ impl<Tup: StaticTupleTrait, Prov: Provenance> StaticRelation<Tup, Prov> {
     self.insert_tagged_with_monitor(ctx, vec![(info, tuple)], m);
   }
 
-  pub fn insert_dynamically_tagged(&self, ctx: &mut Prov, data: Vec<(InputTag, Tup)>) {
+  pub fn insert_dynamically_tagged(&self, ctx: &mut Prov, data: Vec<(DynamicInputTag, Tup)>) {
     let elements = data
       .into_iter()
-      .map(|(input_tag, tuple)| (FromInputTag::from_input_tag(&input_tag), tuple))
+      .map(|(input_tag, tuple)| (StaticInputTag::from_dynamic_input_tag(&input_tag), tuple))
       .collect::<Vec<_>>();
     self.insert_tagged(ctx, elements);
   }
 
-  pub fn insert_dynamically_tagged_with_monitor<M>(&self, ctx: &mut Prov, data: Vec<(InputTag, Tup)>, m: &M)
+  pub fn insert_dynamically_tagged_with_monitor<M>(&self, ctx: &mut Prov, data: Vec<(DynamicInputTag, Tup)>, m: &M)
   where
     Tuple: From<Tup>,
     M: Monitor<Prov>,
   {
     let elements = data
       .into_iter()
-      .map(|(input_tag, tuple)| (FromInputTag::from_input_tag(&input_tag), tuple))
+      .map(|(input_tag, tuple)| (StaticInputTag::from_dynamic_input_tag(&input_tag), tuple))
       .collect::<Vec<_>>();
     self.insert_tagged_with_monitor(ctx, elements, m);
   }

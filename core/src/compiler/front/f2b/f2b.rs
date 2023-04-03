@@ -1,6 +1,6 @@
 use std::collections::*;
 
-use super::super::analyzers::boundness::{AggregationContext, RuleContext};
+use super::super::analyzers::boundness::{AggregationContext, RuleContext, ForeignPredicateBindings};
 use super::super::ast as front;
 use super::super::ast::{AstNodeLocation, WithLocation};
 use super::super::compile::*;
@@ -44,6 +44,7 @@ impl FrontContext {
       disjunctive_facts,
       rules,
       function_registry: self.foreign_function_registry.clone(),
+      predicate_registry: self.foreign_predicate_registry.clone(),
     }
   }
 
@@ -53,7 +54,7 @@ impl FrontContext {
       .iter()
       .filter_map(|item| match item {
         front::Item::QueryDecl(q) => {
-          let name = q.node.query.relation_name().clone();
+          let name = q.node.query.create_relation_name().clone();
           if let Some(file) = self.analysis.borrow().output_files_analysis.output_file(&name) {
             Some((name, OutputOption::File(file.clone())))
           } else {
@@ -72,12 +73,16 @@ impl FrontContext {
       .type_inference
       .inferred_relation_types
       .iter()
-      .map(|(pred, (tys, _))| {
-        let arg_types = tys.iter().map(|type_set| type_set.to_default_value_type()).collect();
-        back::Relation {
-          attributes: self.back_relation_attributes(pred),
-          predicate: pred.clone(),
-          arg_types,
+      .filter_map(|(pred, (tys, _))| {
+        if self.foreign_predicate_registry.contains(pred) {
+          None
+        } else {
+          let arg_types = tys.iter().map(|type_set| type_set.to_default_value_type()).collect();
+          Some(back::Relation {
+            attributes: self.back_relation_attributes(pred),
+            predicate: pred.clone(),
+            arg_types,
+          })
         }
       })
       .collect::<Vec<_>>()
@@ -192,7 +197,7 @@ impl FrontContext {
     let attributes = back::Attributes::new();
 
     // Collect information for flattening
-    let mut flatten_expr = FlattenExprContext::new(&analysis.type_inference);
+    let mut flatten_expr = FlattenExprContext::new(&analysis.type_inference, &self.foreign_predicate_registry);
     flatten_expr.walk_atom(src_rule.head());
 
     // Create the flattened expression that the head needs
@@ -310,9 +315,10 @@ impl FrontContext {
     temp_rules: &mut Vec<back::Rule>,
   ) -> back::Literal {
     // unwrap is ok because the success of compute boundness is checked already
-    let body_bounded_vars = agg_ctx.body.compute_boundness(&vec![]).unwrap();
+    let pred_bindings = ForeignPredicateBindings::from(&self.foreign_predicate_registry);
+    let body_bounded_vars = agg_ctx.body.compute_boundness(&pred_bindings, &vec![]).unwrap();
     let group_by_bounded_vars = agg_ctx.group_by.as_ref().map_or(BTreeSet::new(), |(ctx, _, _)| {
-      ctx.compute_boundness(&vec![]).unwrap().into_iter().collect()
+      ctx.compute_boundness(&pred_bindings, &vec![]).unwrap().into_iter().collect()
     });
     let all_bounded_vars = body_bounded_vars
       .union(&group_by_bounded_vars)

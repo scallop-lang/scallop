@@ -619,7 +619,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
     self.idb.get_output_collection_ref(r)
   }
 
-  pub fn relation(&self, r: &str) -> Option<Ptr::Pointer<DynamicOutputCollection<Prov>>> {
+  pub fn relation(&self, r: &str) -> Option<Ptr::Rc<DynamicOutputCollection<Prov>>> {
     self.idb.get_output_collection(r)
   }
 

@@ -1,4 +1,5 @@
 use scallop_core::runtime::provenance::*;
+use scallop_core::utils::*;
 use scallop_core::testing::*;
 
 #[test]
@@ -9,7 +10,7 @@ fn basic_edge_path_left_recursion() {
       rel path(a, b) = edge(a, b) \/ path(a, c) /\ edge(c, b)
       query path
     "#,
-    ("path", vec![(0usize, 2usize), (1, 2), (0, 3), (1, 3), (2, 3)]),
+    ("path", vec![(0, 2), (1, 2), (0, 3), (1, 3), (2, 3)]),
   );
 }
 
@@ -21,7 +22,7 @@ fn basic_edge_path_right_recursion() {
       rel path(a, b) = edge(a, b) \/ edge(a, c) /\ path(c, b)
       query path
     "#,
-    ("path", vec![(0usize, 2usize), (1, 2), (0, 3), (1, 3), (2, 3)]),
+    ("path", vec![(0, 2), (1, 2), (0, 3), (1, 3), (2, 3)]),
   );
 }
 
@@ -33,7 +34,7 @@ fn basic_edge_path_binary_recursion() {
       rel path(a, b) = edge(a, b) \/ path(a, c) /\ path(c, b)
       query path
     "#,
-    ("path", vec![(0usize, 2usize), (1, 2), (0, 3), (1, 3), (2, 3)]),
+    ("path", vec![(0, 2), (1, 2), (0, 3), (1, 3), (2, 3)]),
   );
 }
 
@@ -61,7 +62,7 @@ fn basic_difference_1() {
       rel s(x, y) = a(x, y), ~b(x, y)
       query s
     "#,
-    ("s", vec![(0usize, 1usize)]),
+    ("s", vec![(0, 1)]),
   );
 }
 
@@ -81,9 +82,9 @@ fn bmi_test_1() {
       rel bmi(id, w as f32 / ((h * h) as f32 / 10000.0)) = height(id, h), weight(id, w)
     "#,
     vec![
-      ("height", vec![(1usize, 185i32), (2, 175), (3, 165)].into()),
-      ("weight", vec![(1usize, 80usize), (2, 70), (3, 55)].into()),
-      ("bmi", vec![(1usize, 23.374f32), (2, 22.857), (3, 20.202)].into()),
+      ("height", vec![(1, 185), (2, 175), (3, 165)].into()),
+      ("weight", vec![(1, 80), (2, 70), (3, 55)].into()),
+      ("bmi", vec![(1, 23.374f32), (2, 22.857), (3, 20.202)].into()),
     ],
   )
 }
@@ -120,7 +121,7 @@ fn const_fold_test_1() {
       rel E(1)
       rel R(s, a) = s == x + z, x == y + 1, y == z + 1, z == 1, E(a)
     "#,
-    ("R", vec![(4i32, 1usize)]),
+    ("R", vec![(4, 1)]),
   );
 }
 
@@ -130,7 +131,7 @@ fn const_fold_test_2() {
     r#"
       rel R(s) = s == x + z, x == y + 1, y == z + 1, z == 1
     "#,
-    ("R", vec![(4i32,)]),
+    ("R", vec![(4,)]),
   );
 }
 
@@ -169,7 +170,7 @@ fn topk_test_1() {
       rel r1 = {(0, "x"), (0, "y"), (1, "y"), (1, "z")}
       rel r2(id, sym) :- sym = top<1>(s: r1(id, s))
     "#,
-    ("r2", vec![(0usize, "x".to_string()), (1, "y".to_string())]),
+    ("r2", vec![(0, "x".to_string()), (1, "y".to_string())]),
   );
 }
 
@@ -186,7 +187,7 @@ fn digit_sum_test_1() {
     (
       "sum_2",
       vec![
-        (0usize, 1usize, 0i32),
+        (0, 1, 0),
         (0, 1, 1),
         (0, 1, 2),
         (0, 1, 3),
@@ -213,7 +214,7 @@ fn digit_sum_test_2() {
     (
       "sum_2",
       vec![
-        (0usize, 1usize, 0i32),
+        (0, 1, 0),
         (0, 1, 1),
         (0, 1, 2),
         (0, 1, 3),
@@ -330,7 +331,7 @@ fn simple_test_1() {
       rel edge = {(0, 1), (1, 2)}
       rel path(a, b) = edge(a, b)
     "#,
-    ("path", vec![(0usize, 1usize), (1, 2)]),
+    ("path", vec![(0, 1), (1, 2)]),
   );
 }
 
@@ -341,7 +342,7 @@ fn simple_test_2() {
       rel edge = {(0, 1), (1, 2), (2, 2)}
       rel self_edge(a, a) :- edge(a, a)
     "#,
-    ("self_edge", vec![(2usize, 2usize)]),
+    ("self_edge", vec![(2, 2)]),
   );
 }
 
@@ -352,7 +353,7 @@ fn simple_test_3() {
       rel edge = {(0, 1), (1, 2)}
       rel something(a, 2) :- edge(a, b)
     "#,
-    ("something", vec![(0usize, 2usize), (1, 2)]),
+    ("something", vec![(0, 2), (1, 2)]),
   );
 }
 
@@ -363,7 +364,7 @@ fn simple_test_4() {
       rel edge = {(0, 1), (1, 2)}
       rel something(a, 2) :- edge(a, b), b > 1
     "#,
-    ("something", vec![(1usize, 2usize)]),
+    ("something", vec![(1, 2)]),
   );
 }
 
@@ -375,7 +376,7 @@ fn simple_test_5() {
       rel R = {(1, 2), (4, 3)}
       rel O(a, b) = S(b, a), R(a, b)
     "#,
-    ("O", vec![(4usize, 3usize)]),
+    ("O", vec![(4, 3)]),
   );
 }
 
@@ -387,7 +388,7 @@ fn simple_test_6() {
       rel R = {(1, 2), (3, 4), (4, 3)}
       rel O(a, b) = S(b, a), S(a, b), R(a, b), R(b, a)
     "#,
-    ("O", vec![(3usize, 4usize), (4, 3)]),
+    ("O", vec![(3, 4), (4, 3)]),
   );
 }
 
@@ -399,7 +400,7 @@ fn simple_test_7() {
       rel R = {(1), (2)}
       rel O(a, b) = S(a, b), ~R(b)
     "#,
-    ("O", vec![(2usize, 3usize)]),
+    ("O", vec![(2, 3)]),
   );
 }
 
@@ -411,7 +412,7 @@ fn simple_test_8() {
       rel R = {(1, 2), (2, 3)}
       rel O(a, b) = S(a, b), ~R(b, c)
     "#,
-    ("O", vec![(2usize, 3usize)]),
+    ("O", vec![(2, 3)]),
   )
 }
 
@@ -423,7 +424,7 @@ fn simple_test_9() {
       rel R = {(1, 2), (2, 3), (2, 2)}
       rel O(a, b) = S(a, b), ~R(a, a)
     "#,
-    ("O", vec![(0usize, 1usize), (1, 2)]),
+    ("O", vec![(0, 1), (1, 2)]),
   )
 }
 
@@ -479,7 +480,7 @@ fn class_student_grade_1() {
     "#,
     (
       "class_top_student",
-      vec![(0usize, "jerry".to_string()), (1, "sherry".to_string())],
+      vec![(0, "jerry".to_string()), (1, "sherry".to_string())],
     ),
   )
 }
@@ -514,7 +515,7 @@ fn unused_relation_1() {
       rel S(b, 1) = B(b)
       query S
     "#,
-    ("S", vec![("haha".to_string(), 1usize), ("wow".to_string(), 1)]),
+    ("S", vec![("haha".to_string(), 1), ("wow".to_string(), 1)]),
   )
 }
 
@@ -527,8 +528,8 @@ fn atomic_query_1() {
       query S(_, 2)
     "#,
     vec![
-      ("S(0, _)", vec![(0usize, 1usize), (0, 2)].into()),
-      ("S(_, 2)", vec![(0usize, 2usize), (1, 2)].into()),
+      ("S(0, _)", vec![(0, 1), (0, 2)].into()),
+      ("S(_, 2)", vec![(0, 2), (1, 2)].into()),
     ],
   )
 }
@@ -624,7 +625,7 @@ fn equal_v1_v2() {
       rel S = {(0, 1), (1, 2)}
       rel Q(a, b) = S(a, b), a == a
     "#,
-    vec![("Q", vec![(0usize, 1usize), (1, 2)].into())],
+    vec![("Q", vec![(0, 1), (1, 2)].into())],
   )
 }
 
@@ -654,7 +655,7 @@ fn test_count_with_where_clause() {
     "#,
     vec![(
       "count_enroll_cs_in_class",
-      vec![(0usize, 1usize), (1, 2), (2, 0)].into(),
+      vec![(0, 1usize), (1, 2), (2, 0)].into(),
     )],
   )
 }
@@ -741,7 +742,7 @@ fn implies_1() {
     // The object `o` such that `o` is cube implies that `o` is blue
     rel answer(o) = obj(o) and (shape(o, "cube") => color(o, "blue"))
     "#,
-    ("answer", vec![(1usize,)]),
+    ("answer", vec![(1,)]),
   )
 }
 
@@ -756,7 +757,7 @@ fn implies_2() {
     // The object `o` such that `o` is cube implies that `o` is blue
     rel answer(o) = obj(o) and (shape(o, "cube") => color(o, "blue"))
     "#,
-    ("answer", vec![(1usize,), (2,)]),
+    ("answer", vec![(1,), (2,)]),
   )
 }
 
@@ -923,7 +924,7 @@ fn ff_max_1() {
     r#"
     rel output($max(0, 1, 2, 3))
     "#,
-    ("output", vec![(3usize,)]),
+    ("output", vec![(3,)]),
   )
 }
 
@@ -935,7 +936,7 @@ fn ff_max_2() {
     rel S = {3}
     rel output($max(a, b)) = R(a), S(b)
     "#,
-    ("output", vec![(3usize,)]),
+    ("output", vec![(3,)]),
   )
 }
 
@@ -947,7 +948,7 @@ fn const_variable_1() {
     const VAR2 = 246
     rel r(VAR1, VAR2)
     "#,
-    ("r", vec![(135usize, 246usize)]),
+    ("r", vec![(135, 246)]),
   )
 }
 
@@ -994,7 +995,7 @@ fn const_variable_5() {
     const UP = 0, RIGHT = 1, DOWN = 2, LEFT = 3
     rel r(UP, RIGHT, DOWN, LEFT)
     "#,
-    ("r", vec![(0usize, 1usize, 2usize, 3usize)]),
+    ("r", vec![(0, 1, 2, 3)]),
   )
 }
 
@@ -1010,8 +1011,52 @@ fn const_variable_6() {
 }
 
 #[test]
+fn const_variable_7() {
+  expect_interpret_result(
+    r#"
+    type Action = UP | RIGHT | DOWN | LEFT
+    rel r(UP, RIGHT, DOWN, LEFT)
+    "#,
+    ("r", vec![(0usize, 1usize, 2usize, 3usize)]),
+  )
+}
+
+#[test]
+fn const_variable_8() {
+  expect_interpret_result(
+    r#"
+    type Action = UP = 10 | RIGHT | DOWN | LEFT
+    rel r(UP, RIGHT, DOWN, LEFT)
+    "#,
+    ("r", vec![(10usize, 11usize, 12usize, 13usize)]),
+  )
+}
+
+#[test]
+fn const_variable_9() {
+  expect_interpret_result(
+    r#"
+    type Action = UP | RIGHT | DOWN = 10 | LEFT
+    rel r(UP, RIGHT, DOWN, LEFT)
+    "#,
+    ("r", vec![(0usize, 1usize, 10usize, 11usize)]),
+  )
+}
+
+#[test]
+fn const_variable_10() {
+  expect_interpret_result(
+    r#"
+    type Action = UP = 3 | RIGHT | DOWN = 10 | LEFT
+    rel r(UP, RIGHT, DOWN, LEFT)
+    "#,
+    ("r", vec![(3usize, 4usize, 10usize, 11usize)]),
+  )
+}
+
+#[test]
 fn sat_1() {
-  let ctx = proofs::ProofsProvenance::default();
+  let ctx = proofs::ProofsProvenance::<RcFamily>::default();
   expect_interpret_result_with_tag(
     r#"
     type assign(String, bool)
@@ -1046,7 +1091,7 @@ fn sat_1() {
 
 #[test]
 fn sat_2() {
-  let ctx = proofs::ProofsProvenance::default();
+  let ctx = proofs::ProofsProvenance::<RcFamily>::default();
   expect_interpret_result_with_tag(
     r#"
     type assign(String, bool)
@@ -1072,5 +1117,28 @@ fn sat_2() {
     ctx,
     ("eval", vec![(proofs::Proofs::one(), (false,))]),
     |_, _| true,
+  )
+}
+
+#[test]
+fn no_nan_1() {
+  expect_interpret_result(
+    r#"
+    rel R = {0.0, 3.0, 5.0}
+    rel P = {0.0, 1.0}
+    rel Q(a / b) = R(a) and P(b)
+    "#,
+    ("Q", vec![(0.0f32,), (3.0f32,), (5.0f32,), (std::f32::INFINITY,)]),
+  )
+}
+
+#[test]
+fn string_plus_string_1() {
+  expect_interpret_result(
+    r#"
+    rel first_last_name = {("Alice", "Lee")}
+    rel full_name(first + " " + last) = first_last_name(first, last)
+    "#,
+    ("full_name", vec![("Alice Lee".to_string(),)]),
   )
 }

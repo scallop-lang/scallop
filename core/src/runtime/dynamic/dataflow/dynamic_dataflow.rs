@@ -1,6 +1,7 @@
-use crate::common::expr::Expr;
-use crate::common::tuple::Tuple;
-use crate::common::tuple_type::TupleType;
+use crate::common::expr::*;
+use crate::common::value::*;
+use crate::common::tuple::*;
+use crate::common::tuple_type::*;
 
 use super::*;
 
@@ -23,6 +24,9 @@ pub enum DynamicDataflow<'a, Prov: Provenance> {
   Difference(DynamicDifferenceDataflow<'a, Prov>),
   Antijoin(DynamicAntijoinDataflow<'a, Prov>),
   Aggregate(DynamicAggregationDataflow<'a, Prov>),
+  ForeignPredicateGround(ForeignPredicateGroundDataflow<'a, Prov>),
+  ForeignPredicateConstraint(ForeignPredicateConstraintDataflow<'a, Prov>),
+  ForeignPredicateJoin(ForeignPredicateJoinDataflow<'a, Prov>),
 }
 
 impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
@@ -133,6 +137,48 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
     })
   }
 
+  pub fn foreign_predicate_ground(
+    pred: String,
+    bounded: Vec<Value>,
+    first_iter: bool,
+    ctx: &'a Prov,
+  ) -> Self {
+    Self::ForeignPredicateGround(ForeignPredicateGroundDataflow {
+      foreign_predicate: pred,
+      bounded_constants: bounded,
+      first_iteration: first_iter,
+      ctx,
+    })
+  }
+
+  pub fn foreign_predicate_constraint(
+    self,
+    pred: String,
+    args: Vec<Expr>,
+    ctx: &'a Prov,
+  ) -> Self {
+    Self::ForeignPredicateConstraint(ForeignPredicateConstraintDataflow {
+      dataflow: Box::new(self),
+      foreign_predicate: pred,
+      args,
+      ctx,
+    })
+  }
+
+  pub fn foreign_predicate_join(
+    self,
+    pred: String,
+    args: Vec<Expr>,
+    ctx: &'a Prov,
+  ) -> Self {
+    Self::ForeignPredicateJoin(ForeignPredicateJoinDataflow {
+      left: Box::new(self),
+      foreign_predicate: pred,
+      args,
+      ctx,
+    })
+  }
+
   pub fn iter_stable(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     match self {
       Self::StableUnit(i) => i.iter_stable(runtime),
@@ -152,6 +198,9 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
       Self::Difference(d) => d.iter_stable(runtime),
       Self::Antijoin(a) => a.iter_stable(runtime),
       Self::Aggregate(a) => a.iter_stable(runtime),
+      Self::ForeignPredicateGround(d) => d.iter_stable(runtime),
+      Self::ForeignPredicateConstraint(d) => d.iter_stable(runtime),
+      Self::ForeignPredicateJoin(d) => d.iter_stable(runtime),
     }
   }
 
@@ -174,6 +223,9 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
       Self::Difference(d) => d.iter_recent(runtime),
       Self::Antijoin(a) => a.iter_recent(runtime),
       Self::Aggregate(a) => a.iter_recent(runtime),
+      Self::ForeignPredicateGround(d) => d.iter_recent(runtime),
+      Self::ForeignPredicateConstraint(d) => d.iter_recent(runtime),
+      Self::ForeignPredicateJoin(d) => d.iter_recent(runtime),
     }
   }
 }

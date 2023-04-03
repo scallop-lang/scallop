@@ -1,4 +1,4 @@
-use crate::common::input_tag::InputTag;
+use crate::common::input_tag::*;
 
 use super::super::*;
 
@@ -7,7 +7,7 @@ pub fn empty_rule_to_fact(rules: &mut Vec<Rule>, facts: &mut Vec<Fact>) {
     if rule.body.args.is_empty() {
       // Create fact
       let fact = Fact {
-        tag: InputTag::None,
+        tag: DynamicInputTag::None,
         predicate: rule.head.predicate.clone(),
         args: rule
           .head

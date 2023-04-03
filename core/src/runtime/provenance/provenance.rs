@@ -7,6 +7,7 @@ use rand::prelude::*;
 use super::*;
 
 use crate::common::tuples::*;
+use crate::common::input_tag::*;
 use crate::common::value_type::*;
 use crate::runtime::dynamic::*;
 use crate::runtime::env::*;
@@ -15,15 +16,15 @@ use crate::runtime::statics::*;
 pub trait Provenance: Clone + 'static {
   type Tag: Tag;
 
-  type InputTag: Clone + Debug;
+  type InputTag: Clone + Debug + StaticInputTag;
 
   type OutputTag: Clone + Debug + Display;
 
   fn name() -> &'static str;
 
-  fn tagging_fn(&mut self, ext_tag: Self::InputTag) -> Self::Tag;
+  fn tagging_fn(&self, ext_tag: Self::InputTag) -> Self::Tag;
 
-  fn tagging_optional_fn(&mut self, ext_tag: Option<Self::InputTag>) -> Self::Tag {
+  fn tagging_optional_fn(&self, ext_tag: Option<Self::InputTag>) -> Self::Tag {
     match ext_tag {
       Some(et) => self.tagging_fn(et),
       None => self.one(),

@@ -3,7 +3,7 @@ use std::fs::File;
 use std::path::PathBuf;
 
 use crate::common::input_file::InputFile;
-use crate::common::input_tag::InputTag;
+use crate::common::input_tag::DynamicInputTag;
 use crate::common::output_option::OutputFile;
 use crate::common::tuple::Tuple;
 use crate::common::tuple_type::TupleType;
@@ -11,7 +11,7 @@ use crate::common::value_type::ValueType;
 
 use crate::runtime::error::*;
 
-pub fn load(input_file: &InputFile, types: &TupleType) -> Result<Vec<(InputTag, Tuple)>, IOError> {
+pub fn load(input_file: &InputFile, types: &TupleType) -> Result<Vec<(DynamicInputTag, Tuple)>, IOError> {
   match input_file {
     InputFile::Csv {
       file_path,
@@ -29,7 +29,7 @@ pub fn load_csv(
   has_header: bool,
   has_probability: bool,
   types: &TupleType,
-) -> Result<Vec<(InputTag, Tuple)>, IOError> {
+) -> Result<Vec<(DynamicInputTag, Tuple)>, IOError> {
   // First parse the value types
   let value_types = get_value_types(types)?;
 
@@ -60,10 +60,10 @@ pub fn load_csv(
 
     let tag = if has_probability {
       let s = record.get(0).unwrap();
-      s.parse::<InputTag>()
+      s.parse::<DynamicInputTag>()
         .map_err(|_| IOError::CannotParseProbability { value: s.to_string() })?
     } else {
-      InputTag::None
+      DynamicInputTag::None
     };
 
     let values = record
@@ -73,7 +73,7 @@ pub fn load_csv(
       .map(|(r, t)| t.parse(r).map_err(|e| IOError::ValueParseError { error: e }))
       .collect::<Result<Vec<_>, _>>()?;
 
-    let tuple = Tuple::from_primitives(values);
+    let tuple = Tuple::from(values);
     result.push((tag, tuple));
   }
 

@@ -2,6 +2,8 @@ use std::collections::*;
 
 use itertools::iproduct;
 
+use crate::utils::*;
+
 use super::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -99,13 +101,28 @@ impl std::fmt::Display for ProbProofs {
 
 impl Tag for ProbProofs {}
 
-#[derive(Clone, Default)]
-pub struct ProbProofsProvenance {
-  probabilities: Vec<f64>,
-  disjunctions: Disjunctions,
+#[derive(Default)]
+pub struct ProbProofsProvenance<P: PointerFamily = RcFamily> {
+  probs: P::Cell<Vec<f64>>,
+  disjunctions: P::Cell<Disjunctions>,
 }
 
-impl Provenance for ProbProofsProvenance {
+impl<P: PointerFamily> Clone for ProbProofsProvenance<P> {
+  fn clone(&self) -> Self {
+    Self {
+      probs: P::clone_cell(&self.probs),
+      disjunctions: P::clone_cell(&self.disjunctions),
+    }
+  }
+}
+
+impl<P: PointerFamily> ProbProofsProvenance<P> {
+  fn fact_probability(&self, i: &usize) -> f64 {
+    P::get_cell(&self.probs, |p| p[*i])
+  }
+}
+
+impl<P: PointerFamily> Provenance for ProbProofsProvenance<P> {
   type Tag = ProbProofs;
 
   type InputTag = InputExclusiveProb;
@@ -116,14 +133,14 @@ impl Provenance for ProbProofsProvenance {
     "prob-proofs"
   }
 
-  fn tagging_fn(&mut self, input_tag: Self::InputTag) -> Self::Tag {
+  fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {
     // First generate id and push the probability into the list
-    let fact_id = self.probabilities.len();
-    self.probabilities.push(input_tag.prob);
+    let fact_id = P::get_cell(&self.probs, |p| p.len());
+    P::get_cell_mut(&self.probs, |p| p.push(input_tag.prob));
 
     // Add exlusion if needed
     if let Some(disj_id) = input_tag.exclusion {
-      self.disjunctions.add_disjunction(disj_id, fact_id);
+      P::get_cell_mut(&self.disjunctions, |d| d.add_disjunction(disj_id, fact_id));
     }
 
     // Lastly return a tag
@@ -132,7 +149,7 @@ impl Provenance for ProbProofsProvenance {
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
     let s = RealSemiring;
-    let v = |i: &usize| -> f64 { self.probabilities[*i] };
+    let v = |i: &usize| -> f64 { self.fact_probability(i) };
     AsBooleanFormula::wmc(t, &s, &v)
   }
 
@@ -156,7 +173,9 @@ impl Provenance for ProbProofsProvenance {
     let mut prod = Self::Tag::cartesian_product(t1, t2);
     prod
       .proofs
-      .retain(|proof| !self.disjunctions.has_conflict(&proof.facts));
+      .retain(|proof| {
+        P::get_cell(&self.disjunctions, |d| !d.has_conflict(&proof.facts))
+      });
     prod
   }
 
@@ -174,7 +193,7 @@ impl Provenance for ProbProofsProvenance {
 
   fn weight(&self, t: &Self::Tag) -> f64 {
     let s = RealSemiring;
-    let v = |i: &usize| -> f64 { self.probabilities[*i] };
+    let v = |i: &usize| -> f64 { self.fact_probability(i) };
     AsBooleanFormula::wmc(t, &s, &v)
   }
 }

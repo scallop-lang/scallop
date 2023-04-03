@@ -7,6 +7,7 @@ use super::analyzers::*;
 use super::*;
 
 use crate::common::foreign_function::*;
+use crate::common::foreign_predicate::*;
 use crate::common::tuple_type::*;
 use crate::common::value_type::*;
 use crate::utils::CopyOnWrite;
@@ -28,6 +29,9 @@ pub struct FrontContext {
   /// Foreign function registry holding all foreign functions
   pub foreign_function_registry: ForeignFunctionRegistry,
 
+  /// Foreign predicate registry holding all foreign predicates
+  pub foreign_predicate_registry: ForeignPredicateRegistry,
+
   /// Node ID annotator for giving AST node IDs.
   pub node_id_annotator: NodeIdAnnotator,
 
@@ -38,11 +42,13 @@ pub struct FrontContext {
 impl FrontContext {
   pub fn new() -> Self {
     let function_registry = ForeignFunctionRegistry::std();
-    let analysis = Analysis::new(&function_registry);
+    let predicate_registry = ForeignPredicateRegistry::std();
+    let analysis = Analysis::new(&function_registry, &predicate_registry);
     Self {
       sources: Sources::new(),
       items: Vec::new(),
       foreign_function_registry: function_registry,
+      foreign_predicate_registry: predicate_registry,
       imported_files: HashSet::new(),
       node_id_annotator: NodeIdAnnotator::new(),
       analysis: CopyOnWrite::new(analysis),
@@ -80,8 +86,38 @@ impl FrontContext {
     self.analysis.modify(|analysis| {
       analysis
         .type_inference
-        .function_type_registry
+        .foreign_function_type_registry
         .add_function_type(func_name, func_type)
+    });
+
+    Ok(())
+  }
+
+  pub fn register_foreign_predicate<F>(&mut self, f: F) -> Result<(), ForeignPredicateError>
+  where
+    F: ForeignPredicate + Send + Sync + Clone + 'static
+  {
+    // Check if the predicate name has already be defined before
+    if self.type_inference().has_relation(&f.name()) {
+      return Err(ForeignPredicateError::AlreadyExisted { id: f.name() });
+    }
+
+    // Add the predicate to the registry
+    self.foreign_predicate_registry.register(f.clone())?;
+
+    // If succeeded, we add it to the type inference module
+    self.analysis.modify(|analysis| {
+      // Update the type inference module
+      analysis
+        .type_inference
+        .foreign_predicate_type_registry
+        .add_foreign_predicate(&f);
+
+      // Update the head analysis module
+      analysis.head_relation_analysis.add_foreign_predicate(&f);
+
+      // Update the boundness analysis module
+      analysis.boundness_analysis.add_foreign_predicate(&f);
     });
 
     Ok(())

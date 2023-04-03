@@ -11,7 +11,7 @@ where
   Prov: Provenance<InputTag = ()> + Default,
 {
   let mut ctx = Prov::default();
-  let mut rt = RuntimeEnvironment::new();
+  let mut rt = RuntimeEnvironment::new_std();
 
   let result_1 = {
     let mut strata_1 = DynamicIteration::<Prov>::new();

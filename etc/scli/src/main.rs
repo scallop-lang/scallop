@@ -148,7 +148,7 @@ fn main() {
       interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options);
     }
     "proofs" => {
-      let ctx = provenance::proofs::ProofsProvenance::default();
+      let ctx = provenance::proofs::ProofsProvenance::<RcFamily>::default();
       interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options);
     }
     "minmaxprob" => {
@@ -181,8 +181,13 @@ fn interpret<Prov: provenance::Provenance>(
   predicate_set: PredicateSet,
   monitor_options: MonitorOptions,
 ) {
-  let mut interpret_ctx = integrate::InterpretContext::<_, RcFamily>::new_from_file_with_options(file_name, prov, opt)
-    .expect("Initialization Error");
+  let mut interpret_ctx = match integrate::InterpretContext::<_, RcFamily>::new_from_file_with_options(file_name, prov, opt) {
+    Ok(ctx) => ctx,
+    Err(err) => {
+      println!("{}", err);
+      return;
+    }
+  };
 
   // Check if we have any specified monitors, and run the program
   if !monitor_options.needs_monitor() {

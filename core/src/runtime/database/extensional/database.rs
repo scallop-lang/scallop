@@ -1,6 +1,6 @@
 use std::collections::*;
 
-use crate::common::input_tag::InputTag;
+use crate::common::input_tag::*;
 use crate::common::tuple::*;
 use crate::common::tuple_type::*;
 use crate::compiler::ram;
@@ -89,7 +89,7 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
     self.extensional_relations.contains_key(relation)
   }
 
-  pub fn add_dynamic_input_facts<T>(&mut self, relation: &str, facts: Vec<(InputTag, T)>) -> Result<(), DatabaseError>
+  pub fn add_dynamic_input_facts<T>(&mut self, relation: &str, facts: Vec<(DynamicInputTag, T)>) -> Result<(), DatabaseError>
   where
     T: Into<Tuple>,
   {

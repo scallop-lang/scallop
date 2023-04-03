@@ -1,31 +1,31 @@
-use std::cell::RefCell;
 use std::collections::*;
-use std::rc::Rc;
 
 use rand::prelude::*;
 use rand::rngs::StdRng;
 
+use crate::utils::*;
+
 use super::*;
 
-pub struct SampleKProofsProvenance {
+pub struct SampleKProofsProvenance<P: PointerFamily = RcFamily> {
   pub k: usize,
-  pub sampler: Rc<RefCell<StdRng>>,
-  pub probs: Rc<Vec<f64>>,
-  pub disjunctions: Disjunctions,
+  pub sampler: P::Cell<StdRng>,
+  pub probs: P::Cell<Vec<f64>>,
+  pub disjunctions: P::Cell<Disjunctions>,
 }
 
-impl Clone for SampleKProofsProvenance {
+impl<P: PointerFamily> Clone for SampleKProofsProvenance<P> {
   fn clone(&self) -> Self {
     Self {
       k: self.k,
-      sampler: self.sampler.clone(),
-      probs: Rc::new((&*self.probs).clone()),
-      disjunctions: self.disjunctions.clone(),
+      sampler: P::clone_cell(&self.sampler),
+      probs: P::clone_cell(&self.probs),
+      disjunctions: P::clone_cell(&self.disjunctions),
     }
   }
 }
 
-impl SampleKProofsProvenance {
+impl<P: PointerFamily> SampleKProofsProvenance<P> {
   pub fn new(k: usize) -> Self {
     Self::new_with_seed(k, 12345678)
   }
@@ -33,9 +33,9 @@ impl SampleKProofsProvenance {
   pub fn new_with_seed(k: usize, seed: u64) -> Self {
     Self {
       k,
-      sampler: Rc::new(RefCell::new(StdRng::seed_from_u64(seed))),
-      probs: Rc::new(Vec::new()),
-      disjunctions: Disjunctions::new(),
+      sampler: P::new_cell(StdRng::seed_from_u64(seed)),
+      probs: P::new_cell(Vec::new()),
+      disjunctions: P::new_cell(Disjunctions::new()),
     }
   }
 
@@ -44,17 +44,17 @@ impl SampleKProofsProvenance {
   }
 }
 
-impl DNFContextTrait for SampleKProofsProvenance {
+impl<P: PointerFamily> DNFContextTrait for SampleKProofsProvenance<P> {
   fn fact_probability(&self, id: &usize) -> f64 {
-    self.probs[*id]
+    P::get_cell(&self.probs, |p| p[*id])
   }
 
   fn has_disjunction_conflict(&self, pos_facts: &BTreeSet<usize>) -> bool {
-    self.disjunctions.has_conflict(pos_facts)
+    P::get_cell(&self.disjunctions, |d| d.has_conflict(pos_facts))
   }
 }
 
-impl Provenance for SampleKProofsProvenance {
+impl<P: PointerFamily> Provenance for SampleKProofsProvenance<P> {
   type Tag = DNFFormula;
 
   type InputTag = InputExclusiveProb;
@@ -65,14 +65,14 @@ impl Provenance for SampleKProofsProvenance {
     "sample-k-proofs"
   }
 
-  fn tagging_fn(&mut self, input_tag: Self::InputTag) -> Self::Tag {
+  fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {
     // First generate id and push the probability into the list
-    let fact_id = self.probs.len();
-    Rc::get_mut(&mut self.probs).unwrap().push(input_tag.prob);
+    let fact_id = P::get_cell(&self.probs, |p| p.len());
+    P::get_cell_mut(&self.probs, |p| p.push(input_tag.prob));
 
     // Add exlusion if needed
     if let Some(disj_id) = input_tag.exclusion {
-      self.disjunctions.add_disjunction(disj_id, fact_id);
+      P::get_cell_mut(&self.disjunctions, |d| d.add_disjunction(disj_id, fact_id));
     }
 
     // Lastly return a tag
@@ -81,7 +81,7 @@ impl Provenance for SampleKProofsProvenance {
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
     let s = RealSemiring;
-    let v = |i: &usize| -> f64 { self.probs[*i] };
+    let v = |i: &usize| -> f64 { self.fact_probability(i) };
     t.wmc(&s, &v)
   }
 
@@ -99,7 +99,7 @@ impl Provenance for SampleKProofsProvenance {
 
   fn add(&self, t1: &Self::Tag, t2: &Self::Tag) -> Self::Tag {
     let tag = t1.or(t2);
-    let sampled_clauses = self.sample_k_clauses(tag.clauses, self.k, &mut self.sampler.borrow_mut());
+    let sampled_clauses = P::get_cell_mut(&self.sampler, |s| self.sample_k_clauses(tag.clauses, self.k, s));
     DNFFormula {
       clauses: sampled_clauses,
     }
@@ -112,7 +112,7 @@ impl Provenance for SampleKProofsProvenance {
   fn mult(&self, t1: &Self::Tag, t2: &Self::Tag) -> Self::Tag {
     let mut tag = t1.or(t2);
     self.retain_no_conflict(&mut tag.clauses);
-    let sampled_clauses = self.sample_k_clauses(tag.clauses, self.k, &mut self.sampler.borrow_mut());
+    let sampled_clauses = P::get_cell_mut(&self.sampler, |s| self.sample_k_clauses(tag.clauses, self.k, s));
     DNFFormula {
       clauses: sampled_clauses,
     }
@@ -128,7 +128,7 @@ impl Provenance for SampleKProofsProvenance {
 
   fn weight(&self, t: &Self::Tag) -> f64 {
     let s = RealSemiring;
-    let v = |i: &usize| -> f64 { self.probs[*i] };
+    let v = |i: &usize| -> f64 { self.fact_probability(i) };
     t.wmc(&s, &v)
   }
 }

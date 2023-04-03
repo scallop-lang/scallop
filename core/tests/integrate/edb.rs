@@ -113,6 +113,7 @@ fn edb_edge_path_incremental_update() {
 
   // Check the result
   expect_output_collection(
+    "path",
     ctx.computed_relation_ref("path").unwrap(),
     vec![(0usize, 1usize), (0, 2), (1, 2)],
   );
@@ -128,6 +129,7 @@ fn edb_edge_path_incremental_update() {
 
   // Check the result
   expect_output_collection(
+    "path",
     ctx.computed_relation_ref("path").unwrap(),
     vec![(0usize, 1usize), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)],
   );
@@ -189,10 +191,12 @@ fn edb_edge_path_persistent_relation() {
 
   // Check the result
   expect_output_collection(
+    "path_1",
     ctx.computed_relation_ref("path_1").unwrap(),
     vec![(0usize, 1usize), (0, 2), (1, 2)],
   );
   expect_output_collection(
+    "path_2",
     ctx.computed_relation_ref("path_2").unwrap(),
     vec![(0usize, 1usize), (0, 2), (1, 2)],
   );
@@ -213,10 +217,12 @@ fn edb_edge_path_persistent_relation() {
 
   // Check the result
   expect_output_collection(
+    "path_1",
     ctx.computed_relation_ref("path_1").unwrap(),
     vec![(0usize, 1usize), (0, 2), (1, 2)],
   );
   expect_output_collection(
+    "path_2",
     ctx.computed_relation_ref("path_2").unwrap(),
     vec![(0usize, 1usize), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)],
   );

@@ -17,11 +17,11 @@ fn codegen_edge_path_with_edb_1() {
   let edb = edge_path::create_edb::<unit::UnitProvenance>();
   assert_eq!(
     edb.type_of("edge").unwrap(),
-    <TupleType as FromType<(usize, usize)>>::from_type()
+    <TupleType as FromType<(i32, i32)>>::from_type()
   );
   assert_eq!(
     edb.type_of("path").unwrap(),
-    <TupleType as FromType<(usize, usize)>>::from_type()
+    <TupleType as FromType<(i32, i32)>>::from_type()
   );
 }
 

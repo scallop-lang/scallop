@@ -6,13 +6,13 @@ use crate::compiler::front::*;
 #[derive(Clone, Debug)]
 pub enum TypeSet {
   BaseType(ValueType, AstNodeLocation), // Concrete base type
-  Numeric(AstNodeLocation),             // Contains integer and float, default usize
+  Numeric(AstNodeLocation),             // Contains integer and float, default i32
   Arith(AstNodeLocation),               // Numeric but with arithmetics, default integer i32
-  Integer(AstNodeLocation),             // Only integer, default i32
-  SignedInteger(AstNodeLocation),       // Only signed integer, default i32
-  UnsignedInteger(AstNodeLocation),     // Only unsigned integer, default u32
-  Float(AstNodeLocation),               // Only float, default f32
-  String(AstNodeLocation),              // Only string, default String
+  Integer(AstNodeLocation),             // integer, default `i32`
+  SignedInteger(AstNodeLocation),       // signed integer, default `i32`
+  UnsignedInteger(AstNodeLocation),     // unsigned integer, default `u32`
+  Float(AstNodeLocation),               // float, default `f32`
+  String(AstNodeLocation),              // string, default `String`
   Any(AstNodeLocation),                 // Any type, default i32
 }
 
@@ -165,6 +165,10 @@ impl TypeSet {
     Self::Any(AstNodeLocation::default())
   }
 
+  pub fn numeric() -> Self {
+    Self::Numeric(AstNodeLocation::default())
+  }
+
   pub fn arith() -> Self {
     Self::Arith(AstNodeLocation::default())
   }
@@ -186,6 +190,9 @@ impl TypeSet {
       ConstantNode::Char(_) => Self::BaseType(ValueType::Char, c.location().clone()),
       ConstantNode::Boolean(_) => Self::BaseType(ValueType::Bool, c.location().clone()),
       ConstantNode::String(_) => Self::String(c.location().clone()),
+      ConstantNode::DateTime(_) => Self::BaseType(ValueType::DateTime, c.location().clone()),
+      ConstantNode::Duration(_) => Self::BaseType(ValueType::Duration, c.location().clone()),
+      ConstantNode::Invalid(_) => panic!("[Internal Error] Should not be called with invalid constant"),
     }
   }
 
@@ -205,7 +212,7 @@ impl TypeSet {
       (Self::UnsignedInteger(_), base_ty) => base_ty.is_numeric(),
       (Self::Float(_), base_ty) => base_ty.is_numeric(),
       (Self::String(_), base_ty) => base_ty.is_string() || base_ty.is_numeric(),
-      (Self::Any(_), _) => false,
+      (Self::Any(_), base_ty) => base_ty.is_numeric(),
     }
   }
 
@@ -233,14 +240,14 @@ impl TypeSet {
   pub fn to_default_value_type(&self) -> ValueType {
     match self {
       Self::BaseType(b, _) => b.clone(),
-      Self::Numeric(_) => ValueType::USize,
+      Self::Numeric(_) => ValueType::I32,
       Self::Arith(_) => ValueType::I32,
       Self::Integer(_) => ValueType::I32,
       Self::SignedInteger(_) => ValueType::I32,
       Self::UnsignedInteger(_) => ValueType::U32,
       Self::Float(_) => ValueType::F32,
       Self::String(_) => ValueType::String,
-      Self::Any(_) => ValueType::USize,
+      Self::Any(_) => ValueType::I32,
     }
   }
 
@@ -280,6 +287,20 @@ impl TypeSet {
         t2: other.clone(),
         loc: None,
       }),
+    }
+  }
+
+  pub fn contains_value_type(&self, value_type: &ValueType) -> bool {
+    match self {
+      Self::BaseType(b, _) => b == value_type,
+      Self::Numeric(_) => value_type.is_numeric(),
+      Self::Arith(_) => value_type.is_numeric(),
+      Self::Integer(_) => value_type.is_integer(),
+      Self::SignedInteger(_) => value_type.is_signed_integer(),
+      Self::UnsignedInteger(_) => value_type.is_unsigned_integer(),
+      Self::Float(_) => value_type.is_float(),
+      Self::String(_) => value_type.is_string(),
+      Self::Any(_) => true,
     }
   }
 }

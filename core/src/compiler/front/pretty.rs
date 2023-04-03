@@ -29,6 +29,7 @@ impl Display for TypeDecl {
       TypeDeclNode::Subtype(s) => s.fmt(f),
       TypeDeclNode::Alias(s) => s.fmt(f),
       TypeDeclNode::Relation(s) => s.fmt(f),
+      TypeDeclNode::Enum(e) => e.fmt(f),
     }
   }
 }
@@ -184,6 +185,32 @@ impl Display for RelationType {
   }
 }
 
+impl Display for EnumTypeDecl {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    for attr in self.attributes() {
+      attr.fmt(f)?;
+    }
+    f.write_fmt(format_args!("type {} = ", self.name()))?;
+    for (i, member) in self.iter_members().enumerate() {
+      if i > 0 {
+        f.write_str(" | ")?;
+      }
+      member.fmt(f)?;
+    }
+    Ok(())
+  }
+}
+
+impl Display for EnumTypeMember {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    self.name().fmt(f)?;
+    if let Some(assigned_num) = self.assigned_number() {
+      f.write_fmt(format_args!(" = {}", assigned_num))?;
+    }
+    Ok(())
+  }
+}
+
 impl Display for Identifier {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     f.write_str(self.name())
@@ -280,6 +307,9 @@ impl std::fmt::Display for Constant {
       ConstantNode::Char(c) => f.write_fmt(format_args!("'{}'", c)),
       ConstantNode::Boolean(b) => f.write_fmt(format_args!("{}", b)),
       ConstantNode::String(s) => f.write_fmt(format_args!("\"{}\"", s)),
+      ConstantNode::DateTime(s) => f.write_fmt(format_args!("\"{}\"", s)),
+      ConstantNode::Duration(s) => f.write_fmt(format_args!("\"{}\"", s)),
+      ConstantNode::Invalid(_) => f.write_str("invalid"),
     }
   }
 }
@@ -307,7 +337,7 @@ impl Display for Formula {
 
 impl Display for NegAtom {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    f.write_fmt(format_args!("~{}", self.atom()))
+    f.write_fmt(format_args!("not {}", self.atom()))
   }
 }
 
@@ -315,7 +345,7 @@ impl Display for Disjunction {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     f.write_fmt(format_args!(
       "({})",
-      self.args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(" \\/ ")
+      self.args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(" or ")
     ))
   }
 }
@@ -324,7 +354,7 @@ impl Display for Conjunction {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     f.write_fmt(format_args!(
       "({})",
-      self.args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(" /\\ ")
+      self.args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(" and ")
     ))
   }
 }

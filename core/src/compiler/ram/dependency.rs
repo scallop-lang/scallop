@@ -114,6 +114,13 @@ impl Dataflow {
         d1.collect_dependency(preds);
         d2.collect_dependency(preds);
       }
+      Self::ForeignPredicateGround(_, _) => {}
+      Self::ForeignPredicateConstraint(d, _, _) => {
+        d.collect_dependency(preds);
+      }
+      Self::ForeignPredicateJoin(d, _, _) => {
+        d.collect_dependency(preds);
+      }
     }
   }
 }

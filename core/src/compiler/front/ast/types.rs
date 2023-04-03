@@ -23,6 +23,8 @@ pub enum TypeNode {
   Str,
   String,
   // RcString,
+  DateTime,
+  Duration,
   Named(Identifier),
 }
 
@@ -48,6 +50,8 @@ impl std::fmt::Display for TypeNode {
       Self::Str => f.write_str("&str"),
       Self::String => f.write_str("String"),
       // Self::RcString => f.write_str("Rc<String>"),
+      Self::DateTime => f.write_str("DateTime"),
+      Self::Duration => f.write_str("Duration"),
       Self::Named(i) => f.write_str(&i.node.name),
     }
   }
@@ -56,6 +60,20 @@ impl std::fmt::Display for TypeNode {
 pub type Type = AstNode<TypeNode>;
 
 impl Type {
+  /// Create a new `i8` type AST node
+  pub fn i8() -> Self {
+    Self::default(TypeNode::I8)
+  }
+
+  /// Create a new `usize` type AST node
+  pub fn usize() -> Self {
+    Self::default(TypeNode::USize)
+  }
+
+  /// Convert the type AST node to a value type
+  ///
+  /// Returns `Ok` if the node itself is a base type;
+  /// `Err` if the node is a `Named` type and not normalized to base type
   pub fn to_value_type(&self) -> Result<ValueType, String> {
     match &self.node {
       TypeNode::I8 => Ok(ValueType::I8),
@@ -77,6 +95,8 @@ impl Type {
       TypeNode::Str => Ok(ValueType::Str),
       TypeNode::String => Ok(ValueType::String),
       // TypeNode::RcString => Ok(ValueType::RcString),
+      TypeNode::DateTime => Ok(ValueType::DateTime),
+      TypeNode::Duration => Ok(ValueType::Duration),
       TypeNode::Named(s) => Err(s.name().to_string()),
     }
   }

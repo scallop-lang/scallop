@@ -113,7 +113,7 @@ where
           .iter()
           .filter_map(|item| {
             if let compiler::front::Item::QueryDecl(q) = item {
-              Some(q.query().relation_name())
+              Some(q.query().create_relation_name())
             } else {
               None
             }

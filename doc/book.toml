@@ -1,0 +1,25 @@
+[book]
+title = "Scallop Book"
+description = "Use Scallop for Logic Programming and Neuro-symbolic Programming"
+authors = ["Ziyang Li"]
+language = "en"
+
+[rust]
+edition = "2018"
+
+[output.html]
+mathjax-support = true
+site-url = "/scallop/"
+additional-js = ["js/hljs_scallop.js"]
+
+[output.html.playground]
+line-numbers = true
+
+[output.html.search]
+limit-results = 20
+use-boolean-and = true
+boost-title = 2
+boost-hierarchy = 2
+boost-paragraph = 1
+expand = true
+heading-split-level = 2

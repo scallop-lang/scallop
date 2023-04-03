@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Union, Tuple, Optional, Any, Dict, Callable
+from typing import *
 from copy import deepcopy
 
 # Try import torch; if not there, delegate to something else
@@ -10,10 +10,12 @@ from .scallopy import InternalScallopContext
 from .collection import ScallopCollection
 from .provenance import ScallopProvenance, DiffAddMultProb2Semiring, DiffNandMultProb2Semiring, DiffMaxMultProb2Semiring
 from .io import CSVFileOptions
-from .utils import _mapping_tuple
+from .input_mapping import InputMapping
 from .function import ForeignFunction
+from .predicate import ForeignPredicate
 from .history import HistoryAction, record_history
 from .sample_type import SAMPLE_TYPE_TOP_K
+from .utils import Counter
 
 # Main context
 class ScallopContext(Context):
@@ -87,7 +89,7 @@ class ScallopContext(Context):
       self._input_retain_topk = {}
       self._input_non_probabilistic = {}
       self._input_is_singleton = {}
-      self._input_mutual_exclusions = 0
+      self._mutual_exclusion_counter = Counter()
       self._sample_facts = {}
       self._k = k
       self._train_k = train_k
@@ -102,7 +104,7 @@ class ScallopContext(Context):
       self._input_retain_topk = deepcopy(fork_from._input_retain_topk)
       self._input_non_probabilistic = deepcopy(fork_from._input_non_probabilistic)
       self._input_is_singleton = deepcopy(fork_from._input_is_singleton)
-      self._input_mutual_exclusions = deepcopy(fork_from._input_mutual_exclusions)
+      self._mutual_exclusion_counter = deepcopy(fork_from._mutual_exclusion_counter)
       self._sample_facts = deepcopy(fork_from._sample_facts)
       self._k = deepcopy(fork_from._k)
       self._train_k = deepcopy(fork_from._train_k)
@@ -155,6 +157,21 @@ class ScallopContext(Context):
     """
     return ScallopContext(fork_from=self)
 
+  def set_early_discard(self, early_discard: bool = True):
+    """
+    Configure the current context to perform early discard (or not)
+    """
+    self._internal.set_early_discard(early_discard)
+
+  def set_iter_limit(self, iter_limit: Optional[int] = None):
+    """
+    Configure the current context to have limit on iteration (or not)
+    """
+    if iter_limit is None:
+      self._internal.remove_iter_limit()
+    else:
+      self._internal.set_iter_limit(iter_limit)
+
   def run(self):
     """
     Execute the code under the current context. This operation is incremental
@@ -201,6 +218,13 @@ class ScallopContext(Context):
       self._internal.register_foreign_function(foreign_function)
     else:
       raise Exception("Registering non-foreign-function. Consider decorating the function with @scallopy.foreign_function")
+
+  @record_history
+  def register_foreign_predicate(self, foreign_predicate: ForeignPredicate):
+    if type(foreign_predicate) == ForeignPredicate:
+      self._internal.register_foreign_predicate(foreign_predicate)
+    else:
+      raise Exception("Registering non-foreign-predicate. Consider decorating the function with @scallopy.foreign_predicate")
 
   def forward_function(
     self,
@@ -260,7 +284,7 @@ class ScallopContext(Context):
     self,
     relation_name: str,
     relation_types: Union[Tuple, type, str],
-    input_mapping: Optional[Union[List[Tuple], Tuple]] = None,
+    input_mapping: Any = None,
     retain_topk: Optional[int] = None,
     non_probabilistic: bool = False,
     load_csv: Optional[Union[CSVFileOptions, str]] = None,
@@ -512,36 +536,46 @@ class ScallopContext(Context):
     else:
       raise Exception(f"Unknown relation {relation}")
 
-  def set_input_mapping(self, relation: str, input_mapping: Union[List[Tuple], Tuple]):
+  def set_input_mapping(
+    self,
+    relation: str,
+    input_mapping: Any,
+    disjunctive: bool = False,
+    disjunctive_dim: Optional[int] = None,
+    retain_threshold: Optional[float] = None,
+    retain_k: Optional[int] = None,
+    sample_dim: Optional[int] = None,
+    sample_strategy: Optional[Literal["top", "categorical"]] = "top",
+  ):
     """
     Set the input mapping for the given relation
     """
-    if type(input_mapping) == list:
-      (preproc_input_mapping, is_singleton) = ([_mapping_tuple(t) for t in input_mapping], False)
-    elif type(input_mapping) == tuple:
-      (preproc_input_mapping, is_singleton) = ([_mapping_tuple(input_mapping)], True)
-    else:
-      raise Exception(f"Unknown input mapping type `{type(input_mapping)}`. Must be a list or tuple")
+
+    # Try to create an input mapping, pass all configurations
+    mapping = InputMapping(
+      input_mapping,
+      disjunctive=disjunctive,
+      disjunctive_dim=disjunctive_dim,
+      retain_threshold=retain_threshold,
+      retain_k=retain_k,
+      sample_dim=sample_dim,
+      sample_strategy=sample_strategy,
+      supports_disjunctions=self.supports_disjunctions(),
+    )
 
     # Check if the tuples in the input mapping matches
-    for tuple in preproc_input_mapping:
-      if not self._internal.check_tuple(relation, tuple):
-        raise Exception(f"The tuple {tuple} in the input mapping does not match the type of the relation `{relation}`")
+    for t in mapping.all_tuples():
+      if not self._internal.check_tuple(relation, t):
+        raise Exception(f"The tuple {t} in the input mapping does not match the type of the relation `{relation}`")
 
     # If there is no problem, set the input_mapping property
-    self._input_mappings[relation] = (preproc_input_mapping, is_singleton)
+    self._input_mappings[relation] = mapping
 
-  def set_sample_topk_facts(self, relation: str, amount: int):
-    self._input_retain_topk[relation] = amount
-
-  def set_sample_facts(self, relation: str, amount: int, sample_type: str = SAMPLE_TYPE_TOP_K):
-    """
-    When forward function is called, sample from the given facts by the amount
-
-    :param relation: the relation within which the facts need to be sampled
-    :param sample_type: can be chosen from "categorical" or ""
-    """
-    self._sample_facts[relation] = (sample_type, amount)
+  def has_input_mapping(self, relation: str) -> bool:
+    if relation in self._input_mappings:
+      if self._input_mappings[relation] is not None and self._input_mappings[relation].kind is not None:
+        return True
+    return False
 
   def requires_tag(self) -> bool:
     """
@@ -571,6 +605,8 @@ class ScallopContext(Context):
     return self.provenance in PROVENANCE_SUPPORTING_DISJUNCTIONS
 
   def _process_disjunctive_elements(self, elems, disjunctions):
+    processed_elems = [e for e in elems]
+
     # Check if we the provenance supports handling disjunctions
     if self.supports_disjunctions():
 
@@ -582,26 +618,25 @@ class ScallopContext(Context):
         # Go through each disjunction
         for disjunction in disjunctions:
           # Assign a new disjunction id for this one
-          disjunction_id = self._input_mutual_exclusions
-          self._input_mutual_exclusions += 1 # Increment the mutual exclusion count
+          disjunction_id = self._mutual_exclusion_counter.get_and_increment()
 
           # Go through the facts and update the tag to include disjunction id
           for fact_id in disjunction:
             visited_fact_ids.add(fact_id)
             if self.requires_tag():
               (tag, tup) = elems[fact_id]
-              elems[fact_id] = ((tag, disjunction_id), tup)
+              processed_elems[fact_id] = ((tag, disjunction_id), tup)
             else:
-              elems[fact_id] = (disjunction_id, elems[fact_id])
+              processed_elems[fact_id] = (disjunction_id, elems[fact_id])
 
       # Update facts who is not inside of any disjunction
       for (fact_id, fact) in enumerate(elems):
         if fact_id not in visited_fact_ids:
           if self.requires_tag():
             (tag, tup) = fact
-            elems[fact_id] = ((tag, None), tup)
+            processed_elems[fact_id] = ((tag, None), tup)
           else:
-            elems[fact_id] = (None, fact)
+            processed_elems[fact_id] = (None, fact)
 
     # Return the processed elements
-    return elems
+    return processed_elems

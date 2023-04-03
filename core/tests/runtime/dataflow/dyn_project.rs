@@ -8,7 +8,7 @@ use scallop_core::testing::*;
 #[test]
 fn test_dyn_project_1() {
   let mut ctx = unit::UnitProvenance;
-  let mut rt = RuntimeEnvironment::new();
+  let mut rt = RuntimeEnvironment::new_std();
 
   // Relations
   let mut source = DynamicRelation::<unit::UnitProvenance>::new();

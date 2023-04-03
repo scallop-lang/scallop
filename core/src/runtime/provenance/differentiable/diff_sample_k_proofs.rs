@@ -7,8 +7,8 @@ use crate::utils::PointerFamily;
 pub struct DiffSampleKProofsProvenance<T: Clone, P: PointerFamily> {
   pub k: usize,
   pub sampler: P::Cell<StdRng>,
-  pub diff_probs: P::Pointer<Vec<(f64, T)>>,
-  pub disjunctions: Disjunctions,
+  pub storage: DiffProbStorage<T, P>,
+  pub disjunctions: P::Cell<Disjunctions>,
 }
 
 impl<T: Clone, P: PointerFamily> Clone for DiffSampleKProofsProvenance<T, P> {
@@ -16,8 +16,8 @@ impl<T: Clone, P: PointerFamily> Clone for DiffSampleKProofsProvenance<T, P> {
     Self {
       k: self.k,
       sampler: P::clone_cell(&self.sampler),
-      diff_probs: P::new((&*self.diff_probs).clone()),
-      disjunctions: self.disjunctions.clone(),
+      storage: self.storage.clone_internal(),
+      disjunctions: P::clone_cell(&self.disjunctions),
     }
   }
 }
@@ -31,13 +31,13 @@ impl<T: Clone, P: PointerFamily> DiffSampleKProofsProvenance<T, P> {
     Self {
       k,
       sampler: P::new_cell(StdRng::seed_from_u64(seed)),
-      diff_probs: P::new(Vec::new()),
-      disjunctions: Disjunctions::new(),
+      storage: DiffProbStorage::new(),
+      disjunctions: P::new_cell(Disjunctions::new()),
     }
   }
 
   pub fn input_tags(&self) -> Vec<T> {
-    self.diff_probs.iter().map(|(_, t)| t.clone()).collect()
+    self.storage.input_tags()
   }
 
   pub fn set_k(&mut self, new_k: usize) {
@@ -47,11 +47,11 @@ impl<T: Clone, P: PointerFamily> DiffSampleKProofsProvenance<T, P> {
 
 impl<T: Clone, P: PointerFamily> DNFContextTrait for DiffSampleKProofsProvenance<T, P> {
   fn fact_probability(&self, id: &usize) -> f64 {
-    self.diff_probs[id.clone()].0
+    self.storage.fact_probability(id)
   }
 
   fn has_disjunction_conflict(&self, pos_facts: &std::collections::BTreeSet<usize>) -> bool {
-    self.disjunctions.has_conflict(pos_facts)
+    P::get_cell(&self.disjunctions, |d| d.has_conflict(pos_facts))
   }
 }
 
@@ -60,22 +60,21 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffSampleKProofsProve
 
   type InputTag = InputExclusiveDiffProb<T>;
 
-  type OutputTag = OutputDiffProb<T>;
+  type OutputTag = OutputDiffProb;
 
   fn name() -> &'static str {
     "diff-sample-k-proofs"
   }
 
-  fn tagging_fn(&mut self, input_tag: Self::InputTag) -> Self::Tag {
-    let InputExclusiveDiffProb { prob, tag, exclusion } = input_tag;
+  fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {
+    let InputExclusiveDiffProb { prob, external_tag, exclusion } = input_tag;
 
     // First store the probability and generate the id
-    let fact_id = self.diff_probs.len();
-    P::get_mut(&mut self.diff_probs).push((prob, tag));
+    let fact_id = self.storage.add_prob(prob, external_tag);
 
     // Store the mutual exclusivity
     if let Some(disjunction_id) = exclusion {
-      self.disjunctions.add_disjunction(disjunction_id, fact_id);
+      P::get_cell_mut(&self.disjunctions, |d| d.add_disjunction(disjunction_id, fact_id));
     }
 
     // Finally return the formula
@@ -83,17 +82,25 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffSampleKProofsProve
   }
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
-    let s = DualNumberSemiring::new(self.diff_probs.len());
+    // Get the number of variables that requires grad
+    let num_var_requires_grad = self.storage.num_input_tags();
+    let s = DualNumberSemiring::new(num_var_requires_grad);
     let v = |i: &usize| {
-      let (real, _) = &self.diff_probs[i.clone()];
-      s.singleton(real.clone(), i.clone())
+      let (real, external_tag) = self.storage.get_diff_prob(i);
+
+      // Check if this variable `i` requires grad or not
+      if external_tag.is_some() {
+        s.singleton(real.clone(), i.clone())
+      } else {
+        s.constant(real.clone())
+      }
     };
     let wmc_result = t.wmc(&s, &v);
     let prob = wmc_result.real;
     let deriv = wmc_result
       .deriv
       .iter()
-      .map(|(id, weight)| (id, *weight, self.diff_probs[id].1.clone()))
+      .map(|(id, weight)| (id, *weight))
       .collect::<Vec<_>>();
     OutputDiffProb(prob, deriv)
   }
@@ -126,7 +133,7 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffSampleKProofsProve
   }
 
   fn weight(&self, t: &Self::Tag) -> f64 {
-    let v = |i: &usize| self.diff_probs[i.clone()].0;
+    let v = |i: &usize| self.storage.get_prob(i);
     t.wmc(&RealSemiring::new(), &v)
   }
 

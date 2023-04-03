@@ -18,7 +18,7 @@ impl Provenance for BooleanProvenance {
     "boolean"
   }
 
-  fn tagging_fn(&mut self, ext_tag: Self::InputTag) -> Self::Tag {
+  fn tagging_fn(&self, ext_tag: Self::InputTag) -> Self::Tag {
     ext_tag
   }
 

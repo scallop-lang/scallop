@@ -6,6 +6,7 @@ pub enum TypeDeclNode {
   Subtype(SubtypeDecl),
   Alias(AliasTypeDecl),
   Relation(RelationTypeDecl),
+  Enum(EnumTypeDecl),
 }
 
 pub type TypeDecl = AstNode<TypeDeclNode>;
@@ -16,6 +17,7 @@ impl TypeDecl {
       TypeDeclNode::Subtype(s) => s.attributes(),
       TypeDeclNode::Alias(a) => a.attributes(),
       TypeDeclNode::Relation(r) => r.attributes(),
+      TypeDeclNode::Enum(e) => e.attributes(),
     }
   }
 
@@ -24,6 +26,7 @@ impl TypeDecl {
       TypeDeclNode::Subtype(s) => s.attributes_mut(),
       TypeDeclNode::Alias(a) => a.attributes_mut(),
       TypeDeclNode::Relation(r) => r.attributes_mut(),
+      TypeDeclNode::Enum(e) => e.attributes_mut(),
     }
   }
 }
@@ -165,5 +168,63 @@ impl RelationTypeDecl {
 
   pub fn attributes_mut(&mut self) -> &mut Attributes {
     &mut self.node.attrs
+  }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
+pub struct EnumTypeDeclNode {
+  pub attrs: Attributes,
+  pub name: Identifier,
+  pub members: Vec<EnumTypeMember>,
+}
+
+pub type EnumTypeDecl = AstNode<EnumTypeDeclNode>;
+
+impl EnumTypeDecl {
+  pub fn attributes(&self) -> &Vec<Attribute> {
+    &self.node.attrs
+  }
+
+  pub fn attributes_mut(&mut self) -> &mut Attributes {
+    &mut self.node.attrs
+  }
+
+  pub fn name(&self) -> &str {
+    self.node.name.name()
+  }
+
+  pub fn members(&self) -> &[EnumTypeMember] {
+    &self.node.members
+  }
+
+  pub fn iter_members(&self) -> impl Iterator<Item = &EnumTypeMember> {
+    self.node.members.iter()
+  }
+
+  pub fn iter_members_mut(&mut self) -> impl Iterator<Item = &mut EnumTypeMember> {
+    self.node.members.iter_mut()
+  }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct EnumTypeMemberNode {
+  pub name: Identifier,
+  pub assigned_num: Option<Constant>,
+}
+
+pub type EnumTypeMember = AstNode<EnumTypeMemberNode>;
+
+impl EnumTypeMember {
+  pub fn name(&self) -> &str {
+    self.node.name.name()
+  }
+
+  pub fn assigned_number(&self) -> Option<&Constant> {
+    self.node.assigned_num.as_ref()
+  }
+
+  pub fn assigned_number_mut(&mut self) -> Option<&mut Constant> {
+    self.node.assigned_num.as_mut()
   }
 }

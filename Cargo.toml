@@ -10,6 +10,7 @@ members = [
   "etc/scallop-wasm",
   "lib/sdd",
   "lib/rsat",
+  "lib/ram",
 ]
 
 default-members = [

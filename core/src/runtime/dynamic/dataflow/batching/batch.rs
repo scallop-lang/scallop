@@ -19,6 +19,8 @@ pub enum DynamicBatch<'a, Prov: Provenance> {
   Product(DynamicProductBatch<'a, Prov>),
   Difference(DynamicDifferenceBatch<'a, Prov>),
   Antijoin(DynamicAntijoinBatch<'a, Prov>),
+  ForeignPredicateConstraint(ForeignPredicateConstraintBatch<'a, Prov>),
+  ForeignPredicateJoin(ForeignPredicateJoinBatch<'a, Prov>),
 }
 
 impl<'a, Prov: Provenance> DynamicBatch<'a, Prov> {
@@ -29,14 +31,6 @@ impl<'a, Prov: Provenance> DynamicBatch<'a, Prov> {
   pub fn source_vec(v: Vec<DynamicElement<Prov>>) -> Self {
     Self::SourceVec(v.into_iter())
   }
-
-  // pub fn aggregate(
-  //   source: DynamicGroupsIterator<Prov>,
-  //   agg: DynamicAggregateOp,
-  //   ctx: &'a Prov,
-  // ) -> Self {
-  //   Self::Aggregation(DynamicAggregationBatch::new(source, agg, ctx))
-  // }
 
   pub fn step(&mut self, u: usize) {
     match self {
@@ -124,6 +118,8 @@ impl<'a, Prov: Provenance> Iterator for DynamicBatch<'a, Prov> {
       Self::Product(p) => p.next(),
       Self::Difference(d) => d.next(),
       Self::Antijoin(a) => a.next(),
+      Self::ForeignPredicateConstraint(b) => b.next(),
+      Self::ForeignPredicateJoin(b) => b.next(),
     }
   }
 }

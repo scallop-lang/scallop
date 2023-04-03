@@ -7,14 +7,14 @@ use crate::runtime::provenance::*;
 #[derive(Clone, Debug)]
 pub struct ExtensionalRelation<Prov: Provenance> {
   /// The facts from the program
-  program_facts: Vec<(InputTag, Tuple)>,
+  program_facts: Vec<(DynamicInputTag, Tuple)>,
 
   /// Whether we have internalized the program facts; we only allow a single
   /// round of internalization of program facts
   pub internalized_program_facts: bool,
 
   /// Dynamically tagged input facts
-  dynamic_input: Vec<(InputTag, Tuple)>,
+  dynamic_input: Vec<(DynamicInputTag, Tuple)>,
 
   /// Statically tagged input facts
   static_input: Vec<(Option<Prov::InputTag>, Tuple)>,
@@ -54,7 +54,7 @@ impl<Prov: Provenance> ExtensionalRelation<Prov> {
 
   pub fn add_program_facts<I>(&mut self, i: I)
   where
-    I: Iterator<Item = (InputTag, Tuple)>,
+    I: Iterator<Item = (DynamicInputTag, Tuple)>,
   {
     self.program_facts.extend(i)
   }
@@ -67,7 +67,7 @@ impl<Prov: Provenance> ExtensionalRelation<Prov> {
     self.static_input.extend(facts.into_iter().map(|tup| (None, tup)))
   }
 
-  pub fn add_dynamic_input_facts(&mut self, facts: Vec<(InputTag, Tuple)>) {
+  pub fn add_dynamic_input_facts(&mut self, facts: Vec<(DynamicInputTag, Tuple)>) {
     if !facts.is_empty() {
       self.internalized = false;
     }
@@ -90,7 +90,7 @@ impl<Prov: Provenance> ExtensionalRelation<Prov> {
     if !self.program_facts.is_empty() {
       // Iterate (not drain) the program facts
       elems.extend(self.program_facts.iter().map(|(tag, tup)| {
-        let maybe_input_tag: Option<Prov::InputTag> = FromInputTag::from_input_tag(&tag);
+        let maybe_input_tag = StaticInputTag::from_dynamic_input_tag(&tag);
         let tag = ctx.tagging_optional_fn(maybe_input_tag);
         DynamicElement::new(tup.clone(), tag)
       }));
@@ -101,7 +101,7 @@ impl<Prov: Provenance> ExtensionalRelation<Prov> {
 
     // First internalize dynamic input facts
     elems.extend(self.dynamic_input.drain(..).map(|(tag, tup)| {
-      let maybe_input_tag: Option<Prov::InputTag> = FromInputTag::from_input_tag(&tag);
+      let maybe_input_tag = StaticInputTag::from_dynamic_input_tag(&tag);
       let tag = ctx.tagging_optional_fn(maybe_input_tag);
       DynamicElement::new(tup, tag)
     }));
@@ -127,7 +127,7 @@ impl<Prov: Provenance> ExtensionalRelation<Prov> {
     if !self.program_facts.is_empty() {
       // Iterate (not drain) the program facts
       elems.extend(self.program_facts.iter().map(|(tag, tup)| {
-        let maybe_input_tag: Option<Prov::InputTag> = FromInputTag::from_input_tag(&tag);
+        let maybe_input_tag = StaticInputTag::from_dynamic_input_tag(&tag);
         let tag = ctx.tagging_optional_fn(maybe_input_tag.clone());
 
         // !SPECIAL MONITORING!
@@ -142,7 +142,7 @@ impl<Prov: Provenance> ExtensionalRelation<Prov> {
 
     // First internalize dynamic input facts
     elems.extend(self.dynamic_input.drain(..).map(|(tag, tup)| {
-      let maybe_input_tag: Option<Prov::InputTag> = FromInputTag::from_input_tag(&tag);
+      let maybe_input_tag = StaticInputTag::from_dynamic_input_tag(&tag);
       let tag = ctx.tagging_optional_fn(maybe_input_tag.clone());
 
       // !SPECIAL MONITORING!

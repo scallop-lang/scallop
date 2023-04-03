@@ -2,6 +2,7 @@ mod dyn_aggregate;
 mod dyn_difference;
 mod dyn_filter;
 mod dyn_find;
+mod dyn_foreign_predicate;
 mod dyn_group_aggregate;
 mod dyn_group_by_key;
 mod dyn_intersect;

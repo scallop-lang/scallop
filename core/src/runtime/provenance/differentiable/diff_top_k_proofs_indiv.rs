@@ -8,7 +8,7 @@ use crate::utils::PointerFamily;
 #[derive(Clone)]
 pub struct OutputIndivDiffProb<T: Clone> {
   pub k: usize,
-  pub proofs: Vec<Vec<(f64, bool, T)>>,
+  pub proofs: Vec<Vec<(f64, bool, Option<T>)>>,
 }
 
 impl<T: Clone> std::fmt::Debug for OutputIndivDiffProb<T> {
@@ -61,16 +61,16 @@ impl<T: Clone> std::fmt::Display for OutputIndivDiffProb<T> {
 
 pub struct DiffTopKProofsIndivProvenance<T: Clone, P: PointerFamily> {
   pub k: usize,
-  pub diff_probs: P::Pointer<Vec<(f64, T)>>,
-  pub disjunctions: Disjunctions,
+  pub storage: DiffProbStorage<T, P>,
+  pub disjunctions: P::Cell<Disjunctions>,
 }
 
 impl<T: Clone, P: PointerFamily> Clone for DiffTopKProofsIndivProvenance<T, P> {
   fn clone(&self) -> Self {
     Self {
       k: self.k,
-      diff_probs: P::new((&*self.diff_probs).clone()),
-      disjunctions: self.disjunctions.clone(),
+      storage: self.storage.clone_internal(),
+      disjunctions: P::clone_cell(&self.disjunctions),
     }
   }
 }
@@ -79,17 +79,17 @@ impl<T: Clone, P: PointerFamily> DiffTopKProofsIndivProvenance<T, P> {
   pub fn new(k: usize) -> Self {
     Self {
       k,
-      diff_probs: P::new(Vec::new()),
-      disjunctions: Disjunctions::new(),
+      storage: DiffProbStorage::new(),
+      disjunctions: P::new_cell(Disjunctions::new()),
     }
   }
 
   pub fn input_tags(&self) -> Vec<T> {
-    self.diff_probs.iter().map(|(_, t)| t.clone()).collect()
+    self.storage.input_tags()
   }
 
-  pub fn input_tag_of_fact_id(&self, i: usize) -> T {
-    self.diff_probs[i].1.clone()
+  pub fn input_tag_of_fact_id(&self, i: usize) -> Option<T> {
+    self.storage.get_diff_prob(&i).1
   }
 
   pub fn set_k(&mut self, k: usize) {
@@ -99,11 +99,11 @@ impl<T: Clone, P: PointerFamily> DiffTopKProofsIndivProvenance<T, P> {
 
 impl<T: Clone, P: PointerFamily> DNFContextTrait for DiffTopKProofsIndivProvenance<T, P> {
   fn fact_probability(&self, id: &usize) -> f64 {
-    self.diff_probs[*id].0
+    self.storage.get_prob(id)
   }
 
   fn has_disjunction_conflict(&self, pos_facts: &std::collections::BTreeSet<usize>) -> bool {
-    self.disjunctions.has_conflict(pos_facts)
+    P::get_cell(&self.disjunctions, |d| d.has_conflict(pos_facts))
   }
 }
 
@@ -118,16 +118,15 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopKProofsIndivPro
     "diff-top-k-proofs-indiv"
   }
 
-  fn tagging_fn(&mut self, input_tag: Self::InputTag) -> Self::Tag {
-    let InputExclusiveDiffProb { prob, tag, exclusion } = input_tag;
+  fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {
+    let InputExclusiveDiffProb { prob, external_tag, exclusion } = input_tag;
 
     // First store the probability and generate the id
-    let fact_id = self.diff_probs.len();
-    P::get_mut(&mut self.diff_probs).push((prob, tag));
+    let fact_id = self.storage.add_prob(prob, external_tag);
 
     // Store the mutual exclusivity
     if let Some(disjunction_id) = exclusion {
-      self.disjunctions.add_disjunction(disjunction_id, fact_id);
+      P::get_cell_mut(&self.disjunctions, |d| d.add_disjunction(disjunction_id, fact_id));
     }
 
     // Finally return the formula
@@ -148,7 +147,7 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopKProofsIndivPro
             (
               self.fact_probability(&fact_id),
               literal.sign(),
-              self.input_tag_of_fact_id(fact_id),
+              self.input_tag_of_fact_id(fact_id)
             )
           })
           .collect::<Vec<_>>()
@@ -186,9 +185,8 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopKProofsIndivPro
   }
 
   fn weight(&self, t: &Self::Tag) -> f64 {
-    let s = RealSemiring::new();
-    let v = |i: &usize| self.diff_probs[i.clone()].0;
-    t.wmc(&s, &v)
+    let v = |i: &usize| self.storage.get_prob(i);
+    t.wmc(&RealSemiring::new(), &v)
   }
 
   fn dynamic_count(&self, batch: DynamicElements<Self>) -> DynamicElements<Self> {

@@ -9,7 +9,7 @@ use scallop_core::testing::*;
 #[test]
 fn test_dynamic_group_and_count_1() {
   let mut ctx = unit::UnitProvenance;
-  let mut rt = RuntimeEnvironment::new();
+  let mut rt = RuntimeEnvironment::new_std();
 
   // Relations
   let mut color = DynamicRelation::<unit::UnitProvenance>::new();

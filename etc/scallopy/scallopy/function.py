@@ -1,10 +1,10 @@
 from typing import *
 import inspect
 
-
+# Generic type parameters
 class GenericTypeParameter:
   """
-  A generic type parameter used for Scallop foreign function
+  A generic type parameter used for Scallop foreign function and predicate
   """
 
   COUNTER = 0
@@ -31,6 +31,7 @@ class GenericTypeParameter:
     return f"T{self.id}({self.type_family})"
 
 
+# Scallop Data Type
 class Type:
   def __init__(self, value):
     if type(value) == GenericTypeParameter:
@@ -81,6 +82,9 @@ class Type:
       return f"Generic({self.id}, {self.type_family})"
     else:
       raise Exception(f"Unknown parameter kind {self.kind}")
+
+  def is_base(self):
+    return self.kind == "base"
 
   def is_generic(self):
     return self.kind == "generic"
@@ -168,7 +172,7 @@ def foreign_function(func):
   A decorator to create a Scallop foreign function, for example
 
   ``` python
-  @scallop_function
+  @scallopy.foreign_function
   def string_index_of(s1: str, s2: str) -> usize:
     return s1.index(s2)
   ```

@@ -11,7 +11,7 @@ pub struct IntentionalRelation<Prov: Provenance, Ptr: PointerFamily> {
   pub internal_facts: DynamicCollection<Prov>,
 
   /// Recovered facts
-  pub recovered_facts: Ptr::Pointer<DynamicOutputCollection<Prov>>,
+  pub recovered_facts: Ptr::Rc<DynamicOutputCollection<Prov>>,
 }
 
 impl<Prov: Provenance, Ptr: PointerFamily> Default for IntentionalRelation<Prov, Ptr> {
@@ -25,7 +25,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> Clone for IntentionalRelation<Prov, P
     Self {
       recovered: self.recovered,
       internal_facts: self.internal_facts.clone(),
-      recovered_facts: Ptr::clone_ptr(&self.recovered_facts),
+      recovered_facts: Ptr::clone_rc(&self.recovered_facts),
     }
   }
 }
@@ -34,14 +34,14 @@ impl<Prov: Provenance, Ptr: PointerFamily> std::fmt::Debug for IntentionalRelati
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_struct("IDBRelation")
       .field("internal", &self.internal_facts)
-      .field("recovered", &Ptr::get(&self.recovered_facts))
+      .field("recovered", &Ptr::get_rc(&self.recovered_facts))
       .finish()
   }
 }
 
 impl<Prov: Provenance, Ptr: PointerFamily> std::fmt::Display for IntentionalRelation<Prov, Ptr> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    Ptr::get(&self.recovered_facts).fmt(f)
+    Ptr::get_rc(&self.recovered_facts).fmt(f)
   }
 }
 
@@ -50,7 +50,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalRelation<Prov, Ptr> {
     Self {
       recovered: false,
       internal_facts: DynamicCollection::empty(),
-      recovered_facts: Ptr::new(DynamicOutputCollection::empty()),
+      recovered_facts: Ptr::new_rc(DynamicOutputCollection::empty()),
     }
   }
 
@@ -58,7 +58,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalRelation<Prov, Ptr> {
     Self {
       recovered: false,
       internal_facts: collection,
-      recovered_facts: Ptr::new(DynamicOutputCollection::empty()),
+      recovered_facts: Ptr::new_rc(DynamicOutputCollection::empty()),
     }
   }
 
@@ -66,7 +66,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalRelation<Prov, Ptr> {
     Self {
       recovered: true,
       internal_facts: DynamicCollection::empty(),
-      recovered_facts: Ptr::new(collection),
+      recovered_facts: Ptr::new_rc(collection),
     }
   }
 
@@ -75,14 +75,14 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalRelation<Prov, Ptr> {
     if !self.recovered && !self.internal_facts.is_empty() {
       if drain {
         // Add internal facts to recovered facts, and remove the internal facts
-        Ptr::get_mut(&mut self.recovered_facts).extend(self.internal_facts.drain().map(|elem| {
+        Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.drain().map(|elem| {
           let output_tag = ctx.recover_fn(&elem.tag);
           m.observe_recover(&elem.tuple, &elem.tag, &output_tag);
           (output_tag, elem.tuple)
         }));
       } else {
         // Add internal facts to recover facts, do not remove the internal facts
-        Ptr::get_mut(&mut self.recovered_facts).extend(self.internal_facts.iter().map(|elem| {
+        Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.iter().map(|elem| {
           let output_tag = ctx.recover_fn(&elem.tag);
           m.observe_recover(&elem.tuple, &elem.tag, &output_tag);
           (output_tag, elem.tuple.clone())
@@ -106,13 +106,13 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalRelation<Prov, Ptr> {
       // Check if we need to drain the internal facts
       if drain {
         // Add internal facts to recovered facts, and remove the internal facts
-        Ptr::get_mut(&mut self.recovered_facts).extend(self.internal_facts.drain().map(|elem| {
+        Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.drain().map(|elem| {
           let output_tag = ctx.recover_fn(&elem.tag);
           (output_tag, elem.tuple)
         }));
       } else {
         // Add internal facts to recover facts, do not remove the internal facts
-        Ptr::get_mut(&mut self.recovered_facts).extend(self.internal_facts.iter().map(|elem| {
+        Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.iter().map(|elem| {
           let output_tag = ctx.recover_fn(&elem.tag);
           (output_tag, elem.tuple.clone())
         }));

@@ -92,17 +92,6 @@ class TestBasics(unittest.TestCase):
     ctx.run()
     self.assertEqual(list(ctx.relation("result")), [(1.0, (False,))])
 
-  def test_edge_path_prob_with_sugar(self):
-    from scallopy.sugar import Relation
-    ctx = scallopy.ScallopContext(provenance="minmaxprob")
-    edge = Relation(ctx, (int, int))
-    path = Relation(ctx, (int, int))
-    edge |= [(0.5, (0, 1)), (0.5, (1, 2))]
-    path["a", "c"] |= edge["a", "c"]
-    path["a", "c"] |= edge["a", "b"] & path["b", "c"]
-    ctx.run()
-    self.assertEqual(list(path), [(0.5, (0, 1)), (0.5, (0, 2)), (0.5, (1, 2))])
-
 
 if __name__ == "__main__":
   unittest.main()

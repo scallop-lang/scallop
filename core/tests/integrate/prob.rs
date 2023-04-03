@@ -41,7 +41,7 @@ fn test_min_max_with_recursion() {
       query path(3, 1, 3, 3)
     "#,
     ctx,
-    ("path(3, 1, 3, 3)", vec![(0.9, (3usize, 1usize, 3usize, 3usize))]),
+    ("path(3, 1, 3, 3)", vec![(0.9, (3, 1, 3, 3))]),
     min_max_prob::MinMaxProbProvenance::cmp,
   )
 }

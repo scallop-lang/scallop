@@ -19,6 +19,8 @@ pub trait NodeVisitorMut {
   node_visitor_mut_func_def!(visit_subtype_decl, SubtypeDecl);
   node_visitor_mut_func_def!(visit_relation_type_decl, RelationTypeDecl);
   node_visitor_mut_func_def!(visit_relation_type, RelationType);
+  node_visitor_mut_func_def!(visit_enum_type_decl, EnumTypeDecl);
+  node_visitor_mut_func_def!(visit_enum_type_member, EnumTypeMember);
   node_visitor_mut_func_def!(visit_const_decl, ConstDecl);
   node_visitor_mut_func_def!(visit_const_assignment, ConstAssignment);
   node_visitor_mut_func_def!(visit_relation_decl, RelationDecl);
@@ -103,6 +105,7 @@ pub trait NodeVisitorMut {
       TypeDeclNode::Alias(a) => self.walk_alias_type_decl(a),
       TypeDeclNode::Subtype(s) => self.walk_subtype_decl(s),
       TypeDeclNode::Relation(r) => self.walk_relation_type_decl(r),
+      TypeDeclNode::Enum(e) => self.walk_enum_type_decl(e),
     }
   }
 
@@ -137,6 +140,24 @@ pub trait NodeVisitorMut {
     self.walk_identifier(&mut relation_type.node.name);
     for arg_type in &mut relation_type.node.arg_types {
       self.walk_arg_type_binding(arg_type);
+    }
+  }
+
+  fn walk_enum_type_decl(&mut self, enum_type_decl: &mut EnumTypeDecl) {
+    self.visit_enum_type_decl(enum_type_decl);
+    self.visit_location(&mut enum_type_decl.loc);
+    self.walk_identifier(&mut enum_type_decl.node.name);
+    for member in enum_type_decl.iter_members_mut() {
+      self.walk_enum_type_member(member);
+    }
+  }
+
+  fn walk_enum_type_member(&mut self, enum_type_member: &mut EnumTypeMember) {
+    self.visit_enum_type_member(enum_type_member);
+    self.visit_location(&mut enum_type_member.loc);
+    self.walk_identifier(&mut enum_type_member.node.name);
+    if let Some(assigned_num) = enum_type_member.assigned_number_mut() {
+      self.walk_constant(assigned_num);
     }
   }
 
@@ -489,6 +510,8 @@ macro_rules! impl_node_visitor_mut_tuple {
       node_visitor_mut_visit_node!(visit_subtype_decl, SubtypeDecl, ($($id),*));
       node_visitor_mut_visit_node!(visit_relation_type_decl, RelationTypeDecl, ($($id),*));
       node_visitor_mut_visit_node!(visit_relation_type, RelationType, ($($id),*));
+      node_visitor_mut_visit_node!(visit_enum_type_decl, EnumTypeDecl, ($($id),*));
+      node_visitor_mut_visit_node!(visit_enum_type_member, EnumTypeMember, ($($id),*));
       node_visitor_mut_visit_node!(visit_const_decl, ConstDecl, ($($id),*));
       node_visitor_mut_visit_node!(visit_const_assignment, ConstAssignment, ($($id),*));
       node_visitor_mut_visit_node!(visit_relation_decl, RelationDecl, ($($id),*));

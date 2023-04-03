@@ -6,6 +6,7 @@ use rand::SeedableRng;
 use super::*;
 use crate::common::constants::*;
 use crate::common::foreign_function::*;
+use crate::common::foreign_predicate::*;
 
 /// The options to create a runtime environment
 #[derive(Clone, Debug)]
@@ -39,6 +40,7 @@ impl RuntimeEnvironmentOptions {
       early_discard: self.early_discard,
       iter_limit: self.iter_limit,
       function_registry: ForeignFunctionRegistry::std(),
+      predicate_registry: ForeignPredicateRegistry::std(),
     }
   }
 }

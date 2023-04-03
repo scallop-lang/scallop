@@ -5,6 +5,12 @@ use super::super::error::*;
 use super::super::utils::*;
 use super::super::*;
 
+/// Constant declaration analysis
+///
+/// Analyzes the constant declarations coming from `ConstAssignment` and `EnumTypeDecl`.
+/// After walking through AST, the analysis checks whether there is duplicated constant
+/// declarations, unknown constants, and etc.
+/// It stores the locations and other information where a constant is used and declared.
 #[derive(Clone, Debug)]
 pub struct ConstantDeclAnalysis {
   pub variables: HashMap<String, (Loc, Option<Type>, Constant)>,
@@ -13,6 +19,7 @@ pub struct ConstantDeclAnalysis {
 }
 
 impl ConstantDeclAnalysis {
+  /// Create a new analysis
   pub fn new() -> Self {
     Self {
       variables: HashMap::new(),
@@ -21,10 +28,15 @@ impl ConstantDeclAnalysis {
     }
   }
 
+  /// Get the variable information stored in the analysis, including
+  /// its declaration location, its type, and the constant it is associated with.
+  /// `None` is returned if such variable does not exist.
   pub fn get_variable(&self, var: &str) -> Option<&(Loc, Option<Type>, Constant)> {
     self.variables.get(var)
   }
 
+  /// Given a location where a constant variable is used, find the type of that variable.
+  /// `None` is returned if this location is not recorded or the variable is not annotated with a type.
   pub fn loc_of_const_type(&self, loc: &Loc) -> Option<Type> {
     self
       .variable_use
@@ -46,6 +58,81 @@ impl ConstantDeclAnalysis {
       })
       .collect()
   }
+
+  pub fn process_enum_type_decl(&mut self, etd: &ast::EnumTypeDecl) -> Result<(), ConstantDeclError> {
+    let extract_value = |member: &ast::EnumTypeMember, prev_max: Option<i64>| -> Result<i64, ConstantDeclError> {
+      // First check if there is an integer number assignment to the enum
+      match member.assigned_number() {
+        Some(c) => match &c.node {
+          // If there is, we check if the integer is greater than or equal to zero and greater than the previous maximum
+          ast::ConstantNode::Integer(i) if *i >= 0 => {
+            let i = *i;
+            // Check if we have a previous number already
+            if let Some(prev_max) = prev_max {
+              if i > prev_max {
+                // If the number is greater than previous number, then ok to directly assign the number
+                return Ok(i);
+              } else {
+                // If the number is not greater, then this enum value ID is invalid
+                return Err(ConstantDeclError::EnumIDAlreadyAssigned {
+                  curr_name: member.name().to_string(),
+                  id: i,
+                  loc: member.location().clone(),
+                });
+              }
+            } else {
+              // If there is no previous max, then directly give it `i`.
+              return Ok(i)
+            }
+          }
+          _ => {
+            // We don't care other cases
+          }
+        }
+        _ => {}
+      };
+
+      // If the assignment is not presented, we simply increment the previous maximum value
+      if let Some(prev_max) = prev_max {
+        return Ok(prev_max + 1);
+      } else {
+        return Ok(0);
+      }
+    };
+
+    let mut process_member = |member: &ast::EnumTypeMember, id: i64| -> Result<(), ConstantDeclError> {
+      if let Some((first_decl_loc, _, _)) = self.variables.get(member.name()) {
+        Err(ConstantDeclError::DuplicatedConstant {
+          name: member.name().to_string(),
+          first_decl: first_decl_loc.clone(),
+          second_decl: member.location().clone(),
+        })
+      } else {
+        // Then store the variable into the storage
+        self.variables.insert(
+          member.name().to_string(),
+          (member.location().clone(), Some(Type::usize()), Constant::integer(id as i64))
+        );
+        Ok(())
+      }
+    };
+
+    // Go through all the members
+    let mut members_iterator = etd.iter_members();
+
+    // First process the first member
+    let first_member = members_iterator.next().unwrap(); // Unwrap is ok since there has to be at least two components
+    let mut curr_id = extract_value(first_member, None)?;
+    process_member(first_member, curr_id)?;
+
+    // Then process the rest
+    while let Some(curr_member) = members_iterator.next() {
+      curr_id = extract_value(curr_member, Some(curr_id))?;
+      process_member(curr_member, curr_id)?;
+    }
+
+    Ok(())
+  }
 }
 
 impl NodeVisitor for ConstantDeclAnalysis {
@@ -63,6 +150,12 @@ impl NodeVisitor for ConstantDeclAnalysis {
         ca.name().to_string(),
         (ca.location().clone(), ca.ty().cloned(), ca.value().clone()),
       );
+    }
+  }
+
+  fn visit_enum_type_decl(&mut self, etd: &ast::EnumTypeDecl) {
+    if let Err(e) = self.process_enum_type_decl(etd) {
+      self.errors.push(e);
     }
   }
 
@@ -132,6 +225,11 @@ pub enum ConstantDeclError {
     name: String,
     loc: Loc,
   },
+  EnumIDAlreadyAssigned {
+    curr_name: String,
+    id: i64,
+    loc: Loc,
+  },
 }
 
 impl FrontCompileErrorTrait for ConstantDeclError {
@@ -162,6 +260,9 @@ impl FrontCompileErrorTrait for ConstantDeclError {
       }
       Self::UnknownConstantVariable { name, loc } => {
         format!("unknown variable `{}`:\n{}", name, loc.report(src))
+      }
+      Self::EnumIDAlreadyAssigned { curr_name, id, loc } => {
+        format!("the enum ID `{}` for variant `{}` has already been assigned\n{}", id, curr_name, loc.report(src))
       }
     }
   }

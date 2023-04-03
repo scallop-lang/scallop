@@ -64,34 +64,21 @@
 //! Make sure it can be cloned, and then we can implement the `ForeignFunction` trait
 //! for it.
 //!
-//! ``` ignore
-//! #[derive(Clone)]
-//! pub struct YOUR_FF;
-//!
-//! impl ForeignFunction for YOUR_FF {
-//!   ...
-//! }
-//! ```
-//!
 //! Make sure the type information and the function implementation is correctly
 //! specified.
 //! Then we add the function to the standard library.
-//! In `ForeignFunctionRegistry::std`, we add the following line
-//!
-//! ``` ignore
-//! registry.register(ffs::YOUR_FF);
-//! ```
+//! In `ForeignFunctionRegistry::std`, we add the following line `registry.register(ffs::YOUR_FF);`.
 //!
 //! After this, the function will be available in the standard library
 
 use std::collections::*;
-use std::convert::*;
 
 use dyn_clone::DynClone;
 
 use super::type_family::*;
 use super::value::*;
 use super::value_type::*;
+use super::foreign_functions as ffs;
 
 /// A type used for defining a foreign function.
 ///
@@ -507,16 +494,30 @@ impl ForeignFunctionRegistry {
     // 1. we are starting from fresh registry;
     // 2. that all functions here have distinct names;
     // 3. all our functions are checked to be have correct types.
+
+    // Arithmetic
     registry.register(ffs::Abs).unwrap();
     registry.register(ffs::Sin).unwrap();
     registry.register(ffs::Cos).unwrap();
     registry.register(ffs::Tan).unwrap();
+
+    // Min/Max
     registry.register(ffs::Max).unwrap();
     registry.register(ffs::Min).unwrap();
+
+    // String operations
     registry.register(ffs::StringConcat).unwrap();
     registry.register(ffs::StringLength).unwrap();
     registry.register(ffs::StringCharAt).unwrap();
     registry.register(ffs::Substring).unwrap();
+
+    // DateTime operations
+    registry.register(ffs::DateTimeDay).unwrap();
+    registry.register(ffs::DateTimeMonth).unwrap();
+    registry.register(ffs::DateTimeMonth0).unwrap();
+    registry.register(ffs::DateTimeYear).unwrap();
+
+    // Hashing operation
     registry.register(ffs::Hash).unwrap();
 
     registry
@@ -561,517 +562,47 @@ impl<'a> IntoIterator for &'a ForeignFunctionRegistry {
   }
 }
 
-/// A library of pre-implemented foreign functions
-pub mod ffs {
-  use super::*;
+/// Floating point function
+pub trait UnaryFloatFunction: Clone {
+  fn name(&self) -> String;
 
-  /// Absolute value foreign function
-  ///
-  /// ``` scl
-  /// extern fn $abs<T: Number>(x: T) -> T
-  /// ```
-  #[derive(Clone)]
-  pub struct Abs;
+  fn execute_f32(&self, arg: f32) -> f32;
 
-  impl ForeignFunction for Abs {
-    fn name(&self) -> String {
-      "abs".to_string()
-    }
+  fn execute_f64(&self, arg: f64) -> f64;
+}
 
-    fn num_generic_types(&self) -> usize {
-      1
-    }
-
-    fn generic_type_family(&self, i: usize) -> TypeFamily {
-      assert_eq!(i, 0);
-      TypeFamily::Number
-    }
-
-    fn num_static_arguments(&self) -> usize {
-      1
-    }
-
-    fn static_argument_type(&self, i: usize) -> ForeignFunctionParameterType {
-      assert_eq!(i, 0);
-      ForeignFunctionParameterType::Generic(0)
-    }
-
-    fn return_type(&self) -> ForeignFunctionParameterType {
-      ForeignFunctionParameterType::Generic(0)
-    }
-
-    fn execute(&self, args: Vec<Value>) -> Option<Value> {
-      match args[0] {
-        // Signed integers, take absolute
-        Value::I8(f) => Some(Value::I8(f.abs())),
-        Value::I16(f) => Some(Value::I16(f.abs())),
-        Value::I32(f) => Some(Value::I32(f.abs())),
-        Value::I64(f) => Some(Value::I64(f.abs())),
-        Value::I128(f) => Some(Value::I128(f.abs())),
-        Value::ISize(f) => Some(Value::ISize(f.abs())),
-
-        // Unsigned integers, directly return
-        Value::U8(f) => Some(Value::U8(f)),
-        Value::U16(f) => Some(Value::U16(f)),
-        Value::U32(f) => Some(Value::U32(f)),
-        Value::U64(f) => Some(Value::U64(f)),
-        Value::U128(f) => Some(Value::U128(f)),
-        Value::USize(f) => Some(Value::USize(f)),
-
-        // Floating points, take absolute
-        Value::F32(f) => Some(Value::F32(f.abs())),
-        Value::F64(f) => Some(Value::F64(f.abs())),
-        _ => panic!("should not happen; input variable to abs should be a number"),
-      }
-    }
+impl<F: UnaryFloatFunction> ForeignFunction for F {
+  fn name(&self) -> String {
+    UnaryFloatFunction::name(self)
   }
 
-  /// Floating point function
-  pub trait UnaryFloatFunction: Clone {
-    fn name(&self) -> String;
-
-    fn execute_f32(&self, arg: f32) -> f32;
-
-    fn execute_f64(&self, arg: f64) -> f64;
+  fn num_generic_types(&self) -> usize {
+    1
   }
 
-  impl<F: UnaryFloatFunction> ForeignFunction for F {
-    fn name(&self) -> String {
-      UnaryFloatFunction::name(self)
-    }
-
-    fn num_generic_types(&self) -> usize {
-      1
-    }
-
-    fn generic_type_family(&self, i: usize) -> TypeFamily {
-      assert_eq!(i, 0);
-      TypeFamily::Float
-    }
-
-    fn num_static_arguments(&self) -> usize {
-      1
-    }
-
-    fn static_argument_type(&self, i: usize) -> ForeignFunctionParameterType {
-      assert_eq!(i, 0);
-      ForeignFunctionParameterType::Generic(0)
-    }
-
-    fn return_type(&self) -> ForeignFunctionParameterType {
-      ForeignFunctionParameterType::Generic(0)
-    }
-
-    fn execute(&self, args: Vec<Value>) -> Option<Value> {
-      match args[0] {
-        Value::F32(f) => Some(Value::F32(self.execute_f32(f))),
-        Value::F64(f) => Some(Value::F64(self.execute_f64(f))),
-        _ => panic!("Expect floating point input"),
-      }
-    }
+  fn generic_type_family(&self, i: usize) -> TypeFamily {
+    assert_eq!(i, 0);
+    TypeFamily::Float
   }
 
-  /// Sin value foreign function
-  ///
-  /// ``` scl
-  /// extern fn $sin<T: Float>(x: T) -> T
-  /// ```
-  #[derive(Clone)]
-  pub struct Sin;
-
-  impl UnaryFloatFunction for Sin {
-    fn name(&self) -> String {
-      "sin".to_string()
-    }
-
-    fn execute_f32(&self, arg: f32) -> f32 {
-      arg.sin()
-    }
-
-    fn execute_f64(&self, arg: f64) -> f64 {
-      arg.sin()
-    }
+  fn num_static_arguments(&self) -> usize {
+    1
   }
 
-  /// Cos value foreign function
-  ///
-  /// ``` scl
-  /// extern fn $cos<T: Float>(x: T) -> T
-  /// ```
-  #[derive(Clone)]
-  pub struct Cos;
-
-  impl UnaryFloatFunction for Cos {
-    fn name(&self) -> String {
-      "cos".to_string()
-    }
-
-    fn execute_f32(&self, arg: f32) -> f32 {
-      arg.cos()
-    }
-
-    fn execute_f64(&self, arg: f64) -> f64 {
-      arg.cos()
-    }
+  fn static_argument_type(&self, i: usize) -> ForeignFunctionParameterType {
+    assert_eq!(i, 0);
+    ForeignFunctionParameterType::Generic(0)
   }
 
-  /// Tan value foreign function
-  ///
-  /// ``` scl
-  /// extern fn $tan<T: Float>(x: T) -> T
-  /// ```
-  #[derive(Clone)]
-  pub struct Tan;
-
-  impl UnaryFloatFunction for Tan {
-    fn name(&self) -> String {
-      "tan".to_string()
-    }
-
-    fn execute_f32(&self, arg: f32) -> f32 {
-      arg.tan()
-    }
-
-    fn execute_f64(&self, arg: f64) -> f64 {
-      arg.tan()
-    }
+  fn return_type(&self) -> ForeignFunctionParameterType {
+    ForeignFunctionParameterType::Generic(0)
   }
 
-  /// Substring
-  ///
-  /// ``` scl
-  /// extern fn $substring(s: String, begin: usize, end: usize?) -> String
-  /// ```
-  #[derive(Clone)]
-  pub struct Substring;
-
-  impl ForeignFunction for Substring {
-    fn name(&self) -> String {
-      "substring".to_string()
-    }
-
-    fn num_static_arguments(&self) -> usize {
-      2
-    }
-
-    fn static_argument_type(&self, i: usize) -> ForeignFunctionParameterType {
-      match i {
-        0 => ForeignFunctionParameterType::BaseType(ValueType::String),
-        1 => ForeignFunctionParameterType::BaseType(ValueType::USize),
-        _ => panic!("No argument {}", i),
-      }
-    }
-
-    fn num_optional_arguments(&self) -> usize {
-      1
-    }
-
-    fn optional_argument_type(&self, _: usize) -> ForeignFunctionParameterType {
-      ForeignFunctionParameterType::BaseType(ValueType::USize)
-    }
-
-    fn return_type(&self) -> ForeignFunctionParameterType {
-      ForeignFunctionParameterType::BaseType(ValueType::String)
-    }
-
-    fn execute(&self, args: Vec<Value>) -> Option<Value> {
-      if args.len() == 2 {
-        match (&args[0], &args[1]) {
-          (Value::String(s), Value::USize(i)) => Some(Value::String(s[*i..].to_string())),
-          _ => panic!("Invalid arguments"),
-        }
-      } else {
-        match (&args[0], &args[1], &args[2]) {
-          (Value::String(s), Value::USize(i), Value::USize(j)) => Some(Value::String(s[*i..*j].to_string())),
-          _ => panic!("Invalid arguments"),
-        }
-      }
-    }
-  }
-
-  /// String concat
-  ///
-  /// ``` scl
-  /// extern fn $string_concat(s: String...) -> String
-  /// ```
-  #[derive(Clone)]
-  pub struct StringConcat;
-
-  impl ForeignFunction for StringConcat {
-    fn name(&self) -> String {
-      "string_concat".to_string()
-    }
-
-    fn has_variable_arguments(&self) -> bool {
-      true
-    }
-
-    fn variable_argument_type(&self) -> ForeignFunctionParameterType {
-      ForeignFunctionParameterType::BaseType(ValueType::String)
-    }
-
-    fn return_type(&self) -> ForeignFunctionParameterType {
-      ForeignFunctionParameterType::BaseType(ValueType::String)
-    }
-
-    fn execute(&self, args: Vec<Value>) -> Option<Value> {
-      let mut result = "".to_string();
-      for arg in args {
-        match arg {
-          Value::String(s) => {
-            result += &s;
-          }
-          _ => panic!("Argument is not string"),
-        }
-      }
-      Some(Value::String(result))
-    }
-  }
-
-  /// String length
-  ///
-  /// ``` scl
-  /// extern fn $string_length(s: String) -> usize
-  /// ```
-  #[derive(Clone)]
-  pub struct StringLength;
-
-  impl ForeignFunction for StringLength {
-    fn name(&self) -> String {
-      "string_length".to_string()
-    }
-
-    fn num_static_arguments(&self) -> usize {
-      1
-    }
-
-    fn static_argument_type(&self, i: usize) -> ForeignFunctionParameterType {
-      assert_eq!(i, 0);
-      ForeignFunctionParameterType::BaseType(ValueType::String)
-    }
-
-    fn return_type(&self) -> ForeignFunctionParameterType {
-      ForeignFunctionParameterType::BaseType(ValueType::USize)
-    }
-
-    fn execute(&self, args: Vec<Value>) -> Option<Value> {
-      match &args[0] {
-        Value::String(s) => Some(Value::USize(s.len())),
-        Value::Str(s) => Some(Value::USize(s.len())),
-        _ => None,
-      }
-    }
-  }
-
-  /// String char at
-  ///
-  /// ``` scl
-  /// extern fn $string_chat_at(s: String, i: usize) -> char
-  /// ```
-  #[derive(Clone)]
-  pub struct StringCharAt;
-
-  impl ForeignFunction for StringCharAt {
-    fn name(&self) -> String {
-      "string_char_at".to_string()
-    }
-
-    fn num_static_arguments(&self) -> usize {
-      2
-    }
-
-    fn static_argument_type(&self, i: usize) -> ForeignFunctionParameterType {
-      match i {
-        0 => ForeignFunctionParameterType::BaseType(ValueType::String),
-        1 => ForeignFunctionParameterType::BaseType(ValueType::USize),
-        _ => panic!("Invalid {}-th argument", i),
-      }
-    }
-
-    fn return_type(&self) -> ForeignFunctionParameterType {
-      ForeignFunctionParameterType::BaseType(ValueType::Char)
-    }
-
-    fn execute(&self, args: Vec<Value>) -> Option<Value> {
-      match (&args[0], &args[1]) {
-        (Value::String(s), Value::USize(i)) => s.chars().skip(*i).next().map(Value::Char),
-        (Value::Str(s), Value::USize(i)) => s.chars().skip(*i).next().map(Value::Char),
-        _ => None,
-      }
-    }
-  }
-
-  /// Hash
-  ///
-  /// ``` scl
-  /// extern fn $hash(x: Any...) -> u64
-  /// ```
-  #[derive(Clone)]
-  pub struct Hash;
-
-  impl ForeignFunction for Hash {
-    fn name(&self) -> String {
-      "hash".to_string()
-    }
-
-    fn has_variable_arguments(&self) -> bool {
-      true
-    }
-
-    fn variable_argument_type(&self) -> ForeignFunctionParameterType {
-      ForeignFunctionParameterType::TypeFamily(TypeFamily::Any)
-    }
-
-    fn return_type(&self) -> ForeignFunctionParameterType {
-      ForeignFunctionParameterType::BaseType(ValueType::U64)
-    }
-
-    fn execute(&self, args: Vec<Value>) -> Option<Value> {
-      use std::collections::hash_map::DefaultHasher;
-      use std::hash::{Hash, Hasher};
-      let mut s = DefaultHasher::new();
-      args.hash(&mut s);
-      Some(s.finish().into())
-    }
-  }
-
-  /// Max
-  ///
-  /// ``` scl
-  /// extern fn $max<T: Number>(x: T...) -> T
-  /// ```
-  #[derive(Clone)]
-  pub struct Max;
-
-  impl Max {
-    fn dyn_max<T: PartialOrd>(args: Vec<Value>) -> Option<T> where Value: TryInto<T> {
-      let mut iter = args.into_iter();
-      let mut curr_max: T = iter.next()?.try_into().ok()?;
-      while let Some(next_elem) = iter.next() {
-        let next_elem = next_elem.try_into().ok()?;
-        if next_elem > curr_max {
-          curr_max = next_elem;
-        }
-      }
-      Some(curr_max)
-    }
-  }
-
-  impl ForeignFunction for Max {
-    fn name(&self) -> String {
-      "max".to_string()
-    }
-
-    fn num_generic_types(&self) -> usize {
-      1
-    }
-
-    fn generic_type_family(&self, i: usize) -> TypeFamily {
-      assert_eq!(i, 0);
-      TypeFamily::Number
-    }
-
-    fn has_variable_arguments(&self) -> bool {
-      true
-    }
-
-    fn variable_argument_type(&self) -> ForeignFunctionParameterType {
-      ForeignFunctionParameterType::Generic(0)
-    }
-
-    fn return_type(&self) -> ForeignFunctionParameterType {
-      ForeignFunctionParameterType::Generic(0)
-    }
-
-    fn execute(&self, args: Vec<Value>) -> Option<Value> {
-      let rt = self.infer_return_type(&args);
-      match rt {
-        ValueType::I8 => Self::dyn_max(args).map(Value::I8),
-        ValueType::I16 => Self::dyn_max(args).map(Value::I16),
-        ValueType::I32 => Self::dyn_max(args).map(Value::I32),
-        ValueType::I64 => Self::dyn_max(args).map(Value::I64),
-        ValueType::I128 => Self::dyn_max(args).map(Value::I128),
-        ValueType::ISize => Self::dyn_max(args).map(Value::ISize),
-        ValueType::U8 => Self::dyn_max(args).map(Value::U8),
-        ValueType::U16 => Self::dyn_max(args).map(Value::U16),
-        ValueType::U32 => Self::dyn_max(args).map(Value::U32),
-        ValueType::U64 => Self::dyn_max(args).map(Value::U64),
-        ValueType::U128 => Self::dyn_max(args).map(Value::U128),
-        ValueType::USize => Self::dyn_max(args).map(Value::USize),
-        ValueType::F32 => Self::dyn_max(args).map(Value::F32),
-        ValueType::F64 => Self::dyn_max(args).map(Value::F64),
-        _ => None,
-      }
-    }
-  }
-
-  /// Min
-  ///
-  /// ``` scl
-  /// extern fn $min<T: Number>(x: T...) -> T
-  /// ```
-  #[derive(Clone)]
-  pub struct Min;
-
-  impl Min {
-    fn dyn_min<T: PartialOrd>(args: Vec<Value>) -> Option<T> where Value: TryInto<T> {
-      let mut iter = args.into_iter();
-      let mut curr_min: T = iter.next()?.try_into().ok()?;
-      while let Some(next_elem) = iter.next() {
-        let next_elem = next_elem.try_into().ok()?;
-        if next_elem < curr_min {
-          curr_min = next_elem;
-        }
-      }
-      Some(curr_min)
-    }
-  }
-
-  impl ForeignFunction for Min {
-    fn name(&self) -> String {
-      "min".to_string()
-    }
-
-    fn num_generic_types(&self) -> usize {
-      1
-    }
-
-    fn generic_type_family(&self, i: usize) -> TypeFamily {
-      assert_eq!(i, 0);
-      TypeFamily::Number
-    }
-
-    fn has_variable_arguments(&self) -> bool {
-      true
-    }
-
-    fn variable_argument_type(&self) -> ForeignFunctionParameterType {
-      ForeignFunctionParameterType::Generic(0)
-    }
-
-    fn return_type(&self) -> ForeignFunctionParameterType {
-      ForeignFunctionParameterType::Generic(0)
-    }
-
-    fn execute(&self, args: Vec<Value>) -> Option<Value> {
-      let rt = self.infer_return_type(&args);
-      match rt {
-        ValueType::I8 => Self::dyn_min(args).map(Value::I8),
-        ValueType::I16 => Self::dyn_min(args).map(Value::I16),
-        ValueType::I32 => Self::dyn_min(args).map(Value::I32),
-        ValueType::I64 => Self::dyn_min(args).map(Value::I64),
-        ValueType::I128 => Self::dyn_min(args).map(Value::I128),
-        ValueType::ISize => Self::dyn_min(args).map(Value::ISize),
-        ValueType::U8 => Self::dyn_min(args).map(Value::U8),
-        ValueType::U16 => Self::dyn_min(args).map(Value::U16),
-        ValueType::U32 => Self::dyn_min(args).map(Value::U32),
-        ValueType::U64 => Self::dyn_min(args).map(Value::U64),
-        ValueType::U128 => Self::dyn_min(args).map(Value::U128),
-        ValueType::USize => Self::dyn_min(args).map(Value::USize),
-        ValueType::F32 => Self::dyn_min(args).map(Value::F32),
-        ValueType::F64 => Self::dyn_min(args).map(Value::F64),
-        _ => None,
-      }
+  fn execute(&self, args: Vec<Value>) -> Option<Value> {
+    match args[0] {
+      Value::F32(f) => Some(Value::F32(self.execute_f32(f))),
+      Value::F64(f) => Some(Value::F64(self.execute_f64(f))),
+      _ => panic!("Expect floating point input"),
     }
   }
 }

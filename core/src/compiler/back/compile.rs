@@ -105,6 +105,7 @@ impl Program {
     Ok(ram::Program {
       strata: ram_strata,
       function_registry: self.function_registry.clone(),
+      predicate_registry: self.predicate_registry.clone(),
       relation_to_stratum,
     })
   }

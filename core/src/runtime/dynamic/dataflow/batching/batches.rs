@@ -16,6 +16,8 @@ pub enum DynamicBatches<'a, Prov: Provenance> {
   Find(DynamicFindBatches<'a, Prov>),
   OverwriteOne(DynamicOverwriteOneBatches<'a, Prov>),
   Binary(DynamicBatchesBinary<'a, Prov>),
+  ForeignPredicateConstraint(ForeignPredicateConstraintBatches<'a, Prov>),
+  ForeignPredicateJoin(ForeignPredicateJoinBatches<'a, Prov>),
 }
 
 impl<'a, Prov: Provenance> DynamicBatches<'a, Prov> {
@@ -78,6 +80,8 @@ impl<'a, Prov: Provenance> Iterator for DynamicBatches<'a, Prov> {
       Self::Find(f) => f.next(),
       Self::OverwriteOne(o) => o.next(),
       Self::Binary(b) => b.next(),
+      Self::ForeignPredicateConstraint(b) => b.next(),
+      Self::ForeignPredicateJoin(b) => b.next(),
     }
   }
 }

@@ -1,6 +1,7 @@
 use std::collections::*;
 
-use crate::common::foreign_function::ForeignFunctionRegistry;
+use crate::common::foreign_function::*;
+use crate::common::foreign_predicate::*;
 use crate::common::tuple_type::*;
 use crate::common::value_type::*;
 use crate::compiler::front::*;
@@ -11,7 +12,8 @@ use super::*;
 pub struct TypeInference {
   pub custom_types: HashMap<String, (ValueType, Loc)>,
   pub constant_types: HashMap<Loc, Type>,
-  pub function_type_registry: FunctionTypeRegistry,
+  pub foreign_function_type_registry: FunctionTypeRegistry,
+  pub foreign_predicate_type_registry: PredicateTypeRegistry,
   pub relation_type_decl_loc: HashMap<String, Loc>,
   pub inferred_relation_types: HashMap<String, (Vec<TypeSet>, Loc)>,
   pub rule_variable_type: HashMap<Loc, HashMap<String, TypeSet>>,
@@ -22,11 +24,15 @@ pub struct TypeInference {
 }
 
 impl TypeInference {
-  pub fn new(function_registry: &ForeignFunctionRegistry) -> Self {
+  pub fn new(
+    function_registry: &ForeignFunctionRegistry,
+    predicate_registry: &ForeignPredicateRegistry,
+  ) -> Self {
     Self {
       custom_types: HashMap::new(),
       constant_types: HashMap::new(),
-      function_type_registry: FunctionTypeRegistry::from_foreign_function_registry(function_registry),
+      foreign_function_type_registry: FunctionTypeRegistry::from_foreign_function_registry(function_registry),
+      foreign_predicate_type_registry: PredicateTypeRegistry::from_foreign_predicate_registry(predicate_registry),
       relation_type_decl_loc: HashMap::new(),
       inferred_relation_types: HashMap::new(),
       rule_variable_type: HashMap::new(),
@@ -234,7 +240,8 @@ impl TypeInference {
           &self.custom_types,
           &self.constant_types,
           &self.inferred_relation_types,
-          &self.function_type_registry,
+          &self.foreign_function_type_registry,
+          &self.foreign_predicate_type_registry,
           &mut inferred_expr_types,
         )?;
         ctx.propagate_variable_types(&mut inferred_var_expr, &mut inferred_expr_types)?;
@@ -278,11 +285,50 @@ impl NodeVisitor for TypeInference {
   }
 
   fn visit_relation_type(&mut self, relation_type: &RelationType) {
+    // Check if the relation is a foreign predicate
+    let predicate = relation_type.predicate();
+    if self.foreign_predicate_type_registry.contains_predicate(predicate) {
+      self.errors.push(TypeInferenceError::CannotRedefineForeignPredicate {
+        pred: predicate.to_string(),
+        loc: relation_type.location().clone(),
+      });
+      return;
+    }
+
     self.check_and_add_relation_type(
       relation_type.predicate(),
       relation_type.arg_types(),
       relation_type.location(),
     );
+  }
+
+  fn visit_enum_type_decl(&mut self, enum_type_decl: &ast::EnumTypeDecl) {
+    // First add the enum type
+    let ty = Type::usize();
+    self.check_and_add_custom_type(enum_type_decl.name(), &ty, enum_type_decl.location());
+
+    // And then declare all the constant types
+    for member in enum_type_decl.iter_members() {
+      match member.assigned_number() {
+        Some(c) => match &c.node {
+          ConstantNode::Integer(i) => {
+            if *i < 0 {
+              self.errors.push(TypeInferenceError::NegativeEnumValue {
+                found: *i,
+                loc: c.location().clone(),
+              })
+            }
+          }
+          _ => {
+            self.errors.push(TypeInferenceError::BadEnumValueKind {
+              found: c.kind(),
+              loc: c.location().clone(),
+            })
+          }
+        }
+        _ => {}
+      }
+    }
   }
 
   fn visit_const_assignment(&mut self, const_assign: &ConstAssignment) {
@@ -303,6 +349,15 @@ impl NodeVisitor for TypeInference {
 
   fn visit_constant_set_decl(&mut self, constant_set_decl: &ConstantSetDecl) {
     let pred = constant_set_decl.predicate();
+
+    // Check if the relation is a foreign predicate
+    if self.foreign_predicate_type_registry.contains_predicate(pred) {
+      self.errors.push(TypeInferenceError::CannotRedefineForeignPredicate {
+        pred: pred.to_string(),
+        loc: constant_set_decl.location().clone(),
+      });
+      return;
+    }
 
     // There's nothing we can check if there is no tuple inside the set
     if constant_set_decl.num_tuples() == 0 {
@@ -398,6 +453,16 @@ impl NodeVisitor for TypeInference {
 
   fn visit_fact_decl(&mut self, fact_decl: &FactDecl) {
     let pred = fact_decl.predicate();
+
+    // Check if the relation is a foreign predicate
+    if self.foreign_predicate_type_registry.contains_predicate(pred) {
+      self.errors.push(TypeInferenceError::CannotRedefineForeignPredicate {
+        pred: pred.to_string(),
+        loc: fact_decl.location().clone(),
+      });
+      return;
+    }
+
     let maybe_curr_type_sets = fact_decl
       .iter_arguments()
       .map(|arg| match arg {
@@ -451,6 +516,18 @@ impl NodeVisitor for TypeInference {
   }
 
   fn visit_rule(&mut self, rule: &Rule) {
+    let pred = rule.head().predicate();
+
+    // Check if the relation is a foreign predicate
+    if self.foreign_predicate_type_registry.contains_predicate(pred) {
+      self.errors.push(TypeInferenceError::CannotRedefineForeignPredicate {
+        pred: pred.to_string(),
+        loc: rule.location().clone(),
+      });
+      return;
+    }
+
+    // Otherwise, create a rule inference context
     let ctx = LocalTypeInferenceContext::from_rule(rule);
 
     // Check if context has error already
@@ -470,6 +547,17 @@ impl NodeVisitor for TypeInference {
   }
 
   fn visit_query(&mut self, query: &Query) {
+    // Check if the relation is a foreign predicate
+    let pred = query.predicate();
+    if self.foreign_predicate_type_registry.contains_predicate(&pred) {
+      self.errors.push(TypeInferenceError::CannotQueryForeignPredicate {
+        pred: pred.to_string(),
+        loc: query.location().clone(),
+      });
+      return;
+    }
+
+    // Check the query
     match &query.node {
       QueryNode::Atom(atom) => {
         let ctx = LocalTypeInferenceContext::from_atom(atom);

@@ -7,6 +7,8 @@ pub trait Integer:
   Eq +
   PartialOrd +
   Ord +
+  std::fmt::Debug +
+  std::fmt::Display +
   std::ops::Add<Self, Output=Self> +
   std::ops::Sub<Self, Output=Self> +
   std::ops::Mul<Self, Output=Self> +

@@ -7,17 +7,33 @@ use super::value::Value;
 pub type Tuple = GenericTuple<Value>;
 
 impl Tuple {
-  pub fn from_primitives(prims: Vec<Value>) -> Self {
-    Self::Tuple(prims.into_iter().map(Self::Value).collect())
-  }
-
   pub fn tuple_type(&self) -> TupleType {
     TupleType::type_of(self)
   }
 
+  pub fn arity(&self) -> usize {
+    match self {
+      Self::Tuple(ts) => ts.len(),
+      _ => 0,
+    }
+  }
+
+  pub fn as_values(&self) -> Vec<Value> {
+    match self {
+      Self::Value(_) => panic!("Not a tuple"),
+      Self::Tuple(t) => t
+        .iter()
+        .map(|t| match t {
+          Self::Value(v) => v.clone(),
+          _ => panic!("Not a value"),
+        })
+        .collect(),
+    }
+  }
+
   pub fn as_ref_values(&self) -> Vec<&Value> {
     match self {
-      Self::Value(p) => vec![p],
+      Self::Value(_) => panic!("Not a tuple"),
       Self::Tuple(t) => t
         .iter()
         .map(|t| match t {
@@ -159,6 +175,12 @@ where
 {
   fn from(a: A) -> Self {
     Self::Value(a.into())
+  }
+}
+
+impl From<Vec<Value>> for Tuple {
+  fn from(v: Vec<Value>) -> Self {
+    Self::Tuple(v.into_iter().map(|v| v.into()).collect())
   }
 }
 

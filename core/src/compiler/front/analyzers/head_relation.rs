@@ -1,5 +1,7 @@
 use std::collections::*;
 
+use crate::common::foreign_predicate::*;
+
 use super::super::utils::*;
 use super::super::*;
 
@@ -11,12 +13,17 @@ pub struct HeadRelationAnalysis {
 }
 
 impl HeadRelationAnalysis {
-  pub fn new() -> Self {
+  pub fn new(foreign_predicate_registry: &ForeignPredicateRegistry) -> Self {
+    let declared_relations = foreign_predicate_registry.iter().map(|(_, p)| p.name().to_string()).collect();
     Self {
       errors: vec![],
       used_relations: HashMap::new(),
-      declared_relations: HashSet::new(),
+      declared_relations,
     }
+  }
+
+  pub fn add_foreign_predicate<F: ForeignPredicate>(&mut self, fp: &F) {
+    self.declared_relations.insert(fp.name().to_string());
   }
 
   pub fn compute_errors(&mut self) {
@@ -52,7 +59,7 @@ impl NodeVisitor for HeadRelationAnalysis {
   fn visit_query(&mut self, qd: &ast::Query) {
     self
       .used_relations
-      .insert(qd.relation_name().to_string(), qd.location().clone());
+      .insert(qd.create_relation_name().to_string(), qd.location().clone());
   }
 
   fn visit_atom(&mut self, a: &ast::Atom) {

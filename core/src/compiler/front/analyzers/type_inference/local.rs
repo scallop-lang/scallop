@@ -1,6 +1,7 @@
 use std::collections::*;
 
 use super::*;
+use crate::common::binary_op::BinaryOp;
 use crate::common::value_type::*;
 use crate::compiler::front::*;
 
@@ -112,6 +113,7 @@ impl LocalTypeInferenceContext {
     constant_types: &HashMap<Loc, Type>,
     inferred_relation_types: &HashMap<String, (Vec<TypeSet>, Loc)>,
     function_type_registry: &FunctionTypeRegistry,
+    predicate_type_registry: &PredicateTypeRegistry,
     inferred_expr_types: &mut HashMap<Loc, TypeSet>,
   ) -> Result<(), TypeInferenceError> {
     for unif in &self.unifications {
@@ -120,6 +122,7 @@ impl LocalTypeInferenceContext {
         constant_types,
         inferred_relation_types,
         function_type_registry,
+        predicate_type_registry,
         inferred_expr_types,
       )?;
     }
@@ -212,7 +215,7 @@ impl LocalTypeInferenceContext {
       if !tys.is_empty() {
         let ty = TypeSet::unify_type_sets(tys)?;
         let arg_types = &mut inferred_relation_types.get_mut(predicate).unwrap().0;
-        arg_types[(*i)] = ty;
+        arg_types[*i] = ty;
       }
     }
 
@@ -425,30 +428,18 @@ impl NodeVisitor for LocalTypeInferenceContext {
   }
 
   fn visit_binary_expr(&mut self, b: &BinaryExpr) {
-    let unif = if b.op().is_arith() {
-      Unification::AddSubMulDivMod(
-        b.op1().location().clone(),
-        b.op2().location().clone(),
-        b.location().clone(),
-      )
-    } else if b.op().is_logical() {
-      Unification::AndOrXor(
-        b.op1().location().clone(),
-        b.op2().location().clone(),
-        b.location().clone(),
-      )
-    } else if b.op().is_eq_neq() {
-      Unification::EqNeq(
-        b.op1().location().clone(),
-        b.op2().location().clone(),
-        b.location().clone(),
-      )
-    } else {
-      Unification::LtLeqGtGeq(
-        b.op1().location().clone(),
-        b.op2().location().clone(),
-        b.location().clone(),
-      )
+    let op1 = b.op1().location().clone();
+    let op2 = b.op2().location().clone();
+    let loc = b.location().clone();
+    let unif = match b.op().node {
+      BinaryOp::Add => Unification::Add(op1, op2, loc),
+      BinaryOp::Sub => Unification::Sub(op1, op2, loc),
+      BinaryOp::Mul => Unification::Mult(op1, op2, loc),
+      BinaryOp::Div => Unification::Div(op1, op2, loc),
+      BinaryOp::Mod => Unification::Mod(op1, op2, loc),
+      BinaryOp::And | BinaryOp::Or | BinaryOp::Xor => Unification::AndOrXor(op1, op2, loc),
+      BinaryOp::Eq | BinaryOp::Neq => Unification::EqNeq(op1, op2, loc),
+      BinaryOp::Lt | BinaryOp::Leq | BinaryOp::Gt | BinaryOp::Geq => Unification::LtLeqGtGeq(op1, op2, loc),
     };
     self.unifications.push(unif);
   }

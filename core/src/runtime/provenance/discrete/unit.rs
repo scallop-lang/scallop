@@ -1,6 +1,8 @@
-use super::*;
+use crate::common::input_tag::*;
 use crate::runtime::dynamic::*;
 use crate::runtime::statics::*;
+
+use super::*;
 
 #[derive(Clone, Debug, Default)]
 pub struct Unit;
@@ -13,8 +15,16 @@ impl std::fmt::Display for Unit {
 
 impl Tag for Unit {}
 
+impl StaticInputTag for () {}
+
 #[derive(Clone, Debug, Default)]
 pub struct UnitProvenance;
+
+impl UnitProvenance {
+  pub fn new() -> Self {
+    Self
+  }
+}
 
 impl Provenance for UnitProvenance {
   type Tag = Unit;
@@ -27,7 +37,7 @@ impl Provenance for UnitProvenance {
     "unit"
   }
 
-  fn tagging_fn(&mut self, _: Self::InputTag) -> Self::Tag {
+  fn tagging_fn(&self, _: Self::InputTag) -> Self::Tag {
     Unit
   }
 

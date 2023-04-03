@@ -1,8 +1,9 @@
-use crate::{common::input_tag::InputTag, compiler::front::*};
+use crate::common::input_tag::*;
+use crate::compiler::front::*;
 
 #[derive(Clone, Debug)]
 pub struct TransformTaggedRule {
-  pub to_add_tags: Vec<(String, InputTag)>,
+  pub to_add_tags: Vec<(String, DynamicInputTag)>,
 }
 
 impl TransformTaggedRule {

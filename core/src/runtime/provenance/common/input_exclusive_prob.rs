@@ -45,8 +45,8 @@ impl From<(f64, usize)> for InputExclusiveProb {
   }
 }
 
-impl FromInputTag for InputExclusiveProb {
-  fn from_input_tag(t: &DynamicInputTag) -> Option<Self> {
+impl StaticInputTag for InputExclusiveProb {
+  fn from_dynamic_input_tag(t: &DynamicInputTag) -> Option<Self> {
     match t {
       DynamicInputTag::Float(f) => Some(Self::new(f.clone(), None)),
       DynamicInputTag::ExclusiveFloat(f, id) => Some(Self::new(f.clone(), Some(id.clone()))),

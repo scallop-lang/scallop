@@ -7,8 +7,6 @@ pub enum DynamicInputTag {
   ExclusiveFloat(f64, usize),
 }
 
-pub type InputTag = DynamicInputTag;
-
 impl DynamicInputTag {
   pub fn is_some(&self) -> bool {
     match self {
@@ -52,18 +50,18 @@ impl Default for DynamicInputTag {
   }
 }
 
-pub trait FromInputTag: Sized {
-  fn from_input_tag(t: &DynamicInputTag) -> Option<Self>;
+pub trait StaticInputTag: Sized {
+  fn from_dynamic_input_tag(_: &DynamicInputTag) -> Option<Self>;
 }
 
-impl<T> FromInputTag for T {
-  default fn from_input_tag(_: &DynamicInputTag) -> Option<T> {
+impl<T> StaticInputTag for T {
+  default fn from_dynamic_input_tag(_: &DynamicInputTag) -> Option<Self> {
     None
   }
 }
 
-impl FromInputTag for bool {
-  fn from_input_tag(t: &DynamicInputTag) -> Option<bool> {
+impl StaticInputTag for bool {
+  fn from_dynamic_input_tag(t: &DynamicInputTag) -> Option<Self> {
     match t {
       DynamicInputTag::Bool(b) => Some(b.clone()),
       _ => None,
@@ -71,18 +69,20 @@ impl FromInputTag for bool {
   }
 }
 
-impl FromInputTag for f64 {
-  fn from_input_tag(t: &DynamicInputTag) -> Option<f64> {
+impl StaticInputTag for f64 {
+  fn from_dynamic_input_tag(t: &DynamicInputTag) -> Option<Self> {
     match t {
       DynamicInputTag::Float(f) => Some(f.clone()),
+      DynamicInputTag::ExclusiveFloat(f, _) => Some(f.clone()),
       _ => None,
     }
   }
 }
 
-impl FromInputTag for (f64, Option<usize>) {
-  fn from_input_tag(t: &DynamicInputTag) -> Option<(f64, Option<usize>)> {
+impl StaticInputTag for (f64, Option<usize>) {
+  fn from_dynamic_input_tag(t: &DynamicInputTag) -> Option<Self> {
     match t {
+      DynamicInputTag::Exclusive(i) => Some((1.0, Some(i.clone()))),
       DynamicInputTag::Float(f) => Some((f.clone(), None)),
       DynamicInputTag::ExclusiveFloat(f, u) => Some((f.clone(), Some(u.clone()))),
       _ => None,

@@ -346,6 +346,9 @@ impl ast::Dataflow {
         let rs_d1 = d1.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
         quote! { dataflow::overwrite_one(#rs_d1) }
       }
+      Self::ForeignPredicateGround(_, _) => unimplemented!(),
+      Self::ForeignPredicateConstraint(_, _, _) => unimplemented!(),
+      Self::ForeignPredicateJoin(_, _, _) => unimplemented!(),
       Self::Reduce(r) => {
         let get_col = |r| {
           let rel_ident = relation_name_to_rs_field_name(r);
@@ -446,6 +449,8 @@ fn value_type_to_rs_type(ty: &ValueType) -> TokenStream {
     ValueType::Char => quote! { char },
     ValueType::Str => quote! { &'static str },
     ValueType::String => quote! { String },
+    ValueType::DateTime => quote! { DateTime<Utc> },
+    ValueType::Duration => quote! { Duration },
     // ValueType::RcString => quote! { Rc<String> },
   }
 }
@@ -499,13 +504,13 @@ fn expr_to_rs_expr(expr: &Expr) -> TokenStream {
   }
 }
 
-fn input_tag_to_rs_input_tag(tag: &InputTag) -> TokenStream {
+fn input_tag_to_rs_input_tag(tag: &DynamicInputTag) -> TokenStream {
   match tag {
-    InputTag::None => quote! { InputTag::None },
-    InputTag::Exclusive(i) => quote! { InputTag::Exclusive(#i) },
-    InputTag::Bool(b) => quote! { InputTag::Bool(#b) },
-    InputTag::Float(f) => quote! { InputTag::Float(#f) },
-    InputTag::ExclusiveFloat(f, u) => quote! { InputTag::ExclusiveFloat(#f, #u) },
+    DynamicInputTag::None => quote! { DynamicInputTag::None },
+    DynamicInputTag::Exclusive(i) => quote! { DynamicInputTag::Exclusive(#i) },
+    DynamicInputTag::Bool(b) => quote! { DynamicInputTag::Bool(#b) },
+    DynamicInputTag::Float(f) => quote! { DynamicInputTag::Float(#f) },
+    DynamicInputTag::ExclusiveFloat(f, u) => quote! { DynamicInputTag::ExclusiveFloat(#f, #u) },
   }
 }
 
@@ -562,6 +567,8 @@ fn value_to_rs_value(value: &Value) -> TokenStream {
     Str(s) => quote! { #s },
     String(s) => quote! { String::from(#s) },
     // RcString(s) => quote! { Rc::new(String::from(#s)) },
+    DateTime(_) => unimplemented!(),
+    Duration(_) => unimplemented!(),
   }
 }
 

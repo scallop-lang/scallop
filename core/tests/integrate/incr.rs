@@ -28,6 +28,7 @@ fn incr_edge_path_left_recursion() {
 
   // Result
   expect_output_collection(
+    "path",
     ctx.computed_relation_ref("path").unwrap(),
     vec![(0usize, 1usize), (0, 2), (1, 2)],
   );
@@ -49,6 +50,7 @@ fn incr_edge_path_left_branching_1() {
     .unwrap();
   ctx.run().unwrap();
   expect_output_collection(
+    "edge",
     ctx.computed_relation_ref("edge").unwrap(),
     vec![(0usize, 1usize), (1, 2)],
   );
@@ -60,6 +62,7 @@ fn incr_edge_path_left_branching_1() {
     .unwrap();
   first_branch.run().unwrap();
   expect_output_collection(
+    "path",
     first_branch.computed_relation_ref("path").unwrap(),
     vec![(0usize, 1usize), (0, 2), (1, 2)],
   );
@@ -71,14 +74,16 @@ fn incr_edge_path_left_branching_1() {
     .unwrap();
   second_branch.run().unwrap();
   expect_output_collection(
+    "path",
     second_branch.computed_relation_ref("path").unwrap(),
     vec![(0usize, 1usize), (0, 2), (1, 2)],
   );
 
   // Second branch, continuation
-  second_branch.add_rule(r#"result(1, y) = path(1, y)"#).unwrap();
+  second_branch.add_rule(r#"result(x, y) = path(x, y) and x == 1"#).unwrap();
   second_branch.run().unwrap();
   expect_output_collection(
+    "result",
     second_branch.computed_relation_ref("result").unwrap(),
     vec![(1usize, 2usize)],
   );
@@ -101,6 +106,7 @@ fn incr_fib_test_0() {
   ctx.run().expect("Runtime error");
 
   expect_output_collection(
+    "fib",
     ctx.computed_relation_ref("fib").unwrap(),
     vec![(0i32, 1i32), (1, 1), (2, 2), (3, 3), (4, 5), (5, 8)],
   );
@@ -123,6 +129,7 @@ fn incr_fib_test_1() {
   ctx.run().expect("Runtime error");
 
   expect_output_collection(
+    "fib",
     ctx.computed_relation_ref("fib").unwrap(),
     vec![(0i32, 1i32), (1, 1), (2, 2), (3, 3), (4, 5), (5, 8)],
   );

@@ -5,6 +5,9 @@ pub enum BoundnessDependency {
   /// Argument to a relation
   RelationArg(Loc),
 
+  /// Foreign predicate arguments: predicate, bounded arguments, and to-bound arguments
+  ForeignPredicateArgs(Vec<Loc>, Vec<Loc>),
+
   /// Constant loc, is bounded
   Constant(Loc),
 

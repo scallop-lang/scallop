@@ -28,8 +28,8 @@ class TestForward(unittest.TestCase):
 class TestDigitForward(unittest.TestCase):
   def setUp(self):
     self.ctx = scallopy.ScallopContext(provenance="diffminmaxprob")
-    self.ctx.add_relation("digit_1", int, list(range(10)))
-    self.ctx.add_relation("digit_2", int, list(range(10)))
+    self.ctx.add_relation("digit_1", int, range(10))
+    self.ctx.add_relation("digit_2", int, range(10))
     self.ctx.add_rule("sum_2(a + b) = digit_1(a) and digit_2(b)")
     self.ctx.add_rule("mult_2(a * b) = digit_1(a) and digit_2(b)")
 
@@ -39,39 +39,39 @@ class TestDigitForward(unittest.TestCase):
 
   def test_normal(self):
     forward = self.ctx.forward_function("sum_2", list(range(19)))
-    digit_1 = torch.randn((16, 10))
-    digit_2 = torch.randn((16, 10))
+    digit_1 = torch.softmax(torch.randn((16, 10)), dim=1)
+    digit_2 = torch.softmax(torch.randn((16, 10)), dim=1)
     sum_2 = forward(digit_1=digit_1, digit_2=digit_2)
     self.assertEqual(sum_2.shape, (16, 19))
 
   def test_no_output_mapping(self):
     forward = self.ctx.forward_function("sum_2")
-    digit_1 = torch.randn((16, 10))
-    digit_2 = torch.randn((16, 10))
+    digit_1 = torch.softmax(torch.randn((16, 10)), dim=1)
+    digit_2 = torch.softmax(torch.randn((16, 10)), dim=1)
     (result_mapping, result_tensor) = forward(digit_1=digit_1, digit_2=digit_2)
     self.assertEqual(set(result_mapping), set([(i,) for i in range(19)]))
     self.assertEqual(result_tensor.shape, (16, 19))
 
   def test_single_dispatch(self):
     forward = self.ctx.forward_function("sum_2", dispatch="single")
-    digit_1 = torch.randn((16, 10))
-    digit_2 = torch.randn((16, 10))
+    digit_1 = torch.softmax(torch.randn((16, 10)), dim=1)
+    digit_2 = torch.softmax(torch.randn((16, 10)), dim=1)
     (result_mapping, result_tensor) = forward(digit_1=digit_1, digit_2=digit_2)
     self.assertEqual(set(result_mapping), set([(i,) for i in range(19)]))
     self.assertEqual(result_tensor.shape, (16, 19))
 
   def test_serial_dispatch(self):
     forward = self.ctx.forward_function("sum_2", dispatch="serial")
-    digit_1 = torch.randn((16, 10))
-    digit_2 = torch.randn((16, 10))
+    digit_1 = torch.softmax(torch.randn((16, 10)), dim=1)
+    digit_2 = torch.softmax(torch.randn((16, 10)), dim=1)
     (result_mapping, result_tensor) = forward(digit_1=digit_1, digit_2=digit_2)
     self.assertEqual(set(result_mapping), set([(i,) for i in range(19)]))
     self.assertEqual(result_tensor.shape, (16, 19))
 
   def test_multi_result(self):
     forward = self.ctx.forward_function(output_mappings={"sum_2": list(range(19)), "mult_2": list(range(100))})
-    digit_1 = torch.randn((16, 10))
-    digit_2 = torch.randn((16, 10))
+    digit_1 = torch.softmax(torch.randn((16, 10)), dim=1)
+    digit_2 = torch.softmax(torch.randn((16, 10)), dim=1)
     result = forward(digit_1=digit_1, digit_2=digit_2)
     sum_2 = result["sum_2"]
     mult_2 = result["mult_2"]
@@ -80,8 +80,8 @@ class TestDigitForward(unittest.TestCase):
 
   def test_multi_result_single_dispatch(self):
     forward = self.ctx.forward_function(output_mappings={"sum_2": list(range(19)), "mult_2": list(range(100))}, dispatch="single")
-    digit_1 = torch.randn((16, 10))
-    digit_2 = torch.randn((16, 10))
+    digit_1 = torch.softmax(torch.randn((16, 10)), dim=1)
+    digit_2 = torch.softmax(torch.randn((16, 10)), dim=1)
     result = forward(digit_1=digit_1, digit_2=digit_2)
     sum_2 = result["sum_2"]
     mult_2 = result["mult_2"]
@@ -90,8 +90,8 @@ class TestDigitForward(unittest.TestCase):
 
   def test_multi_result_non_parallel_dispatch(self):
     forward = self.ctx.forward_function(output_mappings={"sum_2": list(range(19)), "mult_2": list(range(100))}, dispatch="serial")
-    digit_1 = torch.randn((16, 10))
-    digit_2 = torch.randn((16, 10))
+    digit_1 = torch.softmax(torch.randn((16, 10)), dim=1)
+    digit_2 = torch.softmax(torch.randn((16, 10)), dim=1)
     result = forward(digit_1=digit_1, digit_2=digit_2)
     sum_2 = result["sum_2"]
     mult_2 = result["mult_2"]
@@ -100,8 +100,8 @@ class TestDigitForward(unittest.TestCase):
 
   def test_multi_result_maybe_with_output_mapping(self):
     forward = self.ctx.forward_function(output_mappings={"sum_2": None, "mult_2": list(range(100))})
-    digit_1 = torch.randn((16, 10))
-    digit_2 = torch.randn((16, 10))
+    digit_1 = torch.softmax(torch.randn((16, 10)), dim=1)
+    digit_2 = torch.softmax(torch.randn((16, 10)), dim=1)
     result = forward(digit_1=digit_1, digit_2=digit_2)
     (sum_2_mapping, sum_2_tensor) = result["sum_2"]
     mult_2 = result["mult_2"]
@@ -180,6 +180,28 @@ class TestDirectForward(unittest.TestCase):
     )
     digit_a, digit_b = torch.randn((16, 10)), torch.randn((16, 10))
     result = compute_sum_2(digit_a=digit_a, digit_b=digit_b)
+    self.assertEqual(result.shape, (16, 19))
+
+  def test_forward_with_probabilities(self):
+    def process_input(digit_tensor):
+      r = []
+      (batch_size, _) = digit_tensor.shape
+      for task_id in range(batch_size):
+        r.append([(p, (i,)) for (i, p) in enumerate(digit_tensor[task_id])])
+      return r
+
+    sum_2_program = """
+    type digit_a(usize), digit_b(usize)
+    rel sum_2(a + b) = digit_a(a), digit_b(b)
+    """
+    compute_sum_2 = scallopy.ScallopForwardFunction(
+      program=sum_2_program,
+      provenance="difftopkproofs",
+      input_mappings={"digit_a": None, "digit_b": None},
+      output_mappings={"sum_2": list(range(19))},
+    )
+    digit_a, digit_b = torch.randn((16, 10)), torch.randn((16, 10))
+    result = compute_sum_2(digit_a=process_input(digit_a), digit_b=process_input(digit_b))
     self.assertEqual(result.shape, (16, 19))
 
   def test_forward_with_non_probabilistic(self):

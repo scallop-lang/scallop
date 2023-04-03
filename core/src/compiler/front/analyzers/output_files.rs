@@ -98,7 +98,7 @@ impl OutputFilesAnalysis {
 
 impl NodeVisitor for OutputFilesAnalysis {
   fn visit_query_decl(&mut self, qd: &QueryDecl) {
-    self.process_attributes(qd.query().relation_name(), qd.attributes());
+    self.process_attributes(qd.query().create_relation_name(), qd.attributes());
   }
 }
 

@@ -1,10 +1,10 @@
 use super::{PointerFamily, RcFamily};
 
-pub struct CopyOnWrite<T: Clone, P: PointerFamily = RcFamily>(P::Pointer<T>);
+pub struct CopyOnWrite<T: Clone, P: PointerFamily = RcFamily>(P::Rc<T>);
 
 impl<T: Clone, P: PointerFamily> CopyOnWrite<T, P> {
   pub fn new(t: T) -> Self {
-    Self(P::new(t))
+    Self(P::new_rc(t))
   }
 
   pub fn borrow(&self) -> &T {
@@ -17,13 +17,13 @@ impl<T: Clone, P: PointerFamily> CopyOnWrite<T, P> {
   {
     let mut new_inner = (*self.0).clone();
     f(&mut new_inner);
-    *self = Self(P::new(new_inner));
+    *self = Self(P::new_rc(new_inner));
   }
 }
 
 impl<T: Clone, P: PointerFamily> Clone for CopyOnWrite<T, P> {
   fn clone(&self) -> Self {
-    Self(P::clone_ptr(&self.0))
+    Self(P::clone_rc(&self.0))
   }
 }
 

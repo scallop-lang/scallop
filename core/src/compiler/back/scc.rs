@@ -8,6 +8,7 @@ use std::collections::*;
 
 use super::{ast::*, BackCompileError};
 
+/// The type of a dependency graph edge: positive, negative, or aggregation
 #[derive(Debug, Clone)]
 pub enum DependencyGraphEdge {
   Positive,
@@ -26,6 +27,7 @@ impl std::fmt::Display for DependencyGraphEdge {
 }
 
 impl DependencyGraphEdge {
+  /// Check if the edge needs to be stratified
   pub fn needs_stratification(&self) -> bool {
     match self {
       Self::Positive => false,
@@ -34,6 +36,7 @@ impl DependencyGraphEdge {
   }
 }
 
+/// A graph storing the dependencies between predicates
 #[derive(Clone)]
 pub struct DependencyGraph {
   graph: Graph<String, DependencyGraphEdge>,
@@ -42,6 +45,7 @@ pub struct DependencyGraph {
 }
 
 impl DependencyGraph {
+  /// Create an empty dependency graph
   pub fn new() -> Self {
     Self {
       graph: Graph::new(),
@@ -50,6 +54,7 @@ impl DependencyGraph {
     }
   }
 
+  /// Add a predicate to the dependency graph
   pub fn add_predicate(&mut self, predicate: &String) -> NodeIndex {
     if let Some(ni) = self.predicate_to_node_id.get(predicate) {
       ni.clone()
@@ -60,10 +65,12 @@ impl DependencyGraph {
     }
   }
 
+  /// Get the node id of a predicate
   pub fn predicate_node(&self, predicate: &String) -> NodeIndex {
     self.predicate_to_node_id.get(predicate).unwrap().clone()
   }
 
+  /// Add a dependency between two predicates
   pub fn add_dependency(&mut self, src: &String, dst: &String, edge: DependencyGraphEdge) -> EdgeIndex {
     let src_id = self.predicate_to_node_id[src];
     let dst_id = self.predicate_to_node_id[dst];
@@ -242,11 +249,15 @@ impl Program {
         match atom {
           Literal::Atom(a) => {
             let atom_predicate = &a.predicate;
-            graph.add_dependency(head_predicate, atom_predicate, E::Positive);
+            if !self.predicate_registry.contains(atom_predicate) {
+              graph.add_dependency(head_predicate, atom_predicate, E::Positive);
+            }
           }
           Literal::NegAtom(a) => {
             let atom_predicate = &a.atom.predicate;
-            graph.add_dependency(head_predicate, atom_predicate, E::Negative);
+            if !self.predicate_registry.contains(atom_predicate) {
+              graph.add_dependency(head_predicate, atom_predicate, E::Negative);
+            }
           }
           Literal::Reduce(r) => {
             let reduce_predicate = &r.body_formula.predicate;

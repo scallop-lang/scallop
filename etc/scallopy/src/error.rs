@@ -14,6 +14,7 @@ pub enum BindingError {
   InvalidLoadCSVArg,
   InvalidBatchSize,
   EmptyBatchInput,
+  InvalidInputTag,
   PyErr(PyErr),
 }
 
@@ -31,6 +32,7 @@ impl std::fmt::Display for BindingError {
       Self::InvalidLoadCSVArg => f.write_str("Invalid argument for `load_csv`"),
       Self::InvalidBatchSize => f.write_str("Invalid batch size"),
       Self::EmptyBatchInput => f.write_str("Empty batched input"),
+      Self::InvalidInputTag => f.write_str("Invalid input tag"),
       Self::PyErr(e) => std::fmt::Display::fmt(e, f),
     }
   }

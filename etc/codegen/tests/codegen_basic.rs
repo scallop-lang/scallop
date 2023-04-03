@@ -149,7 +149,7 @@ fn codegen_const_fold_test_1() {
 
   let mut ctx = unit::UnitProvenance::default();
   let result = const_fold_test_1::run(&mut ctx);
-  expect_static_output_collection(&result.R, vec![(4i32, 1usize)]);
+  expect_static_output_collection(&result.R, vec![(4i32, 1i32)]);
 }
 
 #[test]

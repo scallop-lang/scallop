@@ -18,6 +18,7 @@ use crate::custom_tag;
 use super::collection::*;
 use super::error::*;
 use super::foreign_function::*;
+use super::foreign_predicate::*;
 use super::io::*;
 use super::provenance::*;
 use super::tuple::*;
@@ -27,7 +28,7 @@ type AF = ArcFamily;
 #[derive(Clone)]
 pub enum ContextEnum {
   Unit(IntegrateContext<unit::UnitProvenance, AF>),
-  Proofs(IntegrateContext<proofs::ProofsProvenance, AF>),
+  Proofs(IntegrateContext<proofs::ProofsProvenance<AF>, AF>),
   MinMaxProb(IntegrateContext<min_max_prob::MinMaxProbProvenance, AF>),
   AddMultProb(IntegrateContext<add_mult_prob::AddMultProbProvenance, AF>),
   TopKProofs(IntegrateContext<top_k_proofs::TopKProofsProvenance<AF>, AF>),
@@ -40,9 +41,7 @@ pub enum ContextEnum {
   DiffSampleKProofs(IntegrateContext<diff_sample_k_proofs::DiffSampleKProofsProvenance<Py<PyAny>, AF>, AF>),
   DiffTopKProofs(IntegrateContext<diff_top_k_proofs::DiffTopKProofsProvenance<Py<PyAny>, AF>, AF>),
   DiffTopKProofsIndiv(IntegrateContext<diff_top_k_proofs_indiv::DiffTopKProofsIndivProvenance<Py<PyAny>, AF>, AF>),
-  DiffTopBottomKClauses(
-    IntegrateContext<diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance<Py<PyAny>, AF>, AF>,
-  ),
+  DiffTopBottomKClauses(IntegrateContext<diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance<Py<PyAny>, AF>, AF>),
   Custom(IntegrateContext<custom_tag::CustomProvenance, AF>),
 }
 
@@ -180,6 +179,21 @@ impl Context {
   /// Set the current context to be non-incremental
   fn set_non_incremental(&mut self) {
     match_context!(&mut self.ctx, c, c.set_non_incremental())
+  }
+
+  /// Set early discard
+  fn set_early_discard(&mut self, early_discard: bool) {
+    match_context!(&mut self.ctx, c, c.set_early_discard(early_discard))
+  }
+
+  /// Set the iteration limit to be `k`
+  fn set_iter_limit(&mut self, k: usize) {
+    match_context!(&mut self.ctx, c, c.set_iter_limit(k))
+  }
+
+  /// Remove the iteration limit
+  fn remove_iter_limit(&mut self) {
+    match_context!(&mut self.ctx, c, c.remove_iter_limit())
   }
 
   /// Compile the surface program stored in the scallopy context into the ram program.
@@ -367,6 +381,13 @@ impl Context {
   fn register_foreign_function(&mut self, f: PyObject) -> Result<(), BindingError> {
     let ff = PythonForeignFunction::new(f);
     match_context!(&mut self.ctx, c, c.register_foreign_function(ff)?);
+    Ok(())
+  }
+
+  /// Register a foreign predicate
+  fn register_foreign_predicate(&mut self, f: PyObject) -> Result<(), BindingError> {
+    let fp = PythonForeignPredicate::new(f);
+    match_context!(&mut self.ctx, c, c.register_foreign_predicate(fp)?);
     Ok(())
   }
 
@@ -651,14 +672,14 @@ fn is_all_equal<T: Iterator<Item = usize> + Clone>(i: T) -> bool {
   i.clone().min() == i.max()
 }
 
-fn get_output_collection<C>(c: &mut IntegrateContext<C, ArcFamily>, r: &str) -> Result<CollectionEnum, BindingError>
+fn get_output_collection<C>(c: &mut IntegrateContext<C, ArcFamily>, r: &str) -> Result<CollectionEnum<ArcFamily>, BindingError>
 where
   C: PythonProvenance,
 {
   if c.has_relation(r) {
     if let Some(collection) = c.computed_relation(r) {
       Ok(C::to_collection_enum(
-        ArcFamily::clone_ptr(&collection),
+        ArcFamily::clone_rc(&collection),
         c.provenance_context(),
       ))
     } else {
@@ -673,7 +694,7 @@ fn get_output_collection_monitor<C, M>(
   c: &mut IntegrateContext<C, ArcFamily>,
   m: &M,
   r: &str,
-) -> Result<CollectionEnum, BindingError>
+) -> Result<CollectionEnum<ArcFamily>, BindingError>
 where
   C: PythonProvenance,
   M: monitor::Monitor<C>,
@@ -681,7 +702,7 @@ where
   if c.has_relation(r) {
     if let Some(collection) = c.computed_relation_with_monitor(r, m) {
       Ok(C::to_collection_enum(
-        ArcFamily::clone_ptr(&collection),
+        ArcFamily::clone_rc(&collection),
         c.provenance_context(),
       ))
     } else {

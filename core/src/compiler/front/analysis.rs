@@ -1,10 +1,13 @@
 use crate::common::foreign_function::ForeignFunctionRegistry;
+use crate::common::foreign_predicate::ForeignPredicateRegistry;
 
 use super::analyzers::*;
 use super::*;
 
+/// The front analysis object that stores all the analysis results and errors
 #[derive(Clone, Debug)]
 pub struct Analysis {
+  pub invalid_constant: InvalidConstantAnalyzer,
   pub invalid_wildcard: InvalidWildcardAnalyzer,
   pub input_files_analysis: InputFilesAnalysis,
   pub output_files_analysis: OutputFilesAnalysis,
@@ -19,8 +22,13 @@ pub struct Analysis {
 }
 
 impl Analysis {
-  pub fn new(function_registry: &ForeignFunctionRegistry) -> Self {
+  /// Create a new front IR analysis object
+  pub fn new(
+    function_registry: &ForeignFunctionRegistry,
+    predicate_registry: &ForeignPredicateRegistry,
+  ) -> Self {
     Self {
+      invalid_constant: InvalidConstantAnalyzer::new(),
       invalid_wildcard: InvalidWildcardAnalyzer::new(),
       input_files_analysis: InputFilesAnalysis::new(),
       output_files_analysis: OutputFilesAnalysis::new(),
@@ -28,9 +36,9 @@ impl Analysis {
       aggregation_analysis: AggregationAnalysis::new(),
       character_literal_analysis: CharacterLiteralAnalysis::new(),
       constant_decl_analysis: ConstantDeclAnalysis::new(),
-      head_relation_analysis: HeadRelationAnalysis::new(),
-      type_inference: TypeInference::new(function_registry),
-      boundness_analysis: BoundnessAnalysis::new(),
+      head_relation_analysis: HeadRelationAnalysis::new(predicate_registry),
+      type_inference: TypeInference::new(function_registry, predicate_registry),
+      boundness_analysis: BoundnessAnalysis::new(predicate_registry),
       demand_attr_analysis: DemandAttributeAnalysis::new(),
     }
   }
@@ -43,6 +51,7 @@ impl Analysis {
       &mut self.aggregation_analysis,
       &mut self.character_literal_analysis,
       &mut self.constant_decl_analysis,
+      &mut self.invalid_constant,
       &mut self.invalid_wildcard,
     );
     analyzers.walk_items(items);
@@ -71,6 +80,7 @@ impl Analysis {
 
   pub fn dump_errors(&mut self, error_ctx: &mut FrontCompileError) {
     error_ctx.extend(&mut self.input_files_analysis.errors);
+    error_ctx.extend(&mut self.invalid_constant.errors);
     error_ctx.extend(&mut self.invalid_wildcard.errors);
     error_ctx.extend(&mut self.aggregation_analysis.errors);
     error_ctx.extend(&mut self.character_literal_analysis.errors);

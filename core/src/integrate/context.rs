@@ -1,9 +1,10 @@
 use crate::common::foreign_function::*;
-use crate::common::input_tag::*;
+use crate::common::foreign_predicate::*;
 use crate::common::tuple::*;
 use crate::common::tuple_type::*;
+
 use crate::compiler;
-use crate::runtime::database::extensional::ExtensionalDatabase;
+use crate::runtime::database::extensional::*;
 use crate::runtime::database::*;
 use crate::runtime::dynamic;
 use crate::runtime::env::*;
@@ -270,9 +271,42 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     Ok(())
   }
 
+  /// Register a foreign predicate to the context
+  pub fn register_foreign_predicate<F>(&mut self, fp: F) -> Result<(), IntegrateError>
+  where
+    F: ForeignPredicate + Send + Sync + Clone + 'static,
+  {
+    // Add the predicate to front compilation context
+    self
+      .front_ctx
+      .register_foreign_predicate(fp)
+      .map_err(|e| IntegrateError::Runtime(RuntimeError::ForeignPredicate(e)))?;
+
+    // If goes through, then the front context has changed
+    self.front_has_changed = true;
+
+    // Return Ok
+    Ok(())
+  }
+
   /// Set the context to be non-incremental anymore
   pub fn set_non_incremental(&mut self) {
     self.internal.exec_ctx.set_non_incremental();
+  }
+
+  /// Set whether to perform early discard
+  pub fn set_early_discard(&mut self, early_discard: bool) {
+    self.internal.runtime_env.set_early_discard(early_discard)
+  }
+
+  /// Set the iteration limit
+  pub fn set_iter_limit(&mut self, k: usize) {
+    self.internal.runtime_env.set_iter_limit(k)
+  }
+
+  /// Remove the iteration limit
+  pub fn remove_iter_limit(&mut self) {
+    self.internal.runtime_env.remove_iter_limit()
   }
 
   /// Get a mutable refernce to the Extensional Database (EDB)
@@ -331,7 +365,6 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
   /// Execute the program in its current state, with a limit set on iteration count
   pub fn run_with_monitor<M>(&mut self, m: &M) -> Result<(), IntegrateError>
   where
-    Prov::InputTag: FromInputTag,
     M: Monitor<Prov>,
   {
     // First compile the code
@@ -342,10 +375,7 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
   }
 
   /// Execute the program in its current state, with a limit set on iteration count
-  pub fn run(&mut self) -> Result<(), IntegrateError>
-  where
-    Prov::InputTag: FromInputTag,
-  {
+  pub fn run(&mut self) -> Result<(), IntegrateError> {
     // First compile the code
     self.compile()?;
 
@@ -394,7 +424,7 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
   }
 
   /// Get the relation output collection of a given relation
-  pub fn computed_relation(&mut self, relation: &str) -> Option<P::Pointer<dynamic::DynamicOutputCollection<Prov>>> {
+  pub fn computed_relation(&mut self, relation: &str) -> Option<P::Rc<dynamic::DynamicOutputCollection<Prov>>> {
     self.internal.computed_relation(relation)
   }
 
@@ -403,7 +433,7 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     &mut self,
     relation: &str,
     m: &M,
-  ) -> Option<P::Pointer<dynamic::DynamicOutputCollection<Prov>>>
+  ) -> Option<P::Rc<dynamic::DynamicOutputCollection<Prov>>>
   where
     M: Monitor<Prov>,
   {
@@ -487,11 +517,11 @@ impl<Prov: Provenance, P: PointerFamily> InternalIntegrateContext<Prov, P> {
   /// Execute the program in its current state, with a limit set on iteration count
   pub fn run_with_monitor<M>(&mut self, m: &M) -> Result<(), IntegrateError>
   where
-    Prov::InputTag: FromInputTag,
     M: Monitor<Prov>,
   {
-    // Populate the runtime foreign function registry
+    // Populate the runtime foreign function/predicate registry
     self.runtime_env.function_registry = self.ram_program.function_registry.clone();
+    self.runtime_env.predicate_registry = self.ram_program.predicate_registry.clone();
 
     // Finally execute the ram
     self
@@ -504,12 +534,10 @@ impl<Prov: Provenance, P: PointerFamily> InternalIntegrateContext<Prov, P> {
   }
 
   /// Execute the program in its current state, with a limit set on iteration count
-  pub fn run(&mut self) -> Result<(), IntegrateError>
-  where
-    Prov::InputTag: FromInputTag,
-  {
-    // Populate the runtime foreign function registry
+  pub fn run(&mut self) -> Result<(), IntegrateError> {
+    // Populate the runtime foreign function/predicate registry
     self.runtime_env.function_registry = self.ram_program.function_registry.clone();
+    self.runtime_env.predicate_registry = self.ram_program.predicate_registry.clone();
 
     // Finally execute the ram
     self
@@ -542,7 +570,7 @@ impl<Prov: Provenance, P: PointerFamily> InternalIntegrateContext<Prov, P> {
   }
 
   /// Get the RC'ed output collection of a given relation
-  pub fn computed_relation(&mut self, relation: &str) -> Option<P::Pointer<dynamic::DynamicOutputCollection<Prov>>> {
+  pub fn computed_relation(&mut self, relation: &str) -> Option<P::Rc<dynamic::DynamicOutputCollection<Prov>>> {
     self.exec_ctx.recover(relation, &self.prov_ctx);
     self.exec_ctx.relation(relation)
   }
@@ -552,7 +580,7 @@ impl<Prov: Provenance, P: PointerFamily> InternalIntegrateContext<Prov, P> {
     &mut self,
     relation: &str,
     m: &M,
-  ) -> Option<P::Pointer<dynamic::DynamicOutputCollection<Prov>>> {
+  ) -> Option<P::Rc<dynamic::DynamicOutputCollection<Prov>>> {
     self.exec_ctx.recover_with_monitor(relation, &self.prov_ctx, m);
     self.exec_ctx.relation(relation)
   }

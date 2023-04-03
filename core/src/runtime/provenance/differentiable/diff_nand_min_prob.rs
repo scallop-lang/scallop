@@ -7,24 +7,22 @@ use crate::runtime::statics::*;
 use crate::utils::PointerFamily;
 
 pub struct DiffNandMinProbProvenance<T: Clone, P: PointerFamily> {
-  pub warned_disjunction: bool,
   pub valid_threshold: f64,
-  pub storage: P::Pointer<Vec<T>>,
+  pub storage: P::RcCell<Vec<T>>,
 }
 
 impl<T: Clone, P: PointerFamily> Clone for DiffNandMinProbProvenance<T, P> {
   fn clone(&self) -> Self {
     Self {
-      warned_disjunction: self.warned_disjunction,
       valid_threshold: self.valid_threshold,
-      storage: P::new((&*self.storage).clone()),
+      storage: P::new_rc_cell(P::get_rc_cell(&self.storage, |s| s.clone())),
     }
   }
 }
 
 impl<T: Clone + 'static, P: PointerFamily> DiffNandMinProbProvenance<T, P> {
   pub fn input_tags(&self) -> Vec<T> {
-    self.storage.iter().cloned().collect()
+    P::get_rc_cell(&self.storage, |s| s.clone())
   }
 
   pub fn tag_of_chosen_set<E>(&self, all: &Vec<E>, chosen_ids: &Vec<usize>) -> DualNumber2
@@ -48,9 +46,8 @@ impl<T: Clone + 'static, P: PointerFamily> DiffNandMinProbProvenance<T, P> {
 impl<T: Clone, P: PointerFamily> Default for DiffNandMinProbProvenance<T, P> {
   fn default() -> Self {
     Self {
-      warned_disjunction: false,
       valid_threshold: 0.0000,
-      storage: P::new(Vec::new()),
+      storage: P::new_rc_cell(Vec::new()),
     }
   }
 }
@@ -60,17 +57,21 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffNandMinProbProvena
 
   type InputTag = InputDiffProb<T>;
 
-  type OutputTag = OutputDiffProb<T>;
+  type OutputTag = OutputDiffProb;
 
   fn name() -> &'static str {
     "diffnandminprob"
   }
 
-  fn tagging_fn(&mut self, input_tag: Self::InputTag) -> Self::Tag {
+  fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {
     let InputDiffProb(p, t) = input_tag;
-    let pos_id = self.storage.len();
-    P::get_mut(&mut self.storage).push(t);
-    DualNumber2::new(pos_id, p)
+    if let Some(external_input_tag) = t {
+      let pos_id = P::get_rc_cell(&self.storage, |s| s.len());
+      P::get_rc_cell_mut(&self.storage, |s| s.push(external_input_tag));
+      DualNumber2::new(pos_id, p)
+    } else {
+      DualNumber2::constant(p)
+    }
   }
 
   fn recover_fn(&self, p: &Self::Tag) -> Self::OutputTag {
@@ -80,7 +81,7 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffNandMinProbProvena
       .indices
       .iter()
       .zip(p.gradient.values.iter())
-      .map(|(i, v)| (*i, *v, self.storage[*i].clone()))
+      .map(|(i, v)| (*i, *v))
       .collect::<Vec<_>>();
     OutputDiffProb(prob, deriv)
   }

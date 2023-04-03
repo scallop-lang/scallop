@@ -3,8 +3,10 @@ mod context;
 mod custom_tag;
 mod error;
 mod foreign_function;
+mod foreign_predicate;
 mod io;
 mod provenance;
+mod tag;
 mod tuple;
 
 use pyo3::prelude::*;

@@ -47,6 +47,12 @@ impl<T> std::ops::Index<&TupleAccessor> for GenericTuple<T> {
   }
 }
 
+impl<T> std::iter::FromIterator<T> for GenericTuple<T> {
+  fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+    Self::Tuple(iter.into_iter().map(|v| Self::Value(v)).collect())
+  }
+}
+
 impl<T> From<()> for GenericTuple<T> {
   fn from(_: ()) -> Self {
     Self::Tuple(Box::new([]))

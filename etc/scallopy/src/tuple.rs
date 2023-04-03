@@ -1,12 +1,13 @@
 // use std::rc::Rc;
 
-use pyo3::exceptions::PyIndexError;
+use pyo3::exceptions::{PyIndexError, PyTypeError};
 use pyo3::{prelude::*, types::PyTuple};
 
 use scallop_core::common::tuple::Tuple;
 use scallop_core::common::tuple_type::TupleType;
 use scallop_core::common::value::Value;
 use scallop_core::common::value_type::ValueType;
+use scallop_core::utils;
 
 pub fn from_python_tuple(v: &PyAny, ty: &TupleType) -> PyResult<Tuple> {
   match ty {
@@ -61,6 +62,8 @@ pub fn to_python_value(val: &Value) -> Py<PyAny> {
     Str(s) => Python::with_gil(|py| s.to_object(py)),
     String(s) => Python::with_gil(|py| s.to_object(py)),
     // RcString(s) => Python::with_gil(|py| s.to_object(py)),
+    DateTime(d) => Python::with_gil(|py| d.to_string().to_object(py)),
+    Duration(d) => Python::with_gil(|py| d.to_string().to_object(py)),
   }
 }
 
@@ -87,5 +90,13 @@ pub fn from_python_value(v: &PyAny, ty: &ValueType) -> PyResult<Value> {
     // ValueType::RcString => Ok(Tuple::Value(Value::RcString(Rc::new(
     //   v.extract::<String>()?,
     // )))),
+    ValueType::DateTime => {
+      let dt = utils::parse_date_time_string(v.extract()?).ok_or(PyTypeError::new_err("Cannot parse into DateTime"))?;
+      Ok(Value::DateTime(dt))
+    }
+    ValueType::Duration => {
+      let dt = utils::parse_duration_string(v.extract()?).ok_or(PyTypeError::new_err("Cannot parse into Duration"))?;
+      Ok(Value::Duration(dt))
+    }
   }
 }

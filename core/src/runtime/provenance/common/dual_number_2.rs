@@ -39,6 +39,13 @@ impl DualNumber2 {
     }
   }
 
+  pub fn constant(real: f64) -> Self {
+    Self {
+      real,
+      gradient: Gradient::empty(),
+    }
+  }
+
   pub fn clamp_real(&mut self) {
     self.real = self.real.clamp(0.0, 1.0);
   }

@@ -5,7 +5,7 @@ use itertools::iproduct;
 use crate::common::input_tag::*;
 use crate::runtime::dynamic::*;
 use crate::runtime::statics::*;
-use crate::utils::IdAllocator;
+use crate::utils::*;
 
 use super::*;
 
@@ -129,8 +129,8 @@ pub enum ProofsInputTag {
   Exclusive(usize),
 }
 
-impl FromInputTag for ProofsInputTag {
-  fn from_input_tag(t: &DynamicInputTag) -> Option<ProofsInputTag> {
+impl StaticInputTag for ProofsInputTag {
+  fn from_dynamic_input_tag(t: &DynamicInputTag) -> Option<ProofsInputTag> {
     match t {
       DynamicInputTag::Exclusive(e) => Some(ProofsInputTag::Exclusive(e.clone())),
       DynamicInputTag::ExclusiveFloat(_, e) => Some(ProofsInputTag::Exclusive(e.clone())),
@@ -139,13 +139,30 @@ impl FromInputTag for ProofsInputTag {
   }
 }
 
-#[derive(Clone, Default)]
-pub struct ProofsProvenance {
-  id_allocator: IdAllocator,
-  disjunctions: Disjunctions,
+pub struct ProofsProvenance<P: PointerFamily> {
+  id_allocator: P::Cell<IdAllocator>,
+  disjunctions: P::Cell<Disjunctions>,
 }
 
-impl Provenance for ProofsProvenance {
+impl<P: PointerFamily> Default for ProofsProvenance<P> {
+  fn default() -> Self {
+    Self {
+      id_allocator: P::new_cell(IdAllocator::default()),
+      disjunctions: P::new_cell(Disjunctions::default()),
+    }
+  }
+}
+
+impl<P: PointerFamily> Clone for ProofsProvenance<P> {
+  fn clone(&self) -> Self {
+    Self {
+      id_allocator: P::clone_cell(&self.id_allocator),
+      disjunctions: P::clone_cell(&self.disjunctions),
+    }
+  }
+}
+
+impl<P: PointerFamily> Provenance for ProofsProvenance<P> {
   type Tag = Proofs;
 
   type InputTag = ProofsInputTag;
@@ -156,12 +173,12 @@ impl Provenance for ProofsProvenance {
     "proofs"
   }
 
-  fn tagging_fn(&mut self, exclusion: Self::InputTag) -> Self::Tag {
-    let fact_id = self.id_allocator.alloc();
+  fn tagging_fn(&self, exclusion: Self::InputTag) -> Self::Tag {
+    let fact_id = P::get_cell_mut(&self.id_allocator, |a| a.alloc());
 
     // Disjunction id
     if let ProofsInputTag::Exclusive(disjunction_id) = exclusion {
-      self.disjunctions.add_disjunction(disjunction_id, fact_id)
+      P::get_cell_mut(&self.disjunctions, |d| d.add_disjunction(disjunction_id, fact_id));
     }
 
     // Return the proof
@@ -192,7 +209,7 @@ impl Provenance for ProofsProvenance {
     let mut prod = Self::Tag::cartesian_product(t1, t2);
     prod
       .proofs
-      .retain(|proof| !self.disjunctions.has_conflict(&proof.facts));
+      .retain(|proof| !P::get_cell(&self.disjunctions, |d| d.has_conflict(&proof.facts)));
     prod
   }
 

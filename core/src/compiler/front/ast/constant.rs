@@ -1,21 +1,23 @@
 // use std::rc::Rc;
 
 use super::*;
-use crate::common::{input_tag::InputTag, value::Value, value_type::ValueType};
+use crate::common::input_tag::DynamicInputTag;
+use crate::common::value::Value;
+use crate::common::value_type::ValueType;
 
 #[derive(Clone, Debug, PartialEq)]
 #[doc(hidden)]
-pub struct TagNode(pub InputTag);
+pub struct TagNode(pub DynamicInputTag);
 
 /// A tag associated with a fact
 pub type Tag = AstNode<TagNode>;
 
 impl Tag {
   pub fn default_none() -> Self {
-    Self::default(TagNode(InputTag::None))
+    Self::default(TagNode(DynamicInputTag::None))
   }
 
-  pub fn input_tag(&self) -> &InputTag {
+  pub fn input_tag(&self) -> &DynamicInputTag {
     &self.node.0
   }
 
@@ -32,12 +34,22 @@ pub enum ConstantNode {
   Char(String),
   Boolean(bool),
   String(String),
+  DateTime(chrono::DateTime<chrono::Utc>),
+  Duration(chrono::Duration),
+
+  /// Invalid is used to represent a constant that could not be parsed; the string is the error message
+  Invalid(String),
 }
 
 /// A constant, which could be an integer, floating point, character, boolean, or string.
 pub type Constant = AstNode<ConstantNode>;
 
 impl Constant {
+  /// Create a new constant integer AST node
+  pub fn integer(i: i64) -> Self {
+    Self::default(ConstantNode::Integer(i))
+  }
+
   pub fn to_value(&self, ty: &ValueType) -> Value {
     use ConstantNode::*;
     match (&self.node, ty) {
@@ -62,6 +74,8 @@ impl Constant {
       (String(_), ValueType::Str) => panic!("Cannot cast dynamic string into static string"),
       (String(s), ValueType::String) => Value::String(s.clone()),
       // (String(s), ValueType::RcString) => Value::RcString(Rc::new(s.clone())),
+      (DateTime(d), ValueType::DateTime) => Value::DateTime(d.clone()),
+      (Duration(d), ValueType::Duration) => Value::Duration(d.clone()),
       _ => panic!("Cannot convert front Constant `{:?}` to Type `{}`", self, ty),
     }
   }
@@ -74,6 +88,9 @@ impl Constant {
       String(_) => "string",
       Char(_) => "char",
       Boolean(_) => "boolean",
+      DateTime(_) => "datetime",
+      Duration(_) => "duration",
+      Invalid(_) => "invalid",
     }
   }
 }

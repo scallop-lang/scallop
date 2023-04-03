@@ -10,7 +10,21 @@ pub enum QueryNode {
 pub type Query = AstNode<QueryNode>;
 
 impl Query {
-  pub fn relation_name(&self) -> String {
+  pub fn predicate(&self) -> String {
+    match &self.node {
+      QueryNode::Predicate(p) => {
+        let n = p.name();
+        if let Some(id) = n.find("(") {
+          n[..id].to_string()
+        } else {
+          n.to_string()
+        }
+      },
+      QueryNode::Atom(a) => a.predicate().to_string(),
+    }
+  }
+
+  pub fn create_relation_name(&self) -> String {
     match &self.node {
       QueryNode::Predicate(p) => p.name().to_string(),
       QueryNode::Atom(a) => format!("{}", a),

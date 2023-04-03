@@ -3,7 +3,8 @@ use std::collections::*;
 use super::Attributes;
 use crate::common::aggregate_op::AggregateOp;
 use crate::common::foreign_function::ForeignFunctionRegistry;
-use crate::common::input_tag::InputTag;
+use crate::common::foreign_predicate::ForeignPredicateRegistry;
+use crate::common::input_tag::DynamicInputTag;
 use crate::common::output_option::OutputOption;
 use crate::compiler::front;
 
@@ -19,6 +20,7 @@ pub struct Program {
   pub disjunctive_facts: Vec<Vec<Fact>>,
   pub rules: Vec<Rule>,
   pub function_registry: ForeignFunctionRegistry,
+  pub predicate_registry: ForeignPredicateRegistry,
 }
 
 impl Program {
@@ -55,7 +57,7 @@ impl Program {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Fact {
-  pub tag: InputTag,
+  pub tag: DynamicInputTag,
   pub predicate: String,
   pub args: Vec<Constant>,
 }
@@ -121,11 +123,13 @@ impl Head {
   }
 }
 
+/// A conjunction of literals
 #[derive(Clone, Debug, PartialEq)]
 pub struct Conjunction {
   pub args: Vec<Literal>,
 }
 
+/// A term is the argument of a literal
 #[derive(Clone, Debug, PartialEq)]
 pub enum Term {
   Variable(Variable),
@@ -133,10 +137,12 @@ pub enum Term {
 }
 
 impl Term {
+  /// Create a new variable term using the given name and type
   pub fn variable(name: String, ty: Type) -> Self {
     Self::Variable(Variable { name, ty })
   }
 
+  /// Check if the term is a variable
   pub fn is_variable(&self) -> bool {
     match self {
       Self::Variable(_) => true,
@@ -144,6 +150,7 @@ impl Term {
     }
   }
 
+  /// Check if the term is a constant
   pub fn is_constant(&self) -> bool {
     match self {
       Self::Constant(_) => true,
@@ -151,6 +158,7 @@ impl Term {
     }
   }
 
+  /// Get the variable if the term is a variable
   pub fn as_variable(&self) -> Option<&Variable> {
     match self {
       Self::Variable(v) => Some(v),
@@ -158,6 +166,7 @@ impl Term {
     }
   }
 
+  /// Get the constant if the term is a constant
   pub fn as_constant(&self) -> Option<&Constant> {
     match self {
       Self::Constant(c) => Some(c),
@@ -204,6 +213,7 @@ impl std::fmt::Debug for Literal {
 }
 
 impl Literal {
+  /// Create a new assignment of binary expression
   pub fn binary_expr(left: Variable, op: BinaryExprOp, op1: Term, op2: Term) -> Self {
     Self::Assign(Assign {
       left,
@@ -211,6 +221,7 @@ impl Literal {
     })
   }
 
+  /// Create a new assignment of unary expression
   pub fn unary_expr(left: Variable, op: UnaryExprOp, op1: Term) -> Self {
     Self::Assign(Assign {
       left,
@@ -218,6 +229,7 @@ impl Literal {
     })
   }
 
+  /// Create a new assignment of if-then-else expression
   pub fn if_then_else_expr(left: Variable, cond: Term, then_br: Term, else_br: Term) -> Self {
     Self::Assign(Assign {
       left,
@@ -225,6 +237,7 @@ impl Literal {
     })
   }
 
+  /// Create a new assignment of call expression
   pub fn call_expr(left: Variable, function: String, args: Vec<Term>) -> Self {
     Self::Assign(Assign {
       left,
@@ -232,6 +245,7 @@ impl Literal {
     })
   }
 
+  /// Create a new assignment of if-then-else expression
   pub fn binary_constraint(op: BinaryConstraintOp, op1: Term, op2: Term) -> Self {
     Self::Constraint(Constraint::Binary(BinaryConstraint { op, op1, op2 }))
   }
@@ -248,6 +262,7 @@ pub struct Atom {
 }
 
 impl Atom {
+  /// Create a new atom
   pub fn new(predicate: String, args: Vec<Term>) -> Self {
     Self { predicate, args }
   }
@@ -276,6 +291,7 @@ impl Atom {
     return true;
   }
 
+  /// Get the atom's arguments which are variables
   pub fn variable_args(&self) -> impl Iterator<Item = &Variable> {
     self.args.iter().filter_map(|a| match a {
       Term::Variable(v) => Some(v),
@@ -283,14 +299,17 @@ impl Atom {
     })
   }
 
+  /// Get a set of unique variables in the atom's arguments
   pub fn unique_variable_args(&self) -> impl Iterator<Item = Variable> {
     self.variable_args().cloned().collect::<BTreeSet<_>>().into_iter()
   }
 
+  /// Check if the atom has constant arguments
   pub fn has_constant_arg(&self) -> bool {
     self.args.iter().any(|a| a.is_constant())
   }
 
+  /// Create a partition of the atom's arguments into constant and variable
   pub fn const_var_partition(&self) -> (Vec<(usize, &Constant)>, Vec<(usize, &Variable)>) {
     let (constants, variables): (Vec<_>, Vec<_>) = self.args.iter().enumerate().partition(|(_, t)| t.is_constant());
     let constants = constants
@@ -386,6 +405,7 @@ pub struct CallExpr {
   pub args: Vec<Term>,
 }
 
+/// A constraint literal which is either a binary or unary constraint
 #[derive(Clone, Debug, PartialEq)]
 pub enum Constraint {
   Binary(BinaryConstraint),
@@ -393,6 +413,22 @@ pub enum Constraint {
 }
 
 impl Constraint {
+  /// Create a new equality constraint using two terms
+  pub fn eq(op1: Term, op2: Term) -> Self {
+    Self::Binary(BinaryConstraint { op: BinaryConstraintOp::Eq, op1, op2 })
+  }
+
+  /// Create a new inequality constraint using two terms
+  pub fn neq(op1: Term, op2: Term) -> Self {
+    Self::Binary(BinaryConstraint { op: BinaryConstraintOp::Neq, op1, op2 })
+  }
+
+  /// Create a new binary constraint using an operator and two terms
+  pub fn binary(op: BinaryConstraintOp, op1: Term, op2: Term) -> Self {
+    Self::Binary(BinaryConstraint { op, op1, op2 })
+  }
+
+  /// Find the variable arguments occurred in this constraint
   pub fn variable_args(&self) -> Vec<&Variable> {
     let mut args = vec![];
     match self {

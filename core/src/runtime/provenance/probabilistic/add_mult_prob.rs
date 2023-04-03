@@ -52,7 +52,7 @@ impl Provenance for AddMultProbProvenance {
     "addmultprob"
   }
 
-  fn tagging_fn(&mut self, p: Self::InputTag) -> Self::Tag {
+  fn tagging_fn(&self, p: Self::InputTag) -> Self::Tag {
     p.into()
   }
 

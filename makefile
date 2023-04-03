@@ -24,8 +24,13 @@ wasm-demo:
 run-wasm-demo:
 	cd etc/scallop-wasm/demo; python3 -m http.server
 
-py-venv:
+init-venv:
 	python3 -m venv .env
+	.env/bin/pip install --upgrade pip
+	.env/bin/pip install maturin torch torchvision transformers gym scikit-learn opencv-python tqdm matplotlib
+
+clear-venv:
+	rm -rf .env
 
 vscode-plugin:
 	make -C etc/vscode-scl
@@ -68,3 +73,10 @@ serve-doc:
 stop-serve-doc:
 	@echo "Stopping documentation server on port 8192..."
 	@lsof -t -i:8192 | xargs kill
+
+serve-book:
+	mdbook serve -p 8193 doc/
+
+stop-serve-book:
+	@echo "Stopping book server on port 8193..."
+	@lsof -t -i:8193 | xargs kill

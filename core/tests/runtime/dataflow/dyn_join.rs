@@ -7,7 +7,7 @@ use scallop_core::testing::*;
 #[test]
 fn test_dynamic_join_1() {
   let mut ctx = unit::UnitProvenance;
-  let mut rt = RuntimeEnvironment::new();
+  let mut rt = RuntimeEnvironment::new_std();
 
   // Relations
   let mut source_1 = DynamicRelation::<unit::UnitProvenance>::new();

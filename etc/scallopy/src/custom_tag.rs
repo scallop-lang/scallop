@@ -32,7 +32,7 @@ impl provenance::Provenance for CustomProvenance {
     "scallopy-custom"
   }
 
-  fn tagging_fn(&mut self, i: Self::InputTag) -> Self::Tag {
+  fn tagging_fn(&self, i: Self::InputTag) -> Self::Tag {
     Python::with_gil(|py| {
       let result = self.0.call_method(py, "tagging_fn", (i,), None).unwrap();
       Self::Tag::new(result)

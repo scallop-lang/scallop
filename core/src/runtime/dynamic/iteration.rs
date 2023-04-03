@@ -241,6 +241,15 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
           self.unsafe_get_dynamic_relation(c).into()
         }
       }
+      Dataflow::ForeignPredicateGround(p, a) => {
+        DynamicDataflow::foreign_predicate_ground(p.clone(), a.clone(), self.is_first_iteration(), ctx)
+      }
+      Dataflow::ForeignPredicateConstraint(d, p, a) => {
+        self.build_dynamic_dataflow(ctx, d).foreign_predicate_constraint(p.clone(), a.clone(), ctx)
+      }
+      Dataflow::ForeignPredicateJoin(d, p, a) => {
+        self.build_dynamic_dataflow(ctx, d).foreign_predicate_join(p.clone(), a.clone(), ctx)
+      }
       Dataflow::OverwriteOne(d) => self.build_dynamic_dataflow(ctx, d).overwrite_one(ctx),
       Dataflow::Filter(d, e) => self.build_dynamic_dataflow(ctx, d).filter(e.clone()),
       Dataflow::Find(d, k) => self.build_dynamic_dataflow(ctx, d).find(k.clone()),

@@ -1,11 +1,13 @@
 use std::collections::*;
 
 use super::*;
+
 use crate::compiler::front::ast::*;
 use crate::compiler::front::visitor::*;
 
 #[derive(Clone, Debug)]
-pub struct LocalBoundnessAnalysisContext {
+pub struct LocalBoundnessAnalysisContext<'a> {
+  pub foreign_predicate_bindings: &'a ForeignPredicateBindings,
   pub expr_boundness: HashMap<Loc, bool>,
   pub dependencies: Vec<BoundnessDependency>,
   pub variable_locations: HashMap<String, Vec<Loc>>,
@@ -14,12 +16,19 @@ pub struct LocalBoundnessAnalysisContext {
   pub errors: Vec<BoundnessAnalysisError>,
 }
 
-impl NodeVisitor for LocalBoundnessAnalysisContext {
+impl<'a> NodeVisitor for LocalBoundnessAnalysisContext<'a> {
   fn visit_atom(&mut self, atom: &Atom) {
-    for arg in atom.iter_arguments() {
-      let loc = arg.location().clone();
-      let dep = BoundnessDependency::RelationArg(loc);
+    if let Some(binding) = self.foreign_predicate_bindings.get(atom.predicate()) {
+      let bounded = atom.iter_arguments().enumerate().filter_map(|(i, a)| if binding[i].is_bound() { Some(a.location().clone()) } else { None } ).collect();
+      let to_bound = atom.iter_arguments().enumerate().filter_map(|(i, a)| if binding[i].is_free() { Some(a.location().clone()) } else { None } ).collect();
+      let dep = BoundnessDependency::ForeignPredicateArgs(bounded, to_bound);
       self.dependencies.push(dep);
+    } else {
+      for arg in atom.iter_arguments() {
+        let loc = arg.location().clone();
+        let dep = BoundnessDependency::RelationArg(loc);
+        self.dependencies.push(dep);
+      }
     }
   }
 
@@ -94,9 +103,10 @@ impl NodeVisitor for LocalBoundnessAnalysisContext {
   }
 }
 
-impl LocalBoundnessAnalysisContext {
-  pub fn new() -> Self {
+impl<'a> LocalBoundnessAnalysisContext<'a> {
+  pub fn new(foreign_predicate_bindings: &'a ForeignPredicateBindings) -> Self {
     Self {
+      foreign_predicate_bindings,
       expr_boundness: HashMap::new(),
       dependencies: Vec::new(),
       variable_locations: HashMap::new(),
@@ -129,6 +139,13 @@ impl LocalBoundnessAnalysisContext {
         match dep {
           RelationArg(l) => {
             update(&mut self.expr_boundness, l, true);
+          }
+          ForeignPredicateArgs(bounded_args, to_bound_args) => {
+            if bounded_args.iter().all(|l| get(&self.expr_boundness, l)) {
+              for to_bound_arg in to_bound_args {
+                update(&mut self.expr_boundness, to_bound_arg, true)
+              }
+            }
           }
           Constant(l) => {
             update(&mut self.expr_boundness, l, true);

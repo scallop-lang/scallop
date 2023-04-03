@@ -6,6 +6,7 @@ use rand::SeedableRng;
 use crate::common::constants::*;
 use crate::common::expr::*;
 use crate::common::foreign_function::*;
+use crate::common::foreign_predicate::*;
 use crate::common::tuple::*;
 use crate::common::value_type::*;
 
@@ -25,22 +26,26 @@ pub struct RuntimeEnvironment {
 
   /// Foreign function registry
   pub function_registry: ForeignFunctionRegistry,
+
+  /// Foreign predicate registry
+  pub predicate_registry: ForeignPredicateRegistry,
 }
 
 impl Default for RuntimeEnvironment {
   fn default() -> Self {
-    Self::new()
+    Self::new_std()
   }
 }
 
 impl RuntimeEnvironment {
-  pub fn new() -> Self {
+  pub fn new_std() -> Self {
     Self {
       random_seed: DEFAULT_RANDOM_SEED,
       rng: Arc::new(Mutex::new(SmallRng::seed_from_u64(DEFAULT_RANDOM_SEED))),
       early_discard: true,
       iter_limit: None,
       function_registry: ForeignFunctionRegistry::std(),
+      predicate_registry: ForeignPredicateRegistry::std(),
     }
   }
 
@@ -51,6 +56,21 @@ impl RuntimeEnvironment {
       early_discard: true,
       iter_limit: None,
       function_registry: ForeignFunctionRegistry::std(),
+      predicate_registry: ForeignPredicateRegistry::std(),
+    }
+  }
+
+  pub fn new(
+    ffr: ForeignFunctionRegistry,
+    fpr: ForeignPredicateRegistry,
+  ) -> Self {
+    Self {
+      random_seed: DEFAULT_RANDOM_SEED,
+      rng: Arc::new(Mutex::new(SmallRng::seed_from_u64(DEFAULT_RANDOM_SEED))),
+      early_discard: true,
+      iter_limit: None,
+      function_registry: ffr,
+      predicate_registry: fpr,
     }
   }
 
@@ -61,7 +81,20 @@ impl RuntimeEnvironment {
       early_discard: true,
       iter_limit: None,
       function_registry: ffr,
+      predicate_registry: ForeignPredicateRegistry::std(),
     }
+  }
+
+  pub fn set_early_discard(&mut self, early_discard: bool) {
+    self.early_discard = early_discard
+  }
+
+  pub fn set_iter_limit(&mut self, k: usize) {
+    self.iter_limit = Some(k);
+  }
+
+  pub fn remove_iter_limit(&mut self) {
+    self.iter_limit = None;
   }
 
   pub fn eval(&self, expr: &Expr, tuple: &Tuple) -> Option<Tuple> {
@@ -103,6 +136,10 @@ impl RuntimeEnvironment {
       (Add, Tuple::Value(USize(i1)), Tuple::Value(USize(i2))) => Tuple::Value(USize(i1 + i2)),
       (Add, Tuple::Value(F32(i1)), Tuple::Value(F32(i2))) => Tuple::Value(F32(i1 + i2)),
       (Add, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => Tuple::Value(F64(i1 + i2)),
+      (Add, Tuple::Value(String(s1)), Tuple::Value(String(s2))) => Tuple::Value(String(format!("{}{}", s1, s2))),
+      (Add, Tuple::Value(DateTime(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(DateTime(i1 + i2)),
+      (Add, Tuple::Value(Duration(i1)), Tuple::Value(DateTime(i2))) => Tuple::Value(DateTime(i2 + i1)),
+      (Add, Tuple::Value(Duration(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(Duration(i1 + i2)),
       (Add, b1, b2) => panic!("Cannot perform ADD on {:?} and {:?}", b1, b2),
 
       // Subtraction
@@ -120,6 +157,9 @@ impl RuntimeEnvironment {
       (Sub, Tuple::Value(USize(i1)), Tuple::Value(USize(i2))) => Tuple::Value(USize(i1 - i2)),
       (Sub, Tuple::Value(F32(i1)), Tuple::Value(F32(i2))) => Tuple::Value(F32(i1 - i2)),
       (Sub, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => Tuple::Value(F64(i1 - i2)),
+      (Sub, Tuple::Value(DateTime(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(DateTime(i1 - i2)),
+      (Sub, Tuple::Value(DateTime(i1)), Tuple::Value(DateTime(i2))) => Tuple::Value(Duration(i1 - i2)),
+      (Sub, Tuple::Value(Duration(i1)), Tuple::Value(Duration(i2))) =>Tuple::Value(Duration(i1 - i2)),
       (Sub, b1, b2) => panic!("Cannot perform SUB on {:?} and {:?}", b1, b2),
 
       // Multiplication
@@ -137,6 +177,8 @@ impl RuntimeEnvironment {
       (Mul, Tuple::Value(USize(i1)), Tuple::Value(USize(i2))) => Tuple::Value(USize(i1 * i2)),
       (Mul, Tuple::Value(F32(i1)), Tuple::Value(F32(i2))) => Tuple::Value(F32(i1 * i2)),
       (Mul, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => Tuple::Value(F64(i1 * i2)),
+      (Mul, Tuple::Value(Duration(i1)), Tuple::Value(I32(i2))) => Tuple::Value(Duration(i1 * i2)),
+      (Mul, Tuple::Value(I32(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(Duration(i2 * i1)),
       (Mul, b1, b2) => panic!("Cannot perform MUL on {:?} and {:?}", b1, b2),
 
       // Division
@@ -152,8 +194,23 @@ impl RuntimeEnvironment {
       (Div, Tuple::Value(U64(i1)), Tuple::Value(U64(i2))) => Tuple::Value(U64(i1 / i2)),
       (Div, Tuple::Value(U128(i1)), Tuple::Value(U128(i2))) => Tuple::Value(U128(i1 / i2)),
       (Div, Tuple::Value(USize(i1)), Tuple::Value(USize(i2))) => Tuple::Value(USize(i1 / i2)),
-      (Div, Tuple::Value(F32(i1)), Tuple::Value(F32(i2))) => Tuple::Value(F32(i1 / i2)),
-      (Div, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => Tuple::Value(F64(i1 / i2)),
+      (Div, Tuple::Value(F32(i1)), Tuple::Value(F32(i2))) => {
+        let r = i1 / i2;
+        if r.is_nan() {
+          return None;
+        } else {
+          Tuple::Value(F32(r))
+        }
+      },
+      (Div, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => {
+        let r = i1 / i2;
+        if r.is_nan() {
+          return None;
+        } else {
+          Tuple::Value(F64(r))
+        }
+      },
+      (Div, Tuple::Value(Duration(i1)), Tuple::Value(I32(i2))) => Tuple::Value(Duration(i1 / i2)),
       (Div, b1, b2) => panic!("Cannot perform DIV on {:?} and {:?}", b1, b2),
 
       // Mod
@@ -199,6 +256,8 @@ impl RuntimeEnvironment {
       (Eq, Tuple::Value(Str(i1)), Tuple::Value(Str(i2))) => Tuple::Value(Bool(i1 == i2)),
       (Eq, Tuple::Value(String(i1)), Tuple::Value(String(i2))) => Tuple::Value(Bool(i1 == i2)),
       // (Eq, Tuple::Value(RcString(i1)), Tuple::Value(RcString(i2))) => Tuple::Value(Bool(i1 == i2)),
+      (Eq, Tuple::Value(DateTime(i1)), Tuple::Value(DateTime(i2))) => Tuple::Value(Bool(i1 == i2)),
+      (Eq, Tuple::Value(Duration(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(Bool(i1 == i2)),
       (Eq, b1, b2) => panic!("Cannot perform EQ on {:?} and {:?}", b1, b2),
 
       // Not equal to
@@ -221,6 +280,8 @@ impl RuntimeEnvironment {
       (Neq, Tuple::Value(Str(i1)), Tuple::Value(Str(i2))) => Tuple::Value(Bool(i1 != i2)),
       (Neq, Tuple::Value(String(i1)), Tuple::Value(String(i2))) => Tuple::Value(Bool(i1 != i2)),
       // (Neq, Tuple::Value(RcString(i1)), Tuple::Value(RcString(i2))) => Tuple::Value(Bool(i1 != i2)),
+      (Neq, Tuple::Value(DateTime(i1)), Tuple::Value(DateTime(i2))) => Tuple::Value(Bool(i1 != i2)),
+      (Neq, Tuple::Value(Duration(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(Bool(i1 != i2)),
       (Neq, b1, b2) => panic!("Cannot perform NEQ on {:?} and {:?}", b1, b2),
 
       // Greater than
@@ -238,6 +299,8 @@ impl RuntimeEnvironment {
       (Gt, Tuple::Value(USize(i1)), Tuple::Value(USize(i2))) => Tuple::Value(Bool(i1 > i2)),
       (Gt, Tuple::Value(F32(i1)), Tuple::Value(F32(i2))) => Tuple::Value(Bool(i1 > i2)),
       (Gt, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => Tuple::Value(Bool(i1 > i2)),
+      (Gt, Tuple::Value(DateTime(i1)), Tuple::Value(DateTime(i2))) => Tuple::Value(Bool(i1 > i2)),
+      (Gt, Tuple::Value(Duration(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(Bool(i1 > i2)),
       (Gt, b1, b2) => panic!("Cannot perform GT on {:?} and {:?}", b1, b2),
 
       // Greater than or equal to
@@ -255,6 +318,8 @@ impl RuntimeEnvironment {
       (Geq, Tuple::Value(USize(i1)), Tuple::Value(USize(i2))) => Tuple::Value(Bool(i1 >= i2)),
       (Geq, Tuple::Value(F32(i1)), Tuple::Value(F32(i2))) => Tuple::Value(Bool(i1 >= i2)),
       (Geq, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => Tuple::Value(Bool(i1 >= i2)),
+      (Geq, Tuple::Value(DateTime(i1)), Tuple::Value(DateTime(i2))) => Tuple::Value(Bool(i1 >= i2)),
+      (Geq, Tuple::Value(Duration(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(Bool(i1 >= i2)),
       (Geq, b1, b2) => panic!("Cannot perform GEQ on {:?} and {:?}", b1, b2),
 
       // Less than
@@ -272,6 +337,8 @@ impl RuntimeEnvironment {
       (Lt, Tuple::Value(USize(i1)), Tuple::Value(USize(i2))) => Tuple::Value(Bool(i1 < i2)),
       (Lt, Tuple::Value(F32(i1)), Tuple::Value(F32(i2))) => Tuple::Value(Bool(i1 < i2)),
       (Lt, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => Tuple::Value(Bool(i1 < i2)),
+      (Lt, Tuple::Value(DateTime(i1)), Tuple::Value(DateTime(i2))) => Tuple::Value(Bool(i1 < i2)),
+      (Lt, Tuple::Value(Duration(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(Bool(i1 < i2)),
       (Lt, b1, b2) => panic!("Cannot perform LT on {:?} and {:?}", b1, b2),
 
       // Less than or equal to
@@ -289,6 +356,8 @@ impl RuntimeEnvironment {
       (Leq, Tuple::Value(USize(i1)), Tuple::Value(USize(i2))) => Tuple::Value(Bool(i1 <= i2)),
       (Leq, Tuple::Value(F32(i1)), Tuple::Value(F32(i2))) => Tuple::Value(Bool(i1 <= i2)),
       (Leq, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => Tuple::Value(Bool(i1 <= i2)),
+      (Leq, Tuple::Value(DateTime(i1)), Tuple::Value(DateTime(i2))) => Tuple::Value(Bool(i1 <= i2)),
+      (Leq, Tuple::Value(Duration(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(Bool(i1 <= i2)),
       (Leq, b1, b2) => panic!("Cannot perform LEQ on {:?} and {:?}", b1, b2),
     };
     Some(result)

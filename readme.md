@@ -1,7 +1,7 @@
 # Scallop
 
 <p align="center">
-  <img width="240" height="240" src="docs/icons/scallop-logo-ws-512.png" />
+  <img width="240" height="240" src="res/icons/scallop-logo-ws-512.png" />
 </p>
 
 Scallop is a language based on DataLog that supports differentiable logical and relational reasoning.

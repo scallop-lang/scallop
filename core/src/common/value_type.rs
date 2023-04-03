@@ -1,5 +1,7 @@
 // use std::rc::Rc;
 
+use crate::utils;
+
 use super::tuple::*;
 use super::value::*;
 
@@ -23,6 +25,8 @@ pub enum ValueType {
   Bool,
   Str,
   String,
+  DateTime,
+  Duration,
   // RcString,
 }
 
@@ -48,6 +52,8 @@ impl ValueType {
       Bool(_) => Self::Bool,
       Str(_) => Self::Str,
       String(_) => Self::String,
+      DateTime(_) => Self::DateTime,
+      Duration(_) => Self::Duration,
       // RcString(_) => Self::RcString,
     }
   }
@@ -125,6 +131,13 @@ impl ValueType {
     }
   }
 
+  pub fn is_unsigned_integer(&self) -> bool {
+    match self {
+      Self::U8 | Self::U16 | Self::U32 | Self::U64 | Self::U128 | Self::USize => true,
+      _ => false,
+    }
+  }
+
   pub fn is_float(&self) -> bool {
     match self {
       Self::F32 | Self::F64 => true,
@@ -149,6 +162,20 @@ impl ValueType {
   pub fn is_string(&self) -> bool {
     match self {
       Self::Str | Self::String /* | Self::RcString */ => true,
+      _ => false,
+    }
+  }
+
+  pub fn is_datetime(&self) -> bool {
+    match self {
+      Self::DateTime => true,
+      _ => false,
+    }
+  }
+
+  pub fn is_duration(&self) -> bool {
+    match self {
+      Self::Duration => true,
       _ => false,
     }
   }
@@ -201,6 +228,10 @@ impl ValueType {
       Self::Str => panic!("Cannot parse into a static string"),
       Self::String => Ok(Value::String(s.to_string())),
       // Self::RcString => Ok(Value::RcString(Rc::new(s.to_string()))),
+
+      // DateTime and Duration
+      Self::DateTime => Ok(Value::DateTime(utils::parse_date_time_string(s).ok_or_else(|| ValueParseError::new(s, self))?)),
+      Self::Duration => Ok(Value::Duration(utils::parse_duration_string(s).ok_or_else(|| ValueParseError::new(s, self))?)),
     }
   }
 
@@ -255,6 +286,56 @@ impl ValueType {
       _ => panic!("Cannot perform sum on type `{}`", self),
     }
   }
+
+  /// Get all integer types
+  pub fn integers() -> &'static [ValueType] {
+    &[
+      ValueType::I8,
+      ValueType::I16,
+      ValueType::I32,
+      ValueType::I64,
+      ValueType::I128,
+      ValueType::ISize,
+      ValueType::U8,
+      ValueType::U16,
+      ValueType::U32,
+      ValueType::U64,
+      ValueType::U128,
+      ValueType::USize,
+    ]
+  }
+
+  /// Get all signed integer types
+  pub fn signed_integers() -> &'static [ValueType] {
+    &[
+      ValueType::I8,
+      ValueType::I16,
+      ValueType::I32,
+      ValueType::I64,
+      ValueType::I128,
+      ValueType::ISize,
+    ]
+  }
+
+  /// Get all unsigned integer types
+  pub fn unsigned_integers() -> &'static [ValueType] {
+    &[
+      ValueType::U8,
+      ValueType::U16,
+      ValueType::U32,
+      ValueType::U64,
+      ValueType::U128,
+      ValueType::USize,
+    ]
+  }
+
+  /// Get all floating point number types
+  pub fn floats() -> &'static [ValueType] {
+    &[
+      ValueType::F32,
+      ValueType::F64,
+    ]
+  }
 }
 
 #[derive(Clone, Debug)]
@@ -301,6 +382,8 @@ impl std::fmt::Display for ValueType {
       Str => f.write_str("&str"),
       String => f.write_str("String"),
       // RcString => f.write_str("Rc<String>"),
+      DateTime => f.write_str("DateTime"),
+      Duration => f.write_str("Duration"),
     }
   }
 }
@@ -414,6 +497,17 @@ impl FromType<&'static str> for ValueType {
 impl FromType<String> for ValueType {
   fn from_type() -> Self {
     Self::String
+  }
+}
+
+impl FromType<chrono::DateTime<chrono::Utc>> for ValueType {
+  fn from_type() -> Self {
+    Self::DateTime
+  }
+}
+impl FromType<chrono::Duration> for ValueType {
+  fn from_type() -> Self {
+    Self::Duration
   }
 }
 
