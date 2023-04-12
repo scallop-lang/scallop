@@ -1,0 +1,20 @@
+// B -- C -- D
+// |    |    |
+// A   <F>   E
+// |    |
+// G -- H
+
+// Edges
+const A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7
+rel is_enemy = {0.01::B, 0.01::C, 0.01::D, 0.99::F}
+rel raw_edge = {(A, B), (B, C), (C, D), (D, E)}
+rel raw_edge = {/*(A, F), (F, E)*/}
+rel raw_edge = {(C, F)}
+rel raw_edge = {(G, A), (G, H), (H, F)}
+
+// Recursive rules
+rel edge(a, b) = edge(b, a) or (raw_edge(a, b) and not is_enemy(a) and not is_enemy(b))
+rel path(a, c) = edge(a, c) or (path(a, b) and edge(b, c))
+
+// Query
+query path(H, E)

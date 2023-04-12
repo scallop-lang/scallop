@@ -1,0 +1,1 @@
+rel result(x) = x == $hash(1, 3)

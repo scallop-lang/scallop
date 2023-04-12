@@ -1,10 +1,12 @@
 use pyo3::{Py, PyAny, Python};
 use scallop_core::runtime::provenance;
 
+/// The custom tag which holds an arbitrary python object.
 #[derive(Clone, Debug)]
 pub struct CustomTag(pub Py<PyAny>);
 
 impl CustomTag {
+  /// Create a new custom tag with a python object.
   pub fn new(tag: Py<PyAny>) -> Self {
     Self(tag)
   }
@@ -16,8 +18,10 @@ impl std::fmt::Display for CustomTag {
   }
 }
 
+/// Custom tag is a tag
 impl provenance::Tag for CustomTag {}
 
+/// The custom provenance which is a wrapper of a python class
 #[derive(Clone, Debug)]
 pub struct CustomProvenance(pub Py<PyAny>);
 
@@ -32,13 +36,14 @@ impl provenance::Provenance for CustomProvenance {
     "scallopy-custom"
   }
 
+  /// Invoking the provenance's tagging function on the input tag
   fn tagging_fn(&self, i: Self::InputTag) -> Self::Tag {
     Python::with_gil(|py| {
-      let result = self.0.call_method(py, "tagging_fn", (i,), None).unwrap();
-      Self::Tag::new(result)
+      Self::Tag::new(self.0.call_method(py, "tagging_fn", (i,), None).unwrap())
     })
   }
 
+  /// Invoking the provenance's recover function on an internal tag
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
     Python::with_gil(|py| {
       self
@@ -50,6 +55,7 @@ impl provenance::Provenance for CustomProvenance {
     })
   }
 
+  /// Invoking the provenance's discard function on an internal tag
   fn discard(&self, t: &Self::Tag) -> bool {
     Python::with_gil(|py| {
       self

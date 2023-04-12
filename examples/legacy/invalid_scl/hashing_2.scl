@@ -1,0 +1,2 @@
+rel edge = {(0, 1), (1, 2)}
+rel result(c) :- c == $hash(a, x), edge(a, b)

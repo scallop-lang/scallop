@@ -128,18 +128,18 @@ class MNISTHowMany3Net(nn.Module):
 
     # Scallop Context
     self.scl_ctx = scallopy.ScallopContext(provenance=provenance, k=k)
-    self.scl_ctx.add_relation("digit", (int, int), input_mapping=[(i, d) for i in range(num_elements) for d in range(10)])
+    self.scl_ctx.add_relation("digit", (int, int), input_mapping={0: range(num_elements), 1: range(10)})
     self.scl_ctx.add_rule("how_many_3(x) :- x = count(o: digit(o, 3))")
 
     # The `how_many_3` logical reasoning module
-    self.how_many_3 = self.scl_ctx.forward_function("how_many_3", list(range(num_elements + 1)))
+    if args.debug_tag:
+      self.how_many_3 = self.scl_ctx.forward_function("how_many_3", list(range(num_elements + 1)), debug_provenance=True, dispatch="single")
+    else:
+      self.how_many_3 = self.scl_ctx.forward_function("how_many_3", list(range(num_elements + 1)))
 
   def forward(self, x: List[torch.Tensor]):
-    # Apply mnist net on each image
-    digit_distrs = [self.mnist_net(imgs) for imgs in x]
-
-    # Concatenate them into the same big tensor
-    digit = torch.cat(tuple(digit_distrs), dim=1)
+    # Apply mnist net on each image and stack them into a big tensor
+    digit = torch.stack([self.mnist_net(imgs) for imgs in x], dim=1)
 
     # Then execute the reasoning module; the result is a size `num_elements + 1` tensor
     return self.how_many_3(digit=digit)
@@ -214,6 +214,8 @@ if __name__ == "__main__":
   parser.add_argument("--seed", type=int, default=1234)
   parser.add_argument("--provenance", type=str, default="difftopbottomkclauses")
   parser.add_argument("--top-k", type=int, default=3)
+  parser.add_argument("--debug-tag", action="store_true")
+  parser.add_argument("--softmax", action="store_true")
   args = parser.parse_args()
 
   # Parameters

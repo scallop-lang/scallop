@@ -1,0 +1,5 @@
+rel obj = {0, 1, 2}
+rel shape = {(0, "cube"), (1, "sphere"), (2, "cube")}
+rel color = {(0, "blue"), (1, "red"), (2, "blue")}
+
+rel result(b) :- b = forall(o: shape(o, "cube") => color(o, "blue"))

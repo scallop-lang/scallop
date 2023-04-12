@@ -1,0 +1,9 @@
+rel eval(e, c) = constant(e, c)
+rel eval(e, a + b) = binary(e, "+", l, r), eval(l, a), eval(r, b)
+rel eval(e, a - b) = binary(e, "-", l, r), eval(l, a), eval(r, b)
+rel result(y) = eval(e, y), goal(e)
+
+rel constant = { (0, 1), (1, 2), (2, 3) }
+rel binary = { (3, "+", 0, 1), (4, "-", 3, 2) }
+rel goal(4)
+query result

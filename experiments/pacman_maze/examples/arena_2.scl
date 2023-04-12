@@ -1,0 +1,25 @@
+import "../scl/arena.scl"
+import "../scl/grid_node.scl"
+
+// This example replicates the following 4x4 grid
+//
+// * O * G
+// * * * *
+// * O O O
+// * * X *
+
+rel grid_size(4, 4)
+
+rel curr_position = {0.98::(2, 0)}
+
+rel goal_position = {0.99::(3, 3)}
+
+rel is_enemy = {
+  0.01::(0, 3), 0.99::(1, 3), 0.01::(2, 3), 0.01::(3, 3),
+  0.01::(0, 2), 0.01::(1, 2), 0.01::(2, 2), 0.01::(3, 2),
+  0.01::(0, 1), 0.99::(1, 1), 0.99::(2, 1), 0.99::(3, 1),
+  0.01::(0, 0), 0.01::(1, 0), 0.01::(2, 0), 0.01::(3, 0),
+}
+
+query action_score
+query next_position

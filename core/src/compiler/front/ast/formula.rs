@@ -269,6 +269,24 @@ pub enum ReduceOperatorNode {
   Unknown(String),
 }
 
+impl ReduceOperatorNode {
+  pub fn to_string(&self) -> String {
+    match self {
+      Self::Count => "count".to_string(),
+      Self::Sum => "sum".to_string(),
+      Self::Prod => "prod".to_string(),
+      Self::Min => "min".to_string(),
+      Self::Max => "max".to_string(),
+      Self::Exists => "exists".to_string(),
+      Self::Forall => "forall".to_string(),
+      Self::Unique => "unique".to_string(),
+      Self::TopK(k) => format!("top<{}>", k),
+      Self::CategoricalK(k) => format!("categorical<{}>", k),
+      Self::Unknown(_) => "unknown".to_string(),
+    }
+  }
+}
+
 /// A reduce opeartor, e.g. `count`
 pub type ReduceOperator = AstNode<ReduceOperatorNode>;
 
@@ -312,19 +330,7 @@ impl ReduceOperator {
   }
 
   pub fn to_string(&self) -> String {
-    match &self.node {
-      ReduceOperatorNode::Count => "count".to_string(),
-      ReduceOperatorNode::Sum => "sum".to_string(),
-      ReduceOperatorNode::Prod => "prod".to_string(),
-      ReduceOperatorNode::Min => "min".to_string(),
-      ReduceOperatorNode::Max => "max".to_string(),
-      ReduceOperatorNode::Exists => "exists".to_string(),
-      ReduceOperatorNode::Forall => "forall".to_string(),
-      ReduceOperatorNode::Unique => "unique".to_string(),
-      ReduceOperatorNode::TopK(k) => format!("top<{}>", k),
-      ReduceOperatorNode::CategoricalK(k) => format!("categorical<{}>", k),
-      ReduceOperatorNode::Unknown(_) => "unknown".to_string(),
-    }
+    self.node.to_string()
   }
 }
 

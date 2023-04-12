@@ -1,0 +1,5 @@
+type grid_size(x: usize, y: usize)
+
+rel grid_node(0, 0)
+rel grid_node(x, yp) = grid_node(x, y), grid_size(_, gy), yp == y + 1, yp < gy
+rel grid_node(xp, y) = grid_node(x, y), grid_size(gx, _), xp == x + 1, xp < gx

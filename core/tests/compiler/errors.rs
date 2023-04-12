@@ -128,3 +128,13 @@ fn bad_enum_type_decl() {
     |e| e.contains("has already been assigned"),
   )
 }
+
+#[test]
+fn bad_no_binding_agg_1() {
+  expect_front_compile_failure(
+    r#"
+    rel r() = x := count(edge(1, 3))
+    "#,
+    |e| e.contains("binding variables of `count` aggregation cannot be empty"),
+  )
+}

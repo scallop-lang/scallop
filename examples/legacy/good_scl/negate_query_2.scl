@@ -1,0 +1,3 @@
+rel B("Alice")
+rel A() :- ~B(_)
+query A

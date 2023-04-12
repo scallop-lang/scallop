@@ -129,18 +129,15 @@ class MNISTHowMany3Or4Net(nn.Module):
 
     # Scallop Context
     self.scl_ctx = scallopy.ScallopContext(provenance=provenance, k=k)
-    self.scl_ctx.add_relation("digit", (int, int), input_mapping=[(i, d) for i in range(num_elements) for d in range(10)])
+    self.scl_ctx.add_relation("digit", (int, int), input_mapping={0: range(num_elements), 1: range(10)})
     self.scl_ctx.add_rule("how_many(x) :- x = count(o: digit(o, 3) or digit(o, 4))")
 
     # The `how_many` logical reasoning module
-    self.how_many = self.scl_ctx.forward_function("how_many", list(range(num_elements + 1)))
+    self.how_many = self.scl_ctx.forward_function("how_many", list(range(num_elements + 1)), jit=args.jit)
 
   def forward(self, x: List[torch.Tensor]):
-    # Apply mnist net on each image
-    digit_distrs = [self.mnist_net(imgs) for imgs in x]
-
-    # Concatenate them into the same big tensor
-    digit = torch.cat(tuple(digit_distrs), dim=1)
+    # Apply mnist net on each image and stack them into the same big tensor
+    digit = torch.stack([self.mnist_net(imgs) for imgs in x], dim=1)
 
     # Then execute the reasoning module; the result is a size `num_elements + 1` tensor
     return self.how_many(digit=digit)
@@ -197,7 +194,6 @@ class Trainer():
 
   def train(self, n_epochs):
     self.test_epoch(0)
-    exit()
     for epoch in range(1, n_epochs + 1):
       self.train_epoch(epoch)
       self.test_epoch(epoch)
@@ -227,6 +223,7 @@ if __name__ == "__main__":
   parser.add_argument("--seed", type=int, default=1234)
   parser.add_argument("--provenance", type=str, default="difftopbottomkclauses")
   parser.add_argument("--top-k", type=int, default=2)
+  parser.add_argument("--jit", action="store_true")
   args = parser.parse_args()
 
   # Parameters
@@ -238,8 +235,6 @@ if __name__ == "__main__":
 
   # Dataloaders
   train_loader, test_loader = mnist_how_many_3_or_4_loader(data_dir, args.num_elements, args.dataset_up_scale, args.batch_size_train, args.batch_size_test)
-
-
   print_random_distribution(args.num_elements)
 
   # Create trainer and train

@@ -12,7 +12,7 @@ use scallop_core::utils;
 pub fn from_python_tuple(v: &PyAny, ty: &TupleType) -> PyResult<Tuple> {
   match ty {
     TupleType::Tuple(ts) => {
-      let tup: &PyTuple = v.cast_as()?;
+      let tup: &PyTuple = v.downcast()?;
       if tup.len() == ts.len() {
         let elems = ts
           .iter()

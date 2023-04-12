@@ -110,7 +110,7 @@ class MNISTNet(nn.Module):
 
 
 class MNISTSort2Net(nn.Module):
-  def __init__(self, provenance, train_k, test_k, wmc_type, max_digit=9):
+  def __init__(self, provenance, train_k, test_k, max_digit=9):
     super(MNISTSort2Net, self).__init__()
     self.max_digit = max_digit
     self.num_classes = max_digit + 1
@@ -119,7 +119,7 @@ class MNISTSort2Net(nn.Module):
     self.mnist_net = MNISTNet(num_classes=self.num_classes)
 
     # Scallop Context
-    self.scl_ctx = scallopy.ScallopContext(provenance=provenance, train_k=train_k, test_k=test_k, wmc_type=wmc_type)
+    self.scl_ctx = scallopy.ScallopContext(provenance=provenance, train_k=train_k, test_k=test_k)
     self.scl_ctx.add_relation("digit_1", int, input_mapping=list(range(self.num_classes)))
     self.scl_ctx.add_relation("digit_2", int, input_mapping=list(range(self.num_classes)))
     self.scl_ctx.add_rule("less_than(a < b) = digit_1(a), digit_2(b)")
@@ -149,8 +149,8 @@ def nll_loss(output, ground_truth):
 
 
 class Trainer():
-  def __init__(self, train_loader, test_loader, model_dir, learning_rate, loss, train_k, test_k, provenance, wmc_type, max_digit=9):
-    self.network = MNISTSort2Net(provenance, train_k=train_k, test_k=test_k, wmc_type=wmc_type, max_digit=max_digit)
+  def __init__(self, train_loader, test_loader, model_dir, learning_rate, loss, train_k, test_k, provenance, max_digit=9):
+    self.network = MNISTSort2Net(provenance, train_k=train_k, test_k=test_k, max_digit=max_digit)
     self.optimizer = optim.Adam(self.network.parameters(), lr=learning_rate)
     self.train_loader = train_loader
     self.test_loader = test_loader
@@ -207,7 +207,6 @@ if __name__ == "__main__":
   parser.add_argument("--provenance", type=str, default="difftopkproofs")
   parser.add_argument("--train-k", type=int, default=3)
   parser.add_argument("--test-k", type=int, default=3)
-  parser.add_argument("--wmc-type", type=str, default="bottom-up")
   parser.add_argument("--max-digit", type=int, default=9)
   args = parser.parse_args()
 
@@ -224,5 +223,5 @@ if __name__ == "__main__":
   train_loader, test_loader = mnist_sort_2_loader(data_dir, args.batch_size, max_digit=args.max_digit)
 
   # Create trainer and train
-  trainer = Trainer(train_loader, test_loader, model_dir, args.learning_rate, args.loss_fn, args.train_k, args.test_k, args.provenance, args.wmc_type, max_digit=args.max_digit)
+  trainer = Trainer(train_loader, test_loader, model_dir, args.learning_rate, args.loss_fn, args.train_k, args.test_k, args.provenance, max_digit=args.max_digit)
   trainer.run(args.n_epochs)

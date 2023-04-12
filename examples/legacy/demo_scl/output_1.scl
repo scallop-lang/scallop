@@ -1,0 +1,5 @@
+rel edge = {(0, 1), (1, 2), (2, 3)}
+rel path(a, b) = edge(a, b) \/ path(a, c) /\ edge(c, b)
+
+@file("examples/output_csv/output_1_path.csv")
+query path

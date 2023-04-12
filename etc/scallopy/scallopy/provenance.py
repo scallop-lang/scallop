@@ -6,42 +6,48 @@ class ScallopProvenance:
   """
   Base class for a provenance context. Any class implementing `ScallopProvenance`
   must override the following functions:
-  - `base`
   - `zero`
   - `one`
   - `add`
   - `mult`
+  - `negate`
+  - `saturate`
   """
 
-  def base(self, info):
+  def tagging_fn(self, input_tag):
     """
-    Given the base information, generate a tag for the tuple.
-    Base information is specified as `I1`, `I2`, ... in the following example:
+    Given the input tags, generate an internal tag for the tuple.
+    For example, in the following code, internal tags are the I1, I2, ...:
 
     ``` python
     ctx.add_facts("RELA", [(I1, T1), (I2, T2), ...])
     ```
 
-    This `base` function should take in info like `I1` and return the base tag.
-    """
-    return info
+    This `tagging_fn` function should take in input tags like `I1` and return an internal tag
 
-  def disjunction_base(self, infos):
+    If not implemented, we assume the input tags are the internal tags.
+    If the input tag is not provided (`None`), we use the `one()` as the internal tag.
     """
-    Given a set of base informations associated with a set of tuples forming a
-    disjunction, return the list of tags associated with each of them.
-    """
-    return [self.base(i) for i in infos]
+    if input_tag is None: return self.one()
+    else: return input_tag
 
-  def is_valid(self, tag):
+  def recover_fn(self, internal_tag):
     """
-    Check if a given tag is valid.
+    Given an internal tag, recover the output tag.
+
+    If not implemented, we assume the internal tags are the output tags.
+    """
+    return internal_tag
+
+  def discard(self, tag):
+    """
+    Check if a given tag needs to be discarded.
     When a tag is invalid, the tuple associated will be removed during reasoning.
     The default implementation assumes every tag is valid.
 
     An example of an invalid tag: a probability tag of probability 0.0
     """
-    return True
+    return False
 
   def zero(self):
     """
@@ -64,6 +70,12 @@ class ScallopProvenance:
   def mult(self, t1, t2):
     """
     Perform semiring multiplication on two tags (`t1` and `t2`)
+    """
+    raise Exception("Not implemented")
+
+  def negate(self, t):
+    """
+    Perform semiring negation on a tag (`t`)
     """
     raise Exception("Not implemented")
 
@@ -110,12 +122,6 @@ class DiffAddMultProb2Semiring(ScallopProvenance):
     super(DiffAddMultProb2Semiring, self).__init__()
     if not torch_importer.has_pytorch:
       raise Exception("PyTorch unavailable. You can use this semiring only with PyTorch")
-
-  def base(self, info: torch_importer.Tensor):
-    """
-    If a torch tensor is provided then keep that tensor as the tag; otherwise we give it 1.0
-    """
-    return info if info is not None else self.one()
 
   def zero(self):
     """
@@ -165,12 +171,6 @@ class DiffNandMultProb2Semiring(ScallopProvenance):
     if not torch_importer.has_pytorch:
       raise Exception("PyTorch unavailable. You can use this semiring only with PyTorch")
 
-  def base(self, info: torch_importer.Tensor):
-    """
-    If a torch tensor is provided then keep that tensor as the tag; otherwise we give it 1.0
-    """
-    return info if info is not None else self.one()
-
   def zero(self):
     """
     Zero tag is a floating point 0.0 (i.e. 0.0 probability being true)
@@ -218,12 +218,6 @@ class DiffMaxMultProb2Semiring(ScallopProvenance):
     super(DiffMaxMultProb2Semiring, self).__init__()
     if not torch_importer.has_pytorch:
       raise Exception("PyTorch unavailable. You can use this semiring only with PyTorch")
-
-  def base(self, info: torch_importer.Tensor):
-    """
-    If a torch tensor is provided then keep that tensor as the tag; otherwise we give it 1.0
-    """
-    return info if info is not None else self.one()
 
   def zero(self):
     """

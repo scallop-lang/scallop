@@ -1,0 +1,4 @@
+rel 0.05::earthquake()
+rel 0.90::burglary()
+rel 0.95::alarm() :- earthquake() or burglary()
+query alarm()

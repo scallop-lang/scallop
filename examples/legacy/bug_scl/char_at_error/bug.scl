@@ -1,0 +1,3 @@
+rel input("1357")
+rel string_char_at(0, $string_char_at(s, 0)) :- input(s), 0 < $string_length(s)
+rel string_char_at(i, $string_char_at(s, i)) :- input(s), i < $string_length(s), string_char_at(i - 1, _)

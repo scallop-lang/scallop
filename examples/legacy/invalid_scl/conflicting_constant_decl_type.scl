@@ -1,0 +1,3 @@
+const V: usize = 5
+type r(u32, usize)
+rel r = {(V, 3), (3, V)}

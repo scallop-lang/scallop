@@ -43,6 +43,21 @@ impl NodeVisitor for AggregationAnalysis {
         }
       }
     }
+
+    // Check the binding variables
+    if reduce.bindings().is_empty() {
+      match &reduce.operator().node {
+        ReduceOperatorNode::Exists
+        | ReduceOperatorNode::Forall
+        | ReduceOperatorNode::Unknown(_) => {}
+        r => {
+          self.errors.push(AggregationAnalysisError::EmptyBinding {
+            agg: r.to_string(),
+            loc: reduce.location().clone(),
+          })
+        }
+      }
+    }
   }
 }
 
@@ -51,6 +66,7 @@ pub enum AggregationAnalysisError {
   NonMinMaxAggregationHasArgument { op: ReduceOperator },
   UnknownAggregator { agg: String, loc: Loc },
   ForallBodyNotImplies { loc: Loc },
+  EmptyBinding { agg: String, loc: Loc },
 }
 
 impl FrontCompileErrorTrait for AggregationAnalysisError {
@@ -74,6 +90,13 @@ impl FrontCompileErrorTrait for AggregationAnalysisError {
         format!(
           "the body of forall aggregation must be an `implies` formula\n{}",
           loc.report(src)
+        )
+      }
+      Self::EmptyBinding { agg, loc } => {
+        format!(
+          "the binding variables of `{}` aggregation cannot be empty\n{}",
+          agg,
+          loc.report(src),
         )
       }
     }

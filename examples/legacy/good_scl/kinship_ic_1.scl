@@ -1,0 +1,4 @@
+rel context = {0.9::("father", "A", "B"); 0.01::("mother", "A", "B")}
+rel context = {0.7::("uncle", "B", "A"); 0.01::("son", "B", "A"); 0.01::("daughter", "B", "A")}
+rel ic(r) = r = forall(a, b: context("father", a, b) => (context("son", b, a) or context("daughter", b, a)))
+query ic

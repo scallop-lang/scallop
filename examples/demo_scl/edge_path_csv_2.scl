@@ -1,6 +1,0 @@
-@file("examples/input_csv/edge_prob.csv", deliminator = "\t", has_header = true, has_probability = true)
-input edge(usize, usize)
-
-@demand("bf")
-rel path(a, c) = edge(a, c) \/ path(a, b) /\ edge(b, c)
-query path(3, _)

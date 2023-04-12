@@ -1,0 +1,7 @@
+const A = 0, B = 1, C = 2
+
+rel obj_color = {0.4::(A, "red"); 0.3::(A, "blue"); 0.3::(A, "green")}
+rel obj_color = {0.3::(B, "red"); 0.5::(B, "blue"); 0.2::(B, "green")}
+rel obj_color = {0.05::(C, "red"); 0.05::(C, "blue"); 0.9::(C, "green")}
+
+rel sampled_obj_color(obj, c) = c := categorical<1>(c: obj_color(obj, c))

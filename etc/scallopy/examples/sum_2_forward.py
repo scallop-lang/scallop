@@ -8,7 +8,7 @@ rel sum_2(a + b) = digit_a(a), digit_b(b)
 
 compute_sum_2 = scallopy.ScallopForwardFunction(
   program=sum_2_program,
-  provenance="diffminmaxprob",
+  provenance="diffaddmultprob2",
   input_mappings={"digit_a": list(range(10)), "digit_b": list(range(10))},
   output_mappings={"sum_2": list(range(19))})
 

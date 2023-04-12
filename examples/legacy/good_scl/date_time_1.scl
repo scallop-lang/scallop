@@ -1,0 +1,91 @@
+rel event = {(1, t"2021-05-01T01:17:02.604456Z"), (2, t"2019-11-29 08:15:47.624504-08"), (3, t"Wed, 02 Jun 2021 06:31:39 GMT"),
+            (4, t"2017-07-19 03:21:51+00:00"), (5, t"2014-04-26 05:24:37 PM"), (6, t"2012-08-03 18:31:59.257000000"),
+            (7, t"2014-12-16 06:20:00 GMT"), (8, t"2021-02-21 PST"), (9, t"2012-08-03 18:31:59.257000000 +0000"),
+            (10, t"September 17, 2012, 10:10:09"), (11, t"May 6 at 9:24 PM"), (12, t"4:00pm"),
+            (13, t"14 May 2019 19:11:40.164"), (14, t"oct. 7, 1970"), (15, t"May 26, 2021, 12:49 AM PDT"),
+            (16, t"03/19/2012 10:11:59.318636"), (17, t"8/8/1965 01:00 PM"), (18, t"7 oct 70"),
+            (19, t"171113 14:14:20"), (20, t"03.31.2014"), (21, t"2012/03/19 10:11:59"),
+            (22, t"2014年04月08日11时25分18秒")
+            }
+
+rel duration = {(1, d"15 days 20 seconds 100 milliseconds"), (2, d"14 days seconds"), (3, d".:++++]][][[][15[]][seconds][]:}}}}")}
+
+//duration and datetime
+
+rel adding_duration_and_datetime_one(dr, dte, x + y) = event(dte, x), duration(dr, y)
+
+rel adding_duration_and_datetime_two(dr, dte, y + x) = event(dte, x), duration(dr, y)
+
+rel subtracting_duration_from_datetime(dr, dte, x - y) = event(dte, x), duration(dr, y)
+
+//duration and duration
+
+rel adding_durations(dr_one, dr_two, x + y) = duration(dr_one, x), duration(dr_two, y)
+
+rel subtracting_durations(dr_one, dr_two, x - y) = duration(dr_one, x), duration(dr_two, y)
+
+rel eq_durations(dr_one, dr_two) = duration(dr_one, x), duration(dr_two, y), x == y
+
+rel neq_durations(dr_one, dr_two) = duration(dr_one, x), duration(dr_two, y), x != y
+
+rel gt_durations(dr_one, dr_two) = duration(dr_one, x), duration(dr_two, y), x > y
+
+rel gte_durations(dr_one, dr_two) = duration(dr_one, x), duration(dr_two, y), x >= y
+
+rel lt_durations(dr_one, dr_two) = duration(dr_one, x), duration(dr_two, y), x < y
+
+rel lte_durations(dr_one, dr_two) = duration(dr_one, x), duration(dr_two, y), x <= y
+
+//duration and int
+
+rel div_duration(dr, x/3) = duration(dr, x)
+
+rel mul_duration_three(dr, x*3) = duration(dr, x)
+
+rel mul_duration_four(dr, 4*x) = duration(dr, x)
+
+rel mul_duration_neg(dr, -1*x) = duration(dr, x)
+
+
+
+//datetime and datetime
+
+rel subtracting_datetimes(dt_one, dt_two, x - y) = event(dt_one, x), event(dt_two, y), x >= y
+
+rel eq_datetimes(dt_one, dt_two) = event(dt_one, x), event(dt_two, y), x == y
+
+rel neq_datetimes(dt_one, dt_two) = event(dt_one, x), event(dt_two, y), x != y
+
+rel gt_datetimes(dt_one, dt_two) = event(dt_one, x), event(dt_two, y), x > y
+
+rel gte_datetimes(dt_one, dt_two) = event(dt_one, x), event(dt_two, y), x >= y
+
+rel lt_datetimes(dt_one, dt_two) = event(dt_one, x), event(dt_two, y), x < y
+
+rel lte_datetimes(dt_one, dt_two) = event(dt_one, x), event(dt_two, y), x <= y
+
+//aggregators for datetime
+
+rel how_many_datetimes(x) = x = count(a: event(_,a))
+
+rel how_many_datetimes_less_than(x, y) = y = count(i: event(i,a), event(x,f), a < f)
+
+rel exists_a_datetime_less_than(x, y) = y = exists(i: event(i,a), event(x,f), a < f)
+
+rel closest_later_event(x,y) = y = min[i](dte: event(i, dte), event(x,f), dte > f)
+
+
+
+//aggregators for duration
+
+rel how_many_durations(x) = x = count(a: duration(_,a))
+
+rel how_many_durations_less_than(x, y) = y = count(i: duration(i,a), duration(x,f), a < f)
+
+rel exists_durations_less_than(x, y) = y = exists(i: duration(i,a), duration(x,f), a < f)
+
+rel sum_durations(x) = x = sum(a: duration(_,a))
+
+rel closest_later_duration(x,y) = y = min[i](dte: duration(i, dte), duration(x,f), dte > f)
+
+

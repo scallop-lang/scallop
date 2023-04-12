@@ -1,0 +1,21 @@
+const MOTHER = 1
+const FATHER = 2
+const GRANDMOTHER = 3
+const GRANDFATHER = 4
+
+rel transitive = {
+  (MOTHER, MOTHER, GRANDMOTHER),
+  (FATHER, FATHER, GRANDFATHER),
+  (FATHER, MOTHER, GRANDMOTHER),
+  (MOTHER, FATHER, GRANDFATHER),
+}
+
+rel context = {
+  (FATHER, "bob", "john"),
+  (MOTHER, "john", "alice"),
+}
+
+rel derived(r, a, b) :- context(r, a, b)
+rel derived(r3, a, b) :- derived(r1, a, c), derived(r2, c, b), transitive(r1, r2, r3)
+
+query derived(r, "bob", "alice")

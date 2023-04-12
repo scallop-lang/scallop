@@ -583,6 +583,16 @@ ReduceGroupBy: (Vec<VariableBinding>, Box<Formula>) = {
 ReduceAssignmentSymbol = { "=", ":=" }
 
 ReduceNode: ReduceNode = {
+  <vs: ReduceLeft> ReduceAssignmentSymbol <op: ReduceOp> <args: ReduceArgs> "(" <f: Formula> <g: ReduceGroupBy?> ")" => {
+    ReduceNode {
+      left: vs,
+      operator: op,
+      args: args,
+      bindings: vec![],
+      body: Box::new(f),
+      group_by: g,
+    }
+  },
   <vs: ReduceLeft> ReduceAssignmentSymbol <op: ReduceOp> <args: ReduceArgs> "(" <bs: AtLeastOneSeparatedStrict<VariableBinding, ",">> ":" <f: Formula> <g: ReduceGroupBy?> ")" => {
     ReduceNode {
       left: vs,
@@ -605,6 +615,14 @@ ForallExistsReduceOpNode: ReduceOperatorNode = {
 ForallExistsReduceOp = Spanned<ForallExistsReduceOpNode>;
 
 ForallExistsReduceNode: ForallExistsReduceNode = {
+  <op: ForallExistsReduceOp> "(" <f: Formula> <g: ReduceGroupBy?> ")" => {
+    ForallExistsReduceNode {
+      operator: op,
+      bindings: vec![],
+      body: Box::new(f),
+      group_by: g,
+    }
+  },
   <op: ForallExistsReduceOp> "(" <bs: AtLeastOneSeparatedStrict<VariableBinding, ",">> ":" <f: Formula> <g: ReduceGroupBy?> ")" => {
     ForallExistsReduceNode {
       operator: op,

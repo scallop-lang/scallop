@@ -119,7 +119,7 @@ class MNISTSum2Net(nn.Module):
     self.scl_ctx.add_rule("sum_2(a + b) :- digit_1(a), digit_2(b)")
 
     # The `sum_2` logical reasoning module
-    self.sum_2 = self.scl_ctx.forward_function("sum_2", output_mapping=[(i,) for i in range(19)])
+    self.sum_2 = self.scl_ctx.forward_function("sum_2", output_mapping=[(i,) for i in range(19)], jit=args.jit, dispatch=args.dispatch)
 
   def forward(self, x: Tuple[torch.Tensor, torch.Tensor]):
     (a_imgs, b_imgs) = x
@@ -143,11 +143,13 @@ def nll_loss(output, ground_truth):
 
 
 class Trainer():
-  def __init__(self, train_loader, test_loader, learning_rate, loss, k, provenance):
+  def __init__(self, train_loader, test_loader, model_dir, learning_rate, loss, k, provenance):
+    self.model_dir = model_dir
     self.network = MNISTSum2Net(provenance, k)
     self.optimizer = optim.Adam(self.network.parameters(), lr=learning_rate)
     self.train_loader = train_loader
     self.test_loader = test_loader
+    self.best_loss = 10000000000
     if loss == "nll":
       self.loss = nll_loss
     elif loss == "bce":
@@ -166,7 +168,7 @@ class Trainer():
       self.optimizer.step()
       iter.set_description(f"[Train Epoch {epoch}] Loss: {loss.item():.4f}")
 
-  def test(self, epoch):
+  def test_epoch(self, epoch):
     self.network.eval()
     num_items = len(self.test_loader.dataset)
     test_loss = 0
@@ -180,12 +182,15 @@ class Trainer():
         correct += pred.eq(target.data.view_as(pred)).sum()
         perc = 100. * correct / num_items
         iter.set_description(f"[Test Epoch {epoch}] Total loss: {test_loss:.4f}, Accuracy: {correct}/{num_items} ({perc:.2f}%)")
+      if test_loss < self.best_loss:
+        self.best_loss = test_loss
+        torch.save(self.network, os.path.join(model_dir, "sum_2_best.pt"))
 
   def train(self, n_epochs):
-    self.test(0)
+    self.test_epoch(0)
     for epoch in range(1, n_epochs + 1):
       self.train_epoch(epoch)
-      self.test(epoch)
+      self.test_epoch(epoch)
 
 
 if __name__ == "__main__":
@@ -199,6 +204,8 @@ if __name__ == "__main__":
   parser.add_argument("--seed", type=int, default=1234)
   parser.add_argument("--provenance", type=str, default="difftopkproofs")
   parser.add_argument("--top-k", type=int, default=3)
+  parser.add_argument("--jit", action="store_true")
+  parser.add_argument("--dispatch", type=str, default="parallel")
   args = parser.parse_args()
 
   # Parameters
@@ -214,10 +221,12 @@ if __name__ == "__main__":
 
   # Data
   data_dir = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../data"))
+  model_dir = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../model/mnist_sum_2"))
+  os.makedirs(model_dir, exist_ok=True)
 
   # Dataloaders
   train_loader, test_loader = mnist_sum_2_loader(data_dir, batch_size_train, batch_size_test)
 
   # Create trainer and train
-  trainer = Trainer(train_loader, test_loader, learning_rate, loss_fn, k, provenance)
+  trainer = Trainer(train_loader, test_loader, model_dir, learning_rate, loss_fn, k, provenance)
   trainer.train(n_epochs)

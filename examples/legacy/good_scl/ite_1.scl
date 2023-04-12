@@ -1,0 +1,2 @@
+rel a = {true}
+rel b(x) = x == (if y then 3 else 4), a(y)

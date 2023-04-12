@@ -1,0 +1,2 @@
+rel color_num_obj :- {("blue", 1), ("red", 3), ("yellow", 6)}
+rel num_obj(n) :- n = sum(y: color_num_obj(_, y))

@@ -42,7 +42,7 @@ impl ForeignFunction for PythonForeignFunction {
         .getattr(py, "generic_type_params")
         .expect("Cannot get foreign function generic type parameters");
       let generic_type_params: &PyList = generic_type_params
-        .cast_as::<PyList>(py)
+        .downcast::<PyList>(py)
         .expect("Cannot cast into PyList");
       generic_type_params.len()
     })
@@ -55,7 +55,7 @@ impl ForeignFunction for PythonForeignFunction {
         .getattr(py, "generic_type_params")
         .expect("Cannot get foreign function generic type parameters");
       let generic_type_params: &PyList = generic_type_params
-        .cast_as::<PyList>(py)
+        .downcast::<PyList>(py)
         .expect("Cannot cast into PyList");
       let param: String = generic_type_params
         .get_item(i)
@@ -80,7 +80,7 @@ impl ForeignFunction for PythonForeignFunction {
         .ff
         .getattr(py, "static_arg_types")
         .expect("Cannot get foreign function static arg types");
-      let static_arg_types: &PyList = static_arg_types.cast_as::<PyList>(py).expect("Cannot cast into PyList");
+      let static_arg_types: &PyList = static_arg_types.downcast::<PyList>(py).expect("Cannot cast into PyList");
       static_arg_types.len()
     })
   }
@@ -91,7 +91,7 @@ impl ForeignFunction for PythonForeignFunction {
         .ff
         .getattr(py, "static_arg_types")
         .expect("Cannot get foreign function static arg types");
-      let static_arg_types: &PyList = static_arg_types.cast_as::<PyList>(py).expect("Cannot cast into PyList");
+      let static_arg_types: &PyList = static_arg_types.downcast::<PyList>(py).expect("Cannot cast into PyList");
       let param_type: PyObject = static_arg_types
         .get_item(i)
         .expect("Cannot get i-th param")
@@ -108,7 +108,7 @@ impl ForeignFunction for PythonForeignFunction {
         .getattr(py, "optional_arg_types")
         .expect("Cannot get foreign function optional arg types");
       let optional_arg_types: &PyList = optional_arg_types
-        .cast_as::<PyList>(py)
+        .downcast::<PyList>(py)
         .expect("Cannot cast into PyList");
       optional_arg_types.len()
     })
@@ -121,7 +121,7 @@ impl ForeignFunction for PythonForeignFunction {
         .getattr(py, "optional_arg_types")
         .expect("Cannot get foreign function optional arg types");
       let optional_arg_types: &PyList = optional_arg_types
-        .cast_as::<PyList>(py)
+        .downcast::<PyList>(py)
         .expect("Cannot cast into PyList");
       let param_type: PyObject = optional_arg_types
         .get_item(i)

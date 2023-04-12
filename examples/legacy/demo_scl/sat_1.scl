@@ -1,0 +1,22 @@
+type assign(String, bool)
+
+// Assignments to variables A, B, and C
+rel assign = {1.0::("A", true); 1.0::("A", false)}
+rel assign = {1.0::("B", true); 1.0::("B", false)}
+rel assign = {1.0::("C", true); 1.0::("C", false)}
+
+// Boolean formula (A and !B) or (B and !C)
+rel bf_var = {(1, "A"), (2, "B"), (3, "B"), (4, "C")}
+rel bf_not = {(5, 2), (6, 4)}
+rel bf_and = {(7, 1, 5), (8, 3, 6)}
+rel bf_or = {(9, 7, 8)}
+rel bf_root = {9}
+
+// Evaluation
+rel eval_bf(bf, r) :- bf_var(bf, v), assign(v, r)
+rel eval_bf(bf, !r) :- bf_not(bf, c), eval_bf(c, r)
+rel eval_bf(bf, lr && rr) :- bf_and(bf, lbf, rbf), eval_bf(lbf, lr), eval_bf(rbf, rr)
+rel eval_bf(bf, lr || rr) :- bf_or(bf, lbf, rbf), eval_bf(lbf, lr), eval_bf(rbf, rr)
+rel eval(r) :- bf_root(bf), eval_bf(bf, r)
+
+query eval

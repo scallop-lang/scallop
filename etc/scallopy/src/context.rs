@@ -83,7 +83,7 @@ impl Context {
   /// * `k` - an unsigned integer serving as the hyper-parameter for provenance such as `"topkproofs"`
   /// * `custom_provenance` - an optional python object serving as the provenance context
   #[new]
-  #[args(provenance = "\"unit\"", k = "3", custom_provenance = "None")]
+  #[pyo3(signature=(provenance="unit", k=3, custom_provenance=None))]
   fn new(provenance: &str, k: usize, custom_provenance: Option<Py<PyAny>>) -> Result<Self, BindingError> {
     // Check provenance type
     match provenance {
@@ -316,7 +316,7 @@ impl Context {
   /// # ctx = Context::new("unit", 3, None).unwrap();
   /// ctx.add_relation("atom(usize, usize)", None, None).unwrap();
   /// ```
-  #[args(load_csv = "None", demand = "None")]
+  #[pyo3(signature=(relation, load_csv=None, demand=None))]
   fn add_relation(
     &mut self,
     relation: &str,
@@ -360,7 +360,7 @@ impl Context {
   }
 
   /// Add a rule
-  #[args(tag = "None", demand = "None")]
+  #[pyo3(signature=(rule, tag=None, demand=None))]
   fn add_rule(&mut self, rule: &str, tag: Option<&PyAny>, demand: Option<String>) -> Result<(), BindingError> {
     // Attributes
     let mut attrs = Vec::new();
@@ -491,7 +491,7 @@ impl Context {
 
   /// Get the number of relations in this context.
   /// If `include_hidden` is set `true`, the result will also count the hidden relations
-  #[args(include_hidden = false)]
+  #[pyo3(signature=(include_hidden = false))]
   fn num_relations(&self, include_hidden: bool) -> usize {
     if include_hidden {
       match_context!(&self.ctx, c, c.num_all_relations())
@@ -502,7 +502,7 @@ impl Context {
 
   /// Get a list of relations in this context.
   /// If `include_hidden` is set `true`, the result will also include the hidden relations
-  #[args(include_hidden = false)]
+  #[pyo3(signature=(include_hidden = false))]
   fn relations(&self, include_hidden: bool) -> Vec<String> {
     if include_hidden {
       match_context!(&self.ctx, c, c.all_relations())

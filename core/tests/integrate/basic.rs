@@ -661,6 +661,22 @@ fn test_count_with_where_clause() {
 }
 
 #[test]
+fn test_exists_path_1() {
+  expect_interpret_multi_result(
+    r#"
+      rel edge = {(0, 1), (1, 2)}
+      rel path(x, y) = edge(x, y) or (path(x, z) and edge(z, y))
+      rel result1(b) = b := exists(path(0, 2))
+      rel result2(b) = b := exists(path(0, 3))
+    "#,
+    vec![
+      ("result1", vec![(true,)].into()),
+      ("result2", vec![(false,)].into()),
+    ],
+  )
+}
+
+#[test]
 fn test_exists_with_where_clause() {
   expect_interpret_multi_result(
     r#"

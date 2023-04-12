@@ -13,5 +13,5 @@ sclc-core = { path = "../sclc" }
 rayon = "1.5"
 
 [dependencies.pyo3]
-version = "0.16.5"
+version = "0.18.2"
 features = ["extension-module"]

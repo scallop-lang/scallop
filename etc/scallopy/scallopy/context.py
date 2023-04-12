@@ -577,6 +577,12 @@ class ScallopContext(Context):
         return True
     return False
 
+  def set_sample_topk_facts(self, relation: str, amount: int):
+    if relation in self._input_mappings:
+      self._input_mappings[relation].set_sample_topk_facts(amount)
+    else:
+      raise Exception(f"Unknown relation {relation}")
+
   def requires_tag(self) -> bool:
     """
     Returns whether the context requires facts to be associated with tags

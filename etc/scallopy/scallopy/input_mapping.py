@@ -68,6 +68,11 @@ class InputMapping:
       if not (0 <= self.sample_dim < self.dimension):
         raise Exception(f"Invalid sampling dimension {self.sample_dim}; total dimension is {self.dimension}")
 
+  def set_sample_topk_facts(self, amount: int):
+    self.retain_k = amount
+    self.sample_dim = None
+    self.sample_strategy = "top"
+
   def __getitem__(self, index) -> Tuple:
     """Get the tuple of the input mapping from an index"""
     if self._kind == "dict":

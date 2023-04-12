@@ -1,0 +1,53 @@
+// Input from neural networks
+type grid_node(x: usize, y: usize)
+type curr_position(x: usize, y: usize)
+type goal_position(x: usize, y: usize)
+type is_enemy(x: usize, y: usize)
+
+// Constants
+const UP = 0
+const RIGHT = 1
+const DOWN = 2
+const LEFT = 3
+
+// Basic connectivity
+rel node(x, y) = grid_node(x, y), not is_enemy(x, y)
+rel edge(x, y, x, yp, UP) = node(x, y), node(x, yp), yp == y + 1
+rel edge(x, y, xp, y, RIGHT) = node(x, y), node(xp, y), xp == x + 1
+rel edge(x, y, x, yp, DOWN) = node(x, y), node(x, yp), yp == y - 1
+rel edge(x, y, xp, y, LEFT) = node(x, y), node(xp, y), xp == x - 1
+
+// Path for connectivity; will condition on no enemy on the path
+rel path(x, y, x, y) = node(x, y)
+rel path(x, y, xp, yp) = edge(x, y, xp, yp, _)
+rel path(x, y, xpp, ypp) = path(x, y, xp, yp), edge(xp, yp, xpp, ypp, _)
+
+// Get the next position
+rel next_position(a, xp, yp) = curr_position(x, y), edge(x, y, xp, yp, a)
+rel action_score(a) = next_position(a, x, y), goal_position(gx, gy), path(x, y, gx, gy)
+
+// ============ EXAMPLE ============
+
+// The following example denotes the following arena
+//
+// * - -
+// E E -
+// x - -
+//
+// where "*" is the goal and "x" is the current position.
+// The agent needs to avoid the enemies ("E")
+// and therefore the best action is to go RIGHT (represented by integer 1)
+
+rel grid_node = {
+  (0, 2), (1, 2), (2, 2),
+  (0, 1), (1, 1), (2, 1),
+  (0, 0), (1, 0), (2, 0),
+}
+
+rel is_enemy = {(0, 1), (1, 1)}
+
+rel goal_position = {(0, 2)}
+
+rel curr_position = {(0, 0)}
+
+query action_score

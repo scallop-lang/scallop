@@ -1,0 +1,16 @@
+type LinkedList <: usize
+type cons(LinkedList, i32, LinkedList)
+type nil(LinkedList)
+
+type length(LinkedList, usize)
+rel length(list, 0) :- nil(list)
+rel length(list, l + 1) :- cons(list, _, tail), length(tail, l)
+
+// ==== Example ====
+const L1 = 0
+const L2 = 1
+const L3 = 2
+const L4 = 3
+rel nil = {L1}
+rel cons = {(L2, 10, L1), (L3, 20, L2), (L4, 30, L3)}
+query length(L4, l)

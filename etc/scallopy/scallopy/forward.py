@@ -1,4 +1,5 @@
 from typing import Dict, Union, List, Optional, Tuple, Any, Callable
+import logging
 import os
 import sys
 import zipfile
@@ -31,6 +32,7 @@ class ScallopForwardFunction(torch.nn.Module):
     early_discard: Optional[bool] = None,
     iter_limit: Optional[int] = None,
     retain_graph: bool = False,
+    retain_topk: Optional[Dict[str, int]] = None,
     jit: bool = False,
     jit_name: str = "",
     jit_recompile: bool = False,
@@ -67,6 +69,11 @@ class ScallopForwardFunction(torch.nn.Module):
     if input_mappings is not None:
       for (relation, mapping) in input_mappings.items():
         self.ctx.set_input_mapping(relation, mapping)
+
+    # Set the retain top-k
+    if retain_topk is not None:
+      for (relation, k) in retain_topk.items():
+        self.ctx.set_sample_topk_facts(relation, k)
 
     # Add input facts if specified
     if facts is not None:
@@ -129,6 +136,11 @@ class InternalScallopForwardFunction(torch.nn.Module):
     self.jit_name = jit_name
     self.recompile = recompile
     self.fn_counter = self.FORWARD_FN_COUNTER
+
+    # Preprocess the dispatch
+    if self.ctx.provenance == "custom" and self.dispatch == "parallel":
+      logging.warning("custom provenance does not support parallel dispatch; falling back to serial dispatch. Consider creating the forward function using `dispatch=\"serial\"`.")
+      self.dispatch = "serial"
 
     # Populate the output and output mapping fields
     self._process_output_mapping(output, output_mapping, output_mappings)
