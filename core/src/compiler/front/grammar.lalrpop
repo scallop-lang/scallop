@@ -615,22 +615,24 @@ ForallExistsReduceOpNode: ReduceOperatorNode = {
 ForallExistsReduceOp = Spanned<ForallExistsReduceOpNode>;
 
 ForallExistsReduceNode: ForallExistsReduceNode = {
-  <op: ForallExistsReduceOp> "(" <f: Formula> <g: ReduceGroupBy?> ")" => {
+  <negate: NegateKeyword?> <op: ForallExistsReduceOp> "(" <f: Formula> <g: ReduceGroupBy?> ")" => {
     ForallExistsReduceNode {
+      negate: negate.is_some(),
       operator: op,
       bindings: vec![],
       body: Box::new(f),
       group_by: g,
     }
   },
-  <op: ForallExistsReduceOp> "(" <bs: AtLeastOneSeparatedStrict<VariableBinding, ",">> ":" <f: Formula> <g: ReduceGroupBy?> ")" => {
+  <negate: NegateKeyword?> <op: ForallExistsReduceOp> "(" <bs: AtLeastOneSeparatedStrict<VariableBinding, ",">> ":" <f: Formula> <g: ReduceGroupBy?> ")" => {
     ForallExistsReduceNode {
+      negate: negate.is_some(),
       operator: op,
       bindings: bs,
       body: Box::new(f),
       group_by: g,
     }
-  }
+  },
 }
 
 ForallExistsReduce = Spanned<ForallExistsReduceNode>;
@@ -838,8 +840,19 @@ UnitExpr: Expr = {
   <c: CallExpr> => Expr::Call(c),
 }
 
+RuleHeadNode: RuleHeadNode = {
+  <a: Atom> => {
+    RuleHeadNode::Atom(a)
+  },
+  "{" <atoms: AtLeastTwoSeparated<Atom, ";">> "}" => {
+    RuleHeadNode::Disjunction(atoms)
+  },
+}
+
+RuleHead: RuleHead = Spanned<RuleHeadNode>;
+
 RuleNode: RuleNode = {
-  <head: Atom> DefineSymbol <body: Formula> => {
+  <head: RuleHead> DefineSymbol <body: Formula> => {
     RuleNode { head, body }
   }
 }

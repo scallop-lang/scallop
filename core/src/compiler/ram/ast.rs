@@ -179,22 +179,35 @@ pub struct Update {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Dataflow {
+  // Base relation
   Unit(TupleType),
+  UntaggedVec(Vec<Tuple>),
+  Relation(String),
+
+  // Unary operations
+  Project(Box<Dataflow>, Expr),
+  Filter(Box<Dataflow>, Expr),
+  Find(Box<Dataflow>, Tuple),
+
+  // Binary operations
   Union(Box<Dataflow>, Box<Dataflow>),
   Join(Box<Dataflow>, Box<Dataflow>),
   Intersect(Box<Dataflow>, Box<Dataflow>),
   Product(Box<Dataflow>, Box<Dataflow>),
   Antijoin(Box<Dataflow>, Box<Dataflow>),
   Difference(Box<Dataflow>, Box<Dataflow>),
-  Project(Box<Dataflow>, Expr),
-  Filter(Box<Dataflow>, Expr),
-  Find(Box<Dataflow>, Tuple),
+
+  // Aggregation
+  Reduce(Reduce),
+
+  // Tag operations
   OverwriteOne(Box<Dataflow>),
+  Exclusion(Box<Dataflow>, Box<Dataflow>),
+
+  // Foreign predicates
   ForeignPredicateGround(String, Vec<Value>),
   ForeignPredicateConstraint(Box<Dataflow>, String, Vec<Expr>),
   ForeignPredicateJoin(Box<Dataflow>, String, Vec<Expr>),
-  Reduce(Reduce),
-  Relation(String),
 }
 
 impl Dataflow {
@@ -246,6 +259,10 @@ impl Dataflow {
     Self::OverwriteOne(Box::new(self))
   }
 
+  pub fn exclusion(self, right: Vec<Tuple>) -> Self {
+    Self::Exclusion(Box::new(self), Box::new(Self::UntaggedVec(right)))
+  }
+
   pub fn foreign_predicate_constraint(self, predicate: String, args: Vec<Expr>) -> Self {
     Self::ForeignPredicateConstraint(Box::new(self), predicate, args)
   }
@@ -280,10 +297,12 @@ impl Dataflow {
       | Self::Find(d, _)
       | Self::OverwriteOne(d)
       | Self::ForeignPredicateConstraint(d, _, _)
-      | Self::ForeignPredicateJoin(d, _, _) => d.source_relations(),
+      | Self::ForeignPredicateJoin(d, _, _)
+      | Self::Exclusion(d, _) => d.source_relations(),
       Self::Reduce(r) => std::iter::once(r.source_relation()).collect(),
       Self::Relation(r) => std::iter::once(r).collect(),
-      Self::ForeignPredicateGround(_, _) => HashSet::new(),
+      Self::ForeignPredicateGround(_, _)
+      | Self::UntaggedVec(_) => HashSet::new(),
     }
   }
 }

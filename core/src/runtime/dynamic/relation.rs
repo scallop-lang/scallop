@@ -27,7 +27,7 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     }
   }
 
-  pub fn insert_untagged<Tup>(&self, ctx: &mut Prov, data: Vec<Tup>)
+  pub fn insert_untagged<Tup>(&self, ctx: &Prov, data: Vec<Tup>)
   where
     Tup: Into<Tuple>,
   {
@@ -35,7 +35,7 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     self.insert_tagged(ctx, elements);
   }
 
-  pub fn insert_untagged_with_monitor<Tup, M>(&self, ctx: &mut Prov, data: Vec<Tup>, m: &M)
+  pub fn insert_untagged_with_monitor<Tup, M>(&self, ctx: &Prov, data: Vec<Tup>, m: &M)
   where
     Tup: Into<Tuple>,
     M: Monitor<Prov>,
@@ -44,7 +44,7 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     self.insert_tagged_with_monitor(ctx, elements, m);
   }
 
-  pub fn insert_one_tagged<Tup>(&self, ctx: &mut Prov, input_tag: Option<InputTagOf<Prov>>, tuple: Tup)
+  pub fn insert_one_tagged<Tup>(&self, ctx: &Prov, input_tag: Option<InputTagOf<Prov>>, tuple: Tup)
   where
     Tup: Into<Tuple>,
   {
@@ -64,7 +64,7 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     self.insert_tagged_with_monitor(ctx, vec![(input_tag, tuple)], m);
   }
 
-  pub fn insert_dynamically_tagged<Tup>(&self, ctx: &mut Prov, data: Vec<(DynamicInputTag, Tup)>)
+  pub fn insert_dynamically_tagged<Tup>(&self, ctx: &Prov, data: Vec<(DynamicInputTag, Tup)>)
   where
     Tup: Into<Tuple>,
   {
@@ -78,7 +78,7 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     self.insert_tagged(ctx, elements);
   }
 
-  pub fn insert_dynamically_tagged_with_monitor<Tup, M>(&self, ctx: &mut Prov, data: Vec<(DynamicInputTag, Tup)>, m: &M)
+  pub fn insert_dynamically_tagged_with_monitor<Tup, M>(&self, ctx: &Prov, data: Vec<(DynamicInputTag, Tup)>, m: &M)
   where
     Tup: Into<Tuple>,
     M: Monitor<Prov>,
@@ -93,7 +93,7 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     self.insert_tagged_with_monitor(ctx, elements, m);
   }
 
-  pub fn insert_tagged<Tup>(&self, ctx: &mut Prov, data: Vec<(Option<InputTagOf<Prov>>, Tup)>)
+  pub fn insert_tagged<Tup>(&self, ctx: &Prov, data: Vec<(Option<InputTagOf<Prov>>, Tup)>)
   where
     Tup: Into<Tuple>,
   {
@@ -105,7 +105,7 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     self.insert_dataflow_recent(ctx, &dataflow, &RuntimeEnvironment::default());
   }
 
-  pub fn insert_tagged_with_monitor<Tup, M>(&self, ctx: &mut Prov, data: Vec<(Option<InputTagOf<Prov>>, Tup)>, m: &M)
+  pub fn insert_tagged_with_monitor<Tup, M>(&self, ctx: &Prov, data: Vec<(Option<InputTagOf<Prov>>, Tup)>, m: &M)
   where
     Tup: Into<Tuple>,
     M: Monitor<Prov>,

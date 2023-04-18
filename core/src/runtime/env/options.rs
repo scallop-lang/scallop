@@ -3,10 +3,12 @@ use std::sync::*;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 
-use super::*;
 use crate::common::constants::*;
 use crate::common::foreign_function::*;
 use crate::common::foreign_predicate::*;
+use crate::utils::*;
+
+use super::*;
 
 /// The options to create a runtime environment
 #[derive(Clone, Debug)]
@@ -41,6 +43,7 @@ impl RuntimeEnvironmentOptions {
       iter_limit: self.iter_limit,
       function_registry: ForeignFunctionRegistry::std(),
       predicate_registry: ForeignPredicateRegistry::std(),
+      exclusion_id_allocator: Arc::new(Mutex::new(IdAllocator::new())),
     }
   }
 }

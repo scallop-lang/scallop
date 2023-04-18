@@ -7,6 +7,7 @@ use super::super::*;
 #[derive(Clone)]
 pub enum DynamicBatch<'a, Prov: Provenance> {
   Vec(std::slice::Iter<'a, DynamicElement<Prov>>),
+  UntaggedVec(&'a Prov, std::slice::Iter<'a, Tuple>),
   SourceVec(std::vec::IntoIter<DynamicElement<Prov>>),
   DynamicRelationStable(DynamicRelationStableBatch<'a, Prov>),
   DynamicRelationRecent(DynamicRelationRecentBatch<'a, Prov>),
@@ -21,11 +22,16 @@ pub enum DynamicBatch<'a, Prov: Provenance> {
   Antijoin(DynamicAntijoinBatch<'a, Prov>),
   ForeignPredicateConstraint(ForeignPredicateConstraintBatch<'a, Prov>),
   ForeignPredicateJoin(ForeignPredicateJoinBatch<'a, Prov>),
+  Exclusion(DynamicExclusionBatch<'a, Prov>),
 }
 
 impl<'a, Prov: Provenance> DynamicBatch<'a, Prov> {
   pub fn vec(v: &'a Vec<DynamicElement<Prov>>) -> Self {
     Self::Vec(v.iter())
+  }
+
+  pub fn untagged_vec(ctx: &'a Prov, v: std::slice::Iter<'a, Tuple>) -> Self {
+    Self::UntaggedVec(ctx, v)
   }
 
   pub fn source_vec(v: Vec<DynamicElement<Prov>>) -> Self {
@@ -106,6 +112,7 @@ impl<'a, Prov: Provenance> Iterator for DynamicBatch<'a, Prov> {
   fn next(&mut self) -> Option<Self::Item> {
     match self {
       Self::Vec(iter) => iter.next().map(Clone::clone),
+      Self::UntaggedVec(ctx, iter) => iter.next().map(|t| DynamicElement::new(t.clone(), ctx.one())),
       Self::SourceVec(iter) => iter.next(),
       Self::DynamicRelationStable(b) => b.next(),
       Self::DynamicRelationRecent(b) => b.next(),
@@ -120,6 +127,7 @@ impl<'a, Prov: Provenance> Iterator for DynamicBatch<'a, Prov> {
       Self::Antijoin(a) => a.next(),
       Self::ForeignPredicateConstraint(b) => b.next(),
       Self::ForeignPredicateJoin(b) => b.next(),
+      Self::Exclusion(e) => e.next(),
     }
   }
 }

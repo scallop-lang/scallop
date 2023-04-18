@@ -173,7 +173,11 @@ impl RuleDecl {
   }
 
   pub fn rule_tag_predicate(&self) -> String {
-    format!("rt#{}#{}", self.rule().head().predicate(), self.id())
+    if let Some(head_atom) = self.rule().head().atom() {
+      format!("rt#{}#{}", head_atom.predicate(), self.id())
+    } else {
+      unimplemented!("Rule head is not an atom")
+    }
   }
 }
 

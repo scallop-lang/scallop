@@ -121,14 +121,19 @@ impl Display for Rule {
 
 impl Display for Head {
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-    f.write_fmt(format_args!("{}(", self.predicate))?;
-    for (i, arg) in self.args.iter().enumerate() {
-      f.write_fmt(format_args!("{}", arg))?;
-      if i < self.args.len() - 1 {
-        f.write_str(", ")?;
+    match self {
+      Self::Atom(a) => a.fmt(f),
+      Self::Disjunction(atoms) => {
+        f.write_str("{")?;
+        for (i, atom) in atoms.iter().enumerate() {
+          if i > 0 {
+            f.write_str("; ")?;
+          }
+          atom.fmt(f)?;
+        }
+        f.write_str("}")
       }
     }
-    f.write_str(")")
   }
 }
 

@@ -218,14 +218,14 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     }
   }
 
-  fn build_dynamic_update(&'a self, ctx: &'a Prov, update: &Update) -> DynamicUpdate<'a, Prov> {
+  fn build_dynamic_update(&'a self, ctx: &'a Prov, update: &'a Update) -> DynamicUpdate<'a, Prov> {
     DynamicUpdate {
       target: self.unsafe_get_dynamic_relation(&update.target),
       dataflow: self.build_dynamic_dataflow(ctx, &update.dataflow),
     }
   }
 
-  fn build_dynamic_dataflow(&'a self, ctx: &'a Prov, dataflow: &Dataflow) -> DynamicDataflow<'a, Prov> {
+  fn build_dynamic_dataflow(&'a self, ctx: &'a Prov, dataflow: &'a Dataflow) -> DynamicDataflow<'a, Prov> {
     match dataflow {
       Dataflow::Unit(t) => {
         if self.is_first_iteration() {
@@ -233,6 +233,9 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
         } else {
           DynamicDataflow::stable_unit(ctx, t.clone())
         }
+      }
+      Dataflow::UntaggedVec(v) => {
+        DynamicDataflow::untagged_vec(ctx, v)
       }
       Dataflow::Relation(c) => {
         if self.input_dynamic_collections.contains_key(c) {
@@ -251,6 +254,7 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
         self.build_dynamic_dataflow(ctx, d).foreign_predicate_join(p.clone(), a.clone(), ctx)
       }
       Dataflow::OverwriteOne(d) => self.build_dynamic_dataflow(ctx, d).overwrite_one(ctx),
+      Dataflow::Exclusion(d1, d2) => self.build_dynamic_dataflow(ctx, d1).dynamic_exclusion(self.build_dynamic_dataflow(ctx, d2), ctx),
       Dataflow::Filter(d, e) => self.build_dynamic_dataflow(ctx, d).filter(e.clone()),
       Dataflow::Find(d, k) => self.build_dynamic_dataflow(ctx, d).find(k.clone()),
       Dataflow::Project(d, e) => self.build_dynamic_dataflow(ctx, d).project(e.clone()),

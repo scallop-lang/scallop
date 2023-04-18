@@ -516,15 +516,15 @@ impl NodeVisitor for TypeInference {
   }
 
   fn visit_rule(&mut self, rule: &Rule) {
-    let pred = rule.head().predicate();
-
-    // Check if the relation is a foreign predicate
-    if self.foreign_predicate_type_registry.contains_predicate(pred) {
-      self.errors.push(TypeInferenceError::CannotRedefineForeignPredicate {
-        pred: pred.to_string(),
-        loc: rule.location().clone(),
-      });
-      return;
+    for pred in rule.head().iter_predicates() {
+      // Check if a head predicate is a foreign predicate
+      if self.foreign_predicate_type_registry.contains_predicate(pred) {
+        self.errors.push(TypeInferenceError::CannotRedefineForeignPredicate {
+          pred: pred.to_string(),
+          loc: rule.location().clone(),
+        });
+        return;
+      }
     }
 
     // Otherwise, create a rule inference context

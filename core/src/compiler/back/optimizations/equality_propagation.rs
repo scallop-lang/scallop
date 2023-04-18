@@ -125,10 +125,7 @@ pub fn propagate_equality(rule: &mut Rule) {
   }
 
   // Apply substitution to the head
-  let new_head = Head {
-    predicate: rule.head.predicate.clone(),
-    args: rule.head.args.iter().map(substitute_term).collect(),
-  };
+  let new_head = rule.head.substitute(substitute_term);
 
   // Update the rule into this new rule
   *rule = Rule {

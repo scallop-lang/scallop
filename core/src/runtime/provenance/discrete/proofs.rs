@@ -20,6 +20,12 @@ impl Proof {
       facts: p1.facts.iter().chain(p2.facts.iter()).cloned().collect(),
     }
   }
+
+  pub fn from_facts<I: Iterator<Item = usize>>(i: I) -> Self {
+    Self {
+      facts: BTreeSet::from_iter(i),
+    }
+  }
 }
 
 impl std::fmt::Debug for Proof {
@@ -89,6 +95,12 @@ impl Proofs {
         .into_iter()
         .map(|(p1, p2)| Proof::merge(p1, p2))
         .collect(),
+    }
+  }
+
+  pub fn from_proofs<I: Iterator<Item = Proof>>(i: I) -> Self {
+    Self {
+      proofs: BTreeSet::from_iter(i),
     }
   }
 }

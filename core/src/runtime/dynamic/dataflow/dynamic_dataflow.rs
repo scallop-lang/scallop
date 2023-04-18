@@ -9,9 +9,11 @@ use super::*;
 pub enum DynamicDataflow<'a, Prov: Provenance> {
   StableUnit(DynamicStableUnitDataflow<'a, Prov>),
   RecentUnit(DynamicRecentUnitDataflow<'a, Prov>),
-  Vec(&'a Vec<DynamicElement<Prov>>),
+  Vec(&'a DynamicElements<Prov>),
+  UntaggedVec(DynamicUntaggedVec<'a, Prov>),
   DynamicStableCollection(DynamicStableCollectionDataflow<'a, Prov>),
   DynamicRecentCollection(DynamicRecentCollectionDataflow<'a, Prov>),
+  DynamicExclusion(DynamicExclusionDataflow<'a, Prov>),
   DynamicRelation(DynamicRelationDataflow<'a, Prov>),
   OverwriteOne(DynamicOverwriteOneDataflow<'a, Prov>),
   Project(DynamicProjectDataflow<'a, Prov>),
@@ -30,8 +32,12 @@ pub enum DynamicDataflow<'a, Prov: Provenance> {
 }
 
 impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
-  pub fn vec(vec: &'a Vec<DynamicElement<Prov>>) -> Self {
+  pub fn vec(vec: &'a DynamicElements<Prov>) -> Self {
     Self::Vec(vec)
+  }
+
+  pub fn untagged_vec(ctx: &'a Prov, vec: &'a Vec<Tuple>) -> Self {
+    Self::UntaggedVec(DynamicUntaggedVec::new(ctx, vec))
   }
 
   pub fn recent_unit(ctx: &'a Prov, tuple_type: TupleType) -> Self {
@@ -179,25 +185,44 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
     })
   }
 
+  pub fn dynamic_exclusion(self, other: Self, ctx: &'a Prov) -> Self {
+    Self::DynamicExclusion(DynamicExclusionDataflow::new(self, other, ctx))
+  }
+
   pub fn iter_stable(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     match self {
+      // Static relations
       Self::StableUnit(i) => i.iter_stable(runtime),
       Self::RecentUnit(i) => i.iter_stable(runtime),
       Self::Vec(_) => DynamicBatches::Empty,
+      Self::UntaggedVec(i) => i.iter_stable(runtime),
+
+      // Dynamic relations
       Self::DynamicStableCollection(dc) => dc.iter_stable(runtime),
       Self::DynamicRecentCollection(dc) => dc.iter_stable(runtime),
       Self::DynamicRelation(dr) => dr.iter_stable(runtime),
-      Self::OverwriteOne(d) => d.iter_stable(runtime),
+
+      // Unary operations
       Self::Project(p) => p.iter_stable(runtime),
       Self::Filter(f) => f.iter_stable(runtime),
       Self::Find(f) => f.iter_stable(runtime),
-      Self::Intersect(i) => i.iter_stable(runtime),
+
+      // Binary operations
+      Self::Union(u) => u.iter_stable(runtime),
       Self::Join(j) => j.iter_stable(runtime),
       Self::Product(p) => p.iter_stable(runtime),
-      Self::Union(u) => u.iter_stable(runtime),
+      Self::Intersect(i) => i.iter_stable(runtime),
       Self::Difference(d) => d.iter_stable(runtime),
       Self::Antijoin(a) => a.iter_stable(runtime),
+
+      // Aggregation operations
       Self::Aggregate(a) => a.iter_stable(runtime),
+
+      // Tag operations
+      Self::OverwriteOne(d) => d.iter_stable(runtime),
+      Self::DynamicExclusion(d) => d.iter_stable(runtime),
+
+      // Foreign predicates
       Self::ForeignPredicateGround(d) => d.iter_stable(runtime),
       Self::ForeignPredicateConstraint(d) => d.iter_stable(runtime),
       Self::ForeignPredicateJoin(d) => d.iter_stable(runtime),
@@ -206,23 +231,38 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
 
   pub fn iter_recent(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     match self {
+      // Static relations
       Self::StableUnit(i) => i.iter_recent(runtime),
       Self::RecentUnit(i) => i.iter_recent(runtime),
       Self::Vec(v) => DynamicBatches::single(DynamicBatch::vec(v)),
+      Self::UntaggedVec(i) => i.iter_recent(runtime),
+
+      // Dynamic relations
       Self::DynamicStableCollection(dc) => dc.iter_recent(runtime),
       Self::DynamicRecentCollection(dc) => dc.iter_recent(runtime),
       Self::DynamicRelation(dr) => dr.iter_recent(runtime),
-      Self::OverwriteOne(d) => d.iter_recent(runtime),
+
+      // Unary operations
       Self::Project(p) => p.iter_recent(runtime),
       Self::Filter(f) => f.iter_recent(runtime),
       Self::Find(f) => f.iter_recent(runtime),
-      Self::Intersect(i) => i.iter_recent(runtime),
+
+      // Binary operations
+      Self::Union(u) => u.iter_recent(runtime),
       Self::Join(j) => j.iter_recent(runtime),
       Self::Product(p) => p.iter_recent(runtime),
-      Self::Union(u) => u.iter_recent(runtime),
+      Self::Intersect(i) => i.iter_recent(runtime),
       Self::Difference(d) => d.iter_recent(runtime),
       Self::Antijoin(a) => a.iter_recent(runtime),
+
+      // Aggregation operations
       Self::Aggregate(a) => a.iter_recent(runtime),
+
+      // Tag operations
+      Self::OverwriteOne(d) => d.iter_recent(runtime),
+      Self::DynamicExclusion(d) => d.iter_recent(runtime),
+
+      // Foreign predicates
       Self::ForeignPredicateGround(d) => d.iter_recent(runtime),
       Self::ForeignPredicateConstraint(d) => d.iter_recent(runtime),
       Self::ForeignPredicateJoin(d) => d.iter_recent(runtime),

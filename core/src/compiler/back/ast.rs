@@ -92,7 +92,7 @@ pub struct Rule {
 
 impl Rule {
   pub fn head_predicate(&self) -> &String {
-    &self.head.predicate
+    &self.head.predicate()
   }
 
   pub fn body_literals(&self) -> impl Iterator<Item = &Literal> {
@@ -105,21 +105,95 @@ impl Rule {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Head {
-  pub predicate: String,
-  pub args: Vec<Term>,
+pub enum Head {
+  /// A simple atom as the head
+  Atom(Atom),
+
+  /// A disjunction of atoms as the head; all atoms should have the same predicate
+  Disjunction(Vec<Atom>),
 }
 
 impl Head {
-  pub fn new(predicate: String, args: Vec<Term>) -> Self {
-    Self { predicate, args }
+  pub fn atom(predicate: String, args: Vec<Term>) -> Self {
+    Self::Atom(Atom::new(predicate, args))
   }
 
-  pub fn variable_args(&self) -> impl Iterator<Item = &Variable> {
-    self.args.iter().filter_map(|a| match a {
-      Term::Variable(v) => Some(v),
+  pub fn predicate(&self) -> &String {
+    match self {
+      Self::Atom(a) => &a.predicate,
+      Self::Disjunction(disj) => &disj[0].predicate,
+    }
+  }
+
+  pub fn get_atom(&self) -> Option<&Atom> {
+    match self {
+      Self::Atom(a) => Some(a),
       _ => None,
-    })
+    }
+  }
+
+  pub fn variable_args(&self) -> Vec<&Variable> {
+    match self {
+      Self::Atom(a) => a.variable_args().collect(),
+      Self::Disjunction(disj) => disj.iter().flat_map(|a| a.variable_args()).collect(),
+    }
+  }
+
+  /// Substitute the atom's arguments with the given term rewrite function
+  pub fn substitute<F: Fn(&Term) -> Term + Copy>(&self, f: F) -> Self {
+    match self {
+      Self::Atom(a) => Self::Atom(a.substitute(f)),
+      Self::Disjunction(d) => Self::Disjunction(d.iter().map(|a| a.substitute(f)).collect()),
+    }
+  }
+
+  /// Get the variable patterns of the head
+  ///
+  /// Atomic head has only one pattern;
+  /// Disjunctive head could have multiple patterns
+  pub fn has_multiple_patterns(&self) -> bool {
+    match self {
+      Self::Atom(_) => {
+        // Atomic head has only one pattern
+        false
+      },
+      Self::Disjunction(disj) => {
+        // Extract the pattern of the first atom in the disjunction
+        let first_pattern = disj[0]
+          .args
+          .iter()
+          .map(|t| match t {
+            Term::Variable(v) => v.name.clone(),
+            Term::Constant(_) => String::new(),
+          })
+          .collect::<Vec<_>>();
+
+        // Check if the first pattern is satisfied by all other atoms
+        for a in disj.iter().skip(1) {
+          let satisfies_pattern = a.args
+            .iter()
+            .enumerate()
+            .all(|(i, t)| {
+              if let Some(p) = first_pattern.get(i) {
+                match t {
+                  Term::Variable(v) => p == &v.name,
+                  Term::Constant(_) => p.is_empty(),
+                }
+              } else {
+                false
+              }
+            });
+
+          // If not satisfied, then the head has multiple patterns
+          if !satisfies_pattern {
+            return true;
+          }
+        }
+
+        // If all atoms satisfy the first pattern, then the head has only one pattern
+        false
+      },
+    }
   }
 }
 
@@ -130,7 +204,7 @@ pub struct Conjunction {
 }
 
 /// A term is the argument of a literal
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Term {
   Variable(Variable),
   Constant(Constant),
@@ -309,6 +383,14 @@ impl Atom {
     self.args.iter().any(|a| a.is_constant())
   }
 
+  /// Get the constant arguments
+  pub fn constant_args(&self) -> impl Iterator<Item = &Constant> {
+    self.args.iter().filter_map(|a| match a {
+      Term::Constant(c) => Some(c),
+      _ => None,
+    })
+  }
+
   /// Create a partition of the atom's arguments into constant and variable
   pub fn const_var_partition(&self) -> (Vec<(usize, &Constant)>, Vec<(usize, &Variable)>) {
     let (constants, variables): (Vec<_>, Vec<_>) = self.args.iter().enumerate().partition(|(_, t)| t.is_constant());
@@ -327,6 +409,14 @@ impl Atom {
       })
       .collect();
     (constants, variables)
+  }
+
+  /// Substitute the atom's arguments with the given term rewrite function
+  pub fn substitute<F: Fn(&Term) -> Term>(&self, f: F) -> Self {
+    Self {
+      predicate: self.predicate.clone(),
+      args: self.args.iter().map(|a| f(a)).collect(),
+    }
   }
 }
 

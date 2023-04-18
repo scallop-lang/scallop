@@ -9,6 +9,7 @@ use crate::common::foreign_function::*;
 use crate::common::foreign_predicate::*;
 use crate::common::tuple::*;
 use crate::common::value_type::*;
+use crate::utils::*;
 
 #[derive(Clone, Debug)]
 pub struct RuntimeEnvironment {
@@ -29,6 +30,9 @@ pub struct RuntimeEnvironment {
 
   /// Foreign predicate registry
   pub predicate_registry: ForeignPredicateRegistry,
+
+  /// Mutual exclusion ID allocator
+  pub exclusion_id_allocator: Arc<Mutex<IdAllocator>>,
 }
 
 impl Default for RuntimeEnvironment {
@@ -46,6 +50,7 @@ impl RuntimeEnvironment {
       iter_limit: None,
       function_registry: ForeignFunctionRegistry::std(),
       predicate_registry: ForeignPredicateRegistry::std(),
+      exclusion_id_allocator: Arc::new(Mutex::new(IdAllocator::new())),
     }
   }
 
@@ -57,6 +62,7 @@ impl RuntimeEnvironment {
       iter_limit: None,
       function_registry: ForeignFunctionRegistry::std(),
       predicate_registry: ForeignPredicateRegistry::std(),
+      exclusion_id_allocator: Arc::new(Mutex::new(IdAllocator::new())),
     }
   }
 
@@ -71,6 +77,7 @@ impl RuntimeEnvironment {
       iter_limit: None,
       function_registry: ffr,
       predicate_registry: fpr,
+      exclusion_id_allocator: Arc::new(Mutex::new(IdAllocator::new())),
     }
   }
 
@@ -82,6 +89,7 @@ impl RuntimeEnvironment {
       iter_limit: None,
       function_registry: ffr,
       predicate_registry: ForeignPredicateRegistry::std(),
+      exclusion_id_allocator: Arc::new(Mutex::new(IdAllocator::new())),
     }
   }
 
@@ -95,6 +103,10 @@ impl RuntimeEnvironment {
 
   pub fn remove_iter_limit(&mut self) {
     self.iter_limit = None;
+  }
+
+  pub fn allocate_new_exclusion_id(&self) -> usize {
+    self.exclusion_id_allocator.lock().unwrap().alloc()
   }
 
   pub fn eval(&self, expr: &Expr, tuple: &Tuple) -> Option<Tuple> {

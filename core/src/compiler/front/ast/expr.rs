@@ -29,6 +29,11 @@ impl Expr {
     }))
   }
 
+  /// Create a constant boolean expression
+  pub fn boolean(b: bool) -> Self {
+    Self::Constant(ConstantNode::Boolean(b).into())
+  }
+
   /// Create an expression which is a constant of boolean true value
   pub fn boolean_true() -> Self {
     Self::Constant(ConstantNode::Boolean(true).into())

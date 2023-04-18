@@ -189,50 +189,109 @@ impl FrontContext {
   }
 
   fn rule_decl_to_back_rules(&self, rd: &front::RuleDecl, temp_relations: &mut Vec<back::Relation>) -> Vec<back::Rule> {
+    let rule_loc = rd.rule().location();
+    match &rd.rule().head().node {
+      front::RuleHeadNode::Atom(head) => {
+        self.atomic_rule_decl_to_back_rules(rule_loc, head, temp_relations)
+      }
+      front::RuleHeadNode::Disjunction(head_atoms) => {
+        self.disjunctive_rule_decl_to_back_rules(rule_loc, head_atoms, temp_relations)
+      }
+    }
+  }
+
+  fn atomic_rule_decl_to_back_rules(
+    &self,
+    rule_loc: &AstNodeLocation,
+    head: &front::Atom,
+    temp_relations: &mut Vec<back::Relation>,
+  ) -> Vec<back::Rule> {
     let analysis = self.analysis.borrow();
 
     // Basic information
-    let src_rule = rd.rule().clone();
-    let pred = rd.rule().head().predicate();
+    let pred = head.predicate();
     let attributes = back::Attributes::new();
 
     // Collect information for flattening
     let mut flatten_expr = FlattenExprContext::new(&analysis.type_inference, &self.foreign_predicate_registry);
-    flatten_expr.walk_atom(src_rule.head());
+    flatten_expr.walk_atom(head);
 
     // Create the flattened expression that the head needs
-    let head_exprs = rd
-      .rule()
-      .head()
+    let head_exprs = head
       .iter_arguments()
       .map(|a| flatten_expr.collect_flattened_literals(a.location()))
       .flatten()
       .collect::<Vec<_>>();
 
     // Create the head that will be shared across all back rules
-    let args = rd
-      .rule()
-      .head()
+    let args = head
       .iter_arguments()
       .map(|a| flatten_expr.get_expr_term(a))
       .collect();
-    let head = back::Head {
-      predicate: pred.clone(),
-      args,
-    };
+    let head = back::Head::atom(pred.clone(), args);
 
     // Get the back rules
+    let boundness_analysis = &self.analysis.borrow().boundness_analysis;
+    let rule_ctx = boundness_analysis.get_rule_context(rule_loc).unwrap();
     self.formula_to_back_rules(
       &mut flatten_expr,
-      src_rule.location(),
+      rule_loc,
       attributes,
       pred.clone(),
-      self
-        .analysis
-        .borrow()
-        .boundness_analysis
-        .get_rule_context(src_rule.location())
-        .unwrap(),
+      rule_ctx,
+      head,
+      head_exprs,
+      temp_relations,
+    )
+  }
+
+  fn disjunctive_rule_decl_to_back_rules(
+    &self,
+    rule_loc: &AstNodeLocation,
+    head_atoms: &[front::Atom],
+    temp_relations: &mut Vec<back::Relation>,
+  ) -> Vec<back::Rule> {
+    let analysis = self.analysis.borrow();
+
+    // Basic information
+    let pred = head_atoms[0].predicate();
+    let attributes = back::Attributes::new();
+
+    // Collect information for flattening
+    let mut flatten_expr = FlattenExprContext::new(&analysis.type_inference, &self.foreign_predicate_registry);
+    for head in head_atoms {
+      flatten_expr.walk_atom(head);
+    }
+
+    // Create the flattened expression that the head needs
+    let head_exprs = head_atoms
+      .iter()
+      .flat_map(|a| a.iter_arguments())
+      .flat_map(|a| flatten_expr.collect_flattened_literals(a.location()))
+      .collect::<Vec<_>>();
+
+    // Create the head that will be shared across all back rules
+    let back_head_atoms = head_atoms
+      .iter()
+      .map(|a| {
+        let args = a
+          .iter_arguments()
+          .map(|a| flatten_expr.get_expr_term(a))
+          .collect();
+        back::Atom::new(a.predicate().clone(), args)
+      })
+      .collect();
+    let head = back::Head::Disjunction(back_head_atoms);
+
+    // Get the back rules
+    let boundness_analysis = &self.analysis.borrow().boundness_analysis;
+    let rule_ctx = boundness_analysis.get_rule_context(rule_loc).unwrap();
+    self.formula_to_back_rules(
+      &mut flatten_expr,
+      rule_loc,
+      attributes,
+      pred.clone(),
+      rule_ctx,
       head,
       head_exprs,
       temp_relations,
@@ -362,7 +421,7 @@ impl FrontContext {
       temp_relations.push(group_by_relation);
 
       // Create temporary rule(s) for group_by
-      let group_by_rule_head = back::Head::new(group_by_predicate.clone(), group_by_terms.clone());
+      let group_by_rule_head = back::Head::atom(group_by_predicate.clone(), group_by_terms.clone());
       let group_by_rules = self.formula_to_back_rules(
         flatten_expr,
         src_rule_loc,
@@ -420,7 +479,7 @@ impl FrontContext {
     temp_relations.push(body_relation);
 
     // Get the rules for body
-    let body_head = back::Head::new(body_predicate.clone(), body_terms.clone());
+    let body_head = back::Head::atom(body_predicate.clone(), body_terms.clone());
     let body_rules = self.formula_to_back_rules(
       flatten_expr,
       src_rule_loc,

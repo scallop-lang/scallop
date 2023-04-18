@@ -737,6 +737,17 @@ fn test_exists_with_where_clause_2() {
 }
 
 #[test]
+fn test_not_exists_1() {
+  expect_interpret_result(
+    r#"
+      rel color = {(0, "red"), (1, "green")}
+      rel result() :- not exists(o: color(o, "blue"))
+    "#,
+    ("result", vec![()].into()),
+  )
+}
+
+#[test]
 fn type_cast_to_string_1() {
   expect_interpret_result(
     r#"
@@ -1156,5 +1167,32 @@ fn string_plus_string_1() {
     rel full_name(first + " " + last) = first_last_name(first, last)
     "#,
     ("full_name", vec![("Alice Lee".to_string(),)]),
+  )
+}
+
+#[test]
+fn disjunctive_1() {
+  let prov = proofs::ProofsProvenance::<RcFamily>::default();
+
+  // Pre-generate true tags and false tags
+  let true_tag = proofs::Proofs::from_proofs(vec![
+    proofs::Proof::from_facts(vec![0, 1, 2, 4].into_iter()),
+    proofs::Proof::from_facts(vec![0, 1, 2, 5].into_iter()),
+    proofs::Proof::from_facts(vec![0, 1, 3, 4].into_iter()),
+  ].into_iter());
+  let false_tag = proofs::Proofs::from_proofs(vec![
+    proofs::Proof::from_facts(vec![0, 1, 3, 5].into_iter()),
+  ].into_iter());
+
+  // Test
+  expect_interpret_result_with_tag(
+    r#"
+    rel var = {1, 2}
+    rel { assign(x, true); assign(x, false) } = var(x)
+    rel result(a || b) = assign(1, a) and assign(2, b)
+    "#,
+    prov,
+    ("result", vec![(true_tag, (true,)), (false_tag, (false,))]),
+    proofs::Proofs::eq,
   )
 }

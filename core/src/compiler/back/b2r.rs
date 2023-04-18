@@ -34,9 +34,13 @@ struct NegativeDataflow {
   dataflow: ram::Dataflow,
 }
 
+/// Property of a dataflow
 #[derive(Default, Clone)]
 struct DataflowProp {
+  /// Whether the dataflow needs to be sorted
   need_sorted: bool,
+
+  /// Whether the dataflow is negative
   is_negative: bool,
 }
 
@@ -270,7 +274,7 @@ impl Program {
     let output = self.outputs.get(pred).cloned().unwrap_or(OutputOption::Hidden);
 
     // Check immutability, i.e., the relation is not updated by rules
-    let immutable = self.rules.iter().find_position(|r| &r.head.predicate == pred).is_none();
+    let immutable = self.rules.iter().find_position(|r| r.head.predicate() == pred).is_none();
 
     // The Final Relation
     let ram_relation = ram::Relation {
@@ -300,31 +304,85 @@ impl Program {
   }
 
   fn plan_to_ram_update(&self, ctx: &mut B2RContext, head: &Head, plan: &Plan) -> ram::Update {
-    let (head_goal, need_projection) = self.head_variable_tuple(head);
-    let subgoal = head_goal.dedup();
-
-    // Generate the dataflow
-    let dataflow = self.plan_to_ram_dataflow(ctx, &subgoal, plan, false.into());
-
     // Check if the dataflow needs projection and update the dataflow
-    let dataflow = if need_projection {
-      ram::Dataflow::project(dataflow, self.projection_to_head(&subgoal, head))
-    } else if head_goal != subgoal {
-      ram::Dataflow::project(dataflow, subgoal.projection(&head_goal))
-    } else {
-      dataflow
-    };
+    let dataflow = match head {
+      Head::Atom(head_atom) => {
+        let (head_goal, need_projection) = self.head_atom_variable_tuple(head_atom);
+        let subgoal = head_goal.dedup();
 
-    // Check if the head predicate is a magic-set; if so we wrap an overwrite_one dataflow around
-    let dataflow = if self.is_magic_set_predicate(&head.predicate) == Some(true) {
-      ram::Dataflow::overwrite_one(dataflow)
-    } else {
-      dataflow
+        // Generate the dataflow
+        let dataflow = self.plan_to_ram_dataflow(ctx, &subgoal, plan, false.into());
+
+        // Project the dataflow if needed
+        let dataflow = if need_projection {
+          dataflow.project(self.projection_to_atom_head(&subgoal, head_atom))
+        } else if head_goal != subgoal {
+          dataflow.project(subgoal.projection(&head_goal))
+        } else {
+          dataflow
+        };
+
+        // Check if the head predicate is a magic-set; if so we wrap an overwrite_one dataflow around
+        // NOTE: only head atom predicate can be magic-set predicate
+        let dataflow = if self.is_magic_set_predicate(&head.predicate()) == Some(true) {
+          dataflow.overwrite_one()
+        } else {
+          dataflow
+        };
+
+        dataflow
+      }
+      Head::Disjunction(head_atoms) => {
+        if !head.has_multiple_patterns() {
+          let head_var_goal = VariableTuple::from_vars(head_atoms[0].variable_args().cloned(), false);
+
+          // Generate the sub-dataflow
+          let sub_dataflow = self.plan_to_ram_dataflow(ctx, &head_var_goal, plan, false.into());
+
+          // Get all the constants in the head atoms
+          let constants: Vec<_> = head_atoms
+            .iter()
+            .map(|head_atom| {
+              use std::iter::FromIterator;
+              Tuple::from_iter(head_atom.constant_args().cloned())
+            })
+            .collect();
+
+          // Disjunction dataflow
+          let disj_dataflow = sub_dataflow.exclusion(constants);
+
+          // Projection
+          let (mut var_counter, mut const_counter) = (0, 0);
+          let projection: Expr = head_atoms[0]
+            .args
+            .iter()
+            .map(|arg| {
+              match arg {
+                Term::Variable(_) => {
+                  let result = Expr::access((0, var_counter));
+                  var_counter += 1;
+                  result
+                }
+                Term::Constant(_) => {
+                  let result = Expr::access((1, const_counter));
+                  const_counter += 1;
+                  result
+                }
+              }
+            })
+            .collect();
+
+          // Wrap the disjunction dataflow with a projection
+          disj_dataflow.project(projection)
+        } else {
+          unimplemented!("Disjunction with more than one pattern is not supported yet.")
+        }
+      }
     };
 
     // Return the update
     ram::Update {
-      target: head.predicate.clone(),
+      target: head.predicate().clone(),
       dataflow,
     }
   }
@@ -908,11 +966,11 @@ impl Program {
     }
   }
 
-  fn head_variable_tuple(&self, head: &Head) -> (VariableTuple, bool) {
+  fn head_atom_variable_tuple(&self, head: &Atom) -> (VariableTuple, bool) {
     let rel = self.relation_of_predicate(&head.predicate).unwrap();
     if let Some(agg_attr) = rel.attributes.aggregate_body_attr() {
       // For an aggregate sub-relation
-      let head_args = head.variable_args().cloned().collect::<Vec<_>>();
+      let head_args = head.variable_args().into_iter().cloned().collect::<Vec<_>>();
       let num_group_by = agg_attr.num_group_by_vars;
       let num_args = agg_attr.num_arg_vars;
 
@@ -944,7 +1002,7 @@ impl Program {
       (var_tuple, false)
     } else if let Some(agg_group_by_attr) = rel.attributes.aggregate_group_by_attr() {
       let num_group_by = agg_group_by_attr.num_join_group_by_vars;
-      let var_args = head.variable_args().cloned().collect::<Vec<_>>();
+      let var_args = head.variable_args().into_iter().cloned().collect::<Vec<_>>();
       let joined = VariableTuple::from_vars((&var_args[..num_group_by]).into_iter().cloned(), true);
       let others = VariableTuple::from_vars((&var_args[num_group_by..]).into_iter().cloned(), true);
 
@@ -956,24 +1014,23 @@ impl Program {
       let top = head
         .args
         .iter()
-        .filter_map(|arg| {
-          let v = match arg {
-            Term::Variable(v) => v.clone(),
-            _ => {
-              need_projection = true;
-              return None;
-            }
-          };
-          Some(VariableTuple::Value(v))
+        .filter_map(|arg| match arg {
+          Term::Variable(v) => {
+            Some(VariableTuple::Value(v.clone()))
+          },
+          _ => {
+            need_projection = true;
+            None
+          }
         })
         .collect();
       (VariableTuple::Tuple(top), need_projection)
     }
   }
 
-  pub fn projection_to_head(&self, var_tuple: &VariableTuple, head: &Head) -> Expr {
+  pub fn projection_to_atom_head(&self, var_tuple: &VariableTuple, head_atom: &Atom) -> Expr {
     Expr::Tuple(
-      head
+      head_atom
         .args
         .iter()
         .map(|a| match a {

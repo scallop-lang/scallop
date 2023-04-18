@@ -41,6 +41,8 @@ impl NodeVisitor for HiddenRelationAnalysis {
   }
 
   fn visit_rule_decl(&mut self, rule_decl: &RuleDecl) {
-    self.process_attributes(rule_decl.rule().head().predicate(), rule_decl.attributes())
+    for predicate in rule_decl.rule().head().iter_predicates() {
+      self.process_attributes(predicate, rule_decl.attributes())
+    }
   }
 }

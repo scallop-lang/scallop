@@ -297,6 +297,32 @@ impl ast::Dataflow {
         let ty = tuple_type_to_rs_type(tuple_type);
         quote! { iter.unit::<#ty>(iter.is_first_iteration()) }
       }
+      Self::UntaggedVec(_) => unimplemented!(),
+      Self::Relation(r) => {
+        let rel_ident = relation_name_to_rs_field_name(r);
+        let stratum_id = rel_to_strat_map[r];
+        if stratum_id == curr_strat_id {
+          quote! { &#rel_ident }
+        } else {
+          let stratum_result = format_ident!("stratum_{}_result", stratum_id);
+          quote! { dataflow::collection(&#stratum_result.#rel_ident, iter.is_first_iteration()) }
+        }
+      }
+      Self::Project(d1, expr) => {
+        let rs_d1 = d1.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
+        let rs_expr = expr_to_rs_expr(expr);
+        quote! { dataflow::project(#rs_d1, |t| #rs_expr) }
+      }
+      Self::Filter(d1, expr) => {
+        let rs_d1 = d1.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
+        let rs_expr = expr_to_rs_expr(expr);
+        quote! { dataflow::filter(#rs_d1, |t| #rs_expr) }
+      }
+      Self::Find(d1, tuple) => {
+        let rs_d1 = d1.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
+        let rs_tuple = tuple_to_rs_tuple(tuple);
+        quote! { dataflow::find(#rs_d1, #rs_tuple) }
+      }
       Self::Union(d1, d2) => {
         let rs_d1 = d1.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
         let rs_d2 = d2.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
@@ -327,28 +353,6 @@ impl ast::Dataflow {
         let rs_d2 = d2.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
         quote! { iter.difference(#rs_d1, #rs_d2) }
       }
-      Self::Project(d1, expr) => {
-        let rs_d1 = d1.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
-        let rs_expr = expr_to_rs_expr(expr);
-        quote! { dataflow::project(#rs_d1, |t| #rs_expr) }
-      }
-      Self::Filter(d1, expr) => {
-        let rs_d1 = d1.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
-        let rs_expr = expr_to_rs_expr(expr);
-        quote! { dataflow::filter(#rs_d1, |t| #rs_expr) }
-      }
-      Self::Find(d1, tuple) => {
-        let rs_d1 = d1.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
-        let rs_tuple = tuple_to_rs_tuple(tuple);
-        quote! { dataflow::find(#rs_d1, #rs_tuple) }
-      }
-      Self::OverwriteOne(d1) => {
-        let rs_d1 = d1.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
-        quote! { dataflow::overwrite_one(#rs_d1) }
-      }
-      Self::ForeignPredicateGround(_, _) => unimplemented!(),
-      Self::ForeignPredicateConstraint(_, _, _) => unimplemented!(),
-      Self::ForeignPredicateJoin(_, _, _) => unimplemented!(),
       Self::Reduce(r) => {
         let get_col = |r| {
           let rel_ident = relation_name_to_rs_field_name(r);
@@ -388,16 +392,14 @@ impl ast::Dataflow {
           }
         }
       }
-      Self::Relation(r) => {
-        let rel_ident = relation_name_to_rs_field_name(r);
-        let stratum_id = rel_to_strat_map[r];
-        if stratum_id == curr_strat_id {
-          quote! { &#rel_ident }
-        } else {
-          let stratum_result = format_ident!("stratum_{}_result", stratum_id);
-          quote! { dataflow::collection(&#stratum_result.#rel_ident, iter.is_first_iteration()) }
-        }
+      Self::OverwriteOne(d1) => {
+        let rs_d1 = d1.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
+        quote! { dataflow::overwrite_one(#rs_d1) }
       }
+      Self::Exclusion(_, _) => unimplemented!(),
+      Self::ForeignPredicateGround(_, _) => unimplemented!(),
+      Self::ForeignPredicateConstraint(_, _, _) => unimplemented!(),
+      Self::ForeignPredicateJoin(_, _, _) => unimplemented!(),
     }
   }
 }

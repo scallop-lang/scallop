@@ -85,7 +85,7 @@ fn transform_on_demand_rule(rule: &Rule, adornment: &Adornment) -> Rule {
   // Create demand atom
   let demand_atom = Atom {
     predicate: adornment.demand_predicate.clone(),
-    args: adornment.pattern.get_bounded_args(&rule.head.args),
+    args: adornment.pattern.get_bounded_args(&rule.head.get_atom().unwrap().args),
   };
 
   // Append it to the new rule
@@ -169,10 +169,7 @@ fn generate_demand_rule(base: &Vec<Literal>, goal: &Atom, adm: &Adornment) -> Op
   } else {
     let rule = Rule {
       attributes: Attributes::new(),
-      head: Head {
-        predicate: adm.demand_predicate.clone(),
-        args: adm.pattern.get_bounded_args(&goal.args),
-      },
+      head: Head::atom(adm.demand_predicate.clone(), adm.pattern.get_bounded_args(&goal.args)),
       body: Conjunction { args: base },
     };
     Some(rule)

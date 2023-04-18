@@ -320,6 +320,24 @@ impl Display for Rule {
   }
 }
 
+impl Display for RuleHead {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    match &self.node {
+      RuleHeadNode::Atom(a) => a.fmt(f),
+      RuleHeadNode::Disjunction(d) => {
+        f.write_str("{")?;
+        for (i, a) in d.iter().enumerate() {
+          if i > 0 {
+            f.write_str(", ")?;
+          }
+          a.fmt(f)?;
+        }
+        f.write_str("}")
+      },
+    }
+  }
+}
+
 impl Display for Formula {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     match self {
@@ -414,6 +432,9 @@ impl Display for Reduce {
 
 impl Display for ForallExistsReduce {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    if self.is_negated() {
+      f.write_str("not ")?;
+    }
     self.operator().fmt(f)?;
     f.write_fmt(format_args!(
       "({}: {})",

@@ -28,7 +28,7 @@ impl NodeVisitorMut for TransformNonConstantFactToRule {
 
     // Transform this into a rule. First generate the head atom:
     // all the non-constant arguments will be replaced by a variable
-    let head: Atom = AtomNode {
+    let head_atom: Atom = AtomNode {
       predicate: head.node.predicate.clone(),
       args: head
         .iter_arguments()
@@ -45,6 +45,7 @@ impl NodeVisitorMut for TransformNonConstantFactToRule {
         .collect(),
     }
     .into();
+    let head: RuleHead = head_atom.into();
 
     // For each non-constant variable, we create a equality constraint
     let eq_consts = non_const_var_expr_pairs

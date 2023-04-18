@@ -26,6 +26,9 @@ impl NodeVisitorMut for DesugarForallExists {
   fn visit_formula(&mut self, formula: &mut Formula) {
     match formula {
       Formula::ForallExistsReduce(r) => {
+        // Get the goal
+        let goal = !r.is_negated();
+
         // Generate a boolean variable
         let boolean_var_name = format!("r#desugar#{}", r.loc.id.unwrap());
         let boolean_var_identifier: Identifier = IdentifierNode::new(boolean_var_name).into();
@@ -49,7 +52,7 @@ impl NodeVisitorMut for DesugarForallExists {
         let constraint = Constraint::default_with_expr(Expr::binary(
           BinaryOp::default_eq(),
           Expr::Variable(boolean_var.clone()),
-          Expr::boolean_true(),
+          Expr::boolean(goal),
         ));
         let constraint_formula = Formula::Constraint(constraint);
 

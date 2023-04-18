@@ -55,7 +55,7 @@ impl NodeVisitorMut for TransformAtomicQuery {
           args: vec![vec![Formula::Atom(body_atom.into())], eq_constraints].concat(),
         };
         let rule = RuleNode {
-          head: head_atom.into(),
+          head: Atom::default(head_atom).into(),
           body: Formula::Conjunction(conj.into()),
         };
         self.to_add_rules.push(rule.into());

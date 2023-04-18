@@ -7,8 +7,8 @@ use scallop_core::testing::*;
 
 #[test]
 fn test_dynamic_aggregate_count_1() {
-  let mut ctx = unit::UnitProvenance::default();
-  let mut rt = RuntimeEnvironment::default();
+  let ctx = unit::UnitProvenance::default();
+  let rt = RuntimeEnvironment::default();
 
   // Relations
   let mut source_1 = DynamicRelation::<unit::UnitProvenance>::new();
@@ -16,15 +16,15 @@ fn test_dynamic_aggregate_count_1() {
   let mut target = DynamicRelation::<unit::UnitProvenance>::new();
 
   // Initial
-  source_1.insert_untagged(&mut ctx, vec![(0i8, 1i8), (1i8, 2i8), (3i8, 4i8), (3i8, 5i8)]);
-  source_2.insert_untagged(&mut ctx, vec![(1i8, 1i8), (1i8, 2i8), (3i8, 5i8)]);
+  source_1.insert_untagged(&ctx, vec![(0i8, 1i8), (1i8, 2i8), (3i8, 4i8), (3i8, 5i8)]);
+  source_2.insert_untagged(&ctx, vec![(1i8, 1i8), (1i8, 2i8), (3i8, 5i8)]);
 
   // Iterate until fixpoint
   while source_1.changed(&ctx) || source_2.changed(&ctx) || target.changed(&ctx) {
     target.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::from(&source_1).intersect(DynamicDataflow::from(&source_2), &ctx),
-      &mut rt,
+      &rt,
     )
   }
 
@@ -41,7 +41,7 @@ fn test_dynamic_aggregate_count_1() {
         &ctx,
       )
       .into(),
-      &mut rt,
+      &rt,
     );
     first_time = false;
   }

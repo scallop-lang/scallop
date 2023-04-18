@@ -30,7 +30,7 @@ impl<'a> QueryPlanContext<'a> {
   ) -> Self {
     // First create an empty context
     let mut ctx = Self {
-      head_vars: rule.head.variable_args().cloned().collect(),
+      head_vars: rule.head.variable_args().into_iter().cloned().collect(),
       reduces: vec![],
       pos_atoms: vec![],
       neg_atoms: vec![],

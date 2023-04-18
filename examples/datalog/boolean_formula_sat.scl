@@ -1,0 +1,21 @@
+// Each variable could be assigned either true or false, but not both
+rel { assign(x, true); assign(x, false) } = vars(x)
+
+// There are two variables of interest, A and B
+rel vars = {"A", "B"}
+
+// (A /\ ~A) \/ (B /\ ~B)
+rel bf_var = {(1, "A"), (2, "A"), (3, "B"), (4, "B")}
+rel bf_not = {(5, 2), (6, 4)}
+rel bf_and = {(7, 1, 5), (8, 3, 6)}
+rel bf_or = {(9, 7, 8)}
+rel bf_root = {9}
+
+// Evaluation the formula to see if it is satisfiable
+rel eval_bf(bf, r) :- bf_var(bf, v), assign(v, r)
+rel eval_bf(bf, !r) :- bf_not(bf, c), eval_bf(c, r)
+rel eval_bf(bf, lr && rr) :- bf_and(bf, lbf, rbf), eval_bf(lbf, lr), eval_bf(rbf, rr)
+rel eval_bf(bf, lr || rr) :- bf_or(bf, lbf, rbf), eval_bf(lbf, lr), eval_bf(rbf, rr)
+rel eval(r) :- bf_root(bf), eval_bf(bf, r)
+
+query eval

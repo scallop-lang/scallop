@@ -159,10 +159,7 @@ pub fn constant_prop(rule: &mut Rule) {
     }
 
     // Apply substitution to the head
-    let new_head = Head {
-      predicate: rule.head.predicate.clone(),
-      args: rule.head.args.iter().map(substitute_term).collect(),
-    };
+    let new_head = rule.head.substitute(substitute_term);
 
     // Update the rule
     rule.body.args = new_literals;

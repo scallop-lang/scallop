@@ -1,5 +1,6 @@
 mod dyn_aggregate;
 mod dyn_difference;
+mod dyn_exclusion;
 mod dyn_filter;
 mod dyn_find;
 mod dyn_foreign_predicate;

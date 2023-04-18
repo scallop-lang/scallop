@@ -6,6 +6,7 @@ use super::type_inference;
 #[derive(Clone, Debug)]
 pub struct DemandAttributeAnalysis {
   pub demand_attrs: HashMap<String, (String, AstNodeLocation)>,
+  pub disjunctive_predicates: HashSet<String>,
   pub errors: Vec<DemandAttributeError>,
 }
 
@@ -13,6 +14,7 @@ impl DemandAttributeAnalysis {
   pub fn new() -> Self {
     Self {
       demand_attrs: HashMap::new(),
+      disjunctive_predicates: HashSet::new(),
       errors: Vec::new(),
     }
   }
@@ -35,7 +37,27 @@ impl DemandAttributeAnalysis {
     }
   }
 
+  pub fn set_disjunctive(&mut self, pred: &String, loc: &AstNodeLocation) {
+    if self.demand_attrs.contains_key(pred) {
+      self.errors.push(DemandAttributeError::DisjunctivePredicateWithDemandAttribute {
+        pred: pred.clone(),
+        loc: loc.clone(),
+      });
+    } else {
+      self.disjunctive_predicates.insert(pred.clone());
+    }
+  }
+
   pub fn process_attribute(&mut self, pred: &str, attr: &Attribute) {
+    // Check if the predicate occurs in a disjunctive head
+    if self.disjunctive_predicates.contains(pred) {
+      self.errors.push(DemandAttributeError::DisjunctivePredicateWithDemandAttribute {
+        pred: pred.to_string(),
+        loc: attr.location().clone(),
+      });
+    }
+
+    // Check the pattern
     if attr.name() == "demand" {
       if attr.num_pos_args() == 1 {
         let value = attr.pos_arg(0).unwrap();
@@ -89,7 +111,17 @@ impl NodeVisitor for DemandAttributeAnalysis {
   }
 
   fn visit_rule_decl(&mut self, rule_decl: &ast::RuleDecl) {
-    self.process_attributes(rule_decl.rule().head().predicate(), rule_decl.attributes());
+    if rule_decl.rule().head().is_disjunction() {
+      for predicate in rule_decl.rule().head().iter_predicates() {
+        self.set_disjunctive(predicate, rule_decl.rule().head().location());
+        return; // early stopping because this is an error
+      }
+    }
+
+    // Otherwise, we add the demand attribute
+    if let Some(atom) = rule_decl.rule().head().atom() {
+      self.process_attributes(atom.predicate(), rule_decl.attributes());
+    }
   }
 }
 
@@ -119,6 +151,10 @@ pub enum DemandAttributeError {
     loc: AstNodeLocation,
   },
   InvalidPattern {
+    loc: AstNodeLocation,
+  },
+  DisjunctivePredicateWithDemandAttribute {
+    pred: String,
     loc: AstNodeLocation,
   },
 }
@@ -172,6 +208,9 @@ impl FrontCompileErrorTrait for DemandAttributeError {
       }
       Self::InvalidPattern { loc } => {
         format!("Invalid demand pattern\n{}", loc.report(src))
+      }
+      Self::DisjunctivePredicateWithDemandAttribute { pred, loc } => {
+        format!("The predicate `{}` being annotated by `demand` but occurs in a disjunctive rule head\n{}", pred, loc.report(src))
       }
     }
   }

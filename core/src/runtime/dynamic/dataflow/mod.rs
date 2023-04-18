@@ -5,6 +5,7 @@ mod utils;
 mod antijoin;
 mod difference;
 mod dynamic_collection;
+mod dynamic_exclusion;
 mod dynamic_dataflow;
 mod dynamic_relation;
 mod filter;
@@ -18,6 +19,7 @@ mod project;
 mod static_relation;
 mod union;
 mod unit;
+mod untagged_vec;
 
 // Imports
 use crate::runtime::dynamic::*;
@@ -33,6 +35,7 @@ use antijoin::*;
 use difference::*;
 use dynamic_collection::*;
 pub use dynamic_dataflow::*;
+use dynamic_exclusion::*;
 use dynamic_relation::*;
 use filter::*;
 use find::*;
@@ -44,3 +47,4 @@ use product::*;
 use project::*;
 use union::*;
 use unit::*;
+use untagged_vec::*;

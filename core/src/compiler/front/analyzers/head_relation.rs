@@ -53,7 +53,9 @@ impl NodeVisitor for HeadRelationAnalysis {
   }
 
   fn visit_rule(&mut self, rd: &ast::Rule) {
-    self.declared_relations.insert(rd.head().predicate().to_string());
+    for predicate in rd.head().iter_predicates() {
+      self.declared_relations.insert(predicate.to_string());
+    }
   }
 
   fn visit_query(&mut self, qd: &ast::Query) {

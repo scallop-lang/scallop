@@ -35,6 +35,7 @@ pub trait NodeVisitorMut {
   node_visitor_mut_func_def!(visit_query, Query);
   node_visitor_mut_func_def!(visit_tag, Tag);
   node_visitor_mut_func_def!(visit_rule, Rule);
+  node_visitor_mut_func_def!(visit_rule_head, RuleHead);
   node_visitor_mut_func_def!(visit_atom, Atom);
   node_visitor_mut_func_def!(visit_neg_atom, NegAtom);
   node_visitor_mut_func_def!(visit_attribute, Attribute);
@@ -263,8 +264,21 @@ pub trait NodeVisitorMut {
   fn walk_rule(&mut self, rule: &mut Rule) {
     self.visit_rule(rule);
     self.visit_location(&mut rule.loc);
-    self.walk_atom(&mut rule.node.head);
+    self.walk_rule_head(&mut rule.node.head);
     self.walk_formula(&mut rule.node.body);
+  }
+
+  fn walk_rule_head(&mut self, rule_head: &mut RuleHead) {
+    self.visit_rule_head(rule_head);
+    self.visit_location(rule_head.location_mut());
+    match &mut rule_head.node {
+      RuleHeadNode::Atom(a) => self.walk_atom(a),
+      RuleHeadNode::Disjunction(d) => {
+        for atom in d {
+          self.walk_atom(atom);
+        }
+      },
+    }
   }
 
   fn walk_formula(&mut self, formula: &mut Formula) {
@@ -526,6 +540,7 @@ macro_rules! impl_node_visitor_mut_tuple {
       node_visitor_mut_visit_node!(visit_query, Query, ($($id),*));
       node_visitor_mut_visit_node!(visit_tag, Tag, ($($id),*));
       node_visitor_mut_visit_node!(visit_rule, Rule, ($($id),*));
+      node_visitor_mut_visit_node!(visit_rule_head, RuleHead, ($($id),*));
       node_visitor_mut_visit_node!(visit_atom, Atom, ($($id),*));
       node_visitor_mut_visit_node!(visit_neg_atom, NegAtom, ($($id),*));
       node_visitor_mut_visit_node!(visit_attribute, Attribute, ($($id),*));

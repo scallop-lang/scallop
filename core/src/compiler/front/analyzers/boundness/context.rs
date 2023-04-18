@@ -13,7 +13,7 @@ pub struct RuleContext {
 
 impl RuleContext {
   pub fn from_rule(rule: &Rule) -> Self {
-    let head_vars = collect_vars_in_atom(rule.head());
+    let head_vars = collect_vars_in_head(rule.head());
     let body = DisjunctionContext::from_formula(rule.body());
     Self { head_vars, body }
   }
@@ -288,6 +288,13 @@ impl AggregationContext {
     bounded.extend(self.arg_vars.iter().map(|v| v.name().to_string()));
 
     Ok(bounded)
+  }
+}
+
+fn collect_vars_in_head(head: &RuleHead) -> Vec<(String, Loc)> {
+  match &head.node {
+    RuleHeadNode::Atom(atom) => collect_vars_in_atom(atom),
+    RuleHeadNode::Disjunction(d) => d.iter().map(collect_vars_in_atom).flatten().collect(),
   }
 }
 

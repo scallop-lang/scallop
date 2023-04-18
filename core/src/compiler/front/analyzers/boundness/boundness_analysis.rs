@@ -38,13 +38,16 @@ impl BoundnessAnalysis {
       if !*inferred {
         // Make sure the demand attribute is affecting boundness analysis,
         // through some of the head expressions being bounded
-        let bounded_exprs = if let Some((pattern, _)) = demand_attrs.get(rule.head().predicate()) {
-          rule
-            .head()
-            .iter_arguments()
-            .zip(pattern.chars())
-            .filter_map(|(a, b)| if b == 'b' { Some(a.clone()) } else { None })
-            .collect()
+        let bounded_exprs = if let Some(head_atom) = rule.head().atom() {
+          if let Some((pattern, _)) = demand_attrs.get(head_atom.predicate()) {
+            head_atom
+              .iter_arguments()
+              .zip(pattern.chars())
+              .filter_map(|(a, b)| if b == 'b' { Some(a.clone()) } else { None })
+              .collect()
+          } else {
+            vec![]
+          }
         } else {
           vec![]
         };

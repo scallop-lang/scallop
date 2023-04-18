@@ -1,30 +1,24 @@
-name: Rust
+name: Cargo Build & Test
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ master ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ master ]
 
-env:
+
+env: 
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  build_and_test:
+    name: Rust project - latest
     runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        toolchain:
+          - nightly
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions-rs/toolchain@v1
-      with:
-          toolchain: ${{ steps.component.outputs.toolchain }}
-          override: true
-    - id: component
-      uses: actions-rs/components-nightly@v1
-      with:
-        component: clippy
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@v3
+      - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
+      - run: cargo test --verbose --release

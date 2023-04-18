@@ -68,7 +68,8 @@ impl Update {
 impl Dataflow {
   fn collect_dependency(&self, preds: &mut HashSet<String>) {
     match self {
-      Self::Unit(_) => {}
+      Self::Unit(_)
+      | Self::UntaggedVec(_) => {}
       Self::Relation(r) => {
         preds.insert(r.clone());
       }
@@ -79,6 +80,9 @@ impl Dataflow {
         }
       }
       Self::OverwriteOne(d) => {
+        d.collect_dependency(preds);
+      }
+      Self::Exclusion(d, _) => {
         d.collect_dependency(preds);
       }
       Self::Find(d, _) => {

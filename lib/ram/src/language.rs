@@ -57,6 +57,8 @@ pub fn ram_rewrite_rules() -> Vec<Rewrite<Ram, ()>> {
     rw!("filter-true"; "(filter ?d true)" => "?d"),
     rw!("filter-false"; "(filter ?d false)" => "empty"),
     rw!("project-cascade"; "(project (project ?d ?a) ?b)" => "(project ?d (apply ?b ?a))"),
+    rw!("product-transpose"; "(product ?a ?b)" => "(project (product ?b ?a) (cons (cons 1 nil) (cons (cons 0 nil) nil))))"),
+    rw!("join-transpose"; "(join ?a ?b)" => "(project (join ?b ?a) (cons (cons 2 nil) (cons (cons 1 nil) nil))))"),
 
     // Tuple level application rewrites
     rw!("access-nil"; "(apply nil ?a)" => "?a"),
@@ -109,10 +111,15 @@ impl CostFunction<Ram> for RamCostFunction {
     C: FnMut(Id) -> Self::Cost
   {
     let op_cost = match enode {
+      Ram::Empty => 0,
       Ram::Filter(_) => 100,
       Ram::Project(_) => 100,
-      Ram::Sorted(_) => 100,
+      Ram::Product(_) => 100,
+      Ram::Join(_) => 100,
+      Ram::Sorted(_) => 500,
       Ram::Apply(_) => 10,
+      Ram::Cons(_) => 0,
+      Ram::Nil => 0,
       _ => 1,
     };
     enode.fold(op_cost, |sum, id| sum + costs(id))

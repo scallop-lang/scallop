@@ -1,3 +1,5 @@
+use std::iter::FromIterator;
+
 use super::binary_op::BinaryOp;
 use super::tuple_access::TupleAccessor;
 use super::unary_op::UnaryOp;
@@ -229,6 +231,12 @@ where
 {
   fn from((a, b, c, d): (A, B, C, D)) -> Self {
     Expr::Tuple(vec![a.into(), b.into(), c.into(), d.into()])
+  }
+}
+
+impl FromIterator<Expr> for Expr {
+  fn from_iter<I: IntoIterator<Item = Expr>>(iter: I) -> Self {
+    Expr::Tuple(iter.into_iter().collect())
   }
 }
 

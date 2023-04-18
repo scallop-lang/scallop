@@ -71,8 +71,64 @@ impl Dataflow {
     let next_indent = base_indent + indent_size;
     let padding = vec![' '; next_indent].into_iter().collect::<String>();
     match self {
+      // Base relations
       Self::Unit(t) => f.write_fmt(format_args!("Unit({})", t)),
+      Self::UntaggedVec(v) => f.write_fmt(format_args!("Vec([{}])", v.iter().map(|t| format!("{}", t)).collect::<Vec<_>>().join(", "))),
       Self::Relation(r) => f.write_fmt(format_args!("Relation {}", r)),
+
+      // Unary operations
+      Self::Project(d, project) => {
+        f.write_fmt(format_args!("Project[{:?}]\n{}", project, padding))?;
+        d.pretty_print(f, next_indent, indent_size)
+      }
+      Self::Filter(d, filter) => {
+        f.write_fmt(format_args!("Filter[{:?}]\n{}", filter, padding))?;
+        d.pretty_print(f, next_indent, indent_size)
+      }
+      Self::Find(d, tuple) => {
+        f.write_fmt(format_args!("Find[{}]\n{}", tuple, padding))?;
+        d.pretty_print(f, next_indent, indent_size)
+      }
+
+      // Binary operations
+      Self::Union(d1, d2) => {
+        f.write_fmt(format_args!("Union\n{}", padding))?;
+        d1.pretty_print(f, next_indent, indent_size)?;
+        f.write_fmt(format_args!("\n{}", padding))?;
+        d2.pretty_print(f, next_indent, indent_size)
+      }
+      Self::Join(d1, d2) => {
+        f.write_fmt(format_args!("Join\n{}", padding))?;
+        d1.pretty_print(f, next_indent, indent_size)?;
+        f.write_fmt(format_args!("\n{}", padding))?;
+        d2.pretty_print(f, next_indent, indent_size)
+      }
+      Self::Intersect(d1, d2) => {
+        f.write_fmt(format_args!("Intersect\n{}", padding))?;
+        d1.pretty_print(f, next_indent, indent_size)?;
+        f.write_fmt(format_args!("\n{}", padding))?;
+        d2.pretty_print(f, next_indent, indent_size)
+      }
+      Self::Product(d1, d2) => {
+        f.write_fmt(format_args!("Product\n{}", padding))?;
+        d1.pretty_print(f, next_indent, indent_size)?;
+        f.write_fmt(format_args!("\n{}", padding))?;
+        d2.pretty_print(f, next_indent, indent_size)
+      }
+      Self::Antijoin(d1, d2) => {
+        f.write_fmt(format_args!("Antijoin\n{}", padding))?;
+        d1.pretty_print(f, next_indent, indent_size)?;
+        f.write_fmt(format_args!("\n{}", padding))?;
+        d2.pretty_print(f, next_indent, indent_size)
+      }
+      Self::Difference(d1, d2) => {
+        f.write_fmt(format_args!("Difference\n{}", padding))?;
+        d1.pretty_print(f, next_indent, indent_size)?;
+        f.write_fmt(format_args!("\n{}", padding))?;
+        d2.pretty_print(f, next_indent, indent_size)
+      }
+
+      // Aggregation
       Self::Reduce(r) => {
         let group_by_predicate = match &r.group_by {
           ReduceGroupByType::Join(group_by_predicate) => format!(" where {}", group_by_predicate),
@@ -84,6 +140,18 @@ impl Dataflow {
           r.op, r.predicate, group_by_predicate
         ))
       }
+
+      Self::OverwriteOne(d) => {
+        f.write_fmt(format_args!("OverwriteOne\n{}", padding))?;
+        d.pretty_print(f, next_indent, indent_size)
+      }
+      Self::Exclusion(d1, d2) => {
+        f.write_fmt(format_args!("Exclusion\n{}", padding))?;
+        d1.pretty_print(f, next_indent, indent_size)?;
+        f.write_fmt(format_args!("\n{}", padding))?;
+        d2.pretty_print(f, next_indent, indent_size)
+      }
+
       Self::ForeignPredicateGround(pred, args) => {
         let args = args.iter().map(|a| format!("{:?}", a)).collect::<Vec<_>>();
         f.write_fmt(format_args!("ForeignPredicateGround[{}({})]", pred, args.join(", ")))
@@ -97,58 +165,6 @@ impl Dataflow {
         let args = args.iter().map(|a| format!("{:?}", a)).collect::<Vec<_>>();
         f.write_fmt(format_args!("ForeignPredicateJoin[{}({})]\n{}", pred, args.join(", "), padding))?;
         d.pretty_print(f, next_indent, indent_size)
-      }
-      Self::OverwriteOne(d) => {
-        f.write_fmt(format_args!("OverwriteOne\n{}", padding))?;
-        d.pretty_print(f, next_indent, indent_size)
-      }
-      Self::Find(d, tuple) => {
-        f.write_fmt(format_args!("Find[{}]\n{}", tuple, padding))?;
-        d.pretty_print(f, next_indent, indent_size)
-      }
-      Self::Filter(d, filter) => {
-        f.write_fmt(format_args!("Filter[{:?}]\n{}", filter, padding))?;
-        d.pretty_print(f, next_indent, indent_size)
-      }
-      Self::Project(d, project) => {
-        f.write_fmt(format_args!("Project[{:?}]\n{}", project, padding))?;
-        d.pretty_print(f, next_indent, indent_size)
-      }
-      Self::Difference(d1, d2) => {
-        f.write_fmt(format_args!("Difference\n{}", padding))?;
-        d1.pretty_print(f, next_indent, indent_size)?;
-        f.write_fmt(format_args!("\n{}", padding))?;
-        d2.pretty_print(f, next_indent, indent_size)
-      }
-      Self::Antijoin(d1, d2) => {
-        f.write_fmt(format_args!("Antijoin\n{}", padding))?;
-        d1.pretty_print(f, next_indent, indent_size)?;
-        f.write_fmt(format_args!("\n{}", padding))?;
-        d2.pretty_print(f, next_indent, indent_size)
-      }
-      Self::Product(d1, d2) => {
-        f.write_fmt(format_args!("Product\n{}", padding))?;
-        d1.pretty_print(f, next_indent, indent_size)?;
-        f.write_fmt(format_args!("\n{}", padding))?;
-        d2.pretty_print(f, next_indent, indent_size)
-      }
-      Self::Intersect(d1, d2) => {
-        f.write_fmt(format_args!("Intersect\n{}", padding))?;
-        d1.pretty_print(f, next_indent, indent_size)?;
-        f.write_fmt(format_args!("\n{}", padding))?;
-        d2.pretty_print(f, next_indent, indent_size)
-      }
-      Self::Join(d1, d2) => {
-        f.write_fmt(format_args!("Join\n{}", padding))?;
-        d1.pretty_print(f, next_indent, indent_size)?;
-        f.write_fmt(format_args!("\n{}", padding))?;
-        d2.pretty_print(f, next_indent, indent_size)
-      }
-      Self::Union(d1, d2) => {
-        f.write_fmt(format_args!("Union\n{}", padding))?;
-        d1.pretty_print(f, next_indent, indent_size)?;
-        f.write_fmt(format_args!("\n{}", padding))?;
-        d2.pretty_print(f, next_indent, indent_size)
       }
     }
   }

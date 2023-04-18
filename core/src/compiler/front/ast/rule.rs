@@ -3,12 +3,12 @@ use super::*;
 #[derive(Clone, Debug, PartialEq)]
 #[doc(hidden)]
 pub struct RuleNode {
-  pub head: Atom,
+  pub head: RuleHead,
   pub body: Formula,
 }
 
 impl RuleNode {
-  pub fn new(head: Atom, body: Formula) -> Self {
+  pub fn new(head: RuleHead, body: Formula) -> Self {
     Self { head, body }
   }
 }
@@ -16,7 +16,7 @@ impl RuleNode {
 pub type Rule = AstNode<RuleNode>;
 
 impl Rule {
-  pub fn head(&self) -> &Atom {
+  pub fn head(&self) -> &RuleHead {
     &self.node.head
   }
 
@@ -38,5 +38,61 @@ impl Into<Vec<Item>> for Rule {
       )
       .into(),
     )]
+  }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
+pub enum RuleHeadNode {
+  Atom(Atom),
+  Disjunction(Vec<Atom>),
+}
+
+pub type RuleHead = AstNode<RuleHeadNode>;
+
+impl RuleHead {
+  pub fn is_atomic(&self) -> bool {
+    match &self.node {
+      RuleHeadNode::Atom(_) => true,
+      RuleHeadNode::Disjunction(_) => false,
+    }
+  }
+
+  pub fn is_disjunction(&self) -> bool {
+    match &self.node {
+      RuleHeadNode::Atom(_) => false,
+      RuleHeadNode::Disjunction(_) => true,
+    }
+  }
+
+  pub fn atom(&self) -> Option<&Atom> {
+    match &self.node {
+      RuleHeadNode::Atom(atom) => Some(atom),
+      RuleHeadNode::Disjunction(_) => None,
+    }
+  }
+
+  pub fn iter_predicates(&self) -> Vec<&String> {
+    match &self.node {
+      RuleHeadNode::Atom(atom) => vec![atom.predicate()],
+      RuleHeadNode::Disjunction(atoms) => atoms.iter().map(|atom| atom.predicate()).collect(),
+    }
+  }
+
+  pub fn iter_arguments(&self) -> Vec<&Expr> {
+    match &self.node {
+      RuleHeadNode::Atom(atom) => atom.iter_arguments().collect(),
+      RuleHeadNode::Disjunction(atoms) => atoms
+        .iter()
+        .flat_map(|atom| atom.iter_arguments())
+        .collect(),
+    }
+  }
+}
+
+impl From<Atom> for RuleHead {
+  fn from(atom: Atom) -> Self {
+    let loc = atom.location().clone_without_id();
+    Self::new(loc, RuleHeadNode::Atom(atom))
   }
 }

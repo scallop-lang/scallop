@@ -57,11 +57,13 @@ fn project_cascade_on_dataflow(d0: &mut Dataflow) -> bool {
     Dataflow::Filter(d, _) => project_cascade_on_dataflow(&mut **d),
     Dataflow::Find(d, _) => project_cascade_on_dataflow(&mut **d),
     Dataflow::OverwriteOne(d) => project_cascade_on_dataflow(&mut **d),
+    Dataflow::Exclusion(d, _) => project_cascade_on_dataflow(&mut **d),
     Dataflow::ForeignPredicateConstraint(d, _, _) => project_cascade_on_dataflow(&mut **d),
     Dataflow::ForeignPredicateJoin(d, _, _) => project_cascade_on_dataflow(&mut **d),
     Dataflow::ForeignPredicateGround(_, _)
     | Dataflow::Unit(_)
     | Dataflow::Relation(_)
-    | Dataflow::Reduce(_) => false,
+    | Dataflow::Reduce(_)
+    | Dataflow::UntaggedVec(_) => false,
   }
 }

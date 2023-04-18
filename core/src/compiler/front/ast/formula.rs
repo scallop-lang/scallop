@@ -337,6 +337,7 @@ impl ReduceOperator {
 #[derive(Clone, Debug, PartialEq)]
 #[doc(hidden)]
 pub struct ForallExistsReduceNode {
+  pub negate: bool,
   pub operator: ReduceOperator,
   pub bindings: Vec<VariableBinding>,
   pub body: Box<Formula>,
@@ -348,6 +349,10 @@ pub struct ForallExistsReduceNode {
 pub type ForallExistsReduce = AstNode<ForallExistsReduceNode>;
 
 impl ForallExistsReduce {
+  pub fn is_negated(&self) -> bool {
+    self.node.negate
+  }
+
   pub fn operator(&self) -> &ReduceOperator {
     &self.node.operator
   }

@@ -47,6 +47,7 @@ impl std::hash::Hash for AstNodeLocation {
 }
 
 impl AstNodeLocation {
+  /// When cloning a location, we want to keep everything but not the id.
   pub fn clone_without_id(&self) -> Self {
     Self {
       offset_span: self.offset_span.clone(),
@@ -56,6 +57,7 @@ impl AstNodeLocation {
     }
   }
 
+  /// Create a location from a single offset span.
   pub fn from_offset_span(start: usize, end: usize) -> Self {
     Self {
       offset_span: Span::new(start, end),
