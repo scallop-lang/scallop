@@ -1,6 +1,5 @@
 use crate::common::expr::*;
 use crate::common::foreign_predicate::*;
-use crate::common::input_tag::*;
 use crate::runtime::provenance::*;
 
 use super::*;

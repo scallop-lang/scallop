@@ -77,7 +77,7 @@ impl PythonProvenance for unit::UnitProvenance {
 impl PythonProvenance for proofs::ProofsProvenance<ArcFamily> {
   fn process_py_tag(disj_id: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let disj_id: usize = disj_id.extract()?;
-    Ok(Some(proofs::ProofsInputTag::Exclusive(disj_id)))
+    Ok(Some(Exclusion::Exclusive(disj_id)))
   }
 
   fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum<ArcFamily> {

@@ -2,6 +2,7 @@ import unittest
 
 from basics import *
 from configurations import *
+from convert import *
 from failure import *
 from forward import *
 from foreign_function import *

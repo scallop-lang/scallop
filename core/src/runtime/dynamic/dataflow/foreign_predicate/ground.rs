@@ -1,5 +1,4 @@
 use crate::common::foreign_predicate::*;
-use crate::common::input_tag::*;
 use crate::common::value::*;
 use crate::common::tuple::*;
 use crate::runtime::provenance::*;

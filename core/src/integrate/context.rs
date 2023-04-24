@@ -87,6 +87,23 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     }
   }
 
+  pub fn clone_with_new_provenance<Prov2: Provenance>(&self, new_prov: Prov2) -> IntegrateContext<Prov2, P>
+  where
+    Prov2::InputTag: ConvertFromInputTag<Prov::InputTag>,
+  {
+    IntegrateContext {
+      options: self.options.clone(),
+      front_ctx: self.front_ctx.clone(),
+      internal: InternalIntegrateContext {
+        prov_ctx: new_prov,
+        runtime_env: self.internal.runtime_env.clone(),
+        ram_program: self.internal.ram_program.clone(),
+        exec_ctx: self.internal.exec_ctx.clone_with_new_provenance::<Prov2>(),
+      },
+      front_has_changed: true,
+    }
+  }
+
   pub fn provenance_context(&self) -> &Prov {
     &self.internal.prov_ctx
   }

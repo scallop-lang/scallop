@@ -27,6 +27,12 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalDatabase<Prov, Ptr> {
     }
   }
 
+  /// Clone the intentional database into a new one with a different provenance.
+  /// The new database will be empty.
+  pub fn clone_with_new_provenance<Prov2: Provenance>(&self) -> IntentionalDatabase<Prov2, Ptr> {
+    IntentionalDatabase::new()
+  }
+
   /// Create an intentional database from dynamic collections
   pub fn from_dynamic_collections<I>(iter: I) -> Self
   where

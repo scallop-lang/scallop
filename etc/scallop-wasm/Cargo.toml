@@ -1,6 +1,6 @@
 [package]
 name = "scallop-wasm"
-version = "0.1.8"
+version = "0.1.9"
 authors = ["Ziyang Li"]
 edition = "2018"
 

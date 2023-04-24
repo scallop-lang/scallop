@@ -15,6 +15,13 @@ class InternalScallopContext:
 
   def clone(self) -> InternalScallopContext: ...
 
+  def clone_with_new_provenance(
+    self,
+    provenance: str,
+    custom_provenance: Any,
+    k: int,
+  ) -> InternalScallopContext: ...
+
   def set_non_incremental(self): ...
 
   def compile(self): ...

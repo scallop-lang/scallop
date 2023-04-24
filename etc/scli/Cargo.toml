@@ -1,9 +1,13 @@
 [package]
 name = "scli"
-version = "0.1.8"
+version = "0.1.9"
 authors = ["Ziyang Li <liby99@icloud.com>"]
 edition = "2018"
 
 [dependencies]
 scallop-core = { path = "../../core" }
 structopt = "0.3"
+
+[dev-dependencies]
+assert_cmd = "2.0.8"
+predicates = "2.1.5"

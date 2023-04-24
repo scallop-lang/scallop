@@ -138,7 +138,7 @@ class ScallopContext(Context):
       function = getattr(self, history_action.func_name)
       function(*history_action.pos_args, **history_action.kw_args)
 
-  def clone(self) -> ScallopContext:
+  def clone(self, provenance=None, k=None) -> ScallopContext:
     """
     Clone the current context. This is useful for incremental execution:
 
@@ -155,7 +155,23 @@ class ScallopContext(Context):
     In this example, `ctx2` and `ctx3` will be executed independently,
     but both could inherit the computation already done on `ctx`.
     """
-    return ScallopContext(fork_from=self)
+    if provenance is None:
+      # No provenance specified; just return a new context
+      return ScallopContext(fork_from=self)
+    else:
+      # Create a new context
+      new_ctx = ScallopContext(fork_from=self)
+
+      # Clone internal context; this process may fail if the provenance is not compatible
+      new_k = k if k is not None else self._k
+      new_ctx._internal = new_ctx._internal.clone_with_new_provenance(provenance, new_k)
+
+      # Update parameters related to provenance
+      new_ctx.provenance = provenance
+      new_ctx._k = k
+
+      # Return
+      return new_ctx
 
   def set_early_discard(self, early_discard: bool = True):
     """

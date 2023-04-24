@@ -1,4 +1,3 @@
-use crate::common::input_tag::*;
 use crate::runtime::dynamic::*;
 use crate::runtime::statics::*;
 
@@ -14,8 +13,6 @@ impl std::fmt::Display for Unit {
 }
 
 impl Tag for Unit {}
-
-impl StaticInputTag for () {}
 
 #[derive(Clone, Debug, Default)]
 pub struct UnitProvenance;

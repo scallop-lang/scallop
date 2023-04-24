@@ -7,7 +7,6 @@ use rand::prelude::*;
 use super::*;
 
 use crate::common::tuples::*;
-use crate::common::input_tag::*;
 use crate::common::value_type::*;
 use crate::runtime::dynamic::*;
 use crate::runtime::env::*;

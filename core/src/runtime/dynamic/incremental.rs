@@ -77,6 +77,18 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
     }
   }
 
+  pub fn clone_with_new_provenance<Prov2: Provenance>(&self) -> DynamicExecutionContext<Prov2, Ptr>
+  where
+    Prov2::InputTag: ConvertFromInputTag<Prov::InputTag>,
+  {
+    DynamicExecutionContext {
+      options: self.options.clone(),
+      program: self.program.clone(),
+      edb: self.edb.clone_with_new_provenance::<Prov2>(),
+      idb: self.idb.clone_with_new_provenance::<Prov2>(),
+    }
+  }
+
   pub fn set_non_incremental(&mut self) {
     self.options.incremental_maintain = false;
   }

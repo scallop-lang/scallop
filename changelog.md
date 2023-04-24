@@ -1,7 +1,9 @@
-# latest
+# (Latest) v0.1.9, Apr 24, 2023
 
-- Fixed a bug so that NaN would not appear in the value computation
-- Fixed a bug in `scallopy` where disjunctive facts are not processed correctly
+- Supporting (partial) disjunctive Datalog
+- Fixed custom provenance's default implementations and dispatcher fallback
+- Adding new negation syntax to `exists` and `forall` expression
+- Multiple bugs fixed
 
 # v0.1.8, Mar 27, 2023
 

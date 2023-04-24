@@ -107,14 +107,14 @@ match {
   // Literals
   r"[a-zA-Z][a-zA-Z_0-9]*" => name,
   r"-?[0-9]+" => int,
-  r"-?\d+(\.\d+)(e-?\d+)?" => float,
+  r"-?[0-9]+(\.[0-9]+)(e-?[0-9]+)?" => float,
   r#""[^"]*""# => string,
   r#"t"[^"]*""# => date_time_string,
   r#"d"[^"]*""# => duration_string,
   r#"'[^']*'"# => character,
 
   // Comments and Whitespaces
-  r"\s*" => { },
+  r"[ \n\r]*" => { },
   r"//[^\n\r]*[\n\r]*" => { },
   r"/\*([^\*]*\*+[^\*/])*([^\*]*\*+|[^\*])*\*/" => { },
 }

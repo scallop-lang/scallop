@@ -2,7 +2,6 @@ use std::collections::*;
 
 use itertools::iproduct;
 
-use crate::common::input_tag::*;
 use crate::runtime::dynamic::*;
 use crate::runtime::statics::*;
 use crate::utils::*;
@@ -135,22 +134,6 @@ impl std::fmt::Display for Proofs {
 
 impl Tag for Proofs {}
 
-#[derive(Clone, Debug)]
-pub enum ProofsInputTag {
-  Independent,
-  Exclusive(usize),
-}
-
-impl StaticInputTag for ProofsInputTag {
-  fn from_dynamic_input_tag(t: &DynamicInputTag) -> Option<ProofsInputTag> {
-    match t {
-      DynamicInputTag::Exclusive(e) => Some(ProofsInputTag::Exclusive(e.clone())),
-      DynamicInputTag::ExclusiveFloat(_, e) => Some(ProofsInputTag::Exclusive(e.clone())),
-      _ => Some(ProofsInputTag::Independent),
-    }
-  }
-}
-
 pub struct ProofsProvenance<P: PointerFamily> {
   id_allocator: P::Cell<IdAllocator>,
   disjunctions: P::Cell<Disjunctions>,
@@ -177,7 +160,7 @@ impl<P: PointerFamily> Clone for ProofsProvenance<P> {
 impl<P: PointerFamily> Provenance for ProofsProvenance<P> {
   type Tag = Proofs;
 
-  type InputTag = ProofsInputTag;
+  type InputTag = Exclusion;
 
   type OutputTag = Proofs;
 
@@ -189,7 +172,7 @@ impl<P: PointerFamily> Provenance for ProofsProvenance<P> {
     let fact_id = P::get_cell_mut(&self.id_allocator, |a| a.alloc());
 
     // Disjunction id
-    if let ProofsInputTag::Exclusive(disjunction_id) = exclusion {
+    if let Exclusion::Exclusive(disjunction_id) = exclusion {
       P::get_cell_mut(&self.disjunctions, |d| d.add_disjunction(disjunction_id, fact_id));
     }
 

@@ -100,7 +100,7 @@ impl MonitorOptions {
   }
 }
 
-fn main() {
+fn main() -> Result<(), String> {
   // Command line arguments
   let opt = Options::from_args();
 
@@ -141,37 +141,36 @@ fn main() {
   match opt.provenance.as_str() {
     "unit" => {
       let ctx = provenance::unit::UnitProvenance::default();
-      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options);
+      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options)
     }
     "bool" => {
       let ctx = provenance::boolean::BooleanProvenance::default();
-      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options);
+      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options)
     }
     "proofs" => {
       let ctx = provenance::proofs::ProofsProvenance::<RcFamily>::default();
-      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options);
+      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options)
     }
     "minmaxprob" => {
       let ctx = provenance::min_max_prob::MinMaxProbProvenance::default();
-      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options);
+      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options)
     }
     "addmultprob" => {
       let ctx = provenance::add_mult_prob::AddMultProbProvenance::default();
-      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options);
+      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options)
     }
     "topkproofs" => {
       let ctx = provenance::top_k_proofs::TopKProofsProvenance::<RcFamily>::new(opt.top_k);
-      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options);
+      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options)
     }
     "topbottomkclauses" => {
       let ctx = provenance::top_bottom_k_clauses::TopBottomKClausesProvenance::<RcFamily>::new(opt.top_k);
-      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options);
+      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options)
     }
     _ => {
-      println!("Unknown provenance semiring `{}`", opt.provenance);
-      return;
+      Err(format!("Unknown provenance semiring `{}`", opt.provenance))
     }
-  };
+  }
 }
 
 fn interpret<Prov: provenance::Provenance>(
@@ -180,12 +179,11 @@ fn interpret<Prov: provenance::Provenance>(
   opt: integrate::IntegrateOptions,
   predicate_set: PredicateSet,
   monitor_options: MonitorOptions,
-) {
+) -> Result<(), String> {
   let mut interpret_ctx = match integrate::InterpretContext::<_, RcFamily>::new_from_file_with_options(file_name, prov, opt) {
     Ok(ctx) => ctx,
     Err(err) => {
-      println!("{}", err);
-      return;
+      return Err(format!("{}", err));
     }
   };
 
@@ -206,4 +204,7 @@ fn interpret<Prov: provenance::Provenance>(
       println!("{}: {}", predicate, relation);
     }
   }
+
+  // Ok
+  Ok(())
 }

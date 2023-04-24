@@ -50,46 +50,6 @@ impl Default for DynamicInputTag {
   }
 }
 
-pub trait StaticInputTag: Sized {
-  fn from_dynamic_input_tag(_: &DynamicInputTag) -> Option<Self>;
-}
-
-impl<T> StaticInputTag for T {
-  default fn from_dynamic_input_tag(_: &DynamicInputTag) -> Option<Self> {
-    None
-  }
-}
-
-impl StaticInputTag for bool {
-  fn from_dynamic_input_tag(t: &DynamicInputTag) -> Option<Self> {
-    match t {
-      DynamicInputTag::Bool(b) => Some(b.clone()),
-      _ => None,
-    }
-  }
-}
-
-impl StaticInputTag for f64 {
-  fn from_dynamic_input_tag(t: &DynamicInputTag) -> Option<Self> {
-    match t {
-      DynamicInputTag::Float(f) => Some(f.clone()),
-      DynamicInputTag::ExclusiveFloat(f, _) => Some(f.clone()),
-      _ => None,
-    }
-  }
-}
-
-impl StaticInputTag for (f64, Option<usize>) {
-  fn from_dynamic_input_tag(t: &DynamicInputTag) -> Option<Self> {
-    match t {
-      DynamicInputTag::Exclusive(i) => Some((1.0, Some(i.clone()))),
-      DynamicInputTag::Float(f) => Some((f.clone(), None)),
-      DynamicInputTag::ExclusiveFloat(f, u) => Some((f.clone(), Some(u.clone()))),
-      _ => None,
-    }
-  }
-}
-
 impl std::str::FromStr for DynamicInputTag {
   type Err = ParseInputTagError;
 

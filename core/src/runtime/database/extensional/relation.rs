@@ -44,6 +44,23 @@ impl<Prov: Provenance> ExtensionalRelation<Prov> {
     }
   }
 
+  pub fn clone_with_new_provenance<Prov2: Provenance>(&self) -> ExtensionalRelation<Prov2>
+  where
+    Prov2::InputTag: ConvertFromInputTag<Prov::InputTag>,
+  {
+    ExtensionalRelation {
+      program_facts: self.program_facts.clone(),
+      internalized_program_facts: false,
+      dynamic_input: self.dynamic_input.clone(),
+      static_input: self.static_input.iter().map(|(tag, tuple)| {
+        let new_tag = tag.as_ref().and_then(|tag| ConvertFromInputTag::from_input_tag(tag.clone()));
+        (new_tag, tuple.clone())
+      }).collect(),
+      internal: DynamicCollection::empty(),
+      internalized: false,
+    }
+  }
+
   pub fn has_program_facts(&self) -> bool {
     !self.program_facts.is_empty()
   }

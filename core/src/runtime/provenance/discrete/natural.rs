@@ -1,11 +1,8 @@
 use super::*;
 use crate::runtime::dynamic::*;
 use crate::runtime::statics::*;
-use crate::common::input_tag::*;
 
 pub type Natural = usize;
-
-impl StaticInputTag for Natural {}
 
 #[derive(Clone, Debug, Default)]
 pub struct NaturalProvenance;

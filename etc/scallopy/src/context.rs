@@ -68,6 +68,29 @@ macro_rules! match_context {
   };
 }
 
+macro_rules! match_context_except_custom {
+  ($ctx:expr, $v:ident, $e:expr) => {
+    match $ctx {
+      ContextEnum::Unit($v) => Ok($e),
+      ContextEnum::Proofs($v) => Ok($e),
+      ContextEnum::MinMaxProb($v) => Ok($e),
+      ContextEnum::AddMultProb($v) => Ok($e),
+      ContextEnum::TopKProofs($v) => Ok($e),
+      ContextEnum::TopBottomKClauses($v) => Ok($e),
+      ContextEnum::DiffMinMaxProb($v) => Ok($e),
+      ContextEnum::DiffAddMultProb($v) => Ok($e),
+      ContextEnum::DiffNandMultProb($v) => Ok($e),
+      ContextEnum::DiffMaxMultProb($v) => Ok($e),
+      ContextEnum::DiffNandMinProb($v) => Ok($e),
+      ContextEnum::DiffSampleKProofs($v) => Ok($e),
+      ContextEnum::DiffTopKProofs($v) => Ok($e),
+      ContextEnum::DiffTopKProofsIndiv($v) => Ok($e),
+      ContextEnum::DiffTopBottomKClauses($v) => Ok($e),
+      ContextEnum::Custom(_) => Err(BindingError::CustomProvenanceUnsupported),
+    }
+  };
+}
+
 #[pyclass(unsendable, name = "InternalScallopContext")]
 pub struct Context {
   pub ctx: ContextEnum,
@@ -174,6 +197,84 @@ impl Context {
   /// Creates a clone of the scallopy context
   fn clone(&self) -> Self {
     Self { ctx: self.ctx.clone() }
+  }
+
+  /// Create a new scallop context with a different provenance as the current context
+  fn clone_with_new_provenance(
+    &self,
+    provenance: &str,
+    k: usize,
+  ) -> Result<Self, BindingError> {
+    // Check provenance type
+    match provenance {
+      "unit" => Ok(Self {
+        ctx: ContextEnum::Unit(match_context_except_custom!(&self.ctx, c, c.clone_with_new_provenance(unit::UnitProvenance::default()))?),
+      }),
+      "proofs" => Ok(Self {
+        ctx: ContextEnum::Proofs(match_context_except_custom!(&self.ctx, c, c.clone_with_new_provenance(proofs::ProofsProvenance::default()))?),
+      }),
+      "minmaxprob" => Ok(Self {
+        ctx: ContextEnum::MinMaxProb(match_context_except_custom!(&self.ctx, c, c.clone_with_new_provenance(min_max_prob::MinMaxProbProvenance::default()))?),
+      }),
+      "addmultprob" => Ok(Self {
+        ctx: ContextEnum::AddMultProb(match_context_except_custom!(&self.ctx, c, c.clone_with_new_provenance(add_mult_prob::AddMultProbProvenance::default()))?),
+      }),
+      "topkproofs" => Ok(Self {
+        ctx: ContextEnum::TopKProofs(match_context_except_custom!(&self.ctx, c, c.clone_with_new_provenance(top_k_proofs::TopKProofsProvenance::new(k)))?),
+      }),
+      "topbottomkclauses" => Ok(Self {
+        ctx: ContextEnum::TopBottomKClauses(match_context_except_custom!(&self.ctx, c, c.clone_with_new_provenance(
+          top_bottom_k_clauses::TopBottomKClausesProvenance::new(k),
+        ))?),
+      }),
+      "diffminmaxprob" => Ok(Self {
+        ctx: ContextEnum::DiffMinMaxProb(match_context_except_custom!(&self.ctx, c, c.clone_with_new_provenance(
+          diff_min_max_prob::DiffMinMaxProbProvenance::default(),
+        ))?),
+      }),
+      "diffaddmultprob" => Ok(Self {
+        ctx: ContextEnum::DiffAddMultProb(match_context_except_custom!(&self.ctx, c, c.clone_with_new_provenance(
+          diff_add_mult_prob::DiffAddMultProbProvenance::default(),
+        ))?),
+      }),
+      "diffnandmultprob" => Ok(Self {
+        ctx: ContextEnum::DiffNandMultProb(match_context_except_custom!(&self.ctx, c, c.clone_with_new_provenance(
+          diff_nand_mult_prob::DiffNandMultProbProvenance::default(),
+        ))?),
+      }),
+      "diffmaxmultprob" => Ok(Self {
+        ctx: ContextEnum::DiffMaxMultProb(match_context_except_custom!(&self.ctx, c, c.clone_with_new_provenance(
+          diff_max_mult_prob::DiffMaxMultProbProvenance::default(),
+        ))?),
+      }),
+      "diffnandminprob" => Ok(Self {
+        ctx: ContextEnum::DiffNandMinProb(match_context_except_custom!(&self.ctx, c, c.clone_with_new_provenance(
+          diff_nand_min_prob::DiffNandMinProbProvenance::default(),
+        ))?),
+      }),
+      "diffsamplekproofs" => Ok(Self {
+        ctx: ContextEnum::DiffSampleKProofs(match_context_except_custom!(&self.ctx, c, c.clone_with_new_provenance(
+          diff_sample_k_proofs::DiffSampleKProofsProvenance::new(k),
+        ))?),
+      }),
+      "difftopkproofs" => Ok(Self {
+        ctx: ContextEnum::DiffTopKProofs(match_context_except_custom!(&self.ctx, c, c.clone_with_new_provenance(
+          diff_top_k_proofs::DiffTopKProofsProvenance::new(k),
+        ))?),
+      }),
+      "difftopkproofsindiv" => Ok(Self {
+        ctx: ContextEnum::DiffTopKProofsIndiv(match_context_except_custom!(&self.ctx, c, c.clone_with_new_provenance(
+          diff_top_k_proofs_indiv::DiffTopKProofsIndivProvenance::new(k),
+        ))?),
+      }),
+      "difftopbottomkclauses" => Ok(Self {
+        ctx: ContextEnum::DiffTopBottomKClauses(match_context_except_custom!(&self.ctx, c, c.clone_with_new_provenance(
+          diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance::new(k),
+        ))?),
+      }),
+      "custom" => Err(BindingError::CustomProvenanceUnsupported),
+      p => Err(BindingError::UnknownProvenance(p.to_string())),
+    }
   }
 
   /// Set the current context to be non-incremental

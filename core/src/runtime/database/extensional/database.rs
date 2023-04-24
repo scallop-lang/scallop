@@ -51,6 +51,22 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
     }
   }
 
+  pub fn clone_with_new_provenance<Prov2: Provenance>(&self) -> ExtensionalDatabase<Prov2>
+  where
+    Prov2::InputTag: ConvertFromInputTag<Prov::InputTag>,
+  {
+    ExtensionalDatabase {
+      type_check: self.type_check,
+      disjunction_count: self.disjunction_count,
+      relation_types: self.relation_types.clone(),
+      extensional_relations: self.extensional_relations.iter().map(|(pred, rel)| {
+        let new_rel = rel.clone_with_new_provenance();
+        (pred.clone(), new_rel)
+      }).collect(),
+      internalized: false,
+    }
+  }
+
   pub fn with_relation_types<I>(types: I) -> Self
   where
     I: Iterator<Item = (String, TupleType)>,
