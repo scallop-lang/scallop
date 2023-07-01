@@ -3,10 +3,14 @@ use pyo3::prelude::*;
 
 use scallop_core::common;
 use scallop_core::runtime::dynamic::*;
+use scallop_core::runtime::env::*;
 use scallop_core::runtime::provenance::*;
 use scallop_core::utils::*;
 
+use crate::runtime::PythonRuntimeEnvironment;
+
 use super::custom_tag;
+use super::external_tag::*;
 use super::provenance::*;
 use super::tuple::*;
 
@@ -31,40 +35,36 @@ pub enum CollectionEnum<P: PointerFamily> {
     collection: P::Rc<DynamicOutputCollection<top_bottom_k_clauses::TopBottomKClausesProvenance<P>>>,
   },
   DiffMinMaxProb {
-    collection: P::Rc<DynamicOutputCollection<diff_min_max_prob::DiffMinMaxProbProvenance<Py<PyAny>, P>>>,
-    tags: P::RcCell<Vec<Py<PyAny>>>,
+    collection: P::Rc<DynamicOutputCollection<diff_min_max_prob::DiffMinMaxProbProvenance<ExtTag, P>>>,
+    tags: P::RcCell<Vec<ExtTag>>,
   },
   DiffAddMultProb {
-    collection: P::Rc<DynamicOutputCollection<diff_add_mult_prob::DiffAddMultProbProvenance<Py<PyAny>, P>>>,
-    tags: P::RcCell<Vec<Py<PyAny>>>,
+    collection: P::Rc<DynamicOutputCollection<diff_add_mult_prob::DiffAddMultProbProvenance<ExtTag, P>>>,
+    tags: P::RcCell<Vec<ExtTag>>,
   },
   DiffNandMultProb {
-    collection: P::Rc<DynamicOutputCollection<diff_nand_mult_prob::DiffNandMultProbProvenance<Py<PyAny>, P>>>,
-    tags: P::RcCell<Vec<Py<PyAny>>>,
+    collection: P::Rc<DynamicOutputCollection<diff_nand_mult_prob::DiffNandMultProbProvenance<ExtTag, P>>>,
+    tags: P::RcCell<Vec<ExtTag>>,
   },
   DiffMaxMultProb {
-    collection: P::Rc<DynamicOutputCollection<diff_max_mult_prob::DiffMaxMultProbProvenance<Py<PyAny>, P>>>,
-    tags: P::RcCell<Vec<Py<PyAny>>>,
+    collection: P::Rc<DynamicOutputCollection<diff_max_mult_prob::DiffMaxMultProbProvenance<ExtTag, P>>>,
+    tags: P::RcCell<Vec<ExtTag>>,
   },
   DiffNandMinProb {
-    collection: P::Rc<DynamicOutputCollection<diff_nand_min_prob::DiffNandMinProbProvenance<Py<PyAny>, P>>>,
-    tags: P::RcCell<Vec<Py<PyAny>>>,
+    collection: P::Rc<DynamicOutputCollection<diff_nand_min_prob::DiffNandMinProbProvenance<ExtTag, P>>>,
+    tags: P::RcCell<Vec<ExtTag>>,
   },
   DiffSampleKProofs {
-    collection: P::Rc<DynamicOutputCollection<diff_sample_k_proofs::DiffSampleKProofsProvenance<Py<PyAny>, P>>>,
-    tags: DiffProbStorage<Py<PyAny>, P>,
+    collection: P::Rc<DynamicOutputCollection<diff_sample_k_proofs::DiffSampleKProofsProvenance<ExtTag, P>>>,
+    tags: DiffProbStorage<ExtTag, P>,
   },
   DiffTopKProofs {
-    collection: P::Rc<DynamicOutputCollection<diff_top_k_proofs::DiffTopKProofsProvenance<Py<PyAny>, P>>>,
-    tags: DiffProbStorage<Py<PyAny>, P>,
-  },
-  DiffTopKProofsIndiv {
-    collection: P::Rc<DynamicOutputCollection<diff_top_k_proofs_indiv::DiffTopKProofsIndivProvenance<Py<PyAny>, P>>>,
-    tags: DiffProbStorage<Py<PyAny>, P>,
+    collection: P::Rc<DynamicOutputCollection<diff_top_k_proofs::DiffTopKProofsProvenance<ExtTag, P>>>,
+    tags: DiffProbStorage<ExtTag, P>,
   },
   DiffTopBottomKClauses {
-    collection: P::Rc<DynamicOutputCollection<diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance<Py<PyAny>, P>>>,
-    tags: DiffProbStorage<Py<PyAny>, P>,
+    collection: P::Rc<DynamicOutputCollection<diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance<ExtTag, P>>>,
+    tags: DiffProbStorage<ExtTag, P>,
   },
   Custom {
     collection: P::Rc<DynamicOutputCollection<custom_tag::CustomProvenance>>,
@@ -87,7 +87,6 @@ macro_rules! match_collection {
       CollectionEnum::DiffNandMinProb { collection: $v, .. } => $e,
       CollectionEnum::DiffSampleKProofs { collection: $v, .. } => $e,
       CollectionEnum::DiffTopKProofs { collection: $v, .. } => $e,
-      CollectionEnum::DiffTopKProofsIndiv { collection: $v, .. } => $e,
       CollectionEnum::DiffTopBottomKClauses { collection: $v, .. } => $e,
       CollectionEnum::Custom { collection: $v } => $e,
     }
@@ -110,7 +109,6 @@ impl CollectionEnum<ArcFamily> {
       Self::DiffNandMinProb { tags, .. } => Some(ArcFamily::get_rc_cell(tags, |t| t.len())),
       Self::DiffSampleKProofs { tags, .. } => Some(tags.num_input_tags()),
       Self::DiffTopKProofs { tags, .. } => Some(tags.num_input_tags()),
-      Self::DiffTopKProofsIndiv { tags, .. } => Some(tags.num_input_tags()),
       Self::DiffTopBottomKClauses { tags, .. } => Some(tags.num_input_tags()),
       Self::Custom { .. } => None,
     }
@@ -125,14 +123,13 @@ impl CollectionEnum<ArcFamily> {
       Self::TopKProofs { .. } => None,
       Self::TopBottomKClauses { .. } => None,
       Self::DiffMinMaxProb { .. } => None,
-      Self::DiffAddMultProb { tags, .. } => Some(ArcFamily::get_rc_cell(tags, |t| t.clone())),
-      Self::DiffNandMultProb { tags, .. } => Some(ArcFamily::clone_rc_cell_internal(tags)),
-      Self::DiffMaxMultProb { tags, .. } => Some(ArcFamily::clone_rc_cell_internal(tags)),
-      Self::DiffNandMinProb { tags, .. } => Some(ArcFamily::clone_rc_cell_internal(tags)),
-      Self::DiffSampleKProofs { tags, .. } => Some(tags.input_tags()),
-      Self::DiffTopKProofs { tags, .. } => Some(tags.input_tags()),
-      Self::DiffTopKProofsIndiv { tags, .. } => Some(tags.input_tags()),
-      Self::DiffTopBottomKClauses { tags, .. } => Some(tags.input_tags()),
+      Self::DiffAddMultProb { tags, .. } => Some(ArcFamily::get_rc_cell(tags, |t| t.clone()).into_vec()),
+      Self::DiffNandMultProb { tags, .. } => Some(ArcFamily::clone_rc_cell_internal(tags).into_vec()),
+      Self::DiffMaxMultProb { tags, .. } => Some(ArcFamily::clone_rc_cell_internal(tags).into_vec()),
+      Self::DiffNandMinProb { tags, .. } => Some(ArcFamily::clone_rc_cell_internal(tags).into_vec()),
+      Self::DiffSampleKProofs { tags, .. } => Some(tags.input_tags().into_vec()),
+      Self::DiffTopKProofs { tags, .. } => Some(tags.input_tags().into_vec()),
+      Self::DiffTopBottomKClauses { tags, .. } => Some(tags.input_tags().into_vec()),
       Self::Custom { .. } => None,
     }
   }
@@ -163,10 +160,18 @@ impl CollectionEnum<ArcFamily> {
 
     match_collection!(self, c, ith_tag_helper(ArcFamily::get_rc(c), i))
   }
+
+  pub fn to_collection(self, env: &RuntimeEnvironment) -> Collection {
+    Collection {
+      env: env.into(),
+      collection: self,
+    }
+  }
 }
 
 #[pyclass(unsendable, name = "InternalScallopCollection")]
 pub struct Collection {
+  pub env: PythonRuntimeEnvironment,
   pub collection: CollectionEnum<ArcFamily>,
 }
 
@@ -180,22 +185,22 @@ impl Collection {
     self.collection.input_tags()
   }
 
+  fn len(&self) -> usize {
+    self.collection.len()
+  }
+
   fn __iter__(slf: PyRef<Self>) -> CollectionIterator {
     CollectionIterator {
+      env: slf.env.clone(),
       collection: slf.collection.clone(),
       current_index: 0,
     }
   }
 }
 
-impl From<CollectionEnum<ArcFamily>> for Collection {
-  fn from(collection: CollectionEnum<ArcFamily>) -> Self {
-    Self { collection }
-  }
-}
-
 #[pyclass(unsendable, name = "InternalScallopCollectionIterator")]
 pub struct CollectionIterator {
+  env: PythonRuntimeEnvironment,
   collection: CollectionEnum<ArcFamily>,
   current_index: usize,
 }
@@ -207,10 +212,10 @@ impl CollectionIterator {
       let i = slf.current_index;
       slf.current_index += 1;
       if slf.collection.has_empty_tag() {
-        let tuple = to_python_tuple(slf.collection.ith_tuple(i));
+        let tuple = to_python_tuple(slf.collection.ith_tuple(i), &slf.env);
         IterNextOutput::Yield(tuple)
       } else {
-        let tuple = to_python_tuple(slf.collection.ith_tuple(i));
+        let tuple = to_python_tuple(slf.collection.ith_tuple(i), &slf.env);
         let tag = slf.collection.ith_tag(i);
         let elem = Python::with_gil(|py| (tag, tuple).to_object(py));
         IterNextOutput::Yield(elem)

@@ -1,5 +1,6 @@
 #![feature(min_specialization)]
-#![feature(drain_filter)]
+#![feature(extract_if)]
+#![feature(proc_macro_span)]
 
 pub mod common;
 pub mod compiler;

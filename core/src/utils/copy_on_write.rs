@@ -19,6 +19,10 @@ impl<T: Clone, P: PointerFamily> CopyOnWrite<T, P> {
     f(&mut new_inner);
     *self = Self(P::new_rc(new_inner));
   }
+
+  pub fn modify_without_copy<F: FnOnce(&mut T)>(&mut self, f: F) {
+    f(P::get_rc_mut(&mut self.0));
+  }
 }
 
 impl<T: Clone, P: PointerFamily> Clone for CopyOnWrite<T, P> {

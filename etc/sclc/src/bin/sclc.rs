@@ -13,7 +13,7 @@ fn main() {
     Ok(ram) => ram,
     Err(errs) => {
       for err in errs {
-        println!("{}", err);
+        eprintln!("{}", err);
       }
       return;
     }

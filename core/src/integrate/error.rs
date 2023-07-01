@@ -11,6 +11,17 @@ impl IntegrateError {
   pub fn front(e: compiler::front::FrontCompileError) -> Self {
     Self::Compile(vec![compiler::CompileError::Front(e)])
   }
+
+  pub fn io(e: IOError) -> Self {
+    Self::Runtime(RuntimeError::IO(e))
+  }
+
+  pub fn kind(&self) -> &'static str {
+    match self {
+      Self::Compile(_) => "Compile error occurred; aborted",
+      Self::Runtime(_) => "Runtime error occurred; aborted",
+    }
+  }
 }
 
 impl std::fmt::Display for IntegrateError {

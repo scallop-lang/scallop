@@ -1,9 +1,12 @@
+use std::collections::*;
+
 use crate::common::foreign_function::*;
 use crate::common::foreign_predicate::*;
 use crate::common::tuple::*;
 use crate::common::tuple_type::*;
 
 use crate::compiler;
+use crate::compiler::front::attribute::AttributeProcessor;
 use crate::runtime::database::extensional::*;
 use crate::runtime::database::*;
 use crate::runtime::dynamic;
@@ -112,6 +115,10 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     &mut self.internal.prov_ctx
   }
 
+  pub fn runtime_environment(&self) -> &RuntimeEnvironment {
+    &self.internal.runtime_env
+  }
+
   pub fn internal_context(&self) -> &InternalIntegrateContext<Prov, P> {
     &self.internal
   }
@@ -148,7 +155,7 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
   }
 
   /// Compile a relation declaration
-  pub fn add_relation(&mut self, string: &str) -> Result<&compiler::front::RelationTypeDecl, IntegrateError> {
+  pub fn add_relation(&mut self, string: &str) -> Result<&compiler::front::ast::RelationTypeDecl, IntegrateError> {
     self.front_has_changed = true;
     let source = compiler::front::StringSource::new(string.to_string());
     self
@@ -163,7 +170,7 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     &mut self,
     string: &str,
     attrs: Vec<Attribute>,
-  ) -> Result<&compiler::front::RelationTypeDecl, IntegrateError> {
+  ) -> Result<&compiler::front::ast::RelationTypeDecl, IntegrateError> {
     self.front_has_changed = true;
     let source = compiler::front::StringSource::new(string.to_string());
     self
@@ -224,7 +231,7 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     let source = compiler::front::StringSource::new(string.to_string());
     self
       .front_ctx
-      .compile_rule_with_annotator(source, |item: &mut compiler::front::Item| {
+      .compile_rule_with_annotator(source, |item: &mut compiler::front::ast::Item| {
         item.attributes_mut().extend(attrs.iter().map(Attribute::to_front))
       })
       .map_err(IntegrateError::front)
@@ -270,6 +277,35 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     Ok(())
   }
 
+  pub fn add_entity(&mut self, relation: &str, entity_tuple: Vec<String>) -> Result<(), IntegrateError> {
+    // First obtain the facts from the entity str
+    let facts = self
+      .front_ctx
+      .compile_entity_to_facts(relation, entity_tuple)
+      .map_err(|e| IntegrateError::Compile(vec![compiler::CompileError::Front(e)]))?;
+
+    // Then add the facts to the EDB
+    for (relation, tuples) in facts {
+      self
+        .edb()
+        .add_facts(&relation, tuples)
+        .map_err(|e| IntegrateError::Runtime(RuntimeError::Database(e)))?;
+    }
+
+    Ok(())
+  }
+
+  pub fn compile_entity(
+    &self,
+    relation: &str,
+    entity_tuple: Vec<String>,
+  ) -> Result<HashMap<String, Vec<Tuple>>, IntegrateError> {
+    self
+      .front_ctx
+      .compile_entity_to_facts(relation, entity_tuple)
+      .map_err(|e| IntegrateError::Compile(vec![compiler::CompileError::Front(e)]))
+  }
+
   /// Register a foreign function to the context
   pub fn register_foreign_function<F>(&mut self, ff: F) -> Result<(), IntegrateError>
   where
@@ -303,6 +339,23 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     self.front_has_changed = true;
 
     // Return Ok
+    Ok(())
+  }
+
+  pub fn register_foreign_attribute<A>(&mut self, p: A) -> Result<(), IntegrateError>
+  where
+    A: AttributeProcessor + Send + Sync + Clone,
+  {
+    // Add the predicate to front compilation context
+    self
+      .front_ctx
+      .register_attribute_processor(p)
+      .map_err(|e| IntegrateError::Runtime(RuntimeError::ForeignAttribute(e)))?;
+
+    // If goes through, then the front context has changed
+    self.front_has_changed = true;
+
+    // Return ok
     Ok(())
   }
 
@@ -582,13 +635,13 @@ impl<Prov: Provenance, P: PointerFamily> InternalIntegrateContext<Prov, P> {
   }
 
   pub fn computed_relation_ref(&mut self, relation: &str) -> Option<&dynamic::DynamicOutputCollection<Prov>> {
-    self.exec_ctx.recover(relation, &self.prov_ctx);
+    self.exec_ctx.recover(relation, &self.runtime_env, &self.prov_ctx);
     self.exec_ctx.relation_ref(relation)
   }
 
   /// Get the RC'ed output collection of a given relation
   pub fn computed_relation(&mut self, relation: &str) -> Option<P::Rc<dynamic::DynamicOutputCollection<Prov>>> {
-    self.exec_ctx.recover(relation, &self.prov_ctx);
+    self.exec_ctx.recover(relation, &self.runtime_env, &self.prov_ctx);
     self.exec_ctx.relation(relation)
   }
 
@@ -598,7 +651,9 @@ impl<Prov: Provenance, P: PointerFamily> InternalIntegrateContext<Prov, P> {
     relation: &str,
     m: &M,
   ) -> Option<P::Rc<dynamic::DynamicOutputCollection<Prov>>> {
-    self.exec_ctx.recover_with_monitor(relation, &self.prov_ctx, m);
+    self
+      .exec_ctx
+      .recover_with_monitor(relation, &self.runtime_env, &self.prov_ctx, m);
     self.exec_ctx.relation(relation)
   }
 }

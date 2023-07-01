@@ -55,6 +55,9 @@ pub enum Unification {
 
   /// f, ops*, $f(ops*)
   Call(String, Vec<Loc>, Loc),
+
+  /// C, ops*, new C(ops*)
+  New(String, Vec<Loc>, Loc),
 }
 
 impl Unification {
@@ -78,15 +81,13 @@ impl Unification {
             // Unify the type
             match unify_ty(e, ty.clone(), inferred_expr_types) {
               Ok(_) => Ok(()),
-              Err(_) => {
-                Err(TypeInferenceError::CannotUnifyForeignPredicateArgument {
-                  pred: p.clone(),
-                  i: *i,
-                  expected_ty: ty,
-                  actual_ty: inferred_expr_types.get(e).unwrap().clone(),
-                  loc: e.clone(),
-                })
-              }
+              Err(_) => Err(TypeInferenceError::CannotUnifyForeignPredicateArgument {
+                pred: p.clone(),
+                i: *i,
+                expected_ty: ty,
+                actual_ty: inferred_expr_types.get(e).unwrap().clone(),
+                loc: e.clone(),
+              }),
             }
           } else {
             Err(TypeInferenceError::InvalidForeignPredicateArgIndex {
@@ -359,6 +360,43 @@ impl Unification {
           })
         }
       }
+      Self::New(functor, args, e) => {
+        let adt_variant_relation_name = format!("adt#{functor}");
+
+        // cond should be boolean
+        unify_entity(e, inferred_expr_types)?;
+
+        // Get the functor/relation
+        if let Some((types, _)) = inferred_relation_types.get(&adt_variant_relation_name) {
+          if args.len() == types.len() - 1 {
+            for (arg, ty) in args.iter().zip(types.iter().skip(1)) {
+              let arg_ty = get_or_insert_ty(arg, TypeSet::Any(arg.clone()), inferred_expr_types);
+              match arg_ty.unify(ty) {
+                Ok(new_ty) => {
+                  inferred_expr_types.insert(arg.clone(), new_ty);
+                }
+                Err(mut err) => {
+                  err.annotate_location(arg);
+                  return Err(err);
+                }
+              }
+            }
+            Ok(())
+          } else {
+            Err(TypeInferenceError::ADTVariantArityMismatch {
+              variant: functor.clone(),
+              expected: types.len() - 1,
+              actual: args.len(),
+              loc: e.clone(),
+            })
+          }
+        } else {
+          Err(TypeInferenceError::UnknownADTVariant {
+            predicate: functor.clone(),
+            loc: e.clone(),
+          })
+        }
+      }
     }
   }
 }
@@ -417,7 +455,7 @@ fn unify_polymorphic_binary_expression(
         e_ty,
         location: e.clone(),
       })
-    },
+    }
     AppliedRules::One((t1, t2, te)) => {
       // If there is exactly one rule that can be applied, then unify them with the exact types
       unify_ty(op1, TypeSet::BaseType(t1, e.clone()), inferred_expr_types)?;
@@ -429,7 +467,7 @@ fn unify_polymorphic_binary_expression(
       // If ther are multiple rules that can be applied, we are not sure about the exact types,
       // but the type inference is still successful
       Ok(())
-    },
+    }
   }
 }
 
@@ -465,7 +503,7 @@ fn unify_comparison_expression(
         e_ty,
         location: e.clone(),
       })
-    },
+    }
     AppliedRules::One((t1, t2)) => {
       // If there is exactly one rule that can be applied, then unify them with the exact types
       unify_ty(op1, TypeSet::BaseType(t1, e.clone()), inferred_expr_types)?;
@@ -476,7 +514,7 @@ fn unify_comparison_expression(
       // If ther are multiple rules that can be applied, we are not sure about the exact types,
       // but the type inference is still successful
       Ok(())
-    },
+    }
   }
 }
 
@@ -505,5 +543,10 @@ fn unify_any(e: &Loc, inferred_expr_types: &mut HashMap<Loc, TypeSet>) -> Result
 
 fn unify_boolean(e: &Loc, inferred_expr_types: &mut HashMap<Loc, TypeSet>) -> Result<TypeSet, TypeInferenceError> {
   let e_ty = TypeSet::BaseType(ValueType::Bool, e.clone());
+  unify_ty(e, e_ty, inferred_expr_types)
+}
+
+fn unify_entity(e: &Loc, inferred_expr_types: &mut HashMap<Loc, TypeSet>) -> Result<TypeSet, TypeInferenceError> {
+  let e_ty = TypeSet::BaseType(ValueType::Entity, e.clone());
   unify_ty(e, e_ty, inferred_expr_types)
 }

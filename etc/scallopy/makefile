@@ -1,5 +1,8 @@
-all:
+develop-scallopy:
 	maturin develop --release
+
+develop-scallopy-plus:
+	maturin develop --release --features "torch-tensor"
 
 test:
 	python3 tests/test.py

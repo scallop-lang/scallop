@@ -1,14 +1,15 @@
 use colored::*;
+use serde::*;
 
 use super::super::*;
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Location {
   pub row: usize,
   pub col: usize,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Span<T> {
   pub start: T,
   pub end: T,
@@ -30,7 +31,7 @@ impl Span<usize> {
   }
 }
 
-#[derive(Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Default, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct AstNodeLocation {
   pub offset_span: Span<usize>,
   pub loc_span: Option<Span<Location>>,
@@ -183,7 +184,7 @@ impl std::fmt::Debug for AstNodeLocation {
   }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Serialize, Hash)]
 #[doc(hidden)]
 pub struct AstNode<N> {
   pub loc: AstNodeLocation,
@@ -231,6 +232,26 @@ impl<N> AstNode<N> {
       loc: AstNodeLocation::default(),
       node: self.node.clone(),
     }
+  }
+
+  pub fn clone_without_location_id(&self) -> Self
+  where
+    N: Clone,
+  {
+    Self {
+      loc: self.loc.clone_without_id(),
+      node: self.node.clone(),
+    }
+  }
+
+  pub fn with_span(mut self, loc: &AstNodeLocation) -> Self {
+    self.loc = loc.clone_without_id();
+    self
+  }
+
+  pub fn with_location(mut self, loc: AstNodeLocation) -> Self {
+    self.loc = loc;
+    self
   }
 }
 

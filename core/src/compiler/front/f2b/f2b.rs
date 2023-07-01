@@ -1,6 +1,6 @@
 use std::collections::*;
 
-use super::super::analyzers::boundness::{AggregationContext, RuleContext, ForeignPredicateBindings};
+use super::super::analyzers::boundness::{AggregationContext, ForeignPredicateBindings, RuleContext};
 use super::super::ast as front;
 use super::super::ast::{AstNodeLocation, WithLocation};
 use super::super::compile::*;
@@ -13,6 +13,7 @@ use crate::compiler::back;
 
 impl FrontContext {
   pub fn to_back_program(&self) -> back::Program {
+    // Generate relations and facts
     let base_relations = self.to_back_relations();
     let facts = self.to_back_facts();
     let disjunctive_facts = self.to_back_disjunctive_facts();
@@ -126,7 +127,7 @@ impl FrontContext {
         }
         front::RelationDeclNode::Fact(f) => {
           let pred = f.predicate();
-          let tys = self.relation_arg_types(pred).unwrap();
+          let tys = self.relation_arg_types(&pred).unwrap();
           let args = f.iter_constants().zip(tys.iter()).map(|(c, t)| c.to_value(t)).collect();
           let back_fact = back::Fact {
             tag: f.tag().input_tag().clone(),
@@ -174,10 +175,6 @@ impl FrontContext {
   }
 
   fn to_back_rules(&self, temp_relations: &mut Vec<back::Relation>) -> Vec<back::Rule> {
-    self.rules_to_back_rules(temp_relations)
-  }
-
-  fn rules_to_back_rules(&self, temp_relations: &mut Vec<back::Relation>) -> Vec<back::Rule> {
     self
       .iter_relation_decls()
       .filter_map(|rd| match &rd.node {
@@ -191,8 +188,9 @@ impl FrontContext {
   fn rule_decl_to_back_rules(&self, rd: &front::RuleDecl, temp_relations: &mut Vec<back::Relation>) -> Vec<back::Rule> {
     let rule_loc = rd.rule().location();
     match &rd.rule().head().node {
-      front::RuleHeadNode::Atom(head) => {
-        self.atomic_rule_decl_to_back_rules(rule_loc, head, temp_relations)
+      front::RuleHeadNode::Atom(head) => self.atomic_rule_decl_to_back_rules(rule_loc, head, temp_relations),
+      front::RuleHeadNode::Conjunction(_) => {
+        panic!("[Internal Error] Conjunction should be flattened and de-sugared. This is probably a bug.")
       }
       front::RuleHeadNode::Disjunction(head_atoms) => {
         self.disjunctive_rule_decl_to_back_rules(rule_loc, head_atoms, temp_relations)
@@ -224,10 +222,7 @@ impl FrontContext {
       .collect::<Vec<_>>();
 
     // Create the head that will be shared across all back rules
-    let args = head
-      .iter_arguments()
-      .map(|a| flatten_expr.get_expr_term(a))
-      .collect();
+    let args = head.iter_arguments().map(|a| flatten_expr.get_expr_term(a)).collect();
     let head = back::Head::atom(pred.clone(), args);
 
     // Get the back rules
@@ -274,10 +269,7 @@ impl FrontContext {
     let back_head_atoms = head_atoms
       .iter()
       .map(|a| {
-        let args = a
-          .iter_arguments()
-          .map(|a| flatten_expr.get_expr_term(a))
-          .collect();
+        let args = a.iter_arguments().map(|a| flatten_expr.get_expr_term(a)).collect();
         back::Atom::new(a.predicate().clone(), args)
       })
       .collect();
@@ -377,7 +369,11 @@ impl FrontContext {
     let pred_bindings = ForeignPredicateBindings::from(&self.foreign_predicate_registry);
     let body_bounded_vars = agg_ctx.body.compute_boundness(&pred_bindings, &vec![]).unwrap();
     let group_by_bounded_vars = agg_ctx.group_by.as_ref().map_or(BTreeSet::new(), |(ctx, _, _)| {
-      ctx.compute_boundness(&pred_bindings, &vec![]).unwrap().into_iter().collect()
+      ctx
+        .compute_boundness(&pred_bindings, &vec![])
+        .unwrap()
+        .into_iter()
+        .collect()
     });
     let all_bounded_vars = body_bounded_vars
       .union(&group_by_bounded_vars)
@@ -472,8 +468,49 @@ impl FrontContext {
     let body_tys = self.type_inference().variable_types(src_rule_loc, body_args.iter());
     let body_terms = self.back_terms_with_types(body_args.clone(), body_tys.clone());
 
+    // Get the reduce literal
+    let group_by_vars = self.back_vars(src_rule_loc, group_by_vars.into_iter().collect());
+    let other_group_by_vars = self.back_vars(src_rule_loc, other_group_by_vars);
+    let to_agg_vars = self.back_vars(src_rule_loc, to_agg_var_names.into_iter().collect());
+    let left_vars = self.back_vars(src_rule_loc, agg_ctx.left_variable_names().into_iter().collect());
+    let arg_vars = self.back_vars(src_rule_loc, arg_var_names.into_iter().collect());
+
+    // Generate the internal aggregate operator
+    let op = match &agg_ctx.aggregate_op {
+      front::ReduceOperatorNode::Count => AggregateOp::Count,
+      front::ReduceOperatorNode::Sum => {
+        assert_eq!(
+          left_vars.len(),
+          1,
+          "[Internal Error] There should be only one var for summation"
+        );
+        AggregateOp::Sum(left_vars[0].ty.clone())
+      }
+      front::ReduceOperatorNode::Prod => {
+        assert_eq!(
+          left_vars.len(),
+          1,
+          "[Internal Error] There should be only one var for production"
+        );
+        AggregateOp::Prod(left_vars[0].ty.clone())
+      }
+      front::ReduceOperatorNode::Min => AggregateOp::min(!arg_vars.is_empty()),
+      front::ReduceOperatorNode::Max => AggregateOp::max(!arg_vars.is_empty()),
+      front::ReduceOperatorNode::Exists => AggregateOp::Exists,
+      front::ReduceOperatorNode::Unique => AggregateOp::top_k(1),
+      front::ReduceOperatorNode::TopK(k) => AggregateOp::top_k(k.clone()),
+      front::ReduceOperatorNode::CategoricalK(k) => AggregateOp::categorical_k(k.clone()),
+      front::ReduceOperatorNode::Forall => {
+        panic!("[Internal Error] There should be no forall aggregator op. This is a bug");
+      }
+      front::ReduceOperatorNode::Unknown(_) => {
+        panic!("[Internal Error] There should be no unknown aggregator op. This is a bug");
+      }
+    };
+
     // Get the body to-aggregate relation
-    let body_attr = back::AggregateBodyAttribute::new(group_by_vars.len(), arg_var_names.len(), to_agg_var_names.len());
+    let body_attr =
+      back::AggregateBodyAttribute::new(op.clone(), group_by_vars.len(), arg_vars.len(), to_agg_vars.len());
     let body_attrs = back::Attributes::singleton(body_attr);
     let body_relation = back::Relation::new_with_attrs(body_attrs, body_predicate.clone(), body_tys.clone());
     temp_relations.push(body_relation);
@@ -492,40 +529,8 @@ impl FrontContext {
     );
     temp_rules.extend(body_rules);
 
-    // Get the reduce literal
-    let body_atom = back::Atom::new(body_predicate.clone(), body_terms);
-    let left_vars = self.back_vars(src_rule_loc, agg_ctx.left_variable_names().into_iter().collect());
-    let group_by_vars = self.back_vars(src_rule_loc, group_by_vars.into_iter().collect());
-    let other_group_by_vars = self.back_vars(src_rule_loc, other_group_by_vars);
-    let arg_vars = self.back_vars(src_rule_loc, arg_var_names.into_iter().collect());
-    let to_agg_vars = self.back_vars(src_rule_loc, to_agg_var_names.into_iter().collect());
-
-    // Generate the internal aggregate operator
-    let op = match &agg_ctx.aggregate_op {
-      front::ReduceOperatorNode::Count => AggregateOp::Count,
-      front::ReduceOperatorNode::Sum => {
-        assert_eq!(left_vars.len(), 1, "There should be only one var for summation");
-        AggregateOp::Sum(left_vars[0].ty.clone())
-      }
-      front::ReduceOperatorNode::Prod => {
-        assert_eq!(left_vars.len(), 1, "There should be only one var for production");
-        AggregateOp::Prod(left_vars[0].ty.clone())
-      }
-      front::ReduceOperatorNode::Min => AggregateOp::min(!arg_vars.is_empty()),
-      front::ReduceOperatorNode::Max => AggregateOp::max(!arg_vars.is_empty()),
-      front::ReduceOperatorNode::Exists => AggregateOp::Exists,
-      front::ReduceOperatorNode::Unique => AggregateOp::top_k(1),
-      front::ReduceOperatorNode::TopK(k) => AggregateOp::top_k(k.clone()),
-      front::ReduceOperatorNode::CategoricalK(k) => AggregateOp::categorical_k(k.clone()),
-      front::ReduceOperatorNode::Forall => {
-        panic!("There should be no forall aggregator op. This is a bug");
-      }
-      front::ReduceOperatorNode::Unknown(_) => {
-        panic!("There should be no unknown aggregator op. This is a bug");
-      }
-    };
-
     // Get the literal
+    let body_atom = back::Atom::new(body_predicate.clone(), body_terms);
     let reduce_literal = back::Reduce::new(
       op,
       left_vars,

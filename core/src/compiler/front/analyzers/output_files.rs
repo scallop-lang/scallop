@@ -22,10 +22,10 @@ impl OutputFilesAnalysis {
     self.output_files.get(relation)
   }
 
-  pub fn process_deliminator(&self, attr_arg: Option<&Constant>) -> Result<Option<u8>, OutputFilesError> {
+  pub fn process_deliminator(&self, attr_arg: Option<&AttributeValue>) -> Result<Option<u8>, OutputFilesError> {
     match attr_arg {
-      Some(v) => match &v.node {
-        ConstantNode::String(s) => {
+      Some(v) => match v.as_string() {
+        Some(s) => {
           if s.len() == 1 {
             let c = s.chars().next().unwrap();
             if c.is_ascii() {
@@ -50,10 +50,9 @@ impl OutputFilesAnalysis {
   }
 
   pub fn process_attribute(&self, attr: &Attribute) -> Result<OutputFile, OutputFilesError> {
-    if attr.num_pos_args() > 0 {
-      let arg = attr.pos_arg(0).unwrap();
-      match &arg.node {
-        ConstantNode::String(s) => {
+    if let Some(arg) = attr.pos_arg(0) {
+      match arg.as_string() {
+        Some(s) => {
           let path = PathBuf::from(s);
           match path.extension() {
             Some(s) if s == "csv" => {

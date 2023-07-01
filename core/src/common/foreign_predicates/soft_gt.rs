@@ -25,10 +25,7 @@ impl SoftNumberGt {
   }
 
   pub fn new_with_sigmoid_fn(ty: ValueType, sigmoid: SigmoidFunction) -> Self {
-    Self {
-      ty,
-      sigmoid,
-    }
+    Self { ty, sigmoid }
   }
 
   fn soft_gt<T>(&self, lhs: &Value, rhs: &Value) -> Option<f64>
@@ -57,7 +54,11 @@ impl SoftNumberGt {
 
 impl ForeignPredicate for SoftNumberGt {
   fn name(&self) -> String {
-    format!("soft_gt_{}", self.ty)
+    "soft_gt".to_string()
+  }
+
+  fn generic_type_parameters(&self) -> Vec<ValueType> {
+    vec![self.ty.clone()]
   }
 
   fn arity(&self) -> usize {

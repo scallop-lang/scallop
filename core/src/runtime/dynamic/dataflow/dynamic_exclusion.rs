@@ -1,7 +1,7 @@
 use std::collections::*;
 
-use crate::common::tuple::*;
 use crate::common::input_tag::*;
+use crate::common::tuple::*;
 use crate::runtime::provenance::*;
 use crate::utils::*;
 
@@ -59,7 +59,11 @@ pub struct ExclusionOp<'a, Prov: Provenance> {
 
 impl<'a, Prov: Provenance> ExclusionOp<'a, Prov> {
   pub fn new(runtime: &'a RuntimeEnvironment, ctx: &'a Prov, visited_exclusion_map: VisitedExclusionMap) -> Self {
-    Self { runtime, ctx, visited_exclusion_map }
+    Self {
+      runtime,
+      ctx,
+      visited_exclusion_map,
+    }
   }
 
   pub fn apply(&self, left: DynamicBatch<'a, Prov>, right: DynamicBatch<'a, Prov>) -> DynamicBatch<'a, Prov> {
@@ -118,18 +122,19 @@ impl<'a, Prov: Provenance> Iterator for DynamicExclusionBatch<'a, Prov> {
     loop {
       if let Some(left) = &self.left_curr {
         // First get an exclusion ID
-        let exc_id = if let Some(id) = RcFamily::get_rc_cell(&self.visited_exclusion_map, |m| m.get(&left.tuple).cloned()) {
-          // If the left tuple has been visited, directly pull the exclusion id
-          id
-        } else if let Some(id) = self.curr_exclusion_id {
-          // Or we have already generated a new ID for this tuple
-          id
-        } else {
-          // Otherwise, generate a new ID
-          let id = self.runtime.allocate_new_exclusion_id();
-          RcFamily::get_rc_cell_mut(&self.visited_exclusion_map, |m| m.insert(left.tuple.clone(), id));
-          id
-        };
+        let exc_id =
+          if let Some(id) = RcFamily::get_rc_cell(&self.visited_exclusion_map, |m| m.get(&left.tuple).cloned()) {
+            // If the left tuple has been visited, directly pull the exclusion id
+            id
+          } else if let Some(id) = self.curr_exclusion_id {
+            // Or we have already generated a new ID for this tuple
+            id
+          } else {
+            // Otherwise, generate a new ID
+            let id = self.runtime.allocate_new_exclusion_id();
+            RcFamily::get_rc_cell_mut(&self.visited_exclusion_map, |m| m.insert(left.tuple.clone(), id));
+            id
+          };
 
         // Then, iterate through the right
         if let Some(right) = self.right_clone.next() {

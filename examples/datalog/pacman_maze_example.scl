@@ -5,10 +5,7 @@ type goal_position(x: usize, y: usize)
 type is_enemy(x: usize, y: usize)
 
 // Constants
-const UP = 0
-const RIGHT = 1
-const DOWN = 2
-const LEFT = 3
+type Action = UP | RIGHT | DOWN | LEFT
 
 // Basic connectivity
 rel node(x, y) = grid_node(x, y), not is_enemy(x, y)

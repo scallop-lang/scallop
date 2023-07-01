@@ -120,22 +120,28 @@ class InputMapping:
     if self.retain_k is not None:
       if self.sample_dim is not None:
         if self.sample_strategy == "categorical":
-          raise NotImplementedError()
+          transposed_tensor = tensor.transpose(self.sample_dim, tensor.dim() - 1)
+          distributions = torch.distributions.Categorical(transposed_tensor)
+          sampled_indices = distributions.sample((self.retain_k,)).transpose(0, transposed_tensor.dim() - 1)
+          for index in self._convert_categorical_sampled_indices(sampled_indices, self.sample_dim):
+            inc.add(index)
         elif self.sample_strategy == "top":
           topk_result = torch.topk(tensor, self.retain_k, dim=self.sample_dim)
-          for index in self._convert_sampled_indices(topk_result.indices, self.sample_dim):
+          for index in self._convert_topk_sampled_indices(topk_result.indices, self.sample_dim):
             inc.add(index)
         else:
           raise Exception(f"Unknown sample strategy `{self.sample_strategy}`")
       else:
         flat_tensor = torch.flatten(tensor)
         if self.sample_strategy == "categorical":
-          raise NotImplementedError()
+          categorical_distr = torch.distributions.Categorical(probs=flat_tensor)
+          sampled_indices = categorical_distr.sample((self.retain_k,))
+          for index in sampled_indices:
+            inc.add(self._index_to_mult_dim_index(int(index)))
         elif self.sample_strategy == "top":
           topk_result = torch.topk(flat_tensor, self.retain_k)
           for index in topk_result.indices:
-            mult_dim_index = self._index_to_mult_dim_index(int(index))
-            inc.add(mult_dim_index)
+            inc.add(self._index_to_mult_dim_index(int(index)))
         else:
           raise Exception(f"Unknown sample strategy `{self.sample_strategy}`")
 
@@ -335,10 +341,17 @@ class InputMapping:
       acc_index = acc_index // self._shape[i - 1]
     return tuple(reversed(mult_dim_index))
 
-  def _convert_sampled_indices(self, sampled_indices, sample_dim):
+  def _convert_topk_sampled_indices(self, sampled_indices, sample_dim):
     for partial_index in itertools.product(*[range(d) for (i, d) in enumerate(self._shape) if i != sample_dim]):
       before, after = partial_index[:sample_dim], partial_index[sample_dim:]
       indexing_slice = before + (slice(None),) + after
+      for sampled_k_index in sampled_indices[indexing_slice]:
+        yield before + (int(sampled_k_index),) + after
+
+  def _convert_categorical_sampled_indices(self, sampled_indices, sample_dim):
+    for partial_index in itertools.product(*[range(d) for (i, d) in enumerate(self._shape) if i != sample_dim]):
+      before, after = partial_index[:sample_dim], partial_index[sample_dim:]
+      indexing_slice = before + after
       for sampled_k_index in sampled_indices[indexing_slice]:
         yield before + (int(sampled_k_index),) + after
 

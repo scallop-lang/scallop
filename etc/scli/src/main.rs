@@ -167,9 +167,7 @@ fn main() -> Result<(), String> {
       let ctx = provenance::top_bottom_k_clauses::TopBottomKClausesProvenance::<RcFamily>::new(opt.top_k);
       interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options)
     }
-    _ => {
-      Err(format!("Unknown provenance semiring `{}`", opt.provenance))
-    }
+    _ => Err(format!("Unknown provenance semiring `{}`", opt.provenance)),
   }
 }
 
@@ -180,12 +178,14 @@ fn interpret<Prov: provenance::Provenance>(
   predicate_set: PredicateSet,
   monitor_options: MonitorOptions,
 ) -> Result<(), String> {
-  let mut interpret_ctx = match integrate::InterpretContext::<_, RcFamily>::new_from_file_with_options(file_name, prov, opt) {
-    Ok(ctx) => ctx,
-    Err(err) => {
-      return Err(format!("{}", err));
-    }
-  };
+  let mut interpret_ctx =
+    match integrate::InterpretContext::<_, RcFamily>::new_from_file_with_options(file_name, prov, opt) {
+      Ok(ctx) => ctx,
+      Err(err) => {
+        eprintln!("{}", err);
+        return Err(err.kind().to_string());
+      }
+    };
 
   // Check if we have any specified monitors, and run the program
   if !monitor_options.needs_monitor() {

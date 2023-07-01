@@ -129,6 +129,10 @@ pub fn constant_prop(rule: &mut Rule) {
                     function: c.function.clone(),
                     args: c.args.iter().map(substitute_term).collect(),
                   }),
+                  AssignExpr::New(n) => AssignExpr::New(NewExpr {
+                    functor: n.functor.clone(),
+                    args: n.args.iter().map(substitute_term).collect(),
+                  }),
                 },
               })
             } else {

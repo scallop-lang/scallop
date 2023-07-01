@@ -1,37 +1,187 @@
 {
-	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-	"name": "Scallop",
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Scallop",
   "scopeName": "source.scl",
-	"patterns": [
-		{
-			"include": "#comment"
+  "patterns": [
+		{ "include": "#comment" },
+		{ "include": "#attribute" },
+    { "include": "#item" },
+		{ "include": "#aggregation" },
+		{ "include": "#case_is" },
+		{ "include": "#keyword" },
+		{ "include": "#formula_operator" },
+		{ "include": "#expr_operator" },
+		{ "include": "#atom" },
+		{ "include": "#tag" },
+		{ "include": "#constants" },
+		{ "include": "#expr" }
+  ],
+  "repository": {
+		"attribute": {
+			"patterns": [
+				{ "include": "#attribute_with_arg" },
+				{ "include": "#simple_attribute" }
+			]
 		},
-		{
-			"include": "#strings"
+		"simple_attribute": {
+			"match": "(@)([a-zA-Z][a-zA-Z0-9_]*)",
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.decorator.scallop"
+				},
+				"2": {
+					"name": "support.function.scallop"
+				}
+			}
 		},
-		{
-			"include": "#datetime"
+		"attribute_with_arg": {
+			"begin": "(@)([a-zA-Z][a-zA-Z0-9_]*)\\(",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.definition.decorator.scallop"
+				},
+				"2": {
+					"name": "support.function.scallop"
+				}
+			},
+			"end": "\\)",
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#named_argument" },
+				{ "include": "#constants" }
+			]
 		},
-		{
-			"include": "#duration"
+		"named_argument": {
+			"match": "([a-zA-Z][a-zA-Z0-9_]*)\\s*(=)",
+			"captures": {
+				"1": {
+					"name": "variable.parameter.scallop"
+				},
+				"2": {
+					"name": "keyword.operator.scallop"
+				}
+			}
 		},
-		{
-			"include": "#chars"
+    "item": {
+      "patterns": [
+        { "include": "#import" },
+				{ "include": "#type_decl" },
+				{ "include": "#constant_decl" },
+				{ "include": "#relation_decl" },
+				{ "include": "#query_decl" }
+      ]
+    },
+    "import": {
+      "match": "\\b(import)\\b",
+			"captures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				}
+			}
+    },
+		"type_decl": {
+			"patterns": [
+				{ "include": "#adt_type_decl" },
+				{ "include": "#adt_variant" },
+				{ "include": "#enum_type_decl" },
+				{ "include": "#alias_type_decl" },
+				{ "include": "#sub_type_decl" },
+				{ "include": "#relation_type_decl" }
+			]
 		},
-		{
-			"include": "#booleans"
+		"adt_type_decl": {
+			"begin": "(type)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s*(=)\\s*([a-zA-Z][a-zA-Z0-9_]*)\\s*\\(",
+			"end": "\\)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				},
+				"2": {
+					"name": "storage.type.scallop"
+				},
+				"3": {
+					"name": "keyword.operator.scallop"
+				},
+				"4": {
+					"name": "entity.name.class.scallop"
+				}
+			},
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#type" }
+			]
 		},
-		{
-			"include": "#float"
+		"adt_variant": {
+			"begin": "(\\|)\\s*([a-zA-Z][a-zA-Z0-9_]*)\\s*\\(",
+			"end": "\\)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.operator.scallop"
+				},
+				"2": {
+					"name": "entity.name.class.scallop"
+				}
+			},
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#type" }
+			]
 		},
-		{
-			"include": "#integer"
+		"enum_type_decl": {
+			"match": "(type)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s*(=)\\s*([A-Z][A-Z0-9_]*)\\s*(=|\\|)",
+			"captures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				},
+				"2": {
+					"name": "storage.type.scallop"
+				},
+				"3": {
+					"name": "keyword.operator.scallop"
+				},
+				"4": {
+					"name": "constant.other.caps.scallop"
+				},
+				"5": {
+					"name": "keyword.operator.scallop"
+				}
+			}
 		},
-		{
-			"include": "#builtin_types"
+		"alias_type_decl": {
+			"match": "(type)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s*(=)\\s*([a-zA-Z][a-zA-Z0-9_]*)",
+			"captures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				},
+				"2": {
+					"name": "storage.type.scallop"
+				},
+				"3": {
+					"name": "keyword.operator.scallop"
+				},
+				"4": {
+					"name": "storage.type.scallop"
+				}
+			}
 		},
-		{
-			"comment": "Relation Type Declaration",
+		"sub_type_decl": {
+			"match": "(type)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s*(<:)\\s*([a-zA-Z][a-zA-Z0-9_]*)",
+			"captures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				},
+				"2": {
+					"name": "storage.type.scallop"
+				},
+				"3": {
+					"name": "keyword.operator.scallop"
+				},
+				"4": {
+					"name": "storage.type.scallop"
+				}
+			}
+		},
+		"relation_type_decl": {
 			"begin": "(type)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s*\\(",
 			"end": "\\)",
 			"beginCaptures": {
@@ -43,52 +193,71 @@
 				}
 			},
 			"patterns": [
-				{
-					"comment": "Relation Type Member Binding",
-					"match": "([a-zA-Z][a-zA-Z0-9_]*)\\s*:\\s*([a-zA-Z][a-zA-Z0-9_]*)",
-					"captures": {
-						"1": {
-							"name": "variable.parameter.scallop"
-						},
-						"2": {
-							"name": "storage.type.core.scallop"
-						}
-					}
-				},
-				{
-					"comment": "Relation Type Member",
-					"name": "storage.type.core.scallop",
-					"match": "(\\b[a-zA-Z][a-zA-Z0-9_]*\\b)"
-				}
+				{ "include": "#comment" },
+				{ "include": "#relation_type_binding" },
+				{ "include": "#type" }
 			]
 		},
-		{
-			"comment": "Type Alias Declaration",
-			"match": "(type)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s+=",
+		"relation_type_binding": {
+			"match": "([a-zA-Z][a-zA-Z0-9_]*)\\s*:\\s*([a-zA-Z][a-zA-Z0-9_]*)",
 			"captures": {
+				"1": {
+					"name": "variable.parameter.scallop"
+				},
+				"2": {
+					"name": "storage.type.scallop"
+				}
+			}
+		},
+		"type": {
+			"patterns": [
+				{ "include": "#basic_type" },
+				{ "include": "#custom_type" }
+			]
+		},
+		"basic_type": {
+			"match": "(i8|i16|i32|i64|i128|isize|u8|u16|u32|u64|u128|usize|f32|f64|bool|char|&str|String|Symbol|DateTime|Duration|Entity)",
+			"name": "storage.type.scallop"
+		},
+		"custom_type": {
+			"match": "([A-Z][a-zA-Z0-9_]*)",
+			"name": "storage.type.scallop"
+		},
+		"constant_decl": {
+			"patterns": [
+				{ "include": "#constant_entity_decl" },
+				{ "include": "#basic_constant_decl" },
+				{ "include": "#continue_constant_entity_decl" }
+			]
+		},
+		"constant_entity_decl": {
+			"begin": "(const)\\s+([A-Z][A-Z0-9_]*)(\\s*:\\s*([A-Z][A-Z0-9_]*))?\\s*(=)\\s*([a-zA-Z][a-zA-Z0-9_]*)\\s*\\(",
+			"end": "\\)",
+			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.scallop"
 				},
 				"2": {
-					"name": "storage.type.core.scallop"
-				}
-			}
-		},
-		{
-			"comment": "Sub Type Declaration",
-			"match": "(type)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s+<:",
-			"captures": {
-				"1": {
-					"name": "keyword.control.scallop"
+					"name": "constant.other.caps.scallop"
 				},
-				"2": {
-					"name": "storage.type.core.scallop"
+				"4": {
+					"name": "storage.type.scallop"
+				},
+				"5": {
+					"name": "keyword.operator.scallop"
+				},
+				"6": {
+					"name": "entity.name.class.scallop"
 				}
-			}
+			},
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#entity" },
+				{ "include": "#constants" }
+			]
 		},
-		{
-			"comment": "Constant Declaration with Type",
-			"match": "(const)\\s+([A-Z][A-Z0-9_]*)\\s*:\\s*([a-zA-Z][a-zA-Z0-9_]*)",
+		"basic_constant_decl": {
+			"match": "(const)\\s+([A-Z][A-Z0-9_]*)\\s*(=)",
 			"captures": {
 				"1": {
 					"name": "keyword.control.scallop"
@@ -97,139 +266,450 @@
 					"name": "constant.other.caps.scallop"
 				},
 				"3": {
-					"name": "storage.type.core.scallop"
+					"name": "keyword.operator.scallop"
 				}
 			}
 		},
-		{
-			"include": "#keywords"
+		"continue_constant_entity_decl": {
+			"begin": "([A-Z][A-Z0-9_]*)\\s*(=)\\s*([a-zA-Z][a-zA-Z0-9_]*)\\s*\\(",
+			"end": "\\)",
+			"beginCaptures": {
+				"1": {
+					"name": "constant.other.caps.scallop"
+				},
+				"2": {
+					"name": "keyword.operator.scallop"
+				},
+				"3": {
+					"name": "entity.name.class.scallop"
+				}
+			},
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#entity" },
+				{ "include": "#expr" }
+			]
 		},
-		{
-			"comment": "As Operator",
-			"match": "(\\b(as)\\b)",
-			"name": "keyword.other.scallop"
+		"entity": {
+			"begin": "([a-zA-Z][a-zA-Z0-9_]*)\\s*\\(",
+			"end": "\\)",
+			"beginCaptures": {
+				"1": {
+					"name": "entity.name.class.scallop"
+				}
+			},
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#entity" },
+				{ "include": "#expr" }
+			]
 		},
-		{
-			"comment": "Aggregator with Argument",
-			"match": "\\b(min|max)\\s*\\[",
+		"relation_decl": {
+			"patterns": [
+				{ "include": "#fact_set_decl" }
+			]
+		},
+		"fact_set_decl": {
+			"begin": "(rel)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s*(=)\\s*\\{",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				},
+				"2": {
+					"name": "entity.name.function.scallop"
+				},
+				"3": {
+					"name": "keyword.operator.scallop"
+				}
+			},
+			"end": "\\}",
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#constants" },
+				{ "include": "#tag" }
+			]
+		},
+		"tag": {
+			"match": "(\\S+)(::)",
 			"captures": {
 				"1": {
-					"name": "keyword.other.scallop"
+					"name": "constant.numeric.scallop"
+				},
+				"2": {
+					"name": "keyword.operator.scallop"
 				}
 			}
 		},
-		{
-			"comment": "Aggregator with sample count",
-			"match": "\\b(top)\\s*(<)\\s*(\\d+)\\s*(>)\\s*\\(",
+		"query_decl": {
+			"match": "(query)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\n",
 			"captures": {
 				"1": {
+					"name": "keyword.control.scallop"
+				},
+				"2": {
+					"name": "entity.name.function.scallop"
+				}
+			}
+		},
+		"aggregation": {
+			"patterns": [
+				{ "include": "#simple_aggregation" },
+				{ "include": "#sample_aggregation" },
+				{ "include": "#argminmax_aggregation" },
+				{ "include": "#forall_exists_aggregation" }
+			]
+		},
+		"simple_aggregation": {
+			"begin": "([a-zA-Z_][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z_][a-zA-Z0-9_]*))*\\s*(:=|=)\\s*(count|sum|prod|min|max|exists|forall|unique)\\(([a-zA-Z][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z][a-zA-Z0-9_]*))*\\s*:",
+			"end": "\\)",
+			"beginCaptures": {
+				"1": {
+					"name": "variable.parameter.scallop"
+				},
+				"3": {
+					"name": "variable.parameter.scallop"
+				},
+				"4": {
+					"name": "keyword.operator.scallop"
+				},
+				"5": {
 					"name": "keyword.other.scallop"
+				},
+				"6": {
+					"name": "variable.parameter.scallop"
+				},
+				"8": {
+					"name": "variable.parameter.scallop"
+				}
+			},
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#where_clause" },
+				{ "include": "#formula" }
+			]
+		},
+		"sample_aggregation": {
+			"begin": "([a-zA-Z_][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z_][a-zA-Z0-9_]*))*\\s*(:=|=)\\s*(top|categorical|uniform)(<)(\\d+)(>)\\(([a-zA-Z][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z][a-zA-Z0-9_]*))*\\s*:",
+			"end": "\\)",
+			"beginCaptures": {
+				"1": {
+					"name": "variable.parameter.scallop"
+				},
+				"3": {
+					"name": "variable.parameter.scallop"
+				},
+				"4": {
+					"name": "keyword.operator.scallop"
+				},
+				"5": {
+					"name": "keyword.other.scallop"
+				},
+				"6": {
+					"name": "keyword.operator.scallop"
+				},
+				"7": {
+					"name": "constant.numeric.scallop"
+				},
+				"8": {
+					"name": "keyword.operator.scallop"
+				},
+				"9": {
+					"name": "variable.parameter.scallop"
+				},
+				"11": {
+					"name": "variable.parameter.scallop"
+				}
+			},
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#where_clause" },
+				{ "include": "#formula" }
+			]
+		},
+		"argminmax_aggregation": {
+			"begin": "([a-zA-Z_][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z_][a-zA-Z0-9_]*))*\\s*(:=|=)\\s*(min|max)(\\[)([a-zA-Z][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z][a-zA-Z0-9_]*))*(\\])\\(([a-zA-Z][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z][a-zA-Z0-9_]*))*\\s*:",
+			"end": "\\)",
+			"beginCaptures": {
+				"1": {
+					"name": "variable.parameter.scallop"
+				},
+				"3": {
+					"name": "variable.parameter.scallop"
+				},
+				"4": {
+					"name": "keyword.operator.scallop"
+				},
+				"5": {
+					"name": "keyword.other.scallop"
+				},
+				"6": {
+					"name": "keyword.operator.scallop"
+				},
+				"7": {
+					"name": "variable.parameter.scallop"
+				},
+				"9": {
+					"name": "variable.parameter.scallop"
+				},
+				"10": {
+					"name": "keyword.operator.scallop"
+				},
+				"11": {
+					"name": "variable.parameter.scallop"
+				},
+				"13": {
+					"name": "variable.parameter.scallop"
+				}
+			},
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#where_clause" },
+				{ "include": "#formula" }
+			]
+		},
+		"forall_exists_aggregation": {
+			"begin": "(forall|exists)\\(([a-zA-Z][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z][a-zA-Z0-9_]*))*\\s*:",
+			"end": "\\)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.scallop"
+				},
+				"2": {
+					"name": "variable.parameter.scallop"
+				},
+				"4": {
+					"name": "variable.parameter.scallop"
+				}
+			},
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#where_clause" },
+				{ "include": "#formula" }
+			]
+		},
+		"where_clause": {
+			"match": "(where)\\s+([a-zA-Z][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z][a-zA-Z0-9_]*))*\\s*:",
+			"captures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				},
+				"2": {
+					"name": "variable.parameter.scallop"
+				},
+				"4": {
+					"name": "variable.parameter.scallop"
+				}
+			}
+		},
+		"case_is": {
+			"begin": "(case)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s+(is)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s*\\(",
+			"end": "\\)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				},
+				"2": {
+					"name": "variable.parameter.scallop"
+				},
+				"3": {
+					"name": "keyword.control.scallop"
+				},
+				"4": {
+					"name": "entity.name.class.scallop"
+				}
+			},
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#entity" },
+				{ "include": "#expr" }
+			]
+		},
+		"formula": {
+			"patterns": [
+				{ "include": "#aggregation" },
+				{ "include": "#case_is" },
+				{ "include": "#atom" },
+				{ "include": "#tag" },
+				{ "include": "#formula_operator" },
+				{ "include": "#expr_operator" },
+				{ "include": "#constants" },
+				{ "include": "#expr" }
+			]
+		},
+		"atom": {
+			"patterns": [
+				{ "include": "#specialized_atom" },
+				{ "include": "#simple_atom" }
+			]
+		},
+		"simple_atom": {
+			"begin": "([a-zA-Z][a-zA-Z0-9_]*)\\s*\\(",
+			"end": "\\)",
+			"beginCaptures": {
+				"1": {
+					"name": "entity.name.function.scallop"
+				}
+			},
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#relation_type_binding" },
+				{ "include": "#basic_type" },
+				{ "include": "#expr" }
+			]
+		},
+		"specialized_atom": {
+			"begin": "([a-zA-Z][a-zA-Z0-9_]*)\\s*(<)\\s*([a-zA-Z][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z][a-zA-Z0-9_]*))*\\s*(>)\\s*\\(",
+			"end": "\\)",
+			"beginCaptures": {
+				"1": {
+					"name": "entity.name.function.scallop"
 				},
 				"2": {
 					"name": "punctuation.brackets.angle.scallop"
 				},
 				"3": {
-					"name": "constant.numeric.integer.decimal.scallop"
+					"name": "storage.type.scallop"
 				},
-				"4": {
+				"5": {
+					"name": "storage.type.scallop"
+				},
+				"6": {
 					"name": "punctuation.brackets.angle.scallop"
 				}
-			}
+			},
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#relation_type_binding" },
+				{ "include": "#basic_type" },
+				{ "include": "#expr" }
+			]
 		},
-		{
-			"comment": "Aggregator",
-			"match": "\\b(count|sum|prod|min|max|exists|forall|unique)\\s*\\(",
-			"captures": {
-				"1": {
-					"name": "keyword.other.scallop"
-				}
-			}
+		"expr": {
+			"patterns": [
+				{ "include": "#foreign_function_expr" },
+				{ "include": "#new_entity_expr" },
+				{ "include": "#constants" },
+				{ "include": "#expr_operator" },
+				{ "include": "#variable" }
+			]
 		},
-		{
-			"comment": "Foreign Function",
-			"match": "(\\$[a-zA-Z][a-zA-Z0-9_]*)\\s*\\(",
-			"captures": {
+		"foreign_function_expr": {
+			"begin": "(\\$[a-zA-Z][a-zA-Z0-9_]*)\\s*\\(",
+			"end": "\\)",
+			"beginCaptures": {
 				"1": {
 					"name": "entity.name.tag.scallop"
 				}
-			}
+			},
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#expr" }
+			]
 		},
-		{
-			"comment": "Atomic Relation",
-			"match": "[^\\@]\\b((?!((count|sum|prod|min|max|exists|forall|unique|and|or|not)\\b))[a-zA-Z][a-zA-Z0-9_]*)\\s*\\(",
+		"new_entity_expr": {
+			"begin": "(new)\\s+([a-zA-Z][a-zA-Z0-9]*)\\s*\\(",
+			"end": "\\)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.operator.new"
+				},
+				"2": {
+					"name": "entity.name.class.scallop"
+				}
+			},
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#expr" }
+			]
+		},
+		"variable": {
+			"match": "([a-zA-Z][a-zA-Z0-9_]*)",
+			"name": "variable.parameter.scallop"
+		},
+		"keyword": {
+			"match": "\\b(import|type|const|rel|query)\\b",
 			"captures": {
 				"1": {
-					"name": "entity.name.function.scallop"
+					"name": "keyword.control.scallop"
 				}
 			}
 		},
-		{
-			"include": "#constant_set_relation"
+		"formula_operator": {
+			"patterns": [
+				{ "include": "#formula_operator_symbol" },
+				{ "include": "#formula_operator_keywords" }
+			]
 		},
-		{
-			"include": "#query_relation"
+		"formula_operator_symbol": {
+			"match": "(\\\\/|/\\\\|=>|:-|=|:=|\\|)",
+			"name": "keyword.operator.scallop"
 		},
-		{
-			"comment": "Attribute",
-			"name": "meta.attribute.scallop",
-			"begin": "\\@([a-zA-Z][a-zA-Z0-9_]*)\\(",
-			"end": "\\)",
+		"formula_operator_keywords": {
+			"match": "\\b(and|or|not|implies|case|is|where)\\b",
+			"name": "keyword.control.scallop"
+		},
+		"expr_operator": {
+			"patterns": [
+				{ "include": "#expr_operator_symbol" },
+				{ "include": "#expr_operator_keywords" },
+				{ "include": "#as_symbol" }
+			]
+		},
+		"expr_operator_symbol": {
+			"match": "(&&|\\|\\||==|!=|!|\\+|-|/|\\*|%|<=|>=|<|>)",
+			"name": "keyword.operator.scallop"
+		},
+		"expr_operator_keywords": {
+			"match": "\\b(if|then|else)\\b",
+			"name": "keyword.control.scallop"
+		},
+		"as_symbol": {
+			"match": "\\b(as)\\b",
+			"name": "keyword.other.scallop"
+		},
+		"constants": {
+			"patterns": [
+				{ "include": "#integer" },
+				{ "include": "#float" },
+				{ "include": "#boolean" },
+				{ "include": "#string" },
+				{ "include": "#char" },
+				{ "include": "#datetime" },
+				{ "include": "#duration" },
+				{ "include": "#symbol" },
+				{ "include": "#constant_var" }
+			]
+		},
+		"integer": {
+			"comment": "Integer literal (decimal)",
+			"name": "constant.numeric.integer.decimal.scallop",
+			"match": "\\b[0-9][0-9_]*\\b"
+		},
+    "float": {
+			"comment": "Floating point literal (fraction)",
+			"name": "constant.numeric.float.scallop",
+			"match": "\\b[0-9][0-9_]*\\.[0-9][0-9_]*([eE][+-]?[0-9_]+)?\\b"
+		},
+		"boolean": {
 			"patterns": [
 				{
-					"include": "#float"
-				},
-				{
-					"include": "#integer"
-				},
-				{
-					"include": "#booleans"
-				},
-				{
-					"include": "#strings"
-				},
-				{
-					"include": "#chars"
+					"name": "constant.language.scallop",
+					"match": "(\\b(true|false)\\b)"
 				}
 			]
 		},
-		{
-			"comment": "Logical operator",
-			"name": "keyword.control.scallop",
-			"match": "(\\b(and|or|not|implies)\\b)"
+		"char": {
+			"name": "string.quoted.single.scallop",
+			"begin": "'",
+			"end": "'",
+			"patterns": [
+				{
+					"name": "constant.character.escape.scallop",
+					"match": "\\\\."
+				}
+			]
 		},
-		{
-			"comment": "Logical operator",
-			"name": "keyword.operator.comparison.scallop",
-			"match": "(&&|\\|\\||==|!=|\\\\/|/\\\\)"
-		},
-		{
-			"comment": "Assignment operator",
-			"name": "keyword.operator.assignment.scallop",
-			"match": "(:-|=)"
-		},
-		{
-			"comment": "Arithmetic operator",
-			"name": "keyword.operator.arithmetic.scallop",
-			"match": "(!|\\+|-|/|\\*|%)"
-		},
-		{
-			"comment": "Other comparison operators",
-			"name": "keyword.operator.comparison.scallop",
-			"match": "(<=|>=|<|>)"
-		},
-		{
-			"comment": "Constant Variable",
-			"match": "(\\b[A-Z][A-Z0-9_]*\\b)",
-			"name": "constant.other.caps.scallop"
-		},
-		{
-			"comment": "Parameters",
-			"name": "variable.parameter.scallop",
-			"match": "(\\b[a-zA-Z][a-zA-Z0-9_]*\\b)"
-		}
-	],
-	"repository": {
-		"strings": {
+		"string": {
 			"name": "string.quoted.double.scallop",
 			"begin": "\"",
 			"end": "\"",
@@ -242,7 +722,12 @@
 		},
 		"datetime": {
 			"name": "string.quoted.double.scallop",
-			"begin": "t\"",
+			"begin": "(t)\"",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				}
+			},
 			"end": "\"",
 			"patterns": [
 				{
@@ -253,80 +738,43 @@
 		},
 		"duration": {
 			"name": "string.quoted.double.scallop",
-			"begin": "d\"",
+			"begin": "(d)\"",
 			"end": "\"",
-			"patterns": [
-				{
-					"name": "constant.character.escape.scallop",
-					"match": "\\\\."
-				}
-			]
-		},
-		"chars": {
-			"name": "string.quoted.single.scallop",
-			"begin": "'",
-			"end": "'",
-			"patterns": [
-				{
-					"name": "constant.character.escape.scallop",
-					"match": "\\\\."
-				}
-			]
-		},
-		"constant_set_relation": {
-			"comment": "Constant Set Relation",
-			"match": "\\b([a-zA-Z][a-zA-Z0-9_]*)\\s*(=|:-)\\s*\\{",
-			"captures": {
-				"1": {
-					"name": "entity.name.function.scallop"
-				},
-				"2": {
-					"name": "keyword.operator.assignment.scallop"
-				}
-			}
-		},
-		"query_relation": {
-			"comment": "Query relation",
-			"match": "\\b(query)\\s+([a-zA-Z][a-zA-Z0-9_]*)",
-			"captures": {
+			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.scallop"
-				},
-				"2": {
-					"name": "entity.name.function.scallop"
+				}
+			},
+			"patterns": [
+				{
+					"name": "constant.character.escape.scallop",
+					"match": "\\\\."
+				}
+			]
+		},
+		"symbol": {
+			"name": "string.quoted.double.scallop",
+			"begin": "(s)\"",
+			"end": "\"",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				}
+			},
+			"patterns": [
+				{
+					"name": "constant.character.escape.scallop",
+					"match": "\\\\."
+				}
+			]
+		},
+		"constant_var": {
+			"match": "\\b([A-Z][A-Z0-9_]*)\\b",
+			"captures": {
+				"1": {
+					"name": "constant.other.caps.scallop"
 				}
 			}
-		},
-		"builtin_types": {
-			"comment": "Built-in/core type",
-			"name": "storage.type.core.scallop",
-			"match": "\\b(i8|i16|i32|i64|i128|isize|u8|u16|u32|u64|u128|usize|f32|f64|char|bool|String)\\b|(\\&str|Rc\\<String\\>)"
-		},
-		"float": {
-			"comment": "Floating point literal (fraction)",
-			"name": "constant.numeric.float.scallop",
-			"match": "\\b[0-9][0-9_]*\\.[0-9][0-9_]*([eE][+-]?[0-9_]+)?\\b"
-		},
-		"integer": {
-			"comment": "Integer literal (decimal)",
-			"name": "constant.numeric.integer.decimal.scallop",
-			"match": "\\b[0-9][0-9_]*\\b"
-		},
-		"keywords": {
-			"patterns": [
-				{
-					"name": "keyword.control.scallop",
-					"match": "(\\b(import|type|const|rel|relation|if|then|else|where)\\b)"
-				}
-			]
-		},
-		"booleans": {
-			"patterns": [
-				{
-					"name": "constant.language.scallop",
-					"match": "(\\b(true|false)\\b)"
-				}
-			]
 		},
 		"comment": {
 			"patterns": [
@@ -388,5 +836,5 @@
 				}
 			]
 		}
-	}
+  }
 }

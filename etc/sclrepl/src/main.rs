@@ -67,7 +67,7 @@ fn main() -> std::io::Result<()> {
   }
 }
 
-fn run<C>(cmd_args: Options, mut ctx: C) -> std::io::Result<()>
+fn run<C>(cmd_args: Options, ctx: C) -> std::io::Result<()>
 where
   C: runtime::provenance::Provenance,
 {
@@ -78,7 +78,7 @@ where
   // Compile context
   let options = compiler::CompileOptions::from(&cmd_args);
   let mut front_context = compiler::front::FrontContext::new();
-  let mut runtime_env = runtime::env::RuntimeEnvironment::default();
+  let runtime_env = runtime::env::RuntimeEnvironment::default();
   let mut exec_context =
     runtime::dynamic::DynamicExecutionContext::<_, RcFamily>::new_with_options(runtime::dynamic::ExecutionOptions {
       incremental_maintain: true,
@@ -112,7 +112,7 @@ where
         let queries = items
           .iter()
           .filter_map(|item| {
-            if let compiler::front::Item::QueryDecl(q) = item {
+            if let compiler::front::ast::Item::QueryDecl(q) = item {
               Some(q.query().create_relation_name())
             } else {
               None
@@ -160,7 +160,7 @@ where
           }
 
           // Interpret the ram
-          match exec_context.incremental_execute(ram, &mut runtime_env, &mut ctx) {
+          match exec_context.incremental_execute(ram, &runtime_env, &ctx) {
             Ok(()) => {}
             Err(e) => {
               println!("{:?}", e);
@@ -169,7 +169,7 @@ where
 
           // Print the result
           for q in &queries {
-            exec_context.recover(q, &ctx);
+            exec_context.recover(q, &runtime_env, &ctx);
             println!("{}: {}", q, exec_context.relation(q).unwrap());
           }
         }

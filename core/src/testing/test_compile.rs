@@ -49,3 +49,27 @@ where
     }
   }
 }
+
+/// Expect the given program fails to compile in the FRONT compilation stage
+///
+/// The given `f` takes in an error `String` and returns whether that string
+/// represents a particular error that the user expected.
+pub fn expect_front_compile_failure_with_modifier<M, F>(s: &str, m: M, f: F)
+where
+  M: Fn(&mut compiler::front::FrontContext),
+  F: Fn(String) -> bool,
+{
+  let mut ctx = compiler::front::FrontContext::new();
+  m(&mut ctx);
+  match ctx.compile_string(s.to_string()) {
+    Ok(_) => {
+      panic!("Compilation passed; expected failure")
+    }
+    Err(err) => {
+      let err = format!("{}", err);
+      if !f(err) {
+        panic!("Expected failure not found")
+      }
+    }
+  }
+}

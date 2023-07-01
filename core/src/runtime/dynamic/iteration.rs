@@ -77,11 +77,14 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     while self.need_to_iterate(ctx, &runtime.iter_limit) {
       // Perform updates
       for update in &self.updates {
-        let dyn_update = self.build_dynamic_update(ctx, update);
+        let dyn_update = self.build_dynamic_update(runtime, ctx, update);
         dyn_update
           .target
           .insert_dataflow_recent(ctx, &dyn_update.dataflow, runtime);
       }
+
+      // Drain from dynamically generated entities in the runtime
+      self.drain_dynamic_entities(ctx, runtime);
 
       // Update iteration number
       self.step();
@@ -94,6 +97,19 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
       result.insert(name.clone(), col);
     }
     result
+  }
+
+  fn drain_dynamic_entities(&mut self, ctx: &Prov, runtime: &RuntimeEnvironment) {
+    for (relation, tuples) in runtime.drain_new_entities() {
+      let update = Update {
+        target: relation,
+        dataflow: Dataflow::UntaggedVec(tuples),
+      };
+      let dyn_update = self.build_dynamic_update(runtime, ctx, &update);
+      dyn_update
+        .target
+        .insert_dataflow_recent(ctx, &dyn_update.dataflow, runtime);
+    }
   }
 
   fn need_to_iterate(&mut self, ctx: &Prov, iter_limit: &Option<usize>) -> bool {
@@ -138,7 +154,7 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
 
       // Perform updates
       for update in &self.updates {
-        let dyn_update = self.build_dynamic_update(ctx, update);
+        let dyn_update = self.build_dynamic_update(runtime, ctx, update);
         dyn_update
           .target
           .insert_dataflow_recent(ctx, &dyn_update.dataflow, runtime);
@@ -218,14 +234,24 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     }
   }
 
-  fn build_dynamic_update(&'a self, ctx: &'a Prov, update: &'a Update) -> DynamicUpdate<'a, Prov> {
+  fn build_dynamic_update(
+    &'a self,
+    env: &RuntimeEnvironment,
+    ctx: &'a Prov,
+    update: &'a Update,
+  ) -> DynamicUpdate<'a, Prov> {
     DynamicUpdate {
       target: self.unsafe_get_dynamic_relation(&update.target),
-      dataflow: self.build_dynamic_dataflow(ctx, &update.dataflow),
+      dataflow: self.build_dynamic_dataflow(env, ctx, &update.dataflow),
     }
   }
 
-  fn build_dynamic_dataflow(&'a self, ctx: &'a Prov, dataflow: &'a Dataflow) -> DynamicDataflow<'a, Prov> {
+  fn build_dynamic_dataflow(
+    &'a self,
+    env: &RuntimeEnvironment,
+    ctx: &'a Prov,
+    dataflow: &'a Dataflow,
+  ) -> DynamicDataflow<'a, Prov> {
     match dataflow {
       Dataflow::Unit(t) => {
         if self.is_first_iteration() {
@@ -235,7 +261,8 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
         }
       }
       Dataflow::UntaggedVec(v) => {
-        DynamicDataflow::untagged_vec(ctx, v)
+        let internal_tuple = v.iter().map(|t| env.internalize_tuple(t)).collect();
+        DynamicDataflow::untagged_vec(ctx, internal_tuple)
       }
       Dataflow::Relation(c) => {
         if self.input_dynamic_collections.contains_key(c) {
@@ -245,47 +272,65 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
         }
       }
       Dataflow::ForeignPredicateGround(p, a) => {
-        DynamicDataflow::foreign_predicate_ground(p.clone(), a.clone(), self.is_first_iteration(), ctx)
+        let internal_values = a.iter().map(|v| env.internalize_value(v)).collect();
+        DynamicDataflow::foreign_predicate_ground(p.clone(), internal_values, self.is_first_iteration(), ctx)
       }
       Dataflow::ForeignPredicateConstraint(d, p, a) => {
-        self.build_dynamic_dataflow(ctx, d).foreign_predicate_constraint(p.clone(), a.clone(), ctx)
+        // NOTE: `a` contains accessors which do not need to be internalized
+        self
+          .build_dynamic_dataflow(env, ctx, d)
+          .foreign_predicate_constraint(p.clone(), a.clone(), ctx)
       }
       Dataflow::ForeignPredicateJoin(d, p, a) => {
-        self.build_dynamic_dataflow(ctx, d).foreign_predicate_join(p.clone(), a.clone(), ctx)
+        // NOTE: `a` contains accessors which do not need to be internalized
+        self
+          .build_dynamic_dataflow(env, ctx, d)
+          .foreign_predicate_join(p.clone(), a.clone(), ctx)
       }
-      Dataflow::OverwriteOne(d) => self.build_dynamic_dataflow(ctx, d).overwrite_one(ctx),
-      Dataflow::Exclusion(d1, d2) => self.build_dynamic_dataflow(ctx, d1).dynamic_exclusion(self.build_dynamic_dataflow(ctx, d2), ctx),
-      Dataflow::Filter(d, e) => self.build_dynamic_dataflow(ctx, d).filter(e.clone()),
-      Dataflow::Find(d, k) => self.build_dynamic_dataflow(ctx, d).find(k.clone()),
-      Dataflow::Project(d, e) => self.build_dynamic_dataflow(ctx, d).project(e.clone()),
+      Dataflow::OverwriteOne(d) => self.build_dynamic_dataflow(env, ctx, d).overwrite_one(ctx),
+      Dataflow::Exclusion(d1, d2) => self
+        .build_dynamic_dataflow(env, ctx, d1)
+        .dynamic_exclusion(self.build_dynamic_dataflow(env, ctx, d2), ctx),
+      Dataflow::Filter(d, e) => {
+        let internal_filter = env.internalize_expr(e);
+        self.build_dynamic_dataflow(env, ctx, d).filter(internal_filter)
+      }
+      Dataflow::Find(d, k) => {
+        let internal_key = env.internalize_tuple(k);
+        self.build_dynamic_dataflow(env, ctx, d).find(internal_key)
+      }
+      Dataflow::Project(d, e) => {
+        let internal_expr = env.internalize_expr(e);
+        self.build_dynamic_dataflow(env, ctx, d).project(internal_expr)
+      }
       Dataflow::Intersect(d1, d2) => {
-        let r1 = self.build_dynamic_dataflow(ctx, d1);
-        let r2 = self.build_dynamic_dataflow(ctx, d2);
+        let r1 = self.build_dynamic_dataflow(env, ctx, d1);
+        let r2 = self.build_dynamic_dataflow(env, ctx, d2);
         r1.intersect(r2, ctx)
       }
       Dataflow::Join(d1, d2) => {
-        let r1 = self.build_dynamic_dataflow(ctx, d1);
-        let r2 = self.build_dynamic_dataflow(ctx, d2);
+        let r1 = self.build_dynamic_dataflow(env, ctx, d1);
+        let r2 = self.build_dynamic_dataflow(env, ctx, d2);
         r1.join(r2, ctx)
       }
       Dataflow::Product(d1, d2) => {
-        let r1 = self.build_dynamic_dataflow(ctx, d1);
-        let r2 = self.build_dynamic_dataflow(ctx, d2);
+        let r1 = self.build_dynamic_dataflow(env, ctx, d1);
+        let r2 = self.build_dynamic_dataflow(env, ctx, d2);
         r1.product(r2, ctx)
       }
       Dataflow::Union(d1, d2) => {
-        let r1 = self.build_dynamic_dataflow(ctx, d1);
-        let r2 = self.build_dynamic_dataflow(ctx, d2);
+        let r1 = self.build_dynamic_dataflow(env, ctx, d1);
+        let r2 = self.build_dynamic_dataflow(env, ctx, d2);
         r1.union(r2)
       }
       Dataflow::Difference(d1, d2) => {
-        let r1 = self.build_dynamic_dataflow(ctx, d1);
-        let r2 = self.build_dynamic_dataflow(ctx, d2);
+        let r1 = self.build_dynamic_dataflow(env, ctx, d1);
+        let r2 = self.build_dynamic_dataflow(env, ctx, d2);
         r1.difference(r2, ctx)
       }
       Dataflow::Antijoin(d1, d2) => {
-        let r1 = self.build_dynamic_dataflow(ctx, d1);
-        let r2 = self.build_dynamic_dataflow(ctx, d2);
+        let r1 = self.build_dynamic_dataflow(env, ctx, d1);
+        let r2 = self.build_dynamic_dataflow(env, ctx, d2);
         r1.antijoin(r2, ctx)
       }
       Dataflow::Reduce(a) => {

@@ -55,9 +55,7 @@ impl<T: Clone, P: PointerFamily> DiffProbStorage<T, P> {
   }
 
   pub fn input_tags(&self) -> Vec<T> {
-    P::get_rc_cell(&self.storage, |s| {
-      s.iter().filter_map(|(_, t)| t.clone()).collect()
-    })
+    P::get_rc_cell(&self.storage, |s| s.iter().filter_map(|(_, t)| t.clone()).collect())
   }
 
   pub fn num_input_tags(&self) -> usize {

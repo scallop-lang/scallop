@@ -1,4 +1,14 @@
-# (Latest) v0.1.9, Apr 24, 2023
+# (Latest) v0.2.0, Jun 11, 2023
+
+- Fixing CSV loading and its performance; adding new modes to specify `keys`
+- Adding `Symbol` type to the language
+- Adding algebraic data types to the language and supports for entities
+- Adding tensors to the language which can be accessed from `scallopy`
+- Adding `scallop` CLI (command-line interface) with OpenAI plugins for invoking LLMs
+- Adding more documentations
+- Multiple bugs fixed
+
+# v0.1.9, Apr 24, 2023
 
 - Supporting (partial) disjunctive Datalog
 - Fixed custom provenance's default implementations and dispatcher fallback

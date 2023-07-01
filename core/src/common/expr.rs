@@ -14,6 +14,7 @@ pub enum Expr {
   Unary(UnaryExpr),
   IfThenElse(IfThenElseExpr),
   Call(CallExpr),
+  New(NewExpr),
 }
 
 impl Expr {
@@ -39,6 +40,26 @@ impl Expr {
 
   pub fn call(function: String, args: Vec<Expr>) -> Self {
     Self::Call(CallExpr { function, args })
+  }
+
+  pub fn new(functor: String, args: Vec<Expr>) -> Self {
+    Self::New(NewExpr { functor, args })
+  }
+
+  pub fn eq(self, other: Expr) -> Self {
+    Self::Binary(BinaryExpr {
+      op: BinaryOp::Eq,
+      op1: Box::new(self),
+      op2: Box::new(other),
+    })
+  }
+
+  pub fn neq(self, other: Expr) -> Self {
+    Self::Binary(BinaryExpr {
+      op: BinaryOp::Neq,
+      op1: Box::new(self),
+      op2: Box::new(other),
+    })
   }
 
   pub fn lt(self, other: Expr) -> Self {
@@ -98,6 +119,7 @@ impl Expr {
       (Self::Unary(u), e) => Self::unary(u.op.clone(), u.op1.compose(e)),
       (Self::IfThenElse(i), e) => Self::ite(i.cond.compose(e), i.then_br.compose(e), i.else_br.compose(e)),
       (Self::Call(c), e) => Self::call(c.function.clone(), c.args.iter().map(|a| a.compose(e)).collect()),
+      (Self::New(n), e) => Self::new(n.functor.clone(), n.args.iter().map(|a| a.compose(e)).collect()),
     }
   }
 }
@@ -289,5 +311,11 @@ impl IfThenElseExpr {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CallExpr {
   pub function: String,
+  pub args: Vec<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct NewExpr {
+  pub functor: String,
   pub args: Vec<Expr>,
 }

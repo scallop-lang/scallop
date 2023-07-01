@@ -164,6 +164,16 @@ class TestInputMapping(unittest.TestCase):
   def test_retain_k_3(self):
     _ = scallopy.InputMapping(range(10), retain_k=3, sample_dim=-10)
 
+  def test_categorical_retain_k_1(self):
+    im = scallopy.InputMapping(range(10), retain_k=3, sample_strategy="categorical")
+    r = im.process_tensor(torch.softmax(torch.randn((10,)), dim=0))
+    assert len(r) <= 3 # less than or equal since this is categorical sampling
+
+  def test_categorical_retain_k_2(self):
+    im = scallopy.InputMapping({0: range(10), 1: range(10)}, retain_k=3, sample_strategy="categorical")
+    r = im.process_tensor(torch.softmax(torch.randn((10, 10)), dim=1))
+    assert len(r) <= 3 # less than or equal since this is categorical sampling
+
   def test_mult_dim_retain_k_1(self):
     im = scallopy.InputMapping({0: range(5), 1: range(5)}, retain_k=3)
     r = im.process_tensor(torch.randn((5, 5)))
@@ -178,6 +188,18 @@ class TestInputMapping(unittest.TestCase):
     im = scallopy.InputMapping({0: range(5), 1: range(3)}, retain_k=2, sample_dim=0)
     r = im.process_tensor(torch.randn((5, 3)))
     assert len(r) == 6
+
+  def test_mult_dim_categorical_retain_k_1(self):
+    im = scallopy.InputMapping({0: range(5), 1: range(3)}, retain_k=2, sample_dim=0, sample_strategy="categorical")
+    i = torch.nn.functional.softmax(torch.randn((5, 3)), dim=0)
+    r = im.process_tensor(i)
+    assert len(r) <= 2 * 3 # less than or equal since this is categorical sampling
+
+  def test_mult_dim_categorical_retain_k_2(self):
+    im = scallopy.InputMapping({0: range(5), 1: range(3), 2: range(7)}, retain_k=2, sample_dim=0, sample_strategy="categorical")
+    i = torch.nn.functional.softmax(torch.randn((5, 3, 7)), dim=0)
+    r = im.process_tensor(i)
+    assert len(r) <= 2 * 3 * 7 # less than or equal since this is categorical sampling
 
   def test_retain_threshold_1(self):
     im = scallopy.InputMapping(range(10), retain_threshold=0.5)

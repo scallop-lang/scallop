@@ -1,6 +1,7 @@
 use super::io::IOError;
 use crate::common::foreign_function::ForeignFunctionError;
 use crate::common::foreign_predicate::ForeignPredicateError;
+use crate::compiler::front::attribute::AttributeError;
 use crate::runtime::database::DatabaseError;
 
 #[derive(Clone, Debug)]
@@ -8,6 +9,7 @@ pub enum RuntimeError {
   IO(IOError),
   ForeignFunction(ForeignFunctionError),
   ForeignPredicate(ForeignPredicateError),
+  ForeignAttribute(AttributeError),
   Database(DatabaseError),
 }
 
@@ -17,6 +19,7 @@ impl std::fmt::Display for RuntimeError {
       Self::IO(e) => e.fmt(f),
       Self::ForeignFunction(e) => e.fmt(f),
       Self::ForeignPredicate(e) => e.fmt(f),
+      Self::ForeignAttribute(a) => a.fmt(f),
       Self::Database(e) => e.fmt(f),
     }
   }

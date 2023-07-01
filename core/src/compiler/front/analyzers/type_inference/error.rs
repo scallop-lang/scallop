@@ -5,6 +5,9 @@ use super::*;
 
 #[derive(Clone, Debug)]
 pub enum TypeInferenceError {
+  UnknownRelation {
+    relation: String,
+  },
   DuplicateTypeDecl {
     type_name: String,
     source_decl_loc: AstNodeLocation,
@@ -14,6 +17,10 @@ pub enum TypeInferenceError {
     predicate: String,
     source_decl_loc: AstNodeLocation,
     duplicate_decl_loc: AstNodeLocation,
+  },
+  UnknownADTVariant {
+    predicate: String,
+    loc: AstNodeLocation,
   },
   InvalidSubtype {
     source_type: TypeNode,
@@ -46,6 +53,18 @@ pub enum TypeInferenceError {
     function: String,
     actual: usize,
     loc: AstNodeLocation,
+  },
+  ADTVariantArityMismatch {
+    variant: String,
+    expected: usize,
+    actual: usize,
+    loc: AstNodeLocation,
+  },
+  EntityTupleArityMismatch {
+    predicate: String,
+    expected: usize,
+    actual: usize,
+    source_loc: AstNodeLocation,
   },
   InvalidArgIndex {
     predicate: String,
@@ -134,6 +153,9 @@ pub enum TypeInferenceError {
     pred: String,
     loc: AstNodeLocation,
   },
+  Internal {
+    error_string: String,
+  },
 }
 
 impl TypeInferenceError {
@@ -154,6 +176,9 @@ impl FrontCompileErrorTrait for TypeInferenceError {
 
   fn report(&self, src: &Sources) -> String {
     match self {
+      Self::UnknownRelation { relation } => {
+        format!("unknown relation `{relation}`")
+      }
       Self::DuplicateTypeDecl {
         type_name,
         source_decl_loc,
@@ -172,6 +197,12 @@ impl FrontCompileErrorTrait for TypeInferenceError {
         format!(
           "duplicated relation type declaration found for `{}`. It is originally defined here:\n{}\nwhile we find a duplicated declaration here:\n{}",
           predicate, source_decl_loc.report(src), duplicate_decl_loc.report(src)
+        )
+      }
+      Self::UnknownADTVariant { predicate, loc } => {
+        format!(
+          "unknown algebraic data type variant `{predicate}`:\n{}",
+          loc.report(src)
         )
       }
       Self::InvalidSubtype {
@@ -204,10 +235,7 @@ impl FrontCompileErrorTrait for TypeInferenceError {
         ..
       } => {
         format!(
-          "arity mismatch for relation `{}`. Expected {}, found {}:\n{}",
-          predicate,
-          expected,
-          actual,
+          "arity mismatch for relation `{predicate}`. Expected {expected}, found {actual}:\n{}",
           mismatch_loc.report(src)
         )
       }
@@ -217,6 +245,28 @@ impl FrontCompileErrorTrait for TypeInferenceError {
           function,
           actual,
           loc.report(src)
+        )
+      }
+      Self::ADTVariantArityMismatch {
+        variant,
+        expected,
+        actual,
+        loc,
+      } => {
+        format!(
+          "arity mismatch for algebraic data type variant `{variant}`. Expected {expected}, found {actual}:\n{}",
+          loc.report(src)
+        )
+      }
+      Self::EntityTupleArityMismatch {
+        predicate,
+        expected,
+        actual,
+        source_loc,
+      } => {
+        format!(
+          "incorrect number of arguments in entity tuple for `{predicate}`. Expected {expected}, found {actual}:\n{}",
+          source_loc.report(src)
         )
       }
       Self::InvalidArgIndex {
@@ -237,7 +287,9 @@ impl FrontCompileErrorTrait for TypeInferenceError {
       } => {
         format!(
           "Invalid `{}`-th argument for foreign predicate `{}`:\n{}",
-          index, predicate, access_loc.report(src)
+          index,
+          predicate,
+          access_loc.report(src)
         )
       }
       Self::ConstantSetArityMismatch {
@@ -283,8 +335,14 @@ impl FrontCompileErrorTrait for TypeInferenceError {
             t1, t2, t1.location().report(src), t2.location().report(src)
           )
         }
-      }
-      Self::CannotUnifyForeignPredicateArgument { pred, i, expected_ty, actual_ty, loc } => {
+      },
+      Self::CannotUnifyForeignPredicateArgument {
+        pred,
+        i,
+        expected_ty,
+        actual_ty,
+        loc,
+      } => {
         format!(
           "cannot unify the type of {}-th argument of foreign predicate `{}`, expected type `{}`, found `{}`:\n{}",
           i,
@@ -304,7 +362,12 @@ impl FrontCompileErrorTrait for TypeInferenceError {
           loc.report(src)
         )
       }
-      Self::NoMatchingTripletRule { op1_ty, op2_ty, e_ty, location } => {
+      Self::NoMatchingTripletRule {
+        op1_ty,
+        op2_ty,
+        e_ty,
+        location,
+      } => {
         format!(
           "no matching rule found; two operands have type `{}` and `{}`, while the expression has type `{}`:\n{}",
           op1_ty,
@@ -375,6 +438,7 @@ impl FrontCompileErrorTrait for TypeInferenceError {
           loc.report(src),
         )
       }
+      Self::Internal { error_string } => error_string.clone(),
     }
   }
 }

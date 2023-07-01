@@ -20,15 +20,12 @@ impl SoftNumberLt {
   pub fn new(ty: ValueType) -> Self {
     Self {
       ty,
-      sigmoid: SigmoidFunction::default()
+      sigmoid: SigmoidFunction::default(),
     }
   }
 
   pub fn new_with_sigmoid_fn(ty: ValueType, sigmoid: SigmoidFunction) -> Self {
-    Self {
-      ty,
-      sigmoid,
-    }
+    Self { ty, sigmoid }
   }
 
   fn soft_lt<T>(&self, lhs: &Value, rhs: &Value) -> Option<f64>
@@ -57,7 +54,11 @@ impl SoftNumberLt {
 
 impl ForeignPredicate for SoftNumberLt {
   fn name(&self) -> String {
-    format!("soft_lt_{}", self.ty)
+    "soft_lt".to_string()
+  }
+
+  fn generic_type_parameters(&self) -> Vec<ValueType> {
+    vec![self.ty.clone()]
   }
 
   fn arity(&self) -> usize {

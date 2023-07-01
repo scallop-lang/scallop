@@ -1,0 +1,12 @@
+// There are three classes
+rel classes = {0, 1, 2}
+
+// Each student is enrolled in a course (Math or CS)
+rel enroll = {
+  ("tom", "CS"), ("jenny", "Math"), // Class 0
+  ("alice", "CS"), ("bob", "CS"), // Class 1
+  ("jerry", "Math"), ("john", "Math"), // Class 2
+}
+
+// Count how many student enrolls in CS course
+rel count_enroll_cs(n) = n := count(s: enroll(s, "CS"))

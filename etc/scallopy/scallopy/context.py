@@ -13,9 +13,10 @@ from .io import CSVFileOptions
 from .input_mapping import InputMapping
 from .function import ForeignFunction
 from .predicate import ForeignPredicate
+from .attribute import ForeignAttributeProcessor
 from .history import HistoryAction, record_history
 from .sample_type import SAMPLE_TYPE_TOP_K
-from .utils import Counter
+from .utils import Counter, _map_entity_tuple_to_str_tuple
 
 # Main context
 class ScallopContext(Context):
@@ -80,7 +81,10 @@ class ScallopContext(Context):
       elif provenance == "diffmaxmultprob2":
         provenance = "custom"
         custom_provenance = DiffMaxMultProb2Semiring()
-      else: pass
+      elif custom_provenance is not None:
+        provenance = "custom"
+      else:
+        pass
 
       # Setup
       self.provenance = provenance
@@ -241,6 +245,13 @@ class ScallopContext(Context):
       self._internal.register_foreign_predicate(foreign_predicate)
     else:
       raise Exception("Registering non-foreign-predicate. Consider decorating the function with @scallopy.foreign_predicate")
+
+  @record_history
+  def register_foreign_attribute(self, foreign_attribute: ForeignAttributeProcessor):
+    if type(foreign_attribute) == ForeignAttributeProcessor:
+      self._internal.register_foreign_attribute(foreign_attribute)
+    else:
+      raise Exception("Registering non-foreign-attribute. Consider decorating the function with @scallopy.attribute")
 
   def forward_function(
     self,
@@ -485,6 +496,24 @@ class ScallopContext(Context):
     self._internal.add_rule(rule, tag=tag, demand=demand)
 
   @record_history
+  def add_entity(self, relation: str, entity: Union[str, Tuple]):
+    """
+    Add an entity to the context.
+
+    ``` python
+    ctx.add_program("type Expr = Const(i32) | Add(Expr, Expr)")
+    ctx.add_rule("eval(e, y) = case e is Const(y)")
+    ctx.add_rule("eval(e, y1 + y2) = case e is Add(e1, e2) and eval(e1, y1) and eval(e2, y2)")
+    ctx.add_rule("result(y) = root(e) and eval(e, y)")
+    ctx.add_entity("root", "Add(Const(5), Add(Const(3), Const(4)))")
+    ctx.run()
+    print(ctx.relation("result")) # [(12,)], where 12 is derived from 5 + (3 + 4)
+    ```
+    """
+    entity = _map_entity_tuple_to_str_tuple(entity)
+    self._internal.add_entity(relation, entity)
+
+  @record_history
   def compile(self):
     self._internal.compile()
 
@@ -621,7 +650,6 @@ class ScallopContext(Context):
       "topbottomkclauses",
       "diffsamplekproofs",
       "difftopkproofs",
-      "difftopkproofsindiv",
       "difftopbottomkclauses",
     ])
     return self.provenance in PROVENANCE_SUPPORTING_DISJUNCTIONS

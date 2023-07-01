@@ -73,7 +73,10 @@ impl Dataflow {
     match self {
       // Base relations
       Self::Unit(t) => f.write_fmt(format_args!("Unit({})", t)),
-      Self::UntaggedVec(v) => f.write_fmt(format_args!("Vec([{}])", v.iter().map(|t| format!("{}", t)).collect::<Vec<_>>().join(", "))),
+      Self::UntaggedVec(v) => f.write_fmt(format_args!(
+        "Vec([{}])",
+        v.iter().map(|t| format!("{}", t)).collect::<Vec<_>>().join(", ")
+      )),
       Self::Relation(r) => f.write_fmt(format_args!("Relation {}", r)),
 
       // Unary operations
@@ -158,12 +161,22 @@ impl Dataflow {
       }
       Self::ForeignPredicateConstraint(d, pred, args) => {
         let args = args.iter().map(|a| format!("{:?}", a)).collect::<Vec<_>>();
-        f.write_fmt(format_args!("ForeignPredicateConstraint[{}({})]\n{}", pred, args.join(", "), padding))?;
+        f.write_fmt(format_args!(
+          "ForeignPredicateConstraint[{}({})]\n{}",
+          pred,
+          args.join(", "),
+          padding
+        ))?;
         d.pretty_print(f, next_indent, indent_size)
       }
       Self::ForeignPredicateJoin(d, pred, args) => {
         let args = args.iter().map(|a| format!("{:?}", a)).collect::<Vec<_>>();
-        f.write_fmt(format_args!("ForeignPredicateJoin[{}({})]\n{}", pred, args.join(", "), padding))?;
+        f.write_fmt(format_args!(
+          "ForeignPredicateJoin[{}({})]\n{}",
+          pred,
+          args.join(", "),
+          padding
+        ))?;
         d.pretty_print(f, next_indent, indent_size)
       }
     }

@@ -1,6 +1,27 @@
 from typing import *
 import inspect
 
+
+ALIASES = {
+  "I8": "i8",
+  "I16": "i16",
+  "I32": "i32",
+  "I64": "i64",
+  "I128": "i128",
+  "ISize": "isize",
+  "U8": "u8",
+  "U16": "u16",
+  "U32": "u32",
+  "U64": "u64",
+  "U128": "u128",
+  "USize": "usize",
+  "F32": "f32",
+  "F64": "f64",
+  "Char": "char",
+  "Bool": "bool",
+}
+
+
 # Predicate Data Type
 class Type:
   def __init__(self, value):
@@ -20,6 +41,8 @@ class Type:
       value == "bool" or value == "char" or value == "String" or \
       value == "DateTime" or value == "Duration":
       self.type = value
+    elif value in ALIASES:
+      self.type = ALIASES[value]
     else:
       raise Exception(f"Unknown scallop predicate type annotation `{value}`")
 
@@ -86,7 +109,7 @@ class ForeignPredicate:
     return "b" * len(self.input_arg_types) + "f" * len(self.output_arg_types)
 
   def does_output_tag(self):
-    return self.tag_type is not None
+    return self.tag_type is not None and self.tag_type is not type(None)
 
 
 def foreign_predicate(func: Callable):
@@ -133,11 +156,12 @@ def foreign_predicate(func: Callable):
     if len(args) != 2:
       raise Exception(f"Generator must have 2 type arguments")
 
-    # Produce return tuple type, and check that they are all base type
-    return_tuple_type = _extract_return_tuple_type(args[0])
-
     # Produce return tag type
-    return_tag_type = _extract_return_tag_type(args[1])
+    return_tag_type = _extract_return_tag_type(args[0])
+
+    # Produce return tuple type, and check that they are all base type
+    return_tuple_type = _extract_return_tuple_type(args[1])
+
 
   # Create the foreign predicate
   return ForeignPredicate(

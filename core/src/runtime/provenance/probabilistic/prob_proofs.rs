@@ -173,9 +173,7 @@ impl<P: PointerFamily> Provenance for ProbProofsProvenance<P> {
     let mut prod = Self::Tag::cartesian_product(t1, t2);
     prod
       .proofs
-      .retain(|proof| {
-        P::get_cell(&self.disjunctions, |d| !d.has_conflict(&proof.facts))
-      });
+      .retain(|proof| P::get_cell(&self.disjunctions, |d| !d.has_conflict(&proof.facts)));
     prod
   }
 

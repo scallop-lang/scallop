@@ -12,9 +12,21 @@ impl InvalidConstantAnalyzer {
 }
 
 impl NodeVisitor for InvalidConstantAnalyzer {
-  fn visit_constant(&mut self, constant: &Constant) {
+  fn visit_constant_datetime(&mut self, constant: &ConstantDateTime) {
     match &constant.node {
-      ConstantNode::Invalid(message) => {
+      Err(message) => {
+        self.errors.push(InvalidConstantError::InvalidConstant {
+          loc: constant.location().clone(),
+          message: message.clone(),
+        });
+      }
+      _ => {}
+    }
+  }
+
+  fn visit_constant_duration(&mut self, constant: &ConstantDuration) {
+    match &constant.node {
+      Err(message) => {
         self.errors.push(InvalidConstantError::InvalidConstant {
           loc: constant.location().clone(),
           message: message.clone(),
@@ -27,10 +39,7 @@ impl NodeVisitor for InvalidConstantAnalyzer {
 
 #[derive(Clone, Debug)]
 pub enum InvalidConstantError {
-  InvalidConstant {
-    loc: AstNodeLocation,
-    message: String,
-  },
+  InvalidConstant { loc: AstNodeLocation, message: String },
 }
 
 impl FrontCompileErrorTrait for InvalidConstantError {

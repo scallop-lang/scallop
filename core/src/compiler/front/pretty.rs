@@ -30,6 +30,7 @@ impl Display for TypeDecl {
       TypeDeclNode::Alias(s) => s.fmt(f),
       TypeDeclNode::Relation(s) => s.fmt(f),
       TypeDeclNode::Enum(e) => e.fmt(f),
+      TypeDeclNode::Algebraic(a) => a.fmt(f),
     }
   }
 }
@@ -60,6 +61,29 @@ impl Display for ConstAssignment {
   }
 }
 
+impl Display for Entity {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    match &self.node {
+      EntityNode::Expr(e) => e.fmt(f),
+      EntityNode::Object(o) => o.fmt(f),
+    }
+  }
+}
+
+impl Display for Object {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    f.write_str(self.functor_name())?;
+    f.write_str("(")?;
+    for (i, arg) in self.iter_args().enumerate() {
+      if i > 0 {
+        f.write_str(", ")?;
+      }
+      arg.fmt(f)?;
+    }
+    f.write_str(")")
+  }
+}
+
 impl Display for RelationDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     match &self.node {
@@ -84,6 +108,34 @@ impl Display for Query {
     match &self.node {
       QueryNode::Atom(a) => Display::fmt(a, f),
       QueryNode::Predicate(p) => Display::fmt(p, f),
+    }
+  }
+}
+
+impl Display for AttributeValue {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    match &self.node {
+      AttributeValueNode::Constant(c) => c.fmt(f),
+      AttributeValueNode::List(l) => {
+        f.write_str("[")?;
+        for (i, v) in l.iter().enumerate() {
+          if i > 0 {
+            f.write_str(", ")?;
+          }
+          v.fmt(f)?;
+        }
+        f.write_str("]")
+      }
+      AttributeValueNode::Tuple(l) => {
+        f.write_str("(")?;
+        for (i, v) in l.iter().enumerate() {
+          if i > 0 {
+            f.write_str(", ")?;
+          }
+          v.fmt(f)?;
+        }
+        f.write_str(")")
+      }
     }
   }
 }
@@ -140,7 +192,7 @@ impl Display for Type {
 impl Display for SubtypeDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     for attr in self.attributes() {
-      attr.fmt(f)?;
+      f.write_fmt(format_args!("{} ", attr))?;
     }
     f.write_fmt(format_args!("type {} <: {}", self.name(), self.subtype_of()))
   }
@@ -149,7 +201,7 @@ impl Display for SubtypeDecl {
 impl Display for AliasTypeDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     for attr in self.attributes() {
-      attr.fmt(f)?;
+      f.write_fmt(format_args!("{} ", attr))?;
     }
     f.write_fmt(format_args!("type {} = {}", self.name(), self.alias_of()))
   }
@@ -158,7 +210,7 @@ impl Display for AliasTypeDecl {
 impl Display for RelationTypeDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     for attr in self.attributes() {
-      attr.fmt(f)?;
+      f.write_fmt(format_args!("{} ", attr))?;
     }
     f.write_str("type ")?;
     for (i, relation_type) in self.relation_types().enumerate() {
@@ -188,7 +240,7 @@ impl Display for RelationType {
 impl Display for EnumTypeDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     for attr in self.attributes() {
-      attr.fmt(f)?;
+      f.write_fmt(format_args!("{} ", attr))?;
     }
     f.write_fmt(format_args!("type {} = ", self.name()))?;
     for (i, member) in self.iter_members().enumerate() {
@@ -211,6 +263,35 @@ impl Display for EnumTypeMember {
   }
 }
 
+impl Display for AlgebraicDataTypeDecl {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    for attr in self.attributes() {
+      f.write_fmt(format_args!("{} ", attr))?;
+    }
+    let name = self.name();
+    f.write_fmt(format_args!("type {name} = "))?;
+    for (i, member) in self.iter_variants().enumerate() {
+      if i > 0 {
+        f.write_str(" | ")?;
+      }
+      member.fmt(f)?;
+    }
+    Ok(())
+  }
+}
+
+impl Display for AlgebraicDataTypeVariant {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    let name = self.name();
+    let args = self
+      .iter_arg_types()
+      .map(|t| format!("{t}"))
+      .collect::<Vec<_>>()
+      .join(", ");
+    f.write_fmt(format_args!("{name}({args})"))
+  }
+}
+
 impl Display for Identifier {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     f.write_str(self.name())
@@ -220,7 +301,7 @@ impl Display for Identifier {
 impl Display for ConstantSetDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     for attr in self.attributes() {
-      attr.fmt(f)?;
+      f.write_fmt(format_args!("{} ", attr))?;
     }
     f.write_fmt(format_args!(
       "rel {} = {{{}}}",
@@ -237,7 +318,7 @@ impl Display for ConstantSetDecl {
 impl Display for FactDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     for attr in self.attributes() {
-      attr.fmt(f)?;
+      f.write_fmt(format_args!("{} ", attr))?;
     }
     f.write_fmt(format_args!(
       "rel {}({})",
@@ -302,14 +383,51 @@ impl Display for ConstantOrVariable {
 impl std::fmt::Display for Constant {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match &self.node {
-      ConstantNode::Integer(i) => f.write_fmt(format_args!("{}", i)),
-      ConstantNode::Float(n) => f.write_fmt(format_args!("{}", n)),
-      ConstantNode::Char(c) => f.write_fmt(format_args!("'{}'", c)),
-      ConstantNode::Boolean(b) => f.write_fmt(format_args!("{}", b)),
-      ConstantNode::String(s) => f.write_fmt(format_args!("\"{}\"", s)),
-      ConstantNode::DateTime(s) => f.write_fmt(format_args!("\"{}\"", s)),
-      ConstantNode::Duration(s) => f.write_fmt(format_args!("\"{}\"", s)),
-      ConstantNode::Invalid(_) => f.write_str("invalid"),
+      ConstantNode::Integer(i) => f.write_fmt(format_args!("{i}")),
+      ConstantNode::Entity(e) => f.write_fmt(format_args!("{e:#x}")),
+      ConstantNode::Float(n) => f.write_fmt(format_args!("{n}")),
+      ConstantNode::Char(c) => c.fmt(f),
+      ConstantNode::Boolean(b) => f.write_fmt(format_args!("{b}")),
+      ConstantNode::String(s) => s.fmt(f),
+      ConstantNode::Symbol(s) => s.fmt(f),
+      ConstantNode::DateTime(d) => d.fmt(f),
+      ConstantNode::Duration(d) => d.fmt(f),
+    }
+  }
+}
+
+impl std::fmt::Display for ConstantChar {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_fmt(format_args!("'{}'", self.character_string()))
+  }
+}
+
+impl std::fmt::Display for ConstantString {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_fmt(format_args!("\"{}\"", self.string()))
+  }
+}
+
+impl std::fmt::Display for ConstantSymbol {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_fmt(format_args!("s\"{}\"", self.symbol()))
+  }
+}
+
+impl std::fmt::Display for ConstantDateTime {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match &self.node {
+      Ok(n) => f.write_fmt(format_args!("t\"{}\"", n.datetime)),
+      Err(msg) => f.write_fmt(format_args!("[Invalid DateTime: \"{}\"]", msg)),
+    }
+  }
+}
+
+impl std::fmt::Display for ConstantDuration {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match &self.node {
+      Ok(n) => f.write_fmt(format_args!("d\"{}\"", n.duration)),
+      Err(msg) => f.write_fmt(format_args!("[Invalid Duration: \"{}\"]", msg)),
     }
   }
 }
@@ -324,16 +442,25 @@ impl Display for RuleHead {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     match &self.node {
       RuleHeadNode::Atom(a) => a.fmt(f),
-      RuleHeadNode::Disjunction(d) => {
-        f.write_str("{")?;
-        for (i, a) in d.iter().enumerate() {
+      RuleHeadNode::Conjunction(c) => {
+        for (i, a) in c.iter().enumerate() {
           if i > 0 {
             f.write_str(", ")?;
           }
           a.fmt(f)?;
         }
+        Ok(())
+      }
+      RuleHeadNode::Disjunction(d) => {
+        f.write_str("{")?;
+        for (i, a) in d.iter().enumerate() {
+          if i > 0 {
+            f.write_str("; ")?;
+          }
+          a.fmt(f)?;
+        }
         f.write_str("}")
-      },
+      }
     }
   }
 }
@@ -343,6 +470,7 @@ impl Display for Formula {
     match self {
       Self::Atom(a) => a.fmt(f),
       Self::NegAtom(a) => a.fmt(f),
+      Self::Case(c) => c.fmt(f),
       Self::Disjunction(a) => a.fmt(f),
       Self::Conjunction(a) => a.fmt(f),
       Self::Implies(i) => i.fmt(f),
@@ -356,6 +484,12 @@ impl Display for Formula {
 impl Display for NegAtom {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     f.write_fmt(format_args!("not {}", self.atom()))
+  }
+}
+
+impl Display for Case {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    f.write_fmt(format_args!("case {} is {}", self.variable_name(), self.entity()))
   }
 }
 
@@ -492,6 +626,11 @@ impl std::fmt::Display for Expr {
         "${}({})",
         c.function_identifier(),
         c.iter_args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(", ")
+      )),
+      Self::New(n) => f.write_fmt(format_args!(
+        "new {}({})",
+        n.functor_identifier(),
+        n.iter_args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(", ")
       )),
     }
   }

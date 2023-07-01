@@ -2,6 +2,7 @@ use itertools::Itertools;
 
 use super::*;
 use crate::common::element::*;
+use crate::common::tensors::*;
 use crate::common::value_type::*;
 use crate::runtime::dynamic::*;
 use crate::runtime::statics::*;
@@ -47,12 +48,12 @@ impl std::fmt::Debug for Prob {
 
 impl Tag for Prob {}
 
-pub struct DiffMinMaxProbProvenance<T: Clone, P: PointerFamily> {
+pub struct DiffMinMaxProbProvenance<T: FromTensor, P: PointerFamily> {
   pub storage: P::RcCell<Vec<T>>,
   pub valid_threshold: f64,
 }
 
-impl<T: Clone, P: PointerFamily> Clone for DiffMinMaxProbProvenance<T, P> {
+impl<T: FromTensor, P: PointerFamily> Clone for DiffMinMaxProbProvenance<T, P> {
   fn clone(&self) -> Self {
     Self {
       valid_threshold: self.valid_threshold,
@@ -61,7 +62,7 @@ impl<T: Clone, P: PointerFamily> Clone for DiffMinMaxProbProvenance<T, P> {
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> DiffMinMaxProbProvenance<T, P> {
+impl<T: FromTensor, P: PointerFamily> DiffMinMaxProbProvenance<T, P> {
   pub fn collect_chosen_elements<'a, E>(&self, all: &'a Vec<E>, chosen_ids: &Vec<usize>) -> Vec<&'a E>
   where
     E: Element<Self>,
@@ -103,7 +104,7 @@ impl<T: Clone + 'static, P: PointerFamily> DiffMinMaxProbProvenance<T, P> {
   }
 }
 
-impl<T: Clone, P: PointerFamily> Default for DiffMinMaxProbProvenance<T, P> {
+impl<T: FromTensor, P: PointerFamily> Default for DiffMinMaxProbProvenance<T, P> {
   fn default() -> Self {
     Self {
       valid_threshold: -0.0001,
@@ -113,21 +114,21 @@ impl<T: Clone, P: PointerFamily> Default for DiffMinMaxProbProvenance<T, P> {
 }
 
 #[derive(Clone)]
-pub struct OutputDiffProb<T: Clone + 'static>(pub f64, pub usize, pub i32, pub Option<T>);
+pub struct OutputDiffProb<T: FromTensor>(pub f64, pub usize, pub i32, pub Option<T>);
 
-impl<T: Clone + 'static> std::fmt::Debug for OutputDiffProb<T> {
+impl<T: FromTensor> std::fmt::Debug for OutputDiffProb<T> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_tuple("").field(&self.0).field(&self.1).field(&self.2).finish()
   }
 }
 
-impl<T: Clone + 'static> std::fmt::Display for OutputDiffProb<T> {
+impl<T: FromTensor> std::fmt::Display for OutputDiffProb<T> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_tuple("").field(&self.0).field(&self.1).field(&self.2).finish()
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffMinMaxProbProvenance<T, P> {
+impl<T: FromTensor, P: PointerFamily> Provenance for DiffMinMaxProbProvenance<T, P> {
   type Tag = Prob;
 
   type InputTag = InputDiffProb<T>;
@@ -151,9 +152,19 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffMinMaxProbProvenan
 
   fn recover_fn(&self, t: &Self::Tag) -> Self::OutputTag {
     match &t.1 {
-      Derivative::Pos(fact_id) => OutputDiffProb(t.0, *fact_id, 1, Some(P::get_rc_cell(&self.storage, |s| s[*fact_id].clone()))),
+      Derivative::Pos(fact_id) => OutputDiffProb(
+        t.0,
+        *fact_id,
+        1,
+        Some(P::get_rc_cell(&self.storage, |s| s[*fact_id].clone())),
+      ),
       Derivative::Zero => OutputDiffProb(t.0, 0, 0, None),
-      Derivative::Neg(fact_id) => OutputDiffProb(t.0, *fact_id, -1, Some(P::get_rc_cell(&self.storage, |s| s[*fact_id].clone()))),
+      Derivative::Neg(fact_id) => OutputDiffProb(
+        t.0,
+        *fact_id,
+        -1,
+        Some(P::get_rc_cell(&self.storage, |s| s[*fact_id].clone())),
+      ),
     }
   }
 

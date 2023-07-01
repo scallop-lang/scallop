@@ -244,29 +244,45 @@ impl Program {
 
     // Then add all the dependencies by going through rules
     for rule in &self.rules {
+      // Collect the head and functor predicates occurred in the rule
       let head_predicate = rule.head_predicate();
+      let functor_predicates = rule.collect_new_expr_functors().collect::<Vec<_>>();
+
+      // Functor predicates also depend on head
+      for functor_predicate in &functor_predicates {
+        graph.add_dependency(functor_predicate, head_predicate, E::Positive);
+        graph.add_dependency(head_predicate, functor_predicate, E::Positive);
+      }
+
+      // A recording dependency
+      let mut record_dependency = |pred, edge_type: E| {
+        graph.add_dependency(head_predicate, pred, edge_type.clone());
+        for functor_predicate in &functor_predicates {
+          graph.add_dependency(functor_predicate, pred, edge_type.clone());
+        }
+      };
       for atom in rule.body_literals() {
         match atom {
           Literal::Atom(a) => {
             let atom_predicate = &a.predicate;
             if !self.predicate_registry.contains(atom_predicate) {
-              graph.add_dependency(head_predicate, atom_predicate, E::Positive);
+              record_dependency(atom_predicate, E::Positive);
             }
           }
           Literal::NegAtom(a) => {
             let atom_predicate = &a.atom.predicate;
             if !self.predicate_registry.contains(atom_predicate) {
-              graph.add_dependency(head_predicate, atom_predicate, E::Negative);
+              record_dependency(atom_predicate, E::Negative);
             }
           }
           Literal::Reduce(r) => {
             let reduce_predicate = &r.body_formula.predicate;
-            graph.add_dependency(head_predicate, reduce_predicate, E::Aggregation);
+            record_dependency(reduce_predicate, E::Aggregation);
 
             // Add group by predicate also as an aggregation dependency
             if let Some(group_by_atom) = &r.group_by_formula {
               let group_by_predicate = &group_by_atom.predicate;
-              graph.add_dependency(head_predicate, group_by_predicate, E::Aggregation);
+              record_dependency(group_by_predicate, E::Aggregation);
             }
           }
           _ => {}

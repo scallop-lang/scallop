@@ -41,9 +41,9 @@ match {
   "^",
   "==",
   "!=",
+  "<",
   ">",
   ">=",
-  "<",
   "<=",
   "+",
   "-",
@@ -65,6 +65,9 @@ match {
   "else",
   "exists",
   "forall",
+  "case",
+  "is",
+  "new",
 
   // Type
   "i8",
@@ -85,9 +88,11 @@ match {
   "bool",
   "&str",
   "String",
-  "Rc<String>",
+  "Symbol",
   "DateTime",
   "Duration",
+  "Entity",
+  "Tensor",
 
   // Boolean keywords
   "true",
@@ -106,9 +111,11 @@ match {
 
   // Literals
   r"[a-zA-Z][a-zA-Z_0-9]*" => name,
+  r"([a-zA-Z][a-zA-Z_0-9]*)\s*<\s*([a-zA-Z][a-zA-Z_0-9]*)(\s*,\s*([a-zA-Z][a-zA-Z_0-9]*))*\s*>" => specialized_name,
   r"-?[0-9]+" => int,
   r"-?[0-9]+(\.[0-9]+)(e-?[0-9]+)?" => float,
-  r#""[^"]*""# => string,
+  r#""""((?:[^"])*)"""|"""((?:[\s\S]|\\.)*)"""|"((?:[^"\\]|\\.)*)""# => string,
+  r#"s"[^"]*""# => symbol_string,
   r#"t"[^"]*""# => date_time_string,
   r#"d"[^"]*""# => duration_string,
   r#"'[^']*'"# => character,
@@ -116,16 +123,24 @@ match {
   // Comments and Whitespaces
   r"[ \n\r]*" => { },
   r"//[^\n\r]*[\n\r]*" => { },
-  r"/\*([^\*]*\*+[^\*/])*([^\*]*\*+|[^\*])*\*/" => { },
+  r"/\*[^*]*\*+(?:[^/*][^*]*\*+)*/" => { },
 }
 
 /// ============================== ///
 /// ========= Attributes ========= ///
 /// ============================== ///
 
-AttributeArg: Result<Constant, (Identifier, Constant)> = {
-  <c: Constant> => Ok(c),
-  <n: Identifier> "=" <c: Constant> => Err((n, c)),
+AttributeValueNode: AttributeValueNode = {
+  <c: Constant> => AttributeValueNode::Constant(c),
+  "[" <vs: Separated<AttributeValue, ",">> "]" => AttributeValueNode::List(vs),
+  "(" <ts: Separated<AttributeValue, ",">> ")" => AttributeValueNode::Tuple(ts),
+}
+
+AttributeValue = Spanned<AttributeValueNode>;
+
+AttributeArg: Result<AttributeValue, (Identifier, AttributeValue)> = {
+  <c: AttributeValue> => Ok(c),
+  <n: Identifier> "=" <c: AttributeValue> => Err((n, c)),
 }
 
 AttributeNode: AttributeNode = {
@@ -149,9 +164,9 @@ AttributeNode: AttributeNode = {
   }
 }
 
-Attribute: Attribute = Spanned<AttributeNode>;
+Attribute = Spanned<AttributeNode>;
 
-Attributes: Attributes = <Attribute*>;
+Attributes = <Attribute*>;
 
 /// ==================================== ///
 /// ========= Type Declaration ========= ///
@@ -176,13 +191,15 @@ TypeNode: TypeNode = {
   "bool" => TypeNode::Bool,
   "&str" => TypeNode::Str,
   "String" => TypeNode::String,
-  // "Rc<String>" => TypeNode::RcString,
+  "Symbol" => TypeNode::Symbol,
   "DateTime" => TypeNode::DateTime,
   "Duration" => TypeNode::Duration,
-  <n: Identifier> => TypeNode::Named(n),
+  "Entity" => TypeNode::Entity,
+  "Tensor" => TypeNode::Tensor,
+  <n: Name> => TypeNode::Named(n),
 }
 
-Type: Type = Spanned<TypeNode>;
+Type = Spanned<TypeNode>;
 
 SubtypeDeclNode: SubtypeDeclNode = {
   <attrs: Attributes> "type" <n: Identifier> "<:" <t: Type> => {
@@ -194,7 +211,7 @@ SubtypeDeclNode: SubtypeDeclNode = {
   }
 }
 
-SubtypeDecl: SubtypeDecl = Spanned<SubtypeDeclNode>;
+SubtypeDecl = Spanned<SubtypeDeclNode>;
 
 AliasTypeDeclNode: AliasTypeDeclNode = {
   <attrs: Attributes> "type" <n: Identifier> "=" <t: Type> => {
@@ -206,7 +223,7 @@ AliasTypeDeclNode: AliasTypeDeclNode = {
   }
 }
 
-AliasTypeDecl: AliasTypeDecl = Spanned<AliasTypeDeclNode>;
+AliasTypeDecl = Spanned<AliasTypeDeclNode>;
 
 ArgTypeBindingNode: ArgTypeBindingNode = {
   <n: Identifier> ":" <t: Type> => {
@@ -270,37 +287,81 @@ EnumTypeMemberNode: EnumTypeMemberNode = {
 
 EnumTypeMember = Spanned<EnumTypeMemberNode>;
 
+ADTSeparator = "|";
+
+AlgebraicDataTypeDeclNode: AlgebraicDataTypeDeclNode = {
+  <attrs: Attributes> "type" <name: Identifier> "=" ADTSeparator? <vs: AtLeastTwoSeparatedStrict<AlgebraicDataTypeVariant, ADTSeparator>> => {
+    AlgebraicDataTypeDeclNode {
+      attrs,
+      name,
+      variants: vs,
+    }
+  }
+}
+
+AlgebraicDataTypeDecl = Spanned<AlgebraicDataTypeDeclNode>;
+
+AlgebraicDataTypeVariantNode: AlgebraicDataTypeVariantNode = {
+  <constructor: Identifier> "(" <args: Separated<Type, ",">> ")" => {
+    AlgebraicDataTypeVariantNode {
+      constructor,
+      args,
+    }
+  }
+}
+
+AlgebraicDataTypeVariant = Spanned<AlgebraicDataTypeVariantNode>;
+
 TypeDeclNode: TypeDeclNode = {
   <s: SubtypeDecl> => TypeDeclNode::Subtype(s),
   <a: AliasTypeDecl> => TypeDeclNode::Alias(a),
   <r: RelationTypeDecl> => TypeDeclNode::Relation(r),
   <e: EnumTypeDecl> => TypeDeclNode::Enum(e),
+  <a: AlgebraicDataTypeDecl> => TypeDeclNode::Algebraic(a),
 }
 
-TypeDecl: TypeDecl = Spanned<TypeDeclNode>;
+TypeDecl = Spanned<TypeDeclNode>;
 
 /// ======================================== ///
-/// ========= Relation Declaration ========= ///
+/// ========= Constant Declaration ========= ///
 /// ======================================== ///
 
-ConstAssignmentNode: ConstAssignmentNode = {
-  <n: Identifier> ":" <t: Type> "=" <c: Constant> => {
-    ConstAssignmentNode {
-      name: n,
-      ty: Some(t),
-      value: c,
-    }
-  },
-  <n: Identifier> "=" <c: Constant> => {
-    ConstAssignmentNode {
-      name: n,
-      ty: None,
-      value: c,
+EntityNode: EntityNode = {
+  <e: Expr> => EntityNode::Expr(e),
+  <o: Object> => EntityNode::Object(o),
+}
+
+pub Entity = Spanned<EntityNode>;
+
+ObjectNode: ObjectNode = {
+  <functor: Identifier> "(" <args: Separated<Entity, ",">> ")" => {
+    ObjectNode {
+      functor,
+      args,
     }
   }
 }
 
-ConstAssignment: ConstAssignment = Spanned<ConstAssignmentNode>;
+Object = Spanned<ObjectNode>;
+
+ConstAssignmentNode: ConstAssignmentNode = {
+  <n: Identifier> ":" <t: Type> "=" <e: Entity> => {
+    ConstAssignmentNode {
+      name: n,
+      ty: Some(t),
+      value: e,
+    }
+  },
+  <n: Identifier> "=" <e: Entity> => {
+    ConstAssignmentNode {
+      name: n,
+      ty: None,
+      value: e,
+    }
+  }
+}
+
+ConstAssignment = Spanned<ConstAssignmentNode>;
 
 ConstDeclNode: ConstDeclNode = {
   <attrs: Attributes> "const" <assignments: AtLeastOneSeparatedStrict<ConstAssignment, ",">> => {
@@ -311,7 +372,7 @@ ConstDeclNode: ConstDeclNode = {
   }
 }
 
-ConstDecl: ConstDecl = Spanned<ConstDeclNode>;
+ConstDecl = Spanned<ConstDeclNode>;
 
 /// ======================================== ///
 /// ========= Relation Declaration ========= ///
@@ -340,23 +401,14 @@ TagNode: TagNode = {
 Tag: Tag = Spanned<TagNode>;
 
 ConstantNode: ConstantNode = {
-  <b: Bool> => ConstantNode::Boolean(b),
   <i: Int> => ConstantNode::Integer(i),
   <f: Float> => ConstantNode::Float(f),
-  <s: StringLiteral> => ConstantNode::String(s),
-  <s: DateTimeLiteral> => {
-    match utils::parse_date_time_string(&s) {
-      Some(v) => ConstantNode::DateTime(v),
-      None => ConstantNode::Invalid(format!("Cannot parse date time `{}`", s)),
-    }
-  },
-  <s: DurationLiteral> => {
-    match utils::parse_duration_string(&s) {
-      Some(v) => ConstantNode::Duration(v),
-      None => ConstantNode::Invalid(format!("Cannot parse duration `{}`", s)),
-    }
-  },
-  <c: CharLiteral> => ConstantNode::Char(c),
+  <b: Bool> => ConstantNode::Boolean(b),
+  <c: ConstantChar> => ConstantNode::Char(c),
+  <s: ConstantString> => ConstantNode::String(s),
+  <s: ConstantSymbol> => ConstantNode::Symbol(s),
+  <s: ConstantDateTime> => ConstantNode::DateTime(s),
+  <s: ConstantDuration> => ConstantNode::Duration(s),
 }
 
 Constant: Constant = Spanned<ConstantNode>;
@@ -428,7 +480,12 @@ Variable = Spanned<VariableNode>;
 
 AtomNode: AtomNode = {
   <predicate: Identifier> "(" <args: Separated<Expr, ",">> ")" => {
-    AtomNode { predicate, args }
+    AtomNode { predicate, type_args: vec![], args }
+  },
+  <n: SpecializedPredicate> "(" <args: Separated<Expr, ",">> ")" => {
+    let (predicate, type_arg_ids) = n;
+    let type_args = type_arg_ids.into_iter().map(Type::from).collect();
+    AtomNode { predicate, type_args, args }
   }
 }
 
@@ -641,6 +698,7 @@ UnitFormula: Formula = {
   "(" <f: ComplexFormula> ")" => f,
   <c: Constraint> => Formula::Constraint(c),
   <a: Atom> => Formula::Atom(a),
+  <c: Case> => Formula::Case(c),
   <r: Reduce> => Formula::Reduce(r),
   <r: ForallExistsReduce> => Formula::ForallExistsReduce(r),
 }
@@ -655,6 +713,17 @@ ConstraintNode: ConstraintNode = {
 }
 
 Constraint = Spanned<ConstraintNode>;
+
+CaseNode: CaseNode = {
+  "case" <v: Variable> "is" <e: Entity> => {
+    CaseNode {
+      variable: v,
+      entity: e,
+    }
+  }
+}
+
+Case = Spanned<CaseNode>;
 
 VariableBindingNode: VariableBindingNode = {
   <name: Identifier> => VariableBindingNode { name, ty: None },
@@ -830,7 +899,18 @@ CallExprNode: CallExprNode = {
   }
 }
 
-CallExpr: CallExpr = Spanned<CallExprNode>;
+CallExpr = Spanned<CallExprNode>;
+
+NewExprNode: NewExprNode = {
+  "new" <functor: Identifier> "(" <args: Separated<Expr, ",">> ")" => {
+    NewExprNode {
+      functor,
+      args,
+    }
+  }
+}
+
+NewExpr = Spanned<NewExprNode>;
 
 UnitExpr: Expr = {
   "(" <e: ComplexExpr> ")" => e,
@@ -838,18 +918,25 @@ UnitExpr: Expr = {
   <c: Constant> => Expr::Constant(c),
   <v: Variable> => Expr::Variable(v),
   <c: CallExpr> => Expr::Call(c),
+  <n: NewExpr> => Expr::New(n),
 }
 
 RuleHeadNode: RuleHeadNode = {
   <a: Atom> => {
     RuleHeadNode::Atom(a)
   },
+  <atoms: AtLeastTwoSeparated<Atom, ConjunctionKeyword>> => {
+    RuleHeadNode::Conjunction(atoms)
+  },
+  "{" <atoms: AtLeastTwoSeparated<Atom, ",">> "}" => {
+    RuleHeadNode::Conjunction(atoms)
+  },
   "{" <atoms: AtLeastTwoSeparated<Atom, ";">> "}" => {
     RuleHeadNode::Disjunction(atoms)
   },
 }
 
-RuleHead: RuleHead = Spanned<RuleHeadNode>;
+RuleHead = Spanned<RuleHeadNode>;
 
 RuleNode: RuleNode = {
   <head: RuleHead> DefineSymbol <body: Formula> => {
@@ -868,7 +955,7 @@ RuleDeclNode: RuleDeclNode = {
   },
 }
 
-RuleDecl: RuleDecl = Spanned<RuleDeclNode>;
+RuleDecl = Spanned<RuleDeclNode>;
 
 /// ====================================== ///
 /// ========= Import Declaration ========= ///
@@ -882,7 +969,7 @@ ImportFileNode: ImportFileNode = {
   }
 }
 
-ImportFile: ImportFile = Spanned<ImportFileNode>;
+ImportFile = Spanned<ImportFileNode>;
 
 ImportDeclNode: ImportDeclNode = {
   <a: Attributes> "import" <f: ImportFile> => {
@@ -893,7 +980,7 @@ ImportDeclNode: ImportDeclNode = {
   }
 }
 
-ImportDecl: ImportDecl = Spanned<ImportDeclNode>;
+ImportDecl = Spanned<ImportDeclNode>;
 
 /// ===================================== ///
 /// ========= Query Declaration ========= ///
@@ -908,7 +995,7 @@ QueryNode: QueryNode = {
   }
 }
 
-pub Query: Query = Spanned<QueryNode>;
+pub Query = Spanned<QueryNode>;
 
 QueryKeyword = {
   "query",
@@ -923,7 +1010,7 @@ QueryDeclNode: QueryDeclNode = {
   },
 }
 
-QueryDecl: QueryDecl = Spanned<QueryDeclNode>;
+QueryDecl = Spanned<QueryDeclNode>;
 
 /// ==================================== ///
 /// ========= Item Declaration ========= ///
@@ -945,34 +1032,134 @@ pub Items: Items = <Item*>;
 
 Name: String = name => (<>).to_string();
 
+pub SpecializedPredicate: (Identifier, Vec<Identifier>) = {
+  <start: @L> <s: specialized_name> <end: @R> => {
+    // First get the name part
+    let angle_id = s.find("<").unwrap(); // Split the string using `<`
+    let name = s[0..angle_id].trim_end(); // The first part is the name
+    let name_id = Identifier::from_span(start, start + name.len(), IdentifierNode { name: name.to_string() }); // Generate the identifier for name
+
+    // Then get the args part
+    let all_args_str = &s[angle_id + 1..];
+    let arg_local_start_positions = std::iter::once(0)
+      .chain(all_args_str.match_indices(",").map(|(i, _)| i + 1))
+      .chain(std::iter::once(all_args_str.len()))
+      .collect::<Vec<_>>();
+    let num_args = arg_local_start_positions.len() - 1;
+    let arg_ids = (0..num_args)
+      .map(|i| {
+        let (curr_begin, curr_end) = (arg_local_start_positions[i], arg_local_start_positions[i + 1] - 1);
+        let curr_total = curr_end - curr_begin;
+        let local_arg_str = &all_args_str[curr_begin..curr_end];
+        let local_arg_start = curr_begin + (curr_total - local_arg_str.trim_start().len());
+        let local_arg_end = curr_begin + local_arg_str.trim_end().len();
+        let global_arg_start = start + (angle_id + 1) + local_arg_start;
+        let global_arg_end = start + (angle_id + 1) + local_arg_end;
+        Identifier::from_span(global_arg_start, global_arg_end, IdentifierNode { name: local_arg_str.trim().to_string() })
+      })
+      .collect();
+
+    // Return
+    (name_id, arg_ids)
+  }
+}
+
 IdentifierNode: IdentifierNode = <name: Name> => IdentifierNode { name };
 
-Identifier: Identifier = Spanned<IdentifierNode>;
+Identifier = Spanned<IdentifierNode>;
 
 Int: i64 = int => i64::from_str(<>).unwrap();
 
 Float: f64 = float => f64::from_str(<>).unwrap();
 
-StringLiteral: String = <s: string> => {
-  s[1..s.len() - 1].replace("\\t", "\t").replace("\\n", "\n").replace("\\\\", "\\").into()
-};
+StringLiteral: String = {
+  <s: string> => {
+    s[1..s.len() - 1].replace("\"\"", "")
+                     .replace("\\t", "\t")
+                     .replace("\\r", "\r")
+                     .replace("\\n", "\n")
+                     .replace("\\0", "\0")
+                     .replace("\\\"", "\"")
+                     .replace("\\\'", "\'")
+                     .replace("\\\\", "\\")
+                     .into()
+  }
+}
 
-DateTimeLiteral: String = <s: date_time_string> => {
-  s[2..s.len() - 1].replace("\\t", "\t").replace("\\n", "\n").replace("\\\\", "\\").into()
-};
+SymbolLiteral: String = {
+  <s: symbol_string> => {
+    s[2..s.len() - 1].into()
+  }
+}
 
-DurationLiteral: String = <s: duration_string> => {
-  s[2..s.len() - 1].replace("\\t", "\t").replace("\\n", "\n").replace("\\\\", "\\").into()
-};
+DateTimeLiteral: String = {
+  <s: date_time_string> => {
+    s[2..s.len() - 1].into()
+  }
+}
 
-CharLiteral: String = <s: character> => {
-  s[1..s.len() - 1].replace("\\t", "\t").replace("\\n", "\n").replace("\\'", "'").replace("\\\\", "\\").into()
-};
+DurationLiteral: String = {
+  <s: duration_string> => {
+    s[2..s.len() - 1].into()
+  }
+}
+
+CharLiteral: String = {
+  <s: character> => {
+    s[1..s.len() - 1].replace("\\t", "\t").replace("\\n", "\n").replace("\\'", "'").replace("\\\\", "\\").into()
+  }
+}
 
 Bool: bool = {
   "true" => true,
   "false" => false,
 }
+
+ConstantCharNode: ConstantCharNode = {
+  <c: CharLiteral> => {
+    ConstantCharNode { character: c }
+  }
+}
+
+ConstantChar = Spanned<ConstantCharNode>;
+
+ConstantStringNode: ConstantStringNode = {
+  <s: StringLiteral> => {
+    ConstantStringNode { string: s }
+  }
+}
+
+ConstantString = Spanned<ConstantStringNode>;
+
+ConstantSymbolNode: ConstantSymbolNode = {
+  <s: SymbolLiteral> => {
+    ConstantSymbolNode { symbol: s }
+  }
+}
+
+ConstantSymbol = Spanned<ConstantSymbolNode>;
+
+ConstantDateTimeNode: Result<ConstantDateTimeNode, String> = {
+  <s: DateTimeLiteral> => {
+    match utils::parse_date_time_string(&s) {
+      Some(v) => Ok(ConstantDateTimeNode { datetime: v }),
+      None => Err(format!("Cannot parse date time `{}`", s)),
+    }
+  }
+}
+
+ConstantDateTime = Spanned<ConstantDateTimeNode>;
+
+ConstantDurationNode: Result<ConstantDurationNode, String> = {
+  <s: DurationLiteral> => {
+    match utils::parse_duration_string(&s) {
+      Some(v) => Ok(ConstantDurationNode { duration: v }),
+      None => Err(format!("Cannot parse duration `{}`", s)),
+    }
+  }
+}
+
+ConstantDuration = Spanned<ConstantDurationNode>;
 
 /// =========================== ///
 /// ========= Helpers ========= ///

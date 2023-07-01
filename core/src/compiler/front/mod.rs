@@ -1,7 +1,8 @@
 mod analysis;
 pub mod analyzers;
 mod annotation;
-mod ast;
+pub mod ast;
+pub mod attribute;
 mod compile;
 mod error;
 mod f2b;
@@ -17,7 +18,7 @@ mod visitor_mut;
 
 pub use analysis::*;
 pub use annotation::*;
-pub use ast::*;
+use ast::*;
 pub use compile::*;
 pub use error::*;
 pub use f2b::*;

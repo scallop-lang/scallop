@@ -1,3 +1,4 @@
+use crate::common::aggregate_op::AggregateOp;
 use crate::common::input_file::InputFile;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -95,8 +96,14 @@ pub enum Attribute {
 }
 
 impl Attribute {
-  pub fn aggregate_body(num_group_by_vars: usize, num_arg_vars: usize, num_key_vars: usize) -> Self {
+  pub fn aggregate_body(
+    aggregator: AggregateOp,
+    num_group_by_vars: usize,
+    num_arg_vars: usize,
+    num_key_vars: usize,
+  ) -> Self {
     Self::AggregateBody(AggregateBodyAttribute {
+      aggregator,
       num_group_by_vars,
       num_arg_vars,
       num_key_vars,
@@ -117,14 +124,16 @@ impl Attribute {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AggregateBodyAttribute {
+  pub aggregator: AggregateOp,
   pub num_group_by_vars: usize,
   pub num_arg_vars: usize,
   pub num_key_vars: usize,
 }
 
 impl AggregateBodyAttribute {
-  pub fn new(num_group_by_vars: usize, num_arg_vars: usize, num_key_vars: usize) -> Self {
+  pub fn new(aggregator: AggregateOp, num_group_by_vars: usize, num_arg_vars: usize, num_key_vars: usize) -> Self {
     Self {
+      aggregator,
       num_group_by_vars,
       num_arg_vars,
       num_key_vars,

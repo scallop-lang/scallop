@@ -4,7 +4,7 @@ use scallop_core::testing::*;
 fn range_free_1() {
   expect_interpret_result(
     r#"
-      rel result(y) = range_usize(0, 5, y)
+      rel result(y) = range<usize>(0, 5, y)
     "#,
     ("result", vec![(0usize,), (1,), (2,), (3,), (4,)]),
   );
@@ -15,7 +15,7 @@ fn range_constraint_1() {
   expect_interpret_result(
     r#"
       rel base = {("A", "B", 3.0)}
-      rel result(a, b) = base(a, b, x) and soft_eq_f32(x, 3.0)
+      rel result(a, b) = base(a, b, x) and soft_eq<f32>(x, 3.0)
     "#,
     ("result", vec![("A".to_string(), "B".to_string())]),
   );
@@ -26,7 +26,7 @@ fn range_join_1() {
   expect_interpret_result(
     r#"
       rel base = {3}
-      rel result(y) = base(x) and range_usize(0, x, y)
+      rel result(y) = base(x) and range<usize>(0, x, y)
     "#,
     ("result", vec![(0usize,), (1,), (2,)]),
   );
@@ -37,7 +37,7 @@ fn range_join_2() {
   expect_interpret_result(
     r#"
       rel base = {3}
-      rel result() = base(x) and range_usize(0, x, 2)
+      rel result() = base(x) and range<usize>(0, x, 2)
     "#,
     ("result", vec![()]),
   );
@@ -48,7 +48,7 @@ fn range_join_3() {
   expect_interpret_empty_result(
     r#"
       rel base = {3}
-      rel result() = base(x) and range_usize(0, x, 100)
+      rel result() = base(x) and range<usize>(0, x, 100)
     "#,
     "result",
   );
@@ -59,7 +59,7 @@ fn range_join_4() {
   expect_interpret_result(
     r#"
       rel base = {3, 10}
-      rel result(x) = base(x) and range_usize(0, x, 5)
+      rel result(x) = base(x) and range<usize>(0, x, 5)
     "#,
     ("result", vec![(10usize,)]),
   );
@@ -80,12 +80,81 @@ fn string_chars_1() {
 fn floating_point_eq_1() {
   expect_interpret_multi_result(
     r#"
-      rel result_1() = float_eq_f32(3.000001, 1.000001 + 2.000001)
+      rel result_1() = float_eq<f32>(3.000001, 1.000001 + 2.000001)
       rel result_2() = 3.000001 == 1.000001 + 2.000001
     "#,
-    vec![
-      ("result_1", vec![()].into()),
-      ("result_2", TestCollection::empty())
-    ],
+    vec![("result_1", vec![()].into()), ("result_2", TestCollection::empty())],
   )
+}
+
+#[test]
+fn string_split_1() {
+  expect_interpret_multi_result(
+    r#"
+      rel string = {"abcde ab cde abcde"}
+      rel pattern1 = {" "}
+      rel pattern2 = {"ab"}
+      rel pattern3 = {"abcde"}
+      rel result1(out) = string(s), pattern1(p), string_split(s, p, out)
+      rel result2(out) = string(s), pattern2(p), string_split(s, p, out)
+      rel result3(out) = string(s), pattern3(p), string_split(s, p, out)
+    "#,
+    vec![
+      (
+        "result1",
+        vec![
+          ("abcde".to_string(),),
+          ("ab".to_string(),),
+          ("cde".to_string(),),
+          ("abcde".to_string(),),
+        ]
+        .into(),
+      ),
+      (
+        "result2",
+        vec![
+          ("".to_string(),),
+          ("cde ".to_string(),),
+          (" cde ".to_string(),),
+          ("cde".to_string(),),
+        ]
+        .into(),
+      ),
+      (
+        "result3",
+        vec![("".to_string(),), (" ab cde ".to_string(),), ("".to_string(),)].into(),
+      ),
+    ],
+  );
+}
+
+#[test]
+fn string_find_1() {
+  expect_interpret_multi_result(
+    r#"
+      rel string = {"abcde ab cde abcde"}
+      rel pattern1 = {" "}
+      rel pattern2 = {"ab"}
+      rel pattern3 = {"cde"}
+      rel result1(i, j) = string(s), pattern1(p), string_find(s, p, i, j)
+      rel result2(i, j) = string(s), pattern2(p), string_find(s, p, i, j)
+      rel result3(i, j) = string(s), pattern3(p), string_find(s, p, i, j)
+    "#,
+    vec![
+      ("result1", vec![(5usize, 6usize), (8, 9), (12, 13)].into()),
+      ("result2", vec![(0usize, 2usize), (6, 8), (13, 15)].into()),
+      ("result3", vec![(2usize, 5usize), (9, 12), (15, 18)].into()),
+    ],
+  );
+}
+
+#[test]
+fn datetime_ymd_1() {
+  expect_interpret_result(
+    r#"
+      rel datetime = {t"2023-04-17T00:00:00Z"}
+      rel result(y, m, d) = datetime(dt), datetime_ymd(dt, y, m, d)
+    "#,
+    ("result", vec![(2023i32, 4u32, 17u32)]),
+  );
 }

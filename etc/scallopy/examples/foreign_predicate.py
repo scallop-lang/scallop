@@ -23,4 +23,6 @@ ctx.add_facts("kinship", [
 ctx.add_rule("parent(a, b) = kinship(a, r, b) and string_semantic_eq(r, \"mother\")")
 ctx.add_rule("sibling(a, b) = parent(c, a) and parent(c, b) and a != b")
 ctx.run()
-print(list(ctx.relation("sibling")))
+print("kinship", list(ctx.relation("kinship")))
+print("sibling", list(ctx.relation("sibling")))
+print("parent", list(ctx.relation("parent")))

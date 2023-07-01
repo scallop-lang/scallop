@@ -1,7 +1,7 @@
 use crate::common::expr::*;
-use crate::common::value::*;
 use crate::common::tuple::*;
 use crate::common::tuple_type::*;
+use crate::common::value::*;
 
 use super::*;
 
@@ -36,7 +36,7 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
     Self::Vec(vec)
   }
 
-  pub fn untagged_vec(ctx: &'a Prov, vec: &'a Vec<Tuple>) -> Self {
+  pub fn untagged_vec(ctx: &'a Prov, vec: Vec<Tuple>) -> Self {
     Self::UntaggedVec(DynamicUntaggedVec::new(ctx, vec))
   }
 
@@ -143,12 +143,7 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
     })
   }
 
-  pub fn foreign_predicate_ground(
-    pred: String,
-    bounded: Vec<Value>,
-    first_iter: bool,
-    ctx: &'a Prov,
-  ) -> Self {
+  pub fn foreign_predicate_ground(pred: String, bounded: Vec<Value>, first_iter: bool, ctx: &'a Prov) -> Self {
     Self::ForeignPredicateGround(ForeignPredicateGroundDataflow {
       foreign_predicate: pred,
       bounded_constants: bounded,
@@ -157,12 +152,7 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
     })
   }
 
-  pub fn foreign_predicate_constraint(
-    self,
-    pred: String,
-    args: Vec<Expr>,
-    ctx: &'a Prov,
-  ) -> Self {
+  pub fn foreign_predicate_constraint(self, pred: String, args: Vec<Expr>, ctx: &'a Prov) -> Self {
     Self::ForeignPredicateConstraint(ForeignPredicateConstraintDataflow {
       dataflow: Box::new(self),
       foreign_predicate: pred,
@@ -171,12 +161,7 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
     })
   }
 
-  pub fn foreign_predicate_join(
-    self,
-    pred: String,
-    args: Vec<Expr>,
-    ctx: &'a Prov,
-  ) -> Self {
+  pub fn foreign_predicate_join(self, pred: String, args: Vec<Expr>, ctx: &'a Prov) -> Self {
     Self::ForeignPredicateJoin(ForeignPredicateJoinDataflow {
       left: Box::new(self),
       foreign_predicate: pred,

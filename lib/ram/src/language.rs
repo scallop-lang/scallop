@@ -18,8 +18,13 @@ define_language! {
 
     // Tuple operations
     "apply" = Apply([Id; 2]),
-    "cons" = Cons([Id; 2]),
-    "nil" = Nil,
+    "tuple-cons" = TupleCons([Id; 2]),
+    "tuple-nil" = TupleNil,
+
+    // Indexing operations
+    "index" = Index(Id),
+    "index-cons" = IndexCons([Id; 2]),
+    "index-nil" = IndexNil,
 
     // Value operations
     "+" = Add([Id; 2]),
@@ -44,9 +49,7 @@ fn var(s: &str) -> Var {
 }
 
 fn is_constant(_v: Var) -> impl Fn(&mut EGraph, Id, &Subst) -> bool {
-  move |_egraph, _, _subst| {
-    false
-  }
+  move |_egraph, _, _subst| false
 }
 
 /// All the rewrite rules for the language
@@ -57,16 +60,14 @@ pub fn ram_rewrite_rules() -> Vec<Rewrite<Ram, ()>> {
     rw!("filter-true"; "(filter ?d true)" => "?d"),
     rw!("filter-false"; "(filter ?d false)" => "empty"),
     rw!("project-cascade"; "(project (project ?d ?a) ?b)" => "(project ?d (apply ?b ?a))"),
-    rw!("product-transpose"; "(product ?a ?b)" => "(project (product ?b ?a) (cons (cons 1 nil) (cons (cons 0 nil) nil))))"),
-    rw!("join-transpose"; "(join ?a ?b)" => "(project (join ?b ?a) (cons (cons 2 nil) (cons (cons 1 nil) nil))))"),
-
+    rw!("product-transpose"; "(product ?a ?b)" => "(project (product ?b ?a) (tuple-cons (index 1) (tuple-cons (index-cons 0 index-nil) tuple-nil))))"),
+    rw!("join-transpose"; "(join ?a ?b)" => "(project (join ?b ?a) (tuple-cons (index 0) (tuple-cons (index 2) (tuple-cons (index 1) tuple-nil))))"),
     // Tuple level application rewrites
-    rw!("access-nil"; "(apply nil ?a)" => "?a"),
-    rw!("access-tuple-base"; "(apply (cons 0 ?x) (cons ?a ?b))" => "(apply ?x ?a)"),
-    rw!("access-tuple-ind"; "(apply (cons ?n ?x) (cons ?a ?b))" => "(apply (cons (- ?n 1) ?x) ?b)"),
-    rw!("apply-tuple-nil"; "(apply nil ?a)" => "nil"),
-    rw!("apply-tuple-cons"; "(apply (cons ?a ?b) ?c)" => "(cons (apply ?a ?c) (apply ?b ?c))"),
-
+    rw!("access-nil"; "(apply index-nil ?a)" => "?a"),
+    rw!("access-tuple-base"; "(apply (index-cons 0 ?x) (tuple-cons ?a ?b))" => "(apply ?x ?a)"),
+    rw!("access-tuple-ind"; "(apply (index-cons ?n ?x) (tuple-cons ?a ?b))" => "(apply (index-cons (- ?n 1) ?x) ?b)"),
+    rw!("apply-tuple-nil"; "(apply tuple-nil ?a)" => "tuple-nil"),
+    rw!("apply-tuple-cons"; "(apply (tuple-cons ?a ?b) ?c)" => "(tuple-cons (apply ?a ?c) (apply ?b ?c))"),
     // Expression level application rewrites
     rw!("apply-add"; "(apply (+ ?a ?b) ?t)" => "(+ (apply ?a ?t) (apply ?b ?t))"),
     rw!("apply-sub"; "(apply (- ?a ?b) ?t)" => "(- (apply ?a ?t) (apply ?b ?t))"),
@@ -76,7 +77,6 @@ pub fn ram_rewrite_rules() -> Vec<Rewrite<Ram, ()>> {
     rw!("apply-or"; "(apply (|| ?a ?b) ?t)" => "(|| (apply ?a ?t) (apply ?b ?t))"),
     rw!("apply-not"; "(apply (! ?a) ?t)" => "(! (apply ?a ?t))"),
     rw!("apply-const"; "(apply ?e ?t)" => "?e" if is_constant(var("?e"))),
-
     // Value level rewrites
     rw!("add-comm"; "(+ ?a ?b)" => "(+ ?b ?a)"),
     rw!("add-identity"; "(+ ?a 0)" => "?a"),
@@ -91,8 +91,8 @@ pub fn ram_rewrite_rules() -> Vec<Rewrite<Ram, ()>> {
     rw!("not-true"; "(! true)" => "false"),
     rw!("not-false"; "(! false)" => "true"),
     rw!("not-not"; "(! (! ?a))" => "?a"),
-
     // Simple arithmetic rewrites for index calculations
+    rw!("index-desugar"; "(index ?x)" => "(index-cons ?x index-nil)"),
     rw!("dec-1"; "(- 1 1)" => "0"),
     rw!("dec-2"; "(- 2 1)" => "1"),
     rw!("dec-3"; "(- 3 1)" => "2"),
@@ -108,7 +108,7 @@ impl CostFunction<Ram> for RamCostFunction {
 
   fn cost<C>(&mut self, enode: &Ram, mut costs: C) -> Self::Cost
   where
-    C: FnMut(Id) -> Self::Cost
+    C: FnMut(Id) -> Self::Cost,
   {
     let op_cost = match enode {
       Ram::Empty => 0,
@@ -118,8 +118,11 @@ impl CostFunction<Ram> for RamCostFunction {
       Ram::Join(_) => 100,
       Ram::Sorted(_) => 500,
       Ram::Apply(_) => 10,
-      Ram::Cons(_) => 0,
-      Ram::Nil => 0,
+      Ram::Index(_) => 10,
+      Ram::TupleCons(_) => 0,
+      Ram::TupleNil => 0,
+      Ram::IndexCons(_) => 0,
+      Ram::IndexNil => 0,
       _ => 1,
     };
     enode.fold(op_cost, |sum, id| sum + costs(id))

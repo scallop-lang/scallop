@@ -21,21 +21,29 @@ pub struct ForeignPredicateConstraintDataflow<'a, Prov: Provenance> {
 
 impl<'a, Prov: Provenance> ForeignPredicateConstraintDataflow<'a, Prov> {
   pub fn iter_stable(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
-    let fp = runtime.predicate_registry.get(&self.foreign_predicate).expect("Foreign predicate not found");
+    let fp = runtime
+      .predicate_registry
+      .get(&self.foreign_predicate)
+      .expect("Foreign predicate not found");
     DynamicBatches::ForeignPredicateConstraint(ForeignPredicateConstraintBatches {
       batches: Box::new(self.dataflow.iter_stable(runtime)),
       foreign_predicate: fp.clone(),
       args: self.args.clone(),
+      env: runtime,
       ctx: self.ctx,
     })
   }
 
   pub fn iter_recent(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
-    let fp = runtime.predicate_registry.get(&self.foreign_predicate).expect("Foreign predicate not found");
+    let fp = runtime
+      .predicate_registry
+      .get(&self.foreign_predicate)
+      .expect("Foreign predicate not found");
     DynamicBatches::ForeignPredicateConstraint(ForeignPredicateConstraintBatches {
       batches: Box::new(self.dataflow.iter_recent(runtime)),
       foreign_predicate: fp.clone(),
       args: self.args.clone(),
+      env: runtime,
       ctx: self.ctx,
     })
   }
@@ -46,6 +54,7 @@ pub struct ForeignPredicateConstraintBatches<'a, Prov: Provenance> {
   pub batches: Box<DynamicBatches<'a, Prov>>,
   pub foreign_predicate: DynamicForeignPredicate,
   pub args: Vec<Expr>,
+  pub env: &'a RuntimeEnvironment,
   pub ctx: &'a Prov,
 }
 
@@ -58,6 +67,7 @@ impl<'a, Prov: Provenance> Iterator for ForeignPredicateConstraintBatches<'a, Pr
         batch: Box::new(batch),
         foreign_predicate: self.foreign_predicate.clone(),
         args: self.args.clone(),
+        env: self.env,
         ctx: self.ctx,
       })
     })
@@ -69,6 +79,7 @@ pub struct ForeignPredicateConstraintBatch<'a, Prov: Provenance> {
   pub batch: Box<DynamicBatch<'a, Prov>>,
   pub foreign_predicate: DynamicForeignPredicate,
   pub args: Vec<Expr>,
+  pub env: &'a RuntimeEnvironment,
   pub ctx: &'a Prov,
 }
 
@@ -80,21 +91,27 @@ impl<'a, Prov: Provenance> Iterator for ForeignPredicateConstraintBatch<'a, Prov
       let Tagged { tuple, tag } = elem;
 
       // Try evaluate the arguments; if failed, continue to the next element in the batch
-      let values = self.args.iter().map(|arg| {
-        match arg {
+      let values = self
+        .args
+        .iter()
+        .map(|arg| match arg {
           Expr::Access(a) => tuple[a].as_value(),
           Expr::Constant(c) => c.clone(),
-          _ => panic!("Invalid argument to bounded foreign predicate")
-        }
-      }).collect::<Vec<_>>();
+          _ => panic!("Invalid argument to bounded foreign predicate"),
+        })
+        .collect::<Vec<_>>();
 
       // Evaluate the foreign predicate to produce a list of output tags
       // Note that there will be at most one output tag since the foreign predicate is bounded
-      let result = self.foreign_predicate.evaluate(&values);
+      let result = self.foreign_predicate.evaluate_with_env(self.env, &values);
 
       // Check if the foreign predicate returned a tag
       if !result.is_empty() {
-        assert_eq!(result.len(), 1, "Bounded foreign predicate should return at most one element per evaluation");
+        assert_eq!(
+          result.len(),
+          1,
+          "Bounded foreign predicate should return at most one element per evaluation"
+        );
         let input_tag = Prov::InputTag::from_dynamic_input_tag(&result[0].0);
         let new_tag = self.ctx.tagging_optional_fn(input_tag);
         let combined_tag = self.ctx.mult(&tag, &new_tag);

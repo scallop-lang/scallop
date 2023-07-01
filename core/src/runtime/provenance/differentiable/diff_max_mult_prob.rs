@@ -2,16 +2,17 @@ use itertools::Itertools;
 
 use super::*;
 use crate::common::element::*;
+use crate::common::tensors::*;
 use crate::runtime::dynamic::*;
 use crate::runtime::statics::*;
 use crate::utils::PointerFamily;
 
-pub struct DiffMaxMultProbProvenance<T: Clone, P: PointerFamily> {
+pub struct DiffMaxMultProbProvenance<T: FromTensor, P: PointerFamily> {
   pub valid_threshold: f64,
   pub storage: P::RcCell<Vec<T>>,
 }
 
-impl<T: Clone, P: PointerFamily> Clone for DiffMaxMultProbProvenance<T, P> {
+impl<T: FromTensor, P: PointerFamily> Clone for DiffMaxMultProbProvenance<T, P> {
   fn clone(&self) -> Self {
     Self {
       valid_threshold: self.valid_threshold,
@@ -20,7 +21,7 @@ impl<T: Clone, P: PointerFamily> Clone for DiffMaxMultProbProvenance<T, P> {
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> DiffMaxMultProbProvenance<T, P> {
+impl<T: FromTensor, P: PointerFamily> DiffMaxMultProbProvenance<T, P> {
   pub fn input_tags(&self) -> Vec<T> {
     P::get_rc_cell(&self.storage, |s| s.clone())
   }
@@ -43,7 +44,7 @@ impl<T: Clone + 'static, P: PointerFamily> DiffMaxMultProbProvenance<T, P> {
   }
 }
 
-impl<T: Clone, P: PointerFamily> Default for DiffMaxMultProbProvenance<T, P> {
+impl<T: FromTensor, P: PointerFamily> Default for DiffMaxMultProbProvenance<T, P> {
   fn default() -> Self {
     Self {
       valid_threshold: 0.0000,
@@ -52,7 +53,7 @@ impl<T: Clone, P: PointerFamily> Default for DiffMaxMultProbProvenance<T, P> {
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffMaxMultProbProvenance<T, P> {
+impl<T: FromTensor, P: PointerFamily> Provenance for DiffMaxMultProbProvenance<T, P> {
   type Tag = DualNumber2;
 
   type InputTag = InputDiffProb<T>;

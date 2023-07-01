@@ -1,17 +1,17 @@
 /// Floating Point trait (f32, f64)
 pub trait Float:
-  Sized +
-  Copy +
-  Clone +
-  PartialEq +
-  PartialOrd +
-  std::fmt::Debug +
-  std::fmt::Display +
-  std::ops::Add<Self, Output=Self> +
-  std::ops::Sub<Self, Output=Self> +
-  std::ops::Mul<Self, Output=Self> +
-  std::ops::Div<Self, Output=Self> +
-  std::convert::TryInto<f64>
+  Sized
+  + Copy
+  + Clone
+  + PartialEq
+  + PartialOrd
+  + std::fmt::Debug
+  + std::fmt::Display
+  + std::ops::Add<Self, Output = Self>
+  + std::ops::Sub<Self, Output = Self>
+  + std::ops::Mul<Self, Output = Self>
+  + std::ops::Div<Self, Output = Self>
+  + std::convert::TryInto<f64>
 {
   fn zero() -> Self;
 

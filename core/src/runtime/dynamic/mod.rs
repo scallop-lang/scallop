@@ -3,7 +3,6 @@ mod collection;
 pub mod dataflow;
 mod element;
 mod incremental;
-pub mod io;
 mod iteration;
 mod output_collection;
 mod relation;

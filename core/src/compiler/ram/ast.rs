@@ -29,6 +29,7 @@ impl Program {
     }
   }
 
+  /// Get a relation by its name; returns `None` if the relation does not exist.
   pub fn relation(&self, name: &str) -> Option<&Relation> {
     self
       .relation_to_stratum
@@ -36,14 +37,17 @@ impl Program {
       .and_then(|stratum_id| self.strata[*stratum_id].relations.get(name))
   }
 
+  /// Get a relation by its name; panics if the relation does not exist.
   pub fn relation_unchecked(&self, name: &str) -> &Relation {
     &self.strata[self.relation_to_stratum[name]].relations[name]
   }
 
+  /// Iterate over all relations in the program.
   pub fn relations(&self) -> impl Iterator<Item = &Relation> {
     self.strata.iter().flat_map(|s| s.relations.values())
   }
 
+  /// Iterate over all relation (name, type) pairs in the program
   pub fn relation_types<'a>(&'a self) -> impl 'a + Iterator<Item = (String, TupleType)> {
     self
       .strata
@@ -51,6 +55,7 @@ impl Program {
       .flat_map(|s| s.relations.iter().map(|(p, r)| (p.clone(), r.tuple_type.clone())))
   }
 
+  /// Get the tuple type of a relation by its name; returns `None` if the relation does not exist.
   pub fn relation_tuple_type(&self, predicate: &str) -> Option<TupleType> {
     if let Some(stratum_id) = self.relation_to_stratum.get(predicate) {
       Some(self.strata[*stratum_id].relations[predicate].tuple_type.clone())
@@ -59,6 +64,23 @@ impl Program {
     }
   }
 
+  /// Get the input file option of a relation by its name, returns `None` if the relation does not exist.
+  pub fn input_file(&self, predicate: &str) -> Option<&InputFile> {
+    if let Some(stratum_id) = self.relation_to_stratum.get(predicate) {
+      self.strata[*stratum_id].relations[predicate].input_file.as_ref()
+    } else {
+      None
+    }
+  }
+
+  /// Iterate through all the input files in the program.
+  pub fn input_files<'a>(&'a self) -> impl 'a + Iterator<Item = &'a InputFile> {
+    self
+      .relations()
+      .filter_map(move |relation| relation.input_file.as_ref())
+  }
+
+  /// Set the target relation(s) to be output relations.
   pub fn set_output_relations(&mut self, target: Vec<&str>) {
     self.strata.iter_mut().for_each(|stratum| {
       stratum.relations.iter_mut().for_each(|(_, relation)| {
@@ -71,11 +93,12 @@ impl Program {
     })
   }
 
-  pub fn output_option(&self, relation: &str) -> Option<OutputOption> {
+  /// Get the output option of a relation by its name; returns `None` if the relation does not exist.
+  pub fn output_option(&self, relation: &str) -> Option<&OutputOption> {
     self
       .relation_to_stratum
       .get(relation)
-      .map(|stratum_id| self.strata[*stratum_id].relations[relation].output.clone())
+      .map(|stratum_id| &self.strata[*stratum_id].relations[relation].output)
   }
 }
 
@@ -301,8 +324,7 @@ impl Dataflow {
       | Self::Exclusion(d, _) => d.source_relations(),
       Self::Reduce(r) => std::iter::once(r.source_relation()).collect(),
       Self::Relation(r) => std::iter::once(r).collect(),
-      Self::ForeignPredicateGround(_, _)
-      | Self::UntaggedVec(_) => HashSet::new(),
+      Self::ForeignPredicateGround(_, _) | Self::UntaggedVec(_) => HashSet::new(),
     }
   }
 }

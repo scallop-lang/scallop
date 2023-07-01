@@ -5,7 +5,7 @@ use super::*;
 /// Get the month of the year starting from 0
 ///
 /// ``` scl
-/// extern fn $datetime_month(d: DateTime) -> u32
+/// extern fn $datetime_month0(d: DateTime) -> u32
 /// ```
 #[derive(Clone)]
 pub struct DateTimeMonth0;

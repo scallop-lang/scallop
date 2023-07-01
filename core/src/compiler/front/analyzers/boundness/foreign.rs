@@ -13,7 +13,7 @@ impl ForeignPredicateBindings {
   }
 
   pub fn add<F: ForeignPredicate>(&mut self, fp: &F) {
-    self.bindings.insert(fp.name(), fp.binding_pattern());
+    self.bindings.insert(fp.internal_name(), fp.binding_pattern());
   }
 
   pub fn get(&self, name: &str) -> Option<&BindingPattern> {

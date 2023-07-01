@@ -1,0 +1,26 @@
+// Language of simply typed lambda calculus (STLC)
+type Expr = ConstInt(i32)
+          | ConstBool(bool)
+          | Var(String)
+          | Let(String, Expr, Expr)
+          | IfThenElse(Expr, Expr, Expr)
+          | App(Expr, Expr)
+          | Lambda(String, Expr)
+
+// Pretty printing
+type to_string(e: Expr, s: String)
+rel to_string(e, i as String)                                        = case e is ConstInt(i)
+rel to_string(e, b as String)                                        = case e is ConstBool(b)
+rel to_string(e, s)                                                  = case e is Var(s)
+rel to_string(e, $format("let {} = ({}) in ({})", x, s1, s2))        = case e is Let(x, e1, e2) and to_string(e1, s1) and to_string(e2, s2)
+rel to_string(e, $format("if ({}) then ({}) else ({})", s1, s2, s3)) = case e is IfThenElse(e1, e2, e3) and to_string(e1, s1) and to_string(e2, s2) and to_string(e3, s3)
+rel to_string(e, $format("({}) ({})", s1, s2))                       = case e is App(e1, e2) and to_string(e1, s1) and to_string(e2, s2)
+rel to_string(e, $format("(λ{}.{})", x, s1))                         = case e is Lambda(x, e1) and to_string(e1, s1)
+
+// Define my program
+const MY_PROGRAM = App(Lambda("a", Var("a")), ConstInt(1))
+
+// Print the program
+rel result(s) = to_string(MY_PROGRAM, s)
+
+query result

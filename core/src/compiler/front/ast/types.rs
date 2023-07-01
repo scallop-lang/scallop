@@ -1,7 +1,10 @@
-use super::*;
+use serde::*;
+
 use crate::common::value_type::*;
 
-#[derive(Debug, Clone, PartialEq)]
+use super::*;
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[doc(hidden)]
 pub enum TypeNode {
   I8,
@@ -22,10 +25,12 @@ pub enum TypeNode {
   Bool,
   Str,
   String,
-  // RcString,
+  Symbol,
   DateTime,
   Duration,
-  Named(Identifier),
+  Entity,
+  Tensor,
+  Named(String),
 }
 
 impl std::fmt::Display for TypeNode {
@@ -49,10 +54,46 @@ impl std::fmt::Display for TypeNode {
       Self::Bool => f.write_str("bool"),
       Self::Str => f.write_str("&str"),
       Self::String => f.write_str("String"),
-      // Self::RcString => f.write_str("Rc<String>"),
+      Self::Symbol => f.write_str("Symbol"),
       Self::DateTime => f.write_str("DateTime"),
       Self::Duration => f.write_str("Duration"),
-      Self::Named(i) => f.write_str(&i.node.name),
+      Self::Entity => f.write_str("Entity"),
+      Self::Tensor => f.write_str("Tensor"),
+      Self::Named(i) => f.write_str(i),
+    }
+  }
+}
+
+impl std::str::FromStr for TypeNode {
+  // There will be no error
+  type Err = ();
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s {
+      "i8" => Ok(Self::I8),
+      "i16" => Ok(Self::I16),
+      "i32" => Ok(Self::I32),
+      "i64" => Ok(Self::I64),
+      "i128" => Ok(Self::I128),
+      "isize" => Ok(Self::ISize),
+      "u8" => Ok(Self::U8),
+      "u16" => Ok(Self::U16),
+      "u32" => Ok(Self::U32),
+      "u64" => Ok(Self::U64),
+      "u128" => Ok(Self::U128),
+      "usize" => Ok(Self::USize),
+      "f32" => Ok(Self::F32),
+      "f64" => Ok(Self::F64),
+      "bool" => Ok(Self::Bool),
+      "char" => Ok(Self::Char),
+      "&str" => Ok(Self::Str),
+      "String" => Ok(Self::String),
+      "Symbol" => Ok(Self::Symbol),
+      "DateTime" => Ok(Self::DateTime),
+      "Duration" => Ok(Self::Duration),
+      "Entity" => Ok(Self::Entity),
+      "Tensor" => Ok(Self::Tensor),
+      s => Ok(Self::Named(s.to_string())),
     }
   }
 }
@@ -65,9 +106,27 @@ impl Type {
     Self::default(TypeNode::I8)
   }
 
+  /// Create a new `u64` type AST node
+  pub fn u64() -> Self {
+    Self::default(TypeNode::U64)
+  }
+
   /// Create a new `usize` type AST node
   pub fn usize() -> Self {
     Self::default(TypeNode::USize)
+  }
+
+  /// Create a new `entity` type AST node
+  pub fn entity() -> Self {
+    Self::default(TypeNode::Entity)
+  }
+
+  /// Get the name of the type if the type node contains a custom named type
+  pub fn get_name(&self) -> Option<&str> {
+    match &self.node {
+      TypeNode::Named(n) => Some(&n),
+      _ => None,
+    }
   }
 
   /// Convert the type AST node to a value type
@@ -94,10 +153,25 @@ impl Type {
       TypeNode::Bool => Ok(ValueType::Bool),
       TypeNode::Str => Ok(ValueType::Str),
       TypeNode::String => Ok(ValueType::String),
-      // TypeNode::RcString => Ok(ValueType::RcString),
+      TypeNode::Symbol => Ok(ValueType::Symbol),
       TypeNode::DateTime => Ok(ValueType::DateTime),
       TypeNode::Duration => Ok(ValueType::Duration),
-      TypeNode::Named(s) => Err(s.name().to_string()),
+      TypeNode::Entity => Ok(ValueType::Entity),
+      TypeNode::Tensor => Ok(ValueType::Tensor),
+      TypeNode::Named(s) => Err(s.to_string()),
+    }
+  }
+}
+
+impl From<Identifier> for Type {
+  fn from(value: Identifier) -> Self {
+    let type_node = value
+      .name()
+      .parse()
+      .expect("[Internal Error] Casting `Identifier` to `TypeNode` should not fail");
+    Self {
+      loc: value.loc,
+      node: type_node,
     }
   }
 }

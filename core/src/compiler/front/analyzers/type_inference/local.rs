@@ -43,9 +43,15 @@ impl LocalTypeInferenceContext {
 
   pub fn unify_atom_arities(
     &self,
+    predicate_registry: &PredicateTypeRegistry,
     inferred_relation_types: &mut HashMap<String, (Vec<TypeSet>, Loc)>,
   ) -> Result<(), TypeInferenceError> {
     for (pred, arities) in &self.atom_arities {
+      // Skip foreign predicates
+      if predicate_registry.contains_predicate(pred) {
+        continue;
+      }
+
       // Make sure we have inferred relation types for the predicate
       if !inferred_relation_types.contains_key(pred) {
         let (arity, atom_loc) = &arities[0];
@@ -214,8 +220,9 @@ impl LocalTypeInferenceContext {
         .collect::<Vec<_>>();
       if !tys.is_empty() {
         let ty = TypeSet::unify_type_sets(tys)?;
-        let arg_types = &mut inferred_relation_types.get_mut(predicate).unwrap().0;
-        arg_types[*i] = ty;
+        if let Some((arg_types, _)) = inferred_relation_types.get_mut(predicate) {
+          arg_types[*i] = ty;
+        }
       }
     }
 
@@ -471,6 +478,15 @@ impl NodeVisitor for LocalTypeInferenceContext {
       c.function_identifier().name().to_string(),
       c.iter_args().map(|a| a.location().clone()).collect(),
       c.location().clone(),
+    );
+    self.unifications.push(unif)
+  }
+
+  fn visit_new_expr(&mut self, n: &NewExpr) {
+    let unif = Unification::New(
+      n.functor_name().to_string(),
+      n.iter_args().map(|a| a.location().clone()).collect(),
+      n.location().clone(),
     );
     self.unifications.push(unif)
   }

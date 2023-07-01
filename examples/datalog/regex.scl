@@ -1,47 +1,28 @@
 // =========== REGEX ===========
-type regex_char(id: usize, c: char)
-type regex_concat(id: usize, left: usize, right: usize)
-type regex_union(id: usize, left: usize, right: usize)
-type regex_star(id: usize, child: usize)
-type regex_root(id: usize)
+type Regex = Char(char) | Concat(Regex, Regex) | Union(Regex, Regex) | Star(Regex)
+type regex_root(regex: Regex)
 
 // Match a single char
-rel matches_substr(expr, start, start + 1) :- regex_char(expr, c), char_at(start, c)
+rel matches_substr(expr, i, i + 1) :- case expr is Char(c), input_string(s), string_chars(s, i, c)
 
 // Match a concatenation
-rel matches_substr(expr, l, r) :- regex_concat(expr, le, re), matches_substr(le, l, m), matches_substr(re, m, r)
+rel matches_substr(expr, l, r) :- case expr is Concat(le, re), matches_substr(le, l, m), matches_substr(re, m, r)
 
 // Match a union
-rel matches_substr(expr, l, r) :- regex_union(expr, a, b), matches_substr(a, l, r)
-rel matches_substr(expr, l, r) :- regex_union(expr, a, b), matches_substr(b, l, r)
+rel matches_substr(expr, l, r) :- case expr is Union(a, _), matches_substr(a, l, r)
+rel matches_substr(expr, l, r) :- case expr is Union(_, b), matches_substr(b, l, r)
 
 // Match a star
-rel matches_substr(expr, i, i) :- regex_star(expr, _), range(0, l + 1, i), input_string(s), strlen(s, l)
-rel matches_substr(expr, l, r) :- regex_star(expr, c), matches_substr(c, l, r)
-rel matches_substr(expr, l, r) :- regex_star(expr, c), matches_substr(expr, l, m), matches_substr(c, m, r)
+rel matches_substr(expr, i, i) :- case expr is Star(_), input_string(s), string_chars(s, i, _)
+rel matches_substr(expr, l, r) :- case expr is Star(c), matches_substr(c, l, r)
+rel matches_substr(expr, l, r) :- case expr is Star(c), matches_substr(expr, l, m), matches_substr(c, m, r)
 
 // Matches the whole string
-rel matches(true) :- input_string(s), strlen(s, l), regex_root(e), matches_substr(e, 0, l)
-
-// =========== STRING ===========
-type input_string(s: String)
-rel char_at(i, $string_char_at(s, i)) :- input_string(s), strlen(s, l), range(0, l, i)
-
-// =========== HELPER ===========
-@demand("bbf")
-rel range(a, b, i) :- i == a
-rel range(a, b, i) :- range(a, b, i - 1), i < b
-@demand("bf")
-rel strlen(s, i) :- i == $string_length(s)
+rel matches() :- regex_root(e), input_string(s), matches_substr(e, 0, $string_length(s))
 
 // =========== EXAMPLE ===========
-rel regex_char(0, 'a')
-rel regex_char(1, 'b')
-rel regex_concat(2, 0, 1)
-rel regex_concat(3, 2, 0)
-rel regex_star(4, 1)
-rel regex_concat(5, 3, 4)
-rel regex_root(5)
+const MY_REGEX = Concat(Concat(Concat(Char('a'), Char('b')), Char('a')), Star(Char('b')))
+rel regex_root(MY_REGEX)
 
 rel input_string("ababbbb")
 

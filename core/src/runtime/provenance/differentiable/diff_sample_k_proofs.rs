@@ -1,17 +1,19 @@
 use rand::prelude::*;
 use rand::rngs::StdRng;
 
-use super::*;
+use crate::common::tensors::*;
 use crate::utils::PointerFamily;
 
-pub struct DiffSampleKProofsProvenance<T: Clone, P: PointerFamily> {
+use super::*;
+
+pub struct DiffSampleKProofsProvenance<T: FromTensor, P: PointerFamily> {
   pub k: usize,
   pub sampler: P::Cell<StdRng>,
   pub storage: DiffProbStorage<T, P>,
   pub disjunctions: P::Cell<Disjunctions>,
 }
 
-impl<T: Clone, P: PointerFamily> Clone for DiffSampleKProofsProvenance<T, P> {
+impl<T: FromTensor, P: PointerFamily> Clone for DiffSampleKProofsProvenance<T, P> {
   fn clone(&self) -> Self {
     Self {
       k: self.k,
@@ -22,7 +24,7 @@ impl<T: Clone, P: PointerFamily> Clone for DiffSampleKProofsProvenance<T, P> {
   }
 }
 
-impl<T: Clone, P: PointerFamily> DiffSampleKProofsProvenance<T, P> {
+impl<T: FromTensor, P: PointerFamily> DiffSampleKProofsProvenance<T, P> {
   pub fn new(k: usize) -> Self {
     Self::new_with_seed(k, 12345678)
   }
@@ -45,7 +47,7 @@ impl<T: Clone, P: PointerFamily> DiffSampleKProofsProvenance<T, P> {
   }
 }
 
-impl<T: Clone, P: PointerFamily> DNFContextTrait for DiffSampleKProofsProvenance<T, P> {
+impl<T: FromTensor, P: PointerFamily> DNFContextTrait for DiffSampleKProofsProvenance<T, P> {
   fn fact_probability(&self, id: &usize) -> f64 {
     self.storage.fact_probability(id)
   }
@@ -55,7 +57,7 @@ impl<T: Clone, P: PointerFamily> DNFContextTrait for DiffSampleKProofsProvenance
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffSampleKProofsProvenance<T, P> {
+impl<T: FromTensor, P: PointerFamily> Provenance for DiffSampleKProofsProvenance<T, P> {
   type Tag = DNFFormula;
 
   type InputTag = InputExclusiveDiffProb<T>;
@@ -67,7 +69,11 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffSampleKProofsProve
   }
 
   fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {
-    let InputExclusiveDiffProb { prob, external_tag, exclusion } = input_tag;
+    let InputExclusiveDiffProb {
+      prob,
+      external_tag,
+      exclusion,
+    } = input_tag;
 
     // First store the probability and generate the id
     let fact_id = self.storage.add_prob(prob, external_tag);

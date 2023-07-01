@@ -33,16 +33,16 @@ impl NodeVisitor for HiddenRelationAnalysis {
   }
 
   fn visit_constant_set_decl(&mut self, decl: &ast::ConstantSetDecl) {
-    self.process_attributes(decl.predicate(), decl.attributes())
+    self.process_attributes(&decl.predicate(), decl.attributes())
   }
 
   fn visit_fact_decl(&mut self, decl: &ast::FactDecl) {
-    self.process_attributes(decl.predicate(), decl.attributes())
+    self.process_attributes(&decl.predicate(), decl.attributes())
   }
 
   fn visit_rule_decl(&mut self, rule_decl: &RuleDecl) {
     for predicate in rule_decl.rule().head().iter_predicates() {
-      self.process_attributes(predicate, rule_decl.attributes())
+      self.process_attributes(&predicate, rule_decl.attributes())
     }
   }
 }

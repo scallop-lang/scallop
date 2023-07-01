@@ -1,6 +1,8 @@
+use serde::*;
+
 use super::*;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub enum Item {
   ImportDecl(ImportDecl),
   TypeDecl(TypeDecl),

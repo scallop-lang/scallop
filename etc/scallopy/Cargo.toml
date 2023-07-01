@@ -1,6 +1,6 @@
 [package]
 name = "scallopy"
-version = "0.1.9"
+version = "0.2.0"
 edition = "2018"
 
 [lib]
@@ -11,7 +11,13 @@ crate-type = ["cdylib"]
 scallop-core = { path = "../../core" }
 sclc-core = { path = "../sclc" }
 rayon = "1.5"
+tch = { features = ["python-extension"], version = "0.13.0", optional = true }
+serde = { version = "1.0", features = ["derive"] }
+pythonize = "0.18"
 
 [dependencies.pyo3]
 version = "0.18.2"
 features = ["extension-module"]
+
+[features]
+torch-tensor = ["scallop-core/torch-tensor", "dep:tch"]

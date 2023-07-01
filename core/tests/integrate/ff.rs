@@ -1,12 +1,12 @@
 use std::convert::*;
 
-use scallop_core::utils::*;
-use scallop_core::common::value::*;
 use scallop_core::common::foreign_function::*;
 use scallop_core::common::type_family::*;
-use scallop_core::runtime::provenance;
+use scallop_core::common::value::*;
 use scallop_core::integrate;
+use scallop_core::runtime::provenance;
 use scallop_core::testing::*;
+use scallop_core::utils::*;
 
 #[derive(Clone)]
 pub struct Fib;
@@ -87,7 +87,10 @@ fn test_fib_ff() {
   ctx.add_rule(r#"S(x, $fib(x)) = R(x)"#).unwrap();
 
   // Facts
-  ctx.edb().add_facts("R", vec![(-10i32,), (0,), (3,), (5,), (8,)]).unwrap();
+  ctx
+    .edb()
+    .add_facts("R", vec![(-10i32,), (0,), (3,), (5,), (8,)])
+    .unwrap();
 
   // Execution
   ctx.run().unwrap();
@@ -203,5 +206,296 @@ fn ff_substring_2() {
       rel result($substring(x, 6)) = my_rel(x)
     "#,
     ("result", vec![("world!".to_string(),)]),
+  );
+}
+
+#[test]
+fn ff_floor_1() {
+  expect_interpret_result(
+    r#"
+      rel my_rel = {-1.5, 3.8, 5.0, -6.0}
+      rel result($floor(x)) = my_rel(x)
+    "#,
+    ("result", vec![(-2.0f32,), (3.0,), (5.0,), (-6.0,)]),
+  );
+}
+
+#[test]
+fn ff_floor_2() {
+  expect_interpret_result(
+    r#"
+      rel my_rel = {-1, 50, 12345, 0}
+      rel result($floor(x)) = my_rel(x)
+    "#,
+    ("result", vec![(-1i32,), (50,), (12345,), (0,)]),
+  );
+}
+
+#[test]
+fn ff_ceil_1() {
+  expect_interpret_result(
+    r#"
+      rel my_rel = {-1.5, 3.8, 5.0, -6.0}
+      rel result($ceil(x)) = my_rel(x)
+    "#,
+    ("result", vec![(-1.0f32,), (4.0,), (5.0,), (-6.0,)]),
+  );
+}
+
+#[test]
+fn ff_ceil_2() {
+  expect_interpret_result(
+    r#"
+      rel my_rel = {-1, 50, 12345, 0}
+      rel result($ceil(x)) = my_rel(x)
+    "#,
+    ("result", vec![(-1i32,), (50,), (12345,), (0,)]),
+  );
+}
+
+#[test]
+fn ff_exp_1() {
+  expect_interpret_result(
+    r#"
+      rel my_rel = {-1.5, 3.8, 0.0}
+      rel result($exp(x)) = my_rel(x)
+    "#,
+    ("result", vec![((-1.5f32).exp(),), (3.8f32.exp(),), (1.0,)]),
+  );
+}
+
+#[test]
+fn ff_exp2_1() {
+  expect_interpret_result(
+    r#"
+      rel my_rel = {-1.5, 3.8, 0.0}
+      rel result($exp2(x)) = my_rel(x)
+    "#,
+    ("result", vec![((-1.5f32).exp2(),), (3.8f32.exp2(),), (1.0,)]),
+  );
+}
+
+#[test]
+fn ff_log_1() {
+  expect_interpret_result(
+    r#"
+      rel my_rel = {12.5, 345.89, 1.0, -2.7}
+      rel result($log(x)) = my_rel(x)
+    "#,
+    ("result", vec![(12.5f32.ln(),), (345.89f32.ln(),), (0.0,)]),
+  );
+}
+
+#[test]
+fn ff_log2_1() {
+  expect_interpret_result(
+    r#"
+      rel my_rel = {12.5, 345.89, 1.0, -2.7}
+      rel result($log2(x)) = my_rel(x)
+    "#,
+    ("result", vec![(12.5f32.log2(),), (345.89f32.log2(),), (0.0,)]),
+  );
+}
+
+#[test]
+fn ff_pow_1() {
+  expect_interpret_result(
+    r#"
+    rel base = {2, 7}
+    rel exp = {3, 10, 0}
+    rel result(n) = base(x), exp(y), n == $pow(x, y)
+    "#,
+    (
+      "result",
+      vec![
+        (2i32.pow(3),),
+        (2i32.pow(10),),
+        (1,),
+        (7i32.pow(3),),
+        (7i32.pow(10),),
+        (1,),
+      ],
+    ),
+  );
+}
+
+#[test]
+fn ff_powf_1() {
+  expect_interpret_result(
+    r#"
+      rel base = {1.5, 3.8}
+      rel exp = {-2.5, 4.8, 0.0}
+      rel result(n) = base(x), exp(y), n == $powf(x, y)
+    "#,
+    (
+      "result",
+      vec![
+        (1.5f32.powf(-2.5),),
+        (1.5f32.powf(4.8),),
+        (1.0,),
+        (3.8f32.powf(-2.5),),
+        (3.8f32.powf(4.8),),
+        (1.0,),
+      ],
+    ),
+  );
+}
+
+#[test]
+fn ff_acos_1() {
+  expect_interpret_result(
+    r#"
+      rel my_rel = {-1.0, 1.0, 0.0, 1.5, -1.5}
+      rel result($acos(x)) = my_rel(x)
+    "#,
+    ("result", vec![((-1.0f32).acos(),), (1.0f32.acos(),), (0.0f32.acos(),)]),
+  );
+}
+
+#[test]
+fn ff_asin_1() {
+  expect_interpret_result(
+    r#"
+      rel my_rel = {-1.0, 1.0, 0.0, 1.5, -1.5}
+      rel result($asin(x)) = my_rel(x)
+    "#,
+    ("result", vec![((-1.0f32).asin(),), (1.0f32.asin(),), (0.0f32.asin(),)]),
+  );
+}
+
+#[test]
+fn ff_atan_1() {
+  expect_interpret_result(
+    r#"
+      rel my_rel = {-1.0, 1.0, 0.0}
+      rel result($atan(x)) = my_rel(x)
+    "#,
+    ("result", vec![((-1.0f32).atan(),), (1.0f32.atan(),), (0.0f32.atan(),)]),
+  );
+}
+
+#[test]
+fn ff_atan2_1() {
+  expect_interpret_result(
+    r#"
+      rel first = {1.5, -3.8, 0.0}
+      rel second = {-2.5, 4.8, 0.0}
+      rel result(n) = first(y), second(x), n == $atan2(y, x)
+    "#,
+    (
+      "result",
+      vec![
+        (1.5f32.atan2(-2.5),),
+        (1.5f32.atan2(4.8),),
+        (1.5f32.atan2(0.0),),
+        ((-3.8f32).atan2(-2.5),),
+        ((-3.8f32).atan2(4.8),),
+        ((-3.8f32).atan2(0.0),),
+        (0.0f32.atan2(-2.5),),
+        (0.0f32.atan2(4.8),),
+        (0.0f32.atan2(0.0),),
+      ],
+    ),
+  );
+}
+
+#[test]
+fn ff_sign_1() {
+  expect_interpret_result(
+    r#"
+      rel my_rel = {-12.5, 34.6, 0.0}
+      rel result($sign(x)) = my_rel(x)
+    "#,
+    ("result", vec![(-1i32,), (1,), (0,)]),
+  );
+}
+
+#[test]
+fn ff_sign_2() {
+  expect_interpret_result(
+    r#"
+      rel my_rel = {-12, 34, 0}
+      rel result($sign(x)) = my_rel(x)
+    "#,
+    ("result", vec![(-1i32,), (1,), (0,)]),
+  );
+}
+
+#[test]
+fn ff_format_1() {
+  expect_interpret_result(
+    r#"
+      rel strings = {"hello", "world!"}
+      rel result(x) = strings(a), strings(b), a != b, x == $format("{} {}", a, b)
+    "#,
+    (
+      "result",
+      vec![("hello world!".to_string(),), ("world! hello".to_string(),)],
+    ),
+  );
+}
+
+#[test]
+fn ff_format_2() {
+  expect_interpret_result(
+    r#"
+      rel numbers = {1.2, -3.4}
+      rel result(x) = numbers(a), numbers(b), a != b, x == $format("{} {}", a, b)
+    "#,
+    ("result", vec![("1.2 -3.4".to_string(),), ("-3.4 1.2".to_string(),)]),
+  );
+}
+
+#[test]
+fn ff_string_lower_1() {
+  expect_interpret_result(
+    r#"
+      rel string = {"Hello World!", "aBcDeF1234."}
+      rel result($string_lower(s)) = string(s)
+    "#,
+    (
+      "result",
+      vec![("hello world!".to_string(),), ("abcdef1234.".to_string(),)],
+    ),
+  );
+}
+
+#[test]
+fn ff_string_upper_1() {
+  expect_interpret_result(
+    r#"
+      rel string = {"Hello World!", "aBcDeF1234."}
+      rel result($string_upper(s)) = string(s)
+    "#,
+    (
+      "result",
+      vec![("HELLO WORLD!".to_string(),), ("ABCDEF1234.".to_string(),)],
+    ),
+  );
+}
+
+#[test]
+fn ff_string_index_of_1() {
+  expect_interpret_result(
+    r#"
+      rel string = {"Scallop is cool!"}
+      rel substring = {"o", "is", "Scallop"}
+      rel result(i) = string(s), substring(t), i == $string_index_of(s, t)
+    "#,
+    ("result", vec![(5usize,), (8,), (0,)]),
+  );
+}
+
+#[test]
+fn ff_string_trim_1() {
+  expect_interpret_result(
+    r#"
+      rel string = {"Hello World!", " \t ABC def 123 \n"}
+      rel result($string_trim(s)) = string(s)
+    "#,
+    (
+      "result",
+      vec![("Hello World!".to_string(),), ("ABC def 123".to_string(),)],
+    ),
   );
 }

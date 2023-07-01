@@ -9,7 +9,6 @@ use std::sync::{Arc, Mutex};
 /// where `Pointer` is the simple reference counted pointer and `Cell`
 /// contains a internally mutable pointer.
 pub trait PointerFamily: Clone + PartialEq + 'static {
-
   /* ==================== Ref Counted ==================== */
 
   /// Reference counted pointer
@@ -113,14 +112,14 @@ impl PointerFamily for ArcFamily {
 
   fn get_cell<T, F, O>(ptr: &Self::Cell<T>, f: F) -> O
   where
-    F: FnOnce(&T) -> O
+    F: FnOnce(&T) -> O,
   {
     f(&ptr.lock().unwrap())
   }
 
   fn get_cell_mut<T, F, O>(ptr: &Self::Cell<T>, f: F) -> O
   where
-    F: FnOnce(&mut T) -> O
+    F: FnOnce(&mut T) -> O,
   {
     f(&mut ptr.lock().unwrap())
   }

@@ -25,12 +25,16 @@ enum PythonInputTag<'a> {
 }
 
 pub fn from_python_input_tag(tag: &PyAny) -> Result<DynamicInputTag, BindingError> {
-  let py_input_tag: PythonInputTag = tag.extract()?;
-  match py_input_tag {
-    PythonInputTag::Bool(b) => Ok(DynamicInputTag::Bool(b)),
-    PythonInputTag::Exclusive(e) => Ok(DynamicInputTag::Exclusive(e)),
-    PythonInputTag::Float(f) => Ok(DynamicInputTag::Float(f)),
-    PythonInputTag::ExclusiveFloat(f, e) => Ok(DynamicInputTag::ExclusiveFloat(f, e)),
-    PythonInputTag::CatchAll(_) => Err(BindingError::InvalidInputTag),
+  let py_input_tag: Option<PythonInputTag> = tag.extract()?;
+  if let Some(py_input_tag) = py_input_tag {
+    match py_input_tag {
+      PythonInputTag::Bool(b) => Ok(DynamicInputTag::Bool(b)),
+      PythonInputTag::Exclusive(e) => Ok(DynamicInputTag::Exclusive(e)),
+      PythonInputTag::Float(f) => Ok(DynamicInputTag::Float(f)),
+      PythonInputTag::ExclusiveFloat(f, e) => Ok(DynamicInputTag::ExclusiveFloat(f, e)),
+      PythonInputTag::CatchAll(_) => Err(BindingError::InvalidInputTag),
+    }
+  } else {
+    Ok(DynamicInputTag::None)
   }
 }

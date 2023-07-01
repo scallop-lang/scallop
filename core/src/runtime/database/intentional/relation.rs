@@ -1,5 +1,6 @@
-use crate::runtime::dynamic::{DynamicCollection, DynamicOutputCollection};
-use crate::runtime::monitor::Monitor;
+use crate::runtime::dynamic::*;
+use crate::runtime::env::*;
+use crate::runtime::monitor::*;
 use crate::runtime::provenance::*;
 use crate::utils::PointerFamily;
 
@@ -70,31 +71,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalRelation<Prov, Ptr> {
     }
   }
 
-  pub fn recover_with_monitor<M: Monitor<Prov>>(&mut self, ctx: &Prov, m: &M, drain: bool) {
-    // Only recover if it is not recovered
-    if !self.recovered && !self.internal_facts.is_empty() {
-      if drain {
-        // Add internal facts to recovered facts, and remove the internal facts
-        Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.drain().map(|elem| {
-          let output_tag = ctx.recover_fn(&elem.tag);
-          m.observe_recover(&elem.tuple, &elem.tag, &output_tag);
-          (output_tag, elem.tuple)
-        }));
-      } else {
-        // Add internal facts to recover facts, do not remove the internal facts
-        Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.iter().map(|elem| {
-          let output_tag = ctx.recover_fn(&elem.tag);
-          m.observe_recover(&elem.tuple, &elem.tag, &output_tag);
-          (output_tag, elem.tuple.clone())
-        }));
-      }
-
-      // Set recovered to be true
-      self.recovered = true;
-    }
-  }
-
-  pub fn recover(&mut self, ctx: &Prov, drain: bool) {
+  pub fn recover(&mut self, env: &RuntimeEnvironment, ctx: &Prov, drain: bool) {
     // Only recover if it is not recovered
     if !self.recovered {
       // Shortcut: if there is no internal facts, then there is nothing to recover
@@ -107,14 +84,42 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalRelation<Prov, Ptr> {
       if drain {
         // Add internal facts to recovered facts, and remove the internal facts
         Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.drain().map(|elem| {
+          let output_tup = env.externalize_tuple(&elem.tuple);
           let output_tag = ctx.recover_fn(&elem.tag);
-          (output_tag, elem.tuple)
+          (output_tag, output_tup)
         }));
       } else {
         // Add internal facts to recover facts, do not remove the internal facts
         Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.iter().map(|elem| {
+          let output_tup = env.externalize_tuple(&elem.tuple);
           let output_tag = ctx.recover_fn(&elem.tag);
-          (output_tag, elem.tuple.clone())
+          (output_tag, output_tup)
+        }));
+      }
+
+      // Set recovered to be true
+      self.recovered = true;
+    }
+  }
+
+  pub fn recover_with_monitor<M: Monitor<Prov>>(&mut self, env: &RuntimeEnvironment, ctx: &Prov, m: &M, drain: bool) {
+    // Only recover if it is not recovered
+    if !self.recovered && !self.internal_facts.is_empty() {
+      if drain {
+        // Add internal facts to recovered facts, and remove the internal facts
+        Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.drain().map(|elem| {
+          let output_tup = env.externalize_tuple(&elem.tuple);
+          let output_tag = ctx.recover_fn(&elem.tag);
+          m.observe_recover(&output_tup, &elem.tag, &output_tag);
+          (output_tag, output_tup)
+        }));
+      } else {
+        // Add internal facts to recover facts, do not remove the internal facts
+        Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.iter().map(|elem| {
+          let output_tup = env.externalize_tuple(&elem.tuple);
+          let output_tag = ctx.recover_fn(&elem.tag);
+          m.observe_recover(&output_tup, &elem.tag, &output_tag);
+          (output_tag, output_tup)
         }));
       }
 

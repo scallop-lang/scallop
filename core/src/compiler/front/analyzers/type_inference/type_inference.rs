@@ -3,6 +3,7 @@ use std::collections::*;
 use crate::common::foreign_function::*;
 use crate::common::foreign_predicate::*;
 use crate::common::tuple_type::*;
+use crate::common::value::*;
 use crate::common::value_type::*;
 use crate::compiler::front::*;
 
@@ -10,30 +11,52 @@ use super::*;
 
 #[derive(Clone, Debug)]
 pub struct TypeInference {
+  /// A mapping from the custom type name to its inferred value type and decl location
   pub custom_types: HashMap<String, (ValueType, Loc)>,
+
+  /// A mapping from referred constant variables' location to its declared type, if the type is specified in the constant declaration
   pub constant_types: HashMap<Loc, Type>,
+
+  /// Foreign function types
   pub foreign_function_type_registry: FunctionTypeRegistry,
+
+  /// Foreign predicate types
   pub foreign_predicate_type_registry: PredicateTypeRegistry,
+
+  /// A mapping from relation name to its type declaration location
   pub relation_type_decl_loc: HashMap<String, Loc>,
+
+  /// A mapping from internal relation name to ADT variant name, e.g. `adt#Node` -> `Node`
+  pub adt_relations: HashMap<String, (String, Vec<bool>)>,
+
+  /// A mapping from relation name to its argument types `Vec<TypeSet>` and the location `Loc` where such type is inferred
   pub inferred_relation_types: HashMap<String, (Vec<TypeSet>, Loc)>,
+
+  /// A mapping { Rule Location: { Variable Name: Inferred Type } }
   pub rule_variable_type: HashMap<Loc, HashMap<String, TypeSet>>,
+
+  /// The local inference contexts of a rule
   pub rule_local_contexts: Vec<LocalTypeInferenceContext>,
+
+  /// A mapping from a relation name that is queried to the location where it is queried
   pub query_relations: HashMap<String, Loc>,
+
+  /// A mapping from expression ID to its inferred types
   pub expr_types: HashMap<Loc, TypeSet>,
+
+  /// A list of errors obtained from the type inference process
   pub errors: Vec<TypeInferenceError>,
 }
 
 impl TypeInference {
-  pub fn new(
-    function_registry: &ForeignFunctionRegistry,
-    predicate_registry: &ForeignPredicateRegistry,
-  ) -> Self {
+  pub fn new(function_registry: &ForeignFunctionRegistry, predicate_registry: &ForeignPredicateRegistry) -> Self {
     Self {
       custom_types: HashMap::new(),
       constant_types: HashMap::new(),
       foreign_function_type_registry: FunctionTypeRegistry::from_foreign_function_registry(function_registry),
       foreign_predicate_type_registry: PredicateTypeRegistry::from_foreign_predicate_registry(predicate_registry),
       relation_type_decl_loc: HashMap::new(),
+      adt_relations: HashMap::new(),
       inferred_relation_types: HashMap::new(),
       rule_variable_type: HashMap::new(),
       rule_local_contexts: Vec::new(),
@@ -63,11 +86,15 @@ impl TypeInference {
   }
 
   pub fn relations(&self) -> Vec<String> {
-    self
-      .inferred_relation_types
-      .iter()
-      .filter_map(|(n, _)| if !n.contains("#") { Some(n.clone()) } else { None })
-      .collect()
+    if self.query_relations.is_empty() {
+      self
+        .inferred_relation_types
+        .iter()
+        .filter_map(|(n, _)| if !n.contains("#") { Some(n.clone()) } else { None })
+        .collect()
+    } else {
+      self.query_relations.iter().map(|(n, _)| n.clone()).collect()
+    }
   }
 
   pub fn has_relation(&self, relation: &str) -> bool {
@@ -203,6 +230,62 @@ impl TypeInference {
     }
   }
 
+  pub fn parse_entity_facts(
+    &self,
+    facts: &Vec<EntityFact>,
+  ) -> Result<Vec<(String, Value, Vec<Value>)>, TypeInferenceError> {
+    facts.iter().map(|fact| self.parse_entity_fact(fact)).collect()
+  }
+
+  pub fn parse_entity_fact(&self, fact: &EntityFact) -> Result<(String, Value, Vec<Value>), TypeInferenceError> {
+    let relation_name = format!("adt#{}", fact.functor.name());
+    if self.adt_relations.contains_key(&relation_name) {
+      // First get the value type
+      let value_types = self
+        .relation_arg_types(&relation_name)
+        .expect("[Internal Error] adt variant not found in storage; this is probably a bug");
+
+      // Make sure that the arity matches
+      if value_types.len() != fact.args.len() + 1 {
+        return Err(TypeInferenceError::ADTVariantArityMismatch {
+          variant: fact.functor.name().to_string(),
+          expected: value_types.len() - 1,
+          actual: fact.args.len(),
+          loc: fact.loc.clone(),
+        });
+      }
+
+      // Get the id value
+      let id_value = fact.id.to_value(&value_types[0]);
+
+      // Get the arg values
+      let arg_values = fact
+        .args
+        .iter()
+        .zip(value_types.iter().skip(1))
+        .map(|(arg, ty)| {
+          if arg.can_unify(ty) {
+            Ok(arg.to_value(ty))
+          } else {
+            Err(TypeInferenceError::CannotUnifyTypes {
+              t1: TypeSet::from_constant(arg),
+              t2: TypeSet::base(ty.clone()),
+              loc: None,
+            })
+          }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+      // The returned fact contains relation name, id, and args
+      Ok((relation_name, id_value, arg_values))
+    } else {
+      Err(TypeInferenceError::UnknownADTVariant {
+        predicate: fact.functor.name().to_string(),
+        loc: fact.functor.location().clone(),
+      })
+    }
+  }
+
   pub fn infer_types(&mut self) {
     if let Err(err) = self.infer_types_helper() {
       self.errors.push(err);
@@ -211,8 +294,9 @@ impl TypeInference {
 
   fn infer_types_helper(&mut self) -> Result<(), TypeInferenceError> {
     // Mapping from variable to set of expressions
-    // Mapping from relation argument to set of expressions
     let mut inferred_var_expr = HashMap::<Loc, HashMap<String, BTreeSet<Loc>>>::new();
+
+    // Mapping from relation argument to set of expressions
     let mut inferred_relation_expr = HashMap::<(String, usize), BTreeSet<Loc>>::new();
 
     // Fixpoint states
@@ -284,6 +368,39 @@ impl NodeVisitor for TypeInference {
     );
   }
 
+  fn visit_relation_type_decl(&mut self, relation_type_decl: &RelationTypeDecl) {
+    if let Some(attr) = relation_type_decl.attributes().find("adt") {
+      // Get the variant name string
+      let adt_variant_name = attr
+        .pos_arg_to_string(0)
+        .expect("[Internal Error] internally annotated adt attribute does not have a string as the argument 0");
+
+      // Get the adt variant
+      let adt_variant_relation_name = format!("adt#{adt_variant_name}");
+
+      // Get the is_entity list
+      let adt_is_entity_list: Vec<bool> = attr
+        .pos_arg_to_list(1)
+        .expect("[Internal Error] internally annotated adt attribute does not have a list of boolean as the argument 1")
+        .iter()
+        .map(|arg| {
+          arg
+            .as_bool()
+            .expect(
+              "[Internal Error] internally annotated adt attribute does not have a list of boolean as the argument 1",
+            )
+            .clone()
+        })
+        .collect();
+
+      // Add the adt annotation into the `adt_relations` mapping
+      self.adt_relations.insert(
+        adt_variant_relation_name,
+        (adt_variant_name.clone(), adt_is_entity_list),
+      );
+    }
+  }
+
   fn visit_relation_type(&mut self, relation_type: &RelationType) {
     // Check if the relation is a foreign predicate
     let predicate = relation_type.predicate();
@@ -308,6 +425,7 @@ impl NodeVisitor for TypeInference {
     self.check_and_add_custom_type(enum_type_decl.name(), &ty, enum_type_decl.location());
 
     // And then declare all the constant types
+    // Note: we do not check for duplicated names here, as they are handled by `ConstantDeclAnalysis`.
     for member in enum_type_decl.iter_members() {
       match member.assigned_number() {
         Some(c) => match &c.node {
@@ -319,13 +437,11 @@ impl NodeVisitor for TypeInference {
               })
             }
           }
-          _ => {
-            self.errors.push(TypeInferenceError::BadEnumValueKind {
-              found: c.kind(),
-              loc: c.location().clone(),
-            })
-          }
-        }
+          _ => self.errors.push(TypeInferenceError::BadEnumValueKind {
+            found: c.kind(),
+            loc: c.location().clone(),
+          }),
+        },
         _ => {}
       }
     }
@@ -334,7 +450,7 @@ impl NodeVisitor for TypeInference {
   fn visit_const_assignment(&mut self, const_assign: &ConstAssignment) {
     if let Some(raw_type) = const_assign.ty() {
       let result = find_value_type(&self.custom_types, raw_type).and_then(|ty| {
-        let ts = TypeSet::from_constant(const_assign.value());
+        let ts = TypeSet::from_constant(const_assign.value().get_constant().expect("[Internal Error] During type inference, all entities should be normalized to constant. This is probably an internal error."));
         ts.unify(&TypeSet::BaseType(ty, raw_type.location().clone()))
       });
       match result {
@@ -455,12 +571,23 @@ impl NodeVisitor for TypeInference {
     let pred = fact_decl.predicate();
 
     // Check if the relation is a foreign predicate
-    if self.foreign_predicate_type_registry.contains_predicate(pred) {
+    if self.foreign_predicate_type_registry.contains_predicate(&pred) {
       self.errors.push(TypeInferenceError::CannotRedefineForeignPredicate {
         pred: pred.to_string(),
         loc: fact_decl.location().clone(),
       });
       return;
+    }
+
+    // Check if the relation is an ADT
+    if pred.contains("adt#") {
+      // Make sure that the predicate is an existing ADT relation
+      if !self.adt_relations.contains_key(&pred) {
+        self.errors.push(TypeInferenceError::UnknownADTVariant {
+          predicate: pred[4..].to_string(),
+          loc: fact_decl.atom().predicate_identifier().location().clone(),
+        })
+      }
     }
 
     let maybe_curr_type_sets = fact_decl
@@ -481,18 +608,27 @@ impl NodeVisitor for TypeInference {
     };
 
     // Check the type
-    if self.inferred_relation_types.contains_key(pred) {
-      let (original_type_sets, original_type_def_loc) = &self.inferred_relation_types[pred];
+    if self.inferred_relation_types.contains_key(&pred) {
+      let (original_type_sets, original_type_def_loc) = &self.inferred_relation_types[&pred];
 
       // First check if the arity matches
       if curr_type_sets.len() != original_type_sets.len() {
-        self.errors.push(TypeInferenceError::ArityMismatch {
-          predicate: pred.clone(),
-          expected: original_type_sets.len(),
-          actual: curr_type_sets.len(),
-          source_loc: original_type_def_loc.clone(),
-          mismatch_loc: fact_decl.atom().location().clone(),
-        });
+        if let Some((variant_name, _)) = self.adt_relations.get(&pred) {
+          self.errors.push(TypeInferenceError::ADTVariantArityMismatch {
+            variant: variant_name.clone(),
+            expected: original_type_sets.len() - 1,
+            actual: curr_type_sets.len() - 1,
+            loc: fact_decl.atom().location().clone(),
+          });
+        } else {
+          self.errors.push(TypeInferenceError::ArityMismatch {
+            predicate: pred.clone(),
+            expected: original_type_sets.len(),
+            actual: curr_type_sets.len(),
+            source_loc: original_type_def_loc.clone(),
+            mismatch_loc: fact_decl.atom().location().clone(),
+          });
+        }
         return;
       }
 
@@ -504,7 +640,7 @@ impl NodeVisitor for TypeInference {
         .collect::<Result<Vec<_>, _>>();
       match maybe_new_type_sets {
         Ok(new_type_sets) => {
-          self.inferred_relation_types.get_mut(pred).unwrap().0 = new_type_sets;
+          self.inferred_relation_types.get_mut(&pred).unwrap().0 = new_type_sets;
         }
         Err(err) => self.errors.push(err),
       }
@@ -518,7 +654,7 @@ impl NodeVisitor for TypeInference {
   fn visit_rule(&mut self, rule: &Rule) {
     for pred in rule.head().iter_predicates() {
       // Check if a head predicate is a foreign predicate
-      if self.foreign_predicate_type_registry.contains_predicate(pred) {
+      if self.foreign_predicate_type_registry.contains_predicate(&pred) {
         self.errors.push(TypeInferenceError::CannotRedefineForeignPredicate {
           pred: pred.to_string(),
           loc: rule.location().clone(),
@@ -537,7 +673,7 @@ impl NodeVisitor for TypeInference {
     }
 
     // First unify atom arity
-    if let Err(err) = ctx.unify_atom_arities(&mut self.inferred_relation_types) {
+    if let Err(err) = ctx.unify_atom_arities(&self.foreign_predicate_type_registry, &mut self.inferred_relation_types) {
       self.errors.push(err);
       return;
     }
@@ -569,7 +705,9 @@ impl NodeVisitor for TypeInference {
         }
 
         // Unify atom arity
-        if let Err(err) = ctx.unify_atom_arities(&mut self.inferred_relation_types) {
+        if let Err(err) =
+          ctx.unify_atom_arities(&self.foreign_predicate_type_registry, &mut self.inferred_relation_types)
+        {
           self.errors.push(err);
           return;
         }

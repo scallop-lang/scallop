@@ -36,15 +36,15 @@ class TestForeignFunction(unittest.TestCase):
 
     # First create the foreign function
     @scallopy.foreign_function
-    def string_index_of(s1: str, s2: str) -> scallopy.usize:
+    def my_string_index_of(s1: str, s2: str) -> scallopy.usize:
       return s1.index(s2)
 
     # Then add the context
     ctx = scallopy.ScallopContext()
-    ctx.register_foreign_function(string_index_of)
+    ctx.register_foreign_function(my_string_index_of)
     ctx.add_relation("S", (str, str))
     ctx.add_facts("S", [("hello world", "hello"), ("hello world", "world"), ("hello world", "42")])
-    ctx.add_rule("R($string_index_of(a, b)) = S(a, b)")
+    ctx.add_rule("R($my_string_index_of(a, b)) = S(a, b)")
     ctx.run()
     self.assertEqual(list(ctx.relation("R")), [(0,), (6,)])
 

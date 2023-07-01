@@ -1,10 +1,13 @@
+use serde::*;
+
 use super::*;
 
 /// A formula
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub enum Formula {
   Atom(Atom),
   NegAtom(NegAtom),
+  Case(Case),
   Disjunction(Disjunction),
   Conjunction(Conjunction),
   Implies(Implies),
@@ -20,12 +23,12 @@ impl Formula {
 
   pub fn negate(&self) -> Self {
     match self {
-      Self::Atom(a) => {
-        Self::NegAtom(NegAtom::new(a.location().clone(), NegAtomNode { atom: a.clone() }))
+      Self::Atom(a) => Self::NegAtom(NegAtom::new(a.location().clone(), NegAtomNode { atom: a.clone() })),
+      Self::NegAtom(n) => Self::Atom(n.atom().clone()),
+      Self::Case(_) => {
+        // TODO
+        panic!("Cannot have case inside negation")
       }
-      Self::NegAtom(n) => {
-        Self::Atom(n.atom().clone())
-      },
       Self::Disjunction(d) => Self::Conjunction(Conjunction::new(
         d.location().clone(),
         ConjunctionNode {
@@ -57,10 +60,11 @@ impl Formula {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct AtomNode {
   pub predicate: Identifier,
+  pub type_args: Vec<Type>,
   pub args: Vec<Expr>,
 }
 
@@ -68,8 +72,41 @@ pub struct AtomNode {
 pub type Atom = AstNode<AtomNode>;
 
 impl Atom {
-  pub fn predicate(&self) -> &String {
-    &self.node.predicate.node.name
+  pub fn predicate(&self) -> String {
+    if self.has_type_arg() {
+      let args = self
+        .iter_type_arguments()
+        .map(|a| format!("{}", a))
+        .collect::<Vec<_>>()
+        .join("#");
+      format!("{}#{}", self.node.predicate.name(), args)
+    } else {
+      self.node.predicate.name().to_string()
+    }
+  }
+
+  pub fn predicate_identifier(&self) -> &Identifier {
+    &self.node.predicate
+  }
+
+  pub fn predicate_identifier_mut(&mut self) -> &mut Identifier {
+    &mut self.node.predicate
+  }
+
+  pub fn has_type_arg(&self) -> bool {
+    !self.node.type_args.is_empty()
+  }
+
+  pub fn num_type_args(&self) -> usize {
+    self.node.type_args.len()
+  }
+
+  pub fn iter_type_arguments(&self) -> impl Iterator<Item = &Type> {
+    self.node.type_args.iter()
+  }
+
+  pub fn iter_type_arguments_mut(&mut self) -> impl Iterator<Item = &mut Type> {
+    self.node.type_args.iter_mut()
   }
 
   pub fn arity(&self) -> usize {
@@ -79,9 +116,13 @@ impl Atom {
   pub fn iter_arguments(&self) -> impl Iterator<Item = &Expr> {
     self.node.args.iter()
   }
+
+  pub fn iter_arguments_mut(&mut self) -> impl Iterator<Item = &mut Expr> {
+    self.node.args.iter_mut()
+  }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct NegAtomNode {
   pub atom: Atom,
@@ -95,12 +136,39 @@ impl NegAtom {
     &self.node.atom
   }
 
-  pub fn predicate(&self) -> &String {
+  pub fn predicate(&self) -> String {
     self.atom().predicate()
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[doc(hidden)]
+pub struct CaseNode {
+  pub variable: Variable,
+  pub entity: Entity,
+}
+
+pub type Case = AstNode<CaseNode>;
+
+impl Case {
+  pub fn variable(&self) -> &Variable {
+    &self.node.variable
+  }
+
+  pub fn variable_name(&self) -> &str {
+    self.variable().name()
+  }
+
+  pub fn entity(&self) -> &Entity {
+    &self.node.entity
+  }
+
+  pub fn entity_mut(&mut self) -> &mut Entity {
+    &mut self.node.entity
+  }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct ConjunctionNode {
   pub args: Vec<Formula>,
@@ -115,7 +183,7 @@ impl Conjunction {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct DisjunctionNode {
   pub args: Vec<Formula>,
@@ -130,7 +198,7 @@ impl Disjunction {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct ImpliesNode {
   pub left: Box<Formula>,
@@ -150,7 +218,7 @@ impl Implies {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct ConstraintNode {
   pub expr: Expr,
@@ -180,7 +248,7 @@ impl Constraint {
 }
 
 /// A variable or a wildcard, e.g. `x` or `_`
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub enum VariableOrWildcard {
   Variable(Variable),
   Wildcard(Wildcard),
@@ -202,7 +270,7 @@ impl VariableOrWildcard {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct ReduceNode {
   pub left: Vec<VariableOrWildcard>,
@@ -253,7 +321,7 @@ impl Reduce {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub enum ReduceOperatorNode {
   Count,
@@ -334,7 +402,7 @@ impl ReduceOperator {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct ForallExistsReduceNode {
   pub negate: bool,

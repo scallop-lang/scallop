@@ -9,7 +9,10 @@ use super::*;
 pub struct Min;
 
 impl Min {
-  fn dyn_min<T: PartialOrd>(args: Vec<Value>) -> Option<T> where Value: TryInto<T> {
+  fn dyn_min<T: PartialOrd>(args: Vec<Value>) -> Option<T>
+  where
+    Value: TryInto<T>,
+  {
     let mut iter = args.into_iter();
     let mut curr_min: T = iter.next()?.try_into().ok()?;
     while let Some(next_elem) = iter.next() {

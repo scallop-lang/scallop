@@ -47,15 +47,11 @@ impl NodeVisitor for AggregationAnalysis {
     // Check the binding variables
     if reduce.bindings().is_empty() {
       match &reduce.operator().node {
-        ReduceOperatorNode::Exists
-        | ReduceOperatorNode::Forall
-        | ReduceOperatorNode::Unknown(_) => {}
-        r => {
-          self.errors.push(AggregationAnalysisError::EmptyBinding {
-            agg: r.to_string(),
-            loc: reduce.location().clone(),
-          })
-        }
+        ReduceOperatorNode::Exists | ReduceOperatorNode::Forall | ReduceOperatorNode::Unknown(_) => {}
+        r => self.errors.push(AggregationAnalysisError::EmptyBinding {
+          agg: r.to_string(),
+          loc: reduce.location().clone(),
+        }),
       }
     }
   }

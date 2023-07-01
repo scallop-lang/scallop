@@ -102,6 +102,16 @@ impl Rule {
   pub fn body_literals_mut(&mut self) -> impl Iterator<Item = &mut Literal> {
     self.body.args.iter_mut()
   }
+
+  pub fn collect_new_expr_functors(&self) -> impl Iterator<Item = &String> {
+    self.body_literals().filter_map(|l| match l {
+      Literal::Assign(assign) => match &assign.right {
+        AssignExpr::New(new_expr) => Some(&new_expr.functor),
+        _ => None,
+      },
+      _ => None,
+    })
+  }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -156,7 +166,7 @@ impl Head {
       Self::Atom(_) => {
         // Atomic head has only one pattern
         false
-      },
+      }
       Self::Disjunction(disj) => {
         // Extract the pattern of the first atom in the disjunction
         let first_pattern = disj[0]
@@ -170,19 +180,16 @@ impl Head {
 
         // Check if the first pattern is satisfied by all other atoms
         for a in disj.iter().skip(1) {
-          let satisfies_pattern = a.args
-            .iter()
-            .enumerate()
-            .all(|(i, t)| {
-              if let Some(p) = first_pattern.get(i) {
-                match t {
-                  Term::Variable(v) => p == &v.name,
-                  Term::Constant(_) => p.is_empty(),
-                }
-              } else {
-                false
+          let satisfies_pattern = a.args.iter().enumerate().all(|(i, t)| {
+            if let Some(p) = first_pattern.get(i) {
+              match t {
+                Term::Variable(v) => p == &v.name,
+                Term::Constant(_) => p.is_empty(),
               }
-            });
+            } else {
+              false
+            }
+          });
 
           // If not satisfied, then the head has multiple patterns
           if !satisfies_pattern {
@@ -192,7 +199,7 @@ impl Head {
 
         // If all atoms satisfy the first pattern, then the head has only one pattern
         false
-      },
+      }
     }
   }
 }
@@ -319,6 +326,14 @@ impl Literal {
     })
   }
 
+  /// Create a new assignment of call expression
+  pub fn new_expr(left: Variable, functor: String, args: Vec<Term>) -> Self {
+    Self::Assign(Assign {
+      left,
+      right: AssignExpr::New(NewExpr { functor, args }),
+    })
+  }
+
   /// Create a new assignment of if-then-else expression
   pub fn binary_constraint(op: BinaryConstraintOp, op1: Term, op2: Term) -> Self {
     Self::Constraint(Constraint::Binary(BinaryConstraint { op, op1, op2 }))
@@ -381,6 +396,24 @@ impl Atom {
   /// Check if the atom has constant arguments
   pub fn has_constant_arg(&self) -> bool {
     self.args.iter().any(|a| a.is_constant())
+  }
+
+  /// Check if the constants in the atom's arguments are all in the front
+  pub fn constant_args_are_upfront(&self) -> bool {
+    let mut encountered_variable = false;
+    for arg in &self.args {
+      match arg {
+        Term::Variable(_) => {
+          encountered_variable = true;
+        }
+        Term::Constant(_) => {
+          if encountered_variable {
+            return false;
+          }
+        }
+      }
+    }
+    return true;
   }
 
   /// Get the constant arguments
@@ -452,6 +485,11 @@ impl Assign {
           args.extend(a.as_variable().iter());
         }
       }
+      AssignExpr::New(n) => {
+        for a in &n.args {
+          args.extend(a.as_variable().iter());
+        }
+      }
     }
     args
   }
@@ -463,6 +501,16 @@ pub enum AssignExpr {
   Unary(UnaryAssignExpr),
   IfThenElse(IfThenElseAssignExpr),
   Call(CallExpr),
+  New(NewExpr),
+}
+
+impl AssignExpr {
+  pub fn is_new_expr(&self) -> bool {
+    match self {
+      Self::New(_) => true,
+      _ => false,
+    }
+  }
 }
 
 pub type BinaryExprOp = crate::common::binary_op::BinaryOp;
@@ -495,6 +543,12 @@ pub struct CallExpr {
   pub args: Vec<Term>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct NewExpr {
+  pub functor: String,
+  pub args: Vec<Term>,
+}
+
 /// A constraint literal which is either a binary or unary constraint
 #[derive(Clone, Debug, PartialEq)]
 pub enum Constraint {
@@ -505,12 +559,20 @@ pub enum Constraint {
 impl Constraint {
   /// Create a new equality constraint using two terms
   pub fn eq(op1: Term, op2: Term) -> Self {
-    Self::Binary(BinaryConstraint { op: BinaryConstraintOp::Eq, op1, op2 })
+    Self::Binary(BinaryConstraint {
+      op: BinaryConstraintOp::Eq,
+      op1,
+      op2,
+    })
   }
 
   /// Create a new inequality constraint using two terms
   pub fn neq(op1: Term, op2: Term) -> Self {
-    Self::Binary(BinaryConstraint { op: BinaryConstraintOp::Neq, op1, op2 })
+    Self::Binary(BinaryConstraint {
+      op: BinaryConstraintOp::Neq,
+      op1,
+      op2,
+    })
   }
 
   /// Create a new binary constraint using an operator and two terms
@@ -587,10 +649,10 @@ pub enum UnaryConstraintOp {
   Not,
 }
 
-impl From<&front::UnaryOpNode> for Option<UnaryConstraintOp> {
-  fn from(op: &front::UnaryOpNode) -> Self {
+impl From<&front::ast::UnaryOpNode> for Option<UnaryConstraintOp> {
+  fn from(op: &front::ast::UnaryOpNode) -> Self {
     match op {
-      front::UnaryOpNode::Not => Some(UnaryConstraintOp::Not),
+      front::ast::UnaryOpNode::Not => Some(UnaryConstraintOp::Not),
       _ => None,
     }
   }

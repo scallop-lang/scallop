@@ -1,4 +1,5 @@
 use crate::common::binary_op::BinaryOp;
+use crate::common::entity;
 use crate::common::expr::{BinaryExpr, Expr, UnaryExpr};
 use crate::common::foreign_function::*;
 use crate::common::unary_op::UnaryOp;
@@ -84,6 +85,18 @@ pub fn constant_fold(rule: &mut Rule, function_registry: &ForeignFunctionRegistr
                 *lit = Literal::False
               }
             }
+          }
+        }
+        AssignExpr::New(n) => {
+          let all_constant = n.args.iter().all(|a| a.is_constant());
+          if all_constant {
+            let raw_id = entity::encode_entity(&n.functor, n.args.iter().map(|a| a.as_constant().unwrap()));
+            let id = Term::Constant(Constant::Entity(raw_id));
+            *lit = Literal::Constraint(Constraint::Binary(BinaryConstraint {
+              op: BinaryConstraintOp::Eq,
+              op1: Term::Variable(a.left.clone()),
+              op2: id,
+            }))
           }
         }
       },

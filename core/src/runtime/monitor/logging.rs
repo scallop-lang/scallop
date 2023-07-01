@@ -12,11 +12,11 @@ impl LoggingMonitor {
   }
 
   pub fn warning(&self, s: &str) {
-    println!("[Warn] {}", s.color(Color::Yellow));
+    eprintln!("[Warn] {}", s.color(Color::Yellow));
   }
 
   pub fn error(&self, s: &str) {
-    println!("[Error] {}", s.color(Color::Red));
+    eprintln!("[Error] {}", s.color(Color::Red));
   }
 }
 

@@ -8,6 +8,8 @@ pub struct CSVFileOptions {
   pub deliminator: Option<String>,
   pub has_header: bool,
   pub has_probability: bool,
+  pub keys: Option<Vec<String>>,
+  pub fields: Option<Vec<String>>,
 }
 
 impl CSVFileOptions {
@@ -17,6 +19,8 @@ impl CSVFileOptions {
       deliminator: None,
       has_header: false,
       has_probability: false,
+      keys: None,
+      fields: None,
     }
   }
 }
@@ -29,6 +33,12 @@ impl Into<Attribute> for CSVFileOptions {
     }
     kw_args.insert("has_header".to_string(), self.has_header.into());
     kw_args.insert("has_probability".to_string(), self.has_probability.into());
+    if let Some(keys) = self.keys {
+      kw_args.insert("keys".to_string(), keys.into());
+    }
+    if let Some(fields) = self.fields {
+      kw_args.insert("fields".to_string(), fields.into());
+    }
 
     // Get attribute
     Attribute {

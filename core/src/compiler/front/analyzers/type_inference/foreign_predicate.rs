@@ -1,7 +1,7 @@
 use std::collections::*;
 
-use crate::common::value_type::*;
 use crate::common::foreign_predicate::*;
+use crate::common::value_type::*;
 
 /// The type of a foreign predicate.
 /// Essentially a list of basic types.
@@ -62,7 +62,7 @@ impl PredicateTypeRegistry {
 
   /// Add a new foreign predicate to the predicate type registry
   pub fn add_foreign_predicate<P: ForeignPredicate>(&mut self, p: &P) {
-    self.predicate_types.insert(p.name(), PredicateType::from(p));
+    self.predicate_types.insert(p.internal_name(), PredicateType::from(p));
   }
 
   /// Check if the registry contains a predicate

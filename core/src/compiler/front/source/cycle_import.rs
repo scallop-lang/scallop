@@ -10,7 +10,7 @@ pub struct CycleImportError {
 
 impl CycleImportError {
   pub fn report(&self, _: &Sources) {
-    println!("File `{}` is already imported", self.path.to_str().unwrap());
+    eprintln!("File `{}` is already imported", self.path.to_str().unwrap());
   }
 }
 

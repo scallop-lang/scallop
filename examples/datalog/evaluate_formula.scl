@@ -1,22 +1,23 @@
 // Inputs
-type symbol(usize, String)
+type symbol(usize, char)
 type length(usize)
 
 // Facts for lexing
-rel digit = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}
+rel digit = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'}
 
 type term(value: f32, begin: usize, end: usize)
 rel term(x as f32, b, b + 1) = symbol(b, x) and digit(x)
+rel term(n * 10 + x as f32, s, e + 1) = term(n, s, e) and symbol(e, x) and digit(x)
 
 type mult_div(value: f32, begin: usize, end: usize)
 rel mult_div(x, b, r) = term(x, b, r)
-rel mult_div(x * y, b, e) = mult_div(x, b, m) and symbol(m, "*") and term(y, m + 1, e)
-rel mult_div(x / y, b, e) = mult_div(x, b, m) and symbol(m, "/") and term(y, m + 1, e)
+rel mult_div(x * y, b, e) = mult_div(x, b, m) and symbol(m, '*') and term(y, m + 1, e)
+rel mult_div(x / y, b, e) = mult_div(x, b, m) and symbol(m, '/') and term(y, m + 1, e)
 
 type add_minus(value: f32, begin: usize, end: usize)
 rel add_minus(x, b, r) = mult_div(x, b, r)
-rel add_minus(x + y, b, e) = add_minus(x, b, m) and symbol(m, "+") and mult_div(y, m + 1, e)
-rel add_minus(x - y, b, e) = add_minus(x, b, m) and symbol(m, "-") and mult_div(y, m + 1, e)
+rel add_minus(x + y, b, e) = add_minus(x, b, m) and symbol(m, '+') and mult_div(y, m + 1, e)
+rel add_minus(x - y, b, e) = add_minus(x, b, m) and symbol(m, '-') and mult_div(y, m + 1, e)
 
 type result(value: f32)
 rel result(y) = add_minus(y, 0, l) and length(l)
@@ -26,8 +27,7 @@ rel result(y) = add_minus(y, 0, l) and length(l)
 // Testing related
 type test_string(String)
 rel length($string_length(s)) = test_string(s)
-rel symbol(0, $string_char_at(s, 0) as String) = test_string(s), $string_length(s) > 0
-rel symbol(i, $string_char_at(s, i) as String) = symbol(i - 1, _), test_string(s), $string_length(s) > i
+rel symbol(i, c) = test_string(s), string_chars(s, i, c)
 
 rel test_string("123/24+1")
 query result

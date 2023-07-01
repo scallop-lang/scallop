@@ -1,6 +1,8 @@
+use serde::*;
+
 use super::*;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub enum Expr {
   Constant(Constant),
   Variable(Variable),
@@ -9,6 +11,7 @@ pub enum Expr {
   Unary(UnaryExpr),
   IfThenElse(IfThenElseExpr),
   Call(CallExpr),
+  New(NewExpr),
 }
 
 impl Expr {
@@ -53,6 +56,7 @@ impl Expr {
       Self::Unary(u) => u.location(),
       Self::IfThenElse(i) => i.location(),
       Self::Call(c) => c.location(),
+      Self::New(n) => n.location(),
     }
   }
 
@@ -81,6 +85,34 @@ impl Expr {
     match self {
       Self::Binary(_) | Self::Unary(_) => true,
       _ => false,
+    }
+  }
+
+  pub fn get_constant(&self) -> Option<&Constant> {
+    match self {
+      Self::Constant(c) => Some(c),
+      _ => None,
+    }
+  }
+
+  pub fn get_variable(&self) -> Option<&Variable> {
+    match self {
+      Self::Variable(v) => Some(v),
+      _ => None,
+    }
+  }
+
+  /// Checks if the expression has variables (or wildcards) inside of it
+  pub fn has_variable(&self) -> bool {
+    match self {
+      Self::Constant(_) => false,
+      Self::Variable(_) => true,
+      Self::Wildcard(_) => true,
+      Self::Binary(b) => b.op1().has_variable() || b.op2().has_variable(),
+      Self::Unary(b) => b.op1().has_variable(),
+      Self::IfThenElse(i) => i.cond().has_variable() || i.then_br().has_variable() || i.else_br().has_variable(),
+      Self::Call(c) => c.iter_args().any(|a| a.has_variable()),
+      Self::New(n) => n.iter_args().any(|a| a.has_variable()),
     }
   }
 
@@ -114,11 +146,64 @@ impl Expr {
       Self::Variable(v) => {
         vars.push(v.clone());
       }
+      Self::New(n) => {
+        for a in n.iter_args() {
+          a.collect_used_variables_helper(vars);
+        }
+      }
+    }
+  }
+
+  pub fn get_first_variable_location(&self) -> Option<&AstNodeLocation> {
+    match self {
+      Expr::Constant(_) => None,
+      Expr::Variable(v) => Some(v.location()),
+      Expr::Wildcard(w) => Some(w.location()),
+      Expr::Binary(b) => Some(b.location()),
+      Expr::Unary(u) => u.op1().get_first_variable_location(),
+      Expr::IfThenElse(i) => i
+        .cond()
+        .get_first_variable_location()
+        .or_else(|| i.then_br().get_first_variable_location())
+        .or_else(|| i.else_br().get_first_variable_location()),
+      Expr::Call(c) => {
+        for arg in c.iter_args() {
+          if let Some(loc) = arg.get_first_variable_location() {
+            return Some(loc);
+          }
+        }
+        None
+      }
+      Expr::New(n) => {
+        for arg in n.iter_args() {
+          if let Some(loc) = arg.get_first_variable_location() {
+            return Some(loc);
+          }
+        }
+        None
+      }
+    }
+  }
+
+  pub fn get_first_non_constant_location<F>(&self, is_constant: &F) -> Option<&AstNodeLocation>
+  where
+    F: Fn(&Variable) -> bool,
+  {
+    match self {
+      Expr::Constant(_) => None,
+      Expr::Variable(v) => {
+        if is_constant(v) {
+          None
+        } else {
+          Some(self.location())
+        }
+      }
+      _ => Some(self.location()),
     }
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct VariableNode {
   pub name: Identifier,
@@ -148,7 +233,7 @@ impl std::fmt::Display for Variable {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct VariableBindingNode {
   pub name: Identifier,
@@ -170,7 +255,7 @@ impl VariableBinding {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct WildcardNode;
 
@@ -211,7 +296,7 @@ impl BinaryOp {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct BinaryExprNode {
   pub op: BinaryOp,
@@ -235,7 +320,7 @@ impl BinaryExpr {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub enum UnaryOpNode {
   Neg,
@@ -273,7 +358,7 @@ impl UnaryOp {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct UnaryExprNode {
   pub op: UnaryOp,
@@ -292,7 +377,7 @@ impl UnaryExpr {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct IfThenElseExprNode {
   pub cond: Box<Expr>,
@@ -316,7 +401,7 @@ impl IfThenElseExpr {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct CallExprNode {
   pub function_identifier: FunctionIdentifier,
@@ -356,7 +441,7 @@ impl CallExpr {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct FunctionIdentifierNode {
   pub id: Identifier,
@@ -368,5 +453,40 @@ pub type FunctionIdentifier = AstNode<FunctionIdentifierNode>;
 impl FunctionIdentifier {
   pub fn name(&self) -> &str {
     self.node.id.name()
+  }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[doc(hidden)]
+pub struct NewExprNode {
+  pub functor: Identifier,
+  pub args: Vec<Expr>,
+}
+
+pub type NewExpr = AstNode<NewExprNode>;
+
+impl NewExpr {
+  pub fn num_args(&self) -> usize {
+    self.node.args.len()
+  }
+
+  pub fn iter_args(&self) -> impl Iterator<Item = &Expr> {
+    self.node.args.iter()
+  }
+
+  pub fn iter_args_mut(&mut self) -> impl Iterator<Item = &mut Expr> {
+    self.node.args.iter_mut()
+  }
+
+  pub fn functor_identifier(&self) -> &Identifier {
+    &self.node.functor
+  }
+
+  pub fn functor_identifier_mut(&mut self) -> &mut Identifier {
+    &mut self.node.functor
+  }
+
+  pub fn functor_name(&self) -> &str {
+    self.node.functor.name()
   }
 }

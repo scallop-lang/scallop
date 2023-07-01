@@ -21,7 +21,10 @@ impl RangeBBF {
   }
 
   /// Compute the numbers between
-  fn range<T: Integer>(begin: &Value, end: &Value) -> impl Iterator<Item = T> where Value: TryInto<T> {
+  fn range<T: Integer>(begin: &Value, end: &Value) -> impl Iterator<Item = T>
+  where
+    Value: TryInto<T>,
+  {
     pub struct StepIterator<T: Integer> {
       curr: T,
       end: T,
@@ -49,14 +52,23 @@ impl RangeBBF {
     StepIterator { curr: begin, end }
   }
 
-  fn dyn_range<T: Integer + Into<Value>>(begin: &Value, end: &Value) -> Vec<(DynamicInputTag, Vec<Value>)> where Value: TryInto<T> {
-    Self::range::<T>(begin, end).map(|i| (DynamicInputTag::None, vec![i.into()])).collect()
+  fn dyn_range<T: Integer + Into<Value>>(begin: &Value, end: &Value) -> Vec<(DynamicInputTag, Vec<Value>)>
+  where
+    Value: TryInto<T>,
+  {
+    Self::range::<T>(begin, end)
+      .map(|i| (DynamicInputTag::None, vec![i.into()]))
+      .collect()
   }
 }
 
 impl ForeignPredicate for RangeBBF {
   fn name(&self) -> String {
-    format!("range_{}", self.ty)
+    "range".to_string()
+  }
+
+  fn generic_type_parameters(&self) -> Vec<ValueType> {
+    vec![self.ty.clone()]
   }
 
   fn arity(&self) -> usize {

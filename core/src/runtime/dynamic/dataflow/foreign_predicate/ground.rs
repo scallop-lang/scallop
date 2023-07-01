@@ -1,8 +1,8 @@
 use crate::common::foreign_predicate::*;
-use crate::common::value::*;
 use crate::common::tuple::*;
-use crate::runtime::provenance::*;
+use crate::common::value::*;
 use crate::runtime::env::*;
+use crate::runtime::provenance::*;
 
 use super::*;
 
@@ -32,7 +32,7 @@ impl<'a, Prov: Provenance> ForeignPredicateGroundDataflow<'a, Prov> {
 
     // Evaluate the foreign predicate
     let elements = foreign_predicate
-      .evaluate(&self.bounded_constants)
+      .evaluate_with_env(runtime, &self.bounded_constants)
       .into_iter()
       .map(|(input_tag, values)| {
         let input_tag = StaticInputTag::from_dynamic_input_tag(&input_tag);

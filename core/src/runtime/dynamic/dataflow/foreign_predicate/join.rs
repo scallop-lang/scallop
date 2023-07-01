@@ -1,9 +1,9 @@
-use crate::common::foreign_predicate::*;
 use crate::common::expr::*;
+use crate::common::foreign_predicate::*;
 use crate::common::tuple::*;
 use crate::common::value::*;
-use crate::runtime::provenance::*;
 use crate::runtime::env::*;
+use crate::runtime::provenance::*;
 
 use super::*;
 
@@ -35,8 +35,13 @@ impl<'a, Prov: Provenance> ForeignPredicateJoinDataflow<'a, Prov> {
   pub fn iter_stable(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     DynamicBatches::ForeignPredicateJoin(ForeignPredicateJoinBatches {
       batches: Box::new(self.left.iter_stable(runtime)),
-      foreign_predicate: runtime.predicate_registry.get(&self.foreign_predicate).expect("Foreign predicate not found").clone(),
+      foreign_predicate: runtime
+        .predicate_registry
+        .get(&self.foreign_predicate)
+        .expect("Foreign predicate not found")
+        .clone(),
       args: self.args.clone(),
+      env: runtime,
       ctx: self.ctx,
     })
   }
@@ -44,8 +49,13 @@ impl<'a, Prov: Provenance> ForeignPredicateJoinDataflow<'a, Prov> {
   pub fn iter_recent(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
     DynamicBatches::ForeignPredicateJoin(ForeignPredicateJoinBatches {
       batches: Box::new(self.left.iter_recent(runtime)),
-      foreign_predicate: runtime.predicate_registry.get(&self.foreign_predicate).expect("Foreign predicate not found").clone(),
+      foreign_predicate: runtime
+        .predicate_registry
+        .get(&self.foreign_predicate)
+        .expect("Foreign predicate not found")
+        .clone(),
       args: self.args.clone(),
+      env: runtime,
       ctx: self.ctx,
     })
   }
@@ -56,6 +66,7 @@ pub struct ForeignPredicateJoinBatches<'a, Prov: Provenance> {
   pub batches: Box<DynamicBatches<'a, Prov>>,
   pub foreign_predicate: DynamicForeignPredicate,
   pub args: Vec<Expr>,
+  pub env: &'a RuntimeEnvironment,
   pub ctx: &'a Prov,
 }
 
@@ -67,9 +78,9 @@ impl<'a, Prov: Provenance> Iterator for ForeignPredicateJoinBatches<'a, Prov> {
     self.batches.next().map(|mut batch| {
       // Then, try to get the first element inside of this batch;
       // if there is an element, we need to evaluate the foreign predicate and produce a current output batch
-      let first_output_batch = batch.next().map(|elem| {
-        eval_foreign_predicate(elem, &self.foreign_predicate, &self.args, self.ctx)
-      });
+      let first_output_batch = batch
+        .next()
+        .map(|elem| eval_foreign_predicate(elem, &self.foreign_predicate, &self.args, self.env, self.ctx));
 
       // Generate a new batch
       DynamicBatch::ForeignPredicateJoin(ForeignPredicateJoinBatch {
@@ -77,6 +88,7 @@ impl<'a, Prov: Provenance> Iterator for ForeignPredicateJoinBatches<'a, Prov> {
         foreign_predicate: self.foreign_predicate.clone(),
         args: self.args.clone(),
         current_output_batch: first_output_batch,
+        env: self.env,
         ctx: self.ctx,
       })
     })
@@ -89,6 +101,7 @@ pub struct ForeignPredicateJoinBatch<'a, Prov: Provenance> {
   pub foreign_predicate: DynamicForeignPredicate,
   pub args: Vec<Expr>,
   pub current_output_batch: Option<(DynamicElement<Prov>, std::vec::IntoIter<DynamicElement<Prov>>)>,
+  pub env: &'a RuntimeEnvironment,
   pub ctx: &'a Prov,
 }
 
@@ -100,11 +113,12 @@ impl<'a, Prov: Provenance> Iterator for ForeignPredicateJoinBatch<'a, Prov> {
       if let Some(right_elem) = current_output_batch.next() {
         let tuple = (left_elem.tuple.clone(), right_elem.tuple);
         let new_tag = self.ctx.mult(&left_elem.tag, &right_elem.tag);
-        return Some(DynamicElement::new(tuple, new_tag))
+        return Some(DynamicElement::new(tuple, new_tag));
       } else {
-        self.current_output_batch = self.batch.next().map(|elem| {
-          eval_foreign_predicate(elem, &self.foreign_predicate, &self.args, self.ctx)
-        });
+        self.current_output_batch = self
+          .batch
+          .next()
+          .map(|elem| eval_foreign_predicate(elem, &self.foreign_predicate, &self.args, self.env, self.ctx));
       }
     }
     None
@@ -116,29 +130,35 @@ fn eval_foreign_predicate<Prov: Provenance>(
   elem: DynamicElement<Prov>,
   fp: &DynamicForeignPredicate,
   args: &Vec<Expr>,
+  env: &RuntimeEnvironment,
   ctx: &Prov,
 ) -> (DynamicElement<Prov>, std::vec::IntoIter<DynamicElement<Prov>>) {
   // First get the arguments to pass to the foreign predicate
-  let args_to_fp: Vec<Value> = args.iter().map(|arg| {
-    match arg {
+  let args_to_fp: Vec<Value> = args
+    .iter()
+    .map(|arg| match arg {
       Expr::Access(a) => elem.tuple[a].as_value(),
       Expr::Constant(c) => c.clone(),
       _ => panic!("Foreign predicate join only supports constant and access arguments"),
-    }
-  }).collect();
+    })
+    .collect();
 
   // Then evaluate the foreign predicate on these arguments
-  let outputs: Vec<_> = fp.evaluate(&args_to_fp).into_iter().map(|(tag, values)| {
-    // Make sure to tag the output elements
-    let input_tag = Prov::InputTag::from_dynamic_input_tag(&tag);
-    let new_tag = ctx.tagging_optional_fn(input_tag);
+  let outputs: Vec<_> = fp
+    .evaluate_with_env(env, &args_to_fp)
+    .into_iter()
+    .map(|(tag, values)| {
+      // Make sure to tag the output elements
+      let input_tag = Prov::InputTag::from_dynamic_input_tag(&tag);
+      let new_tag = ctx.tagging_optional_fn(input_tag);
 
-    // Generate a tuple from the values produced by the foreign predicate
-    let tuple = Tuple::from(values);
+      // Generate a tuple from the values produced by the foreign predicate
+      let tuple = Tuple::from(values);
 
-    // Generate the output element
-    DynamicElement::new(tuple, new_tag)
-  }).collect();
+      // Generate the output element
+      DynamicElement::new(tuple, new_tag)
+    })
+    .collect();
 
   // Return the input element and output elements pair
   (elem, outputs.into_iter())

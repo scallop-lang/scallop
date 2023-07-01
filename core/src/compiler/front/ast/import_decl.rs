@@ -1,6 +1,8 @@
+use serde::*;
+
 use super::*;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct ImportFileNode {
   pub file_path: String,
@@ -8,7 +10,7 @@ pub struct ImportFileNode {
 
 pub type ImportFile = AstNode<ImportFileNode>;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct ImportDeclNode {
   pub attrs: Attributes,

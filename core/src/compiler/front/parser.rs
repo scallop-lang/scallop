@@ -1,10 +1,12 @@
 use super::*;
 
+/// Parse a string into a single `Item`
 pub fn str_to_item(s: &str) -> Result<Item, ParserError> {
   let parser = grammar::ItemParser::new();
   parser.parse(s).map_err(ParserError::from)
 }
 
+/// Parse a string into multiple `Items`
 pub fn str_to_items(s: &str) -> Result<Vec<Item>, ParserError> {
   let parser = grammar::ItemsParser::new();
   parser.parse(s).map_err(ParserError::from)
@@ -22,6 +24,16 @@ pub fn str_to_rule(s: &str) -> Result<Vec<Item>, ParserError> {
 
 pub fn str_to_query(s: &str) -> Result<Vec<Item>, ParserError> {
   let parser = grammar::QueryParser::new();
+  parser.parse(s).map(|q| q.into()).map_err(ParserError::from)
+}
+
+pub fn str_to_entity(s: &str) -> Result<Entity, ParserError> {
+  let parser = grammar::EntityParser::new();
+  parser.parse(s).map(|q| q.into()).map_err(ParserError::from)
+}
+
+pub fn str_to_specialized_predicate(s: &str) -> Result<(Identifier, Vec<Identifier>), ParserError> {
+  let parser = grammar::SpecializedPredicateParser::new();
   parser.parse(s).map(|q| q.into()).map_err(ParserError::from)
 }
 

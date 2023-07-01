@@ -26,7 +26,7 @@ pub fn check_compile_pylib_from_program_string(program_name: &str, program_strin
     Ok(ram) => ram,
     Err(errs) => {
       for err in errs {
-        println!("{}", err);
+        eprintln!("{}", err);
       }
       return;
     }

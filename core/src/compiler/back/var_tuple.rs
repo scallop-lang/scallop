@@ -185,6 +185,10 @@ impl VariableTuple {
               function: c.function.clone(),
               args: c.args.iter().map(|a| self.term_to_ram_expr(a).unwrap()).collect(),
             }),
+            AssignExpr::New(n) => Expr::New(crate::common::expr::NewExpr {
+              functor: n.functor.clone(),
+              args: n.args.iter().map(|a| self.term_to_ram_expr(a).unwrap()).collect(),
+            }),
           }
         }
       }

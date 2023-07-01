@@ -15,6 +15,7 @@ pub struct Analysis {
   pub aggregation_analysis: AggregationAnalysis,
   pub character_literal_analysis: CharacterLiteralAnalysis,
   pub constant_decl_analysis: ConstantDeclAnalysis,
+  pub adt_analysis: AlgebraicDataTypeAnalysis,
   pub head_relation_analysis: HeadRelationAnalysis,
   pub type_inference: TypeInference,
   pub boundness_analysis: BoundnessAnalysis,
@@ -23,10 +24,7 @@ pub struct Analysis {
 
 impl Analysis {
   /// Create a new front IR analysis object
-  pub fn new(
-    function_registry: &ForeignFunctionRegistry,
-    predicate_registry: &ForeignPredicateRegistry,
-  ) -> Self {
+  pub fn new(function_registry: &ForeignFunctionRegistry, predicate_registry: &ForeignPredicateRegistry) -> Self {
     Self {
       invalid_constant: InvalidConstantAnalyzer::new(),
       invalid_wildcard: InvalidWildcardAnalyzer::new(),
@@ -36,6 +34,7 @@ impl Analysis {
       aggregation_analysis: AggregationAnalysis::new(),
       character_literal_analysis: CharacterLiteralAnalysis::new(),
       constant_decl_analysis: ConstantDeclAnalysis::new(),
+      adt_analysis: AlgebraicDataTypeAnalysis::new(),
       head_relation_analysis: HeadRelationAnalysis::new(predicate_registry),
       type_inference: TypeInference::new(function_registry, predicate_registry),
       boundness_analysis: BoundnessAnalysis::new(predicate_registry),
@@ -51,6 +50,7 @@ impl Analysis {
       &mut self.aggregation_analysis,
       &mut self.character_literal_analysis,
       &mut self.constant_decl_analysis,
+      &mut self.adt_analysis,
       &mut self.invalid_constant,
       &mut self.invalid_wildcard,
     );
@@ -58,9 +58,12 @@ impl Analysis {
   }
 
   pub fn process_items(&mut self, items: &Vec<Item>) {
+    // Prepare the type inference module
     self
       .type_inference
       .extend_constant_types(self.constant_decl_analysis.compute_typed_constants());
+
+    // Create the analyzers and walk the items
     let mut analyzers = (
       &mut self.head_relation_analysis,
       &mut self.type_inference,
@@ -85,6 +88,7 @@ impl Analysis {
     error_ctx.extend(&mut self.aggregation_analysis.errors);
     error_ctx.extend(&mut self.character_literal_analysis.errors);
     error_ctx.extend(&mut self.constant_decl_analysis.errors);
+    error_ctx.extend(&mut self.adt_analysis.errors);
     error_ctx.extend(&mut self.head_relation_analysis.errors);
     error_ctx.extend(&mut self.type_inference.errors);
     error_ctx.extend(&mut self.boundness_analysis.errors);

@@ -1,11 +1,11 @@
-// use std::rc::Rc;
+use serde::*;
 
 use crate::utils;
 
 use super::tuple::*;
 use super::value::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub enum ValueType {
   I8,
   I16,
@@ -25,9 +25,11 @@ pub enum ValueType {
   Bool,
   Str,
   String,
+  Symbol,
   DateTime,
   Duration,
-  // RcString,
+  Entity,
+  Tensor,
 }
 
 impl ValueType {
@@ -52,9 +54,13 @@ impl ValueType {
       Bool(_) => Self::Bool,
       Str(_) => Self::Str,
       String(_) => Self::String,
+      Symbol(_) => Self::Symbol,
+      SymbolString(_) => Self::Symbol,
       DateTime(_) => Self::DateTime,
       Duration(_) => Self::Duration,
-      // RcString(_) => Self::RcString,
+      Entity(_) => Self::Entity,
+      Tensor(_) => Self::Tensor,
+      TensorValue(_) => Self::Tensor,
     }
   }
 
@@ -180,12 +186,19 @@ impl ValueType {
     }
   }
 
+  pub fn is_entity(&self) -> bool {
+    match self {
+      Self::Entity => true,
+      _ => false,
+    }
+  }
+
   pub fn can_type_cast(&self, target: &Self) -> bool {
     if self.is_numeric() && target.is_numeric() {
       true
     } else if self.is_boolean() && target.is_boolean() {
       true
-    } else if self.is_char() && (target.is_char() || target.is_string() || target.is_integer()) {
+    } else if self.is_char() && (target.is_char() || target.is_string() || target.is_integer() || target.is_float()) {
       true
     } else if self.is_string() && target.is_numeric() {
       true
@@ -227,11 +240,21 @@ impl ValueType {
       // String
       Self::Str => panic!("Cannot parse into a static string"),
       Self::String => Ok(Value::String(s.to_string())),
-      // Self::RcString => Ok(Value::RcString(Rc::new(s.to_string()))),
+      Self::Symbol => panic!("Cannot parse into a symbol"),
 
       // DateTime and Duration
-      Self::DateTime => Ok(Value::DateTime(utils::parse_date_time_string(s).ok_or_else(|| ValueParseError::new(s, self))?)),
-      Self::Duration => Ok(Value::Duration(utils::parse_duration_string(s).ok_or_else(|| ValueParseError::new(s, self))?)),
+      Self::DateTime => Ok(Value::DateTime(
+        utils::parse_date_time_string(s).ok_or_else(|| ValueParseError::new(s, self))?,
+      )),
+      Self::Duration => Ok(Value::Duration(
+        utils::parse_duration_string(s).ok_or_else(|| ValueParseError::new(s, self))?,
+      )),
+
+      // Entity
+      Self::Entity => panic!("Cannot parse into an entity"),
+
+      // Tensor
+      Self::Tensor => panic!("Cannot parse into tensor"),
     }
   }
 
@@ -331,10 +354,7 @@ impl ValueType {
 
   /// Get all floating point number types
   pub fn floats() -> &'static [ValueType] {
-    &[
-      ValueType::F32,
-      ValueType::F64,
-    ]
+    &[ValueType::F32, ValueType::F64]
   }
 }
 
@@ -381,9 +401,11 @@ impl std::fmt::Display for ValueType {
       Bool => f.write_str("bool"),
       Str => f.write_str("&str"),
       String => f.write_str("String"),
-      // RcString => f.write_str("Rc<String>"),
+      Symbol => f.write_str("Symbol"),
       DateTime => f.write_str("DateTime"),
       Duration => f.write_str("Duration"),
+      Entity => f.write_str("Entity"),
+      Tensor => f.write_str("Tensor"),
     }
   }
 }
@@ -510,9 +532,3 @@ impl FromType<chrono::Duration> for ValueType {
     Self::Duration
   }
 }
-
-// impl FromType<Rc<String>> for ValueType {
-//   fn from_type() -> Self {
-//     Self::RcString
-//   }
-// }

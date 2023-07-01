@@ -1,6 +1,7 @@
 mod attr;
 mod const_decl;
 mod constant;
+mod entity;
 mod expr;
 mod formula;
 mod import_decl;
@@ -15,6 +16,7 @@ mod utils;
 pub use attr::*;
 pub use const_decl::*;
 pub use constant::*;
+pub use entity::*;
 pub use expr::*;
 pub use formula::*;
 pub use import_decl::*;

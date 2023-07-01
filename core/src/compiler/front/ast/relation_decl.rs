@@ -1,6 +1,8 @@
+use serde::*;
+
 use super::*;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct ConstantTupleNode {
   pub elems: Vec<ConstantOrVariable>,
@@ -14,7 +16,7 @@ impl ConstantTuple {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct ConstantSetTupleNode {
   pub tag: Tag,
@@ -37,7 +39,7 @@ impl ConstantSetTuple {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct ConstantSetNode {
   pub tuples: Vec<ConstantSetTuple>,
@@ -52,7 +54,7 @@ impl ConstantSet {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct ConstantSetDeclNode {
   pub attrs: Attributes,
@@ -88,7 +90,7 @@ impl ConstantSetDecl {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct FactDeclNode {
   pub attrs: Attributes,
@@ -107,7 +109,7 @@ impl FactDecl {
     &mut self.node.attrs
   }
 
-  pub fn predicate(&self) -> &String {
+  pub fn predicate(&self) -> String {
     self.node.atom.predicate()
   }
 
@@ -139,7 +141,7 @@ impl FactDecl {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct RuleDeclNode {
   pub attrs: Attributes,
@@ -181,7 +183,7 @@ impl RuleDecl {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub enum RelationDeclNode {
   Set(ConstantSetDecl),
@@ -205,6 +207,13 @@ impl RelationDecl {
       RelationDeclNode::Set(s) => s.attributes_mut(),
       RelationDeclNode::Fact(f) => f.attributes_mut(),
       RelationDeclNode::Rule(r) => r.attributes_mut(),
+    }
+  }
+
+  pub fn rule(&self) -> Option<&Rule> {
+    match &self.node {
+      RelationDeclNode::Rule(r) => Some(&r.node.rule),
+      _ => None,
     }
   }
 }

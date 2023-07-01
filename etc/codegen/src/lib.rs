@@ -13,10 +13,8 @@ pub fn scallop(tokens: TokenStream) -> TokenStream {
   let ram = match compiler::compile_source_to_ram(src) {
     Ok(ram) => ram,
     Err(errs) => {
-      for err in errs {
-        println!("{}", err);
-      }
-      return quote! {}.into();
+      let all_errs = errs.iter().map(|err| err.to_string()).collect::<Vec<_>>().join("\n");
+      return quote! { compile_error!(#all_errs); }.into();
     }
   };
 

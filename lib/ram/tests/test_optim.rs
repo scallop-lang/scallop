@@ -7,7 +7,10 @@ fn test_filter_cascade_1() {
 
 #[test]
 fn test_filter_cascade_2() {
-  assert_eq!(simplify("(filter (filter (filter ?d ?a) ?b) ?c)"), "(filter ?d (&& ?c (&& ?a ?b)))")
+  assert_eq!(
+    simplify("(filter (filter (filter ?d ?a) ?b) ?c)"),
+    "(filter ?d (&& ?c (&& ?a ?b)))"
+  )
 }
 
 #[test]
@@ -17,21 +20,26 @@ fn test_project_cascade_1() {
 
 #[test]
 fn test_project_cascade_2() {
-  assert_eq!(simplify(r#"
+  assert_eq!(
+    simplify(
+      r#"
   (project
     (project
       ?d
       (tuple-cons
-        (index-cons 1 index-nil)
+        (index 1)
         (tuple-cons
-          (index-cons 0 index-nil)
+          (index 0)
           tuple-nil
         )
       )
     )
     (-
-      (index-cons 0 index-nil)
-      (index-cons 1 index-nil)
+      (index 0)
+      (index 1)
     )
-  )"#), "(project ?d (- (index-cons 1 index-nil) (index-cons 0 index-nil)))")
+  )"#
+    ),
+    simplify("(project ?d (- (index 1) (index 0)))")
+  )
 }

@@ -190,9 +190,10 @@ impl TypeSet {
       ConstantNode::Char(_) => Self::BaseType(ValueType::Char, c.location().clone()),
       ConstantNode::Boolean(_) => Self::BaseType(ValueType::Bool, c.location().clone()),
       ConstantNode::String(_) => Self::String(c.location().clone()),
+      ConstantNode::Symbol(_) => Self::BaseType(ValueType::Symbol, c.location().clone()),
       ConstantNode::DateTime(_) => Self::BaseType(ValueType::DateTime, c.location().clone()),
       ConstantNode::Duration(_) => Self::BaseType(ValueType::Duration, c.location().clone()),
-      ConstantNode::Invalid(_) => panic!("[Internal Error] Should not be called with invalid constant"),
+      ConstantNode::Entity(_) => Self::BaseType(ValueType::Entity, c.location().clone()),
     }
   }
 

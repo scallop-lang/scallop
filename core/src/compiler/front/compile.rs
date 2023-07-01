@@ -4,10 +4,12 @@ use std::path::PathBuf;
 
 use super::analysis::*;
 use super::analyzers::*;
+use super::attribute::*;
 use super::*;
 
 use crate::common::foreign_function::*;
 use crate::common::foreign_predicate::*;
+use crate::common::tuple::*;
 use crate::common::tuple_type::*;
 use crate::common::value_type::*;
 use crate::utils::CopyOnWrite;
@@ -32,6 +34,9 @@ pub struct FrontContext {
   /// Foreign predicate registry holding all foreign predicates
   pub foreign_predicate_registry: ForeignPredicateRegistry,
 
+  /// Attribute processor registry holding all attribute processors
+  pub attribute_processor_registry: AttributeProcessorRegistry,
+
   /// Node ID annotator for giving AST node IDs.
   pub node_id_annotator: NodeIdAnnotator,
 
@@ -43,12 +48,14 @@ impl FrontContext {
   pub fn new() -> Self {
     let function_registry = ForeignFunctionRegistry::std();
     let predicate_registry = ForeignPredicateRegistry::std();
+    let attribute_registry = AttributeProcessorRegistry::new();
     let analysis = Analysis::new(&function_registry, &predicate_registry);
     Self {
       sources: Sources::new(),
       items: Vec::new(),
       foreign_function_registry: function_registry,
       foreign_predicate_registry: predicate_registry,
+      attribute_processor_registry: attribute_registry,
       imported_files: HashSet::new(),
       node_id_annotator: NodeIdAnnotator::new(),
       analysis: CopyOnWrite::new(analysis),
@@ -95,11 +102,11 @@ impl FrontContext {
 
   pub fn register_foreign_predicate<F>(&mut self, f: F) -> Result<(), ForeignPredicateError>
   where
-    F: ForeignPredicate + Send + Sync + Clone + 'static
+    F: ForeignPredicate + Send + Sync + Clone + 'static,
   {
     // Check if the predicate name has already be defined before
-    if self.type_inference().has_relation(&f.name()) {
-      return Err(ForeignPredicateError::AlreadyExisted { id: f.name() });
+    if self.type_inference().has_relation(&f.internal_name()) {
+      return Err(ForeignPredicateError::AlreadyExisted { id: f.internal_name() });
     }
 
     // Add the predicate to the registry
@@ -121,6 +128,19 @@ impl FrontContext {
     });
 
     Ok(())
+  }
+
+  pub fn register_attribute_processor<P>(&mut self, p: P) -> Result<(), AttributeError>
+  where
+    P: AttributeProcessor + Send + Sync + Clone,
+  {
+    self.attribute_processor_registry.register(p)?;
+    Ok(())
+  }
+
+  pub fn compile_string(&mut self, s: String) -> Result<SourceId, FrontCompileError> {
+    let source = StringSource::new(s);
+    self.compile_source_with_parser(source, parser::str_to_items)
   }
 
   pub fn compile_source<S: Source>(&mut self, s: S) -> Result<SourceId, FrontCompileError> {
@@ -212,7 +232,7 @@ impl FrontContext {
           err.set_source_name(name.to_string());
         }
         error_ctx.set_sources(&dup_ctx.sources);
-        let source_id = error_ctx.sources.add(source);
+        let source_id = error_ctx.add_source(source);
         err.set_source_id(source_id);
         error_ctx.add(err);
         return Err(error_ctx);
@@ -243,6 +263,18 @@ impl FrontContext {
       ast.iter_mut().for_each(|item| annotate(item));
     }
 
+    // Use foreign attribute registry to annotate item
+    match self
+      .attribute_processor_registry
+      .analyze_and_process(&mut dup_ctx, &mut ast)
+    {
+      Ok(_) => {}
+      Err(err) => {
+        error_ctx.add(err);
+        return Err(error_ctx);
+      }
+    };
+
     // Front pre-transformaion analysis
     dup_ctx.analysis.modify(|analysis| {
       analysis.perform_pre_transformation_analysis(&ast);
@@ -253,7 +285,9 @@ impl FrontContext {
     }
 
     // Front transformation; add new items into ast and re-annotate the ast
-    apply_transformations(&mut ast, dup_ctx.analysis.borrow());
+    dup_ctx.analysis.modify_without_copy(|analysis| {
+      apply_transformations(&mut ast, analysis);
+    });
     dup_ctx.node_id_annotator.walk_items(&mut ast);
 
     // Front analysis
@@ -314,6 +348,102 @@ impl FrontContext {
       self.imported_files.contains(&p)
     } else {
       false
+    }
+  }
+
+  /// Compile an entity (written in string) into a set of entity facts
+  pub fn compile_entity_to_facts(
+    &self,
+    relation: &str,
+    entity_tuple: Vec<String>,
+  ) -> Result<HashMap<String, Vec<Tuple>>, FrontCompileError> {
+    use crate::compiler::front::analyzers::type_inference::*;
+
+    // Create an error context
+    let mut error_ctx = FrontCompileError::with_sources(&self.sources);
+
+    // Check relation types
+    if let Some(arg_types) = self.type_inference().relation_arg_types(relation) {
+      // First parse the entities from the strings
+      let mut all_entity_facts = Vec::new();
+      let mut final_entity_constants = Vec::new();
+
+      // Iterate through
+      for (entity_str, expected_ty) in entity_tuple.into_iter().zip(arg_types.into_iter()) {
+        let value = if expected_ty.is_entity() {
+          // Create a source containing the entity string
+          let entity_source = StringSource::new(entity_str);
+
+          // Try to parse the entity
+          let mut entity = match parser::str_to_entity(&entity_source.string) {
+            Ok(entity) => entity,
+            Err(mut err) => {
+              let source_id = error_ctx.add_source(entity_source);
+              err.set_source_id(source_id);
+              error_ctx.add(err);
+              return Err(error_ctx);
+            }
+          };
+
+          // Annotate locations on the entity for error reporting
+          let source_id = error_ctx.add_source(entity_source);
+          let mut source_id_annotator = SourceIdAnnotator::new(source_id);
+          let mut node_id_annotator = self.node_id_annotator.clone();
+          NodeVisitorMut::walk_entity(&mut (&mut source_id_annotator, &mut node_id_annotator), &mut entity);
+
+          // Then parse the entity into a set of entity facts
+          let (entity_facts, constant) = entity.to_facts();
+
+          // Check the types of the entity facts
+          let entity_facts = match self.type_inference().parse_entity_facts(&entity_facts) {
+            Ok(entity_facts) => entity_facts,
+            Err(err) => {
+              error_ctx.add(err);
+              return Err(error_ctx);
+            }
+          };
+
+          // Add things into the aggregated list
+          all_entity_facts.extend(entity_facts);
+
+          // Add the value
+          if constant.can_unify(&expected_ty) {
+            constant.to_value(&expected_ty)
+          } else {
+            error_ctx.add(TypeInferenceError::CannotUnifyTypes {
+              t1: TypeSet::from_constant(&constant),
+              t2: TypeSet::base(expected_ty),
+              loc: None,
+            });
+            return Err(error_ctx);
+          }
+        } else {
+          match expected_ty.parse(&entity_str) {
+            Ok(value) => value,
+            Err(err) => {
+              error_ctx.add(err);
+              return Err(error_ctx);
+            }
+          }
+        };
+        final_entity_constants.push(value)
+      }
+
+      // Use the type inference engine
+      let tuple = Tuple::from_values(final_entity_constants.into_iter());
+
+      // Post-process the facts into a storage
+      let mut facts: HashMap<_, Vec<_>> = std::iter::once((relation.to_string(), vec![tuple])).collect();
+      for (functor, id, args) in all_entity_facts {
+        let tuple = Tuple::from_values(std::iter::once(id).chain(args.into_iter()));
+        facts.entry(functor).or_default().push(tuple);
+      }
+      Ok(facts)
+    } else {
+      error_ctx.add(TypeInferenceError::UnknownRelation {
+        relation: relation.to_string(),
+      });
+      Err(error_ctx)
     }
   }
 

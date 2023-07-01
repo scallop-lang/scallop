@@ -30,6 +30,7 @@ impl NodeVisitorMut for TransformNonConstantFactToRule {
     // all the non-constant arguments will be replaced by a variable
     let head_atom: Atom = AtomNode {
       predicate: head.node.predicate.clone(),
+      type_args: vec![],
       args: head
         .iter_arguments()
         .enumerate()

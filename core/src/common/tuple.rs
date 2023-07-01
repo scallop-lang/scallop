@@ -18,6 +18,14 @@ impl Tuple {
     }
   }
 
+  pub fn singleton(value: Value) -> Self {
+    Self::Tuple(Box::new([Self::Value(value)]))
+  }
+
+  pub fn from_values<I: Iterator<Item = Value>>(values: I) -> Self {
+    Self::Tuple(values.into_iter().map(Self::Value).collect())
+  }
+
   pub fn as_values(&self) -> Vec<Value> {
     match self {
       Self::Value(_) => panic!("Not a tuple"),
@@ -47,6 +55,13 @@ impl Tuple {
   pub fn as_value(&self) -> Value {
     match self {
       Self::Value(p) => p.clone(),
+      _ => panic!("Not a value"),
+    }
+  }
+
+  pub fn to_value(self) -> Value {
+    match self {
+      Self::Value(p) => p,
       _ => panic!("Not a value"),
     }
   }
@@ -355,15 +370,6 @@ impl AsTuple<String> for Tuple {
     }
   }
 }
-
-// impl AsTuple<Rc<String>> for Tuple {
-//   fn as_tuple(&self) -> Rc<String> {
-//     match self {
-//       Self::Value(Value::RcString(s)) => s.clone(),
-//       _ => panic!("Cannot perform as_tuple<Rc<String>>"),
-//     }
-//   }
-// }
 
 impl AsTuple<()> for Tuple {
   fn as_tuple(&self) -> () {

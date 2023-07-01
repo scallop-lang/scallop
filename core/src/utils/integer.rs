@@ -1,20 +1,20 @@
 /// Integer trait (i8 - i128, u8 - u128, isize, usize)
 pub trait Integer:
-  Sized +
-  Copy +
-  Clone +
-  PartialEq +
-  Eq +
-  PartialOrd +
-  Ord +
-  std::fmt::Debug +
-  std::fmt::Display +
-  std::ops::Add<Self, Output=Self> +
-  std::ops::Sub<Self, Output=Self> +
-  std::ops::Mul<Self, Output=Self> +
-  std::ops::Div<Self, Output=Self> +
-  std::convert::TryInto<usize> +
-  std::convert::TryInto<isize>
+  Sized
+  + Copy
+  + Clone
+  + PartialEq
+  + Eq
+  + PartialOrd
+  + Ord
+  + std::fmt::Debug
+  + std::fmt::Display
+  + std::ops::Add<Self, Output = Self>
+  + std::ops::Sub<Self, Output = Self>
+  + std::ops::Mul<Self, Output = Self>
+  + std::ops::Div<Self, Output = Self>
+  + std::convert::TryInto<usize>
+  + std::convert::TryInto<isize>
 {
   fn zero() -> Self;
 
@@ -24,8 +24,12 @@ pub trait Integer:
 macro_rules! impl_integer {
   ($type:ty) => {
     impl Integer for $type {
-      fn zero() -> Self { 0 }
-      fn one() -> Self { 1 }
+      fn zero() -> Self {
+        0
+      }
+      fn one() -> Self {
+        1
+      }
     }
   };
 }

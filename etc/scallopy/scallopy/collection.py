@@ -23,19 +23,24 @@ class ScallopCollection:
         else:
           yield (1 - p, t)
     elif self.provenance == "diffaddmultprob" or \
+         self.provenance == "diffnandmultprob" or \
+         self.provenance == "diffmaxmultprob" or \
+         self.provenance == "diffnandminprob" or \
          self.provenance == "difftopkproofs" or \
          self.provenance == "diffsamplekproofs" or \
          self.provenance == "difftopbottomkclauses":
+      input_tags = self._internal.input_tags()
       for ((p, deriv), t) in self._internal:
-        diff_prob = diff_proofs_prob(p, deriv)
+        diff_prob = diff_proofs_prob(p, deriv, input_tags)
         yield (diff_prob, t)
     else:
       for t in self._internal:
         yield t
 
-def diff_proofs_prob(p: float, deriv: List[Tuple[int, float, Tensor]]):
+def diff_proofs_prob(p: float, deriv: List[Tuple[int, float, Tensor]], input_tags: List[Tensor]):
   def hook(grad):
-    for (_, weight, source_tensor) in deriv:
+    for (tag_id, weight) in deriv:
+      source_tensor = input_tags[tag_id]
       if source_tensor.requires_grad:
         source_tensor.backward(weight * grad, retain_graph=True)
   v = torch.tensor(p, requires_grad=True)

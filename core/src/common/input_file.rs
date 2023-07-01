@@ -7,8 +7,9 @@ pub enum InputFile {
     deliminator: u8,
     has_header: bool,
     has_probability: bool,
+    keys: Option<Vec<String>>,
+    fields: Option<Vec<String>>,
   },
-  Txt(PathBuf),
 }
 
 impl InputFile {
@@ -18,6 +19,8 @@ impl InputFile {
       deliminator: b',',
       has_header: false,
       has_probability: false,
+      keys: None,
+      fields: None,
     }
   }
 
@@ -26,12 +29,22 @@ impl InputFile {
     deliminator: Option<u8>,
     has_header: Option<bool>,
     has_probability: Option<bool>,
+    keys: Option<Vec<String>>,
+    fields: Option<Vec<String>>,
   ) -> Self {
     Self::Csv {
       file_path,
       deliminator: deliminator.unwrap_or(b','),
-      has_header: has_header.unwrap_or(false),
+      has_header: has_header.unwrap_or(false) || keys.is_some() || fields.is_some(),
       has_probability: has_probability.unwrap_or(false),
+      keys,
+      fields,
+    }
+  }
+
+  pub fn file_path(&self) -> &PathBuf {
+    match self {
+      Self::Csv { file_path, .. } => file_path,
     }
   }
 }

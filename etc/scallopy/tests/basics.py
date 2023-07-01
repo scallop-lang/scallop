@@ -2,7 +2,7 @@ import unittest
 
 import scallopy
 
-class TestBasics(unittest.TestCase):
+class BasicTests(unittest.TestCase):
   def test_edge_path(self):
     ctx = scallopy.ScallopContext()
     ctx.add_relation("edge", (int, int))

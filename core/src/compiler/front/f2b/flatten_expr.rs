@@ -7,7 +7,6 @@ use crate::compiler::front::utils::*;
 use crate::compiler::front::*;
 use crate::utils::IdAllocator;
 
-#[derive(Clone, Debug)]
 pub struct FlattenExprContext<'a> {
   pub type_inference: &'a TypeInference,
   pub foreign_predicate_registry: &'a ForeignPredicateRegistry,
@@ -41,15 +40,21 @@ pub enum FlattenedNode {
     function: String,
     args: Vec<Loc>,
   },
+  New {
+    left: back::Variable,
+    functor: String,
+    args: Vec<Loc>,
+  },
 }
 
 impl FlattenedNode {
   pub fn back_var(&self) -> back::Variable {
     match self {
-      Self::Binary { left, .. } => left.clone(),
-      Self::Unary { left, .. } => left.clone(),
-      Self::IfThenElse { left, .. } => left.clone(),
-      Self::Call { left, .. } => left.clone(),
+      Self::Binary { left, .. }
+      | Self::Unary { left, .. }
+      | Self::IfThenElse { left, .. }
+      | Self::Call { left, .. }
+      | Self::New { left, .. } => left.clone(),
     }
   }
 }
@@ -58,10 +63,7 @@ impl FlattenedNode {
 pub type FlattenedLeaf = back::Term;
 
 impl<'a> FlattenExprContext<'a> {
-  pub fn new(
-    type_inference: &'a TypeInference,
-    foreign_predicate_registry: &'a ForeignPredicateRegistry,
-  ) -> Self {
+  pub fn new(type_inference: &'a TypeInference, foreign_predicate_registry: &'a ForeignPredicateRegistry) -> Self {
     Self {
       type_inference,
       foreign_predicate_registry,
@@ -111,6 +113,7 @@ impl<'a> FlattenExprContext<'a> {
         FlattenedNode::Call { left, function, args } => {
           self.collect_flattened_literals_of_call_op(left, function, args)
         }
+        FlattenedNode::New { left, functor, args } => self.collect_flattened_literals_of_new_op(left, functor, args),
       }
     } else {
       vec![]
@@ -215,6 +218,28 @@ impl<'a> FlattenExprContext<'a> {
     // The call expression literal
     let arg_terms = args.iter().map(|a| self.get_loc_term(a)).collect::<Vec<_>>();
     let literal = back::Literal::call_expr(left.clone(), function.clone(), arg_terms);
+    curr_literals.push(literal);
+
+    // Collect flattened literals from args
+    for arg in args {
+      curr_literals.extend(self.collect_flattened_literals(arg));
+    }
+
+    // Return all of them
+    curr_literals
+  }
+
+  pub fn collect_flattened_literals_of_new_op(
+    &self,
+    left: &back::Variable,
+    functor: &String,
+    args: &Vec<Loc>,
+  ) -> Vec<back::Literal> {
+    let mut curr_literals = vec![];
+
+    // The call expression literal
+    let arg_terms = args.iter().map(|a| self.get_loc_term(a)).collect::<Vec<_>>();
+    let literal = back::Literal::new_expr(left.clone(), functor.clone(), arg_terms);
     curr_literals.push(literal);
 
     // Collect flattened literals from args
@@ -354,7 +379,8 @@ impl<'a> FlattenExprContext<'a> {
       Formula::Atom(atom) => self.atom_to_back_literals(atom),
       Formula::NegAtom(neg_atom) => self.neg_atom_to_back_literals(neg_atom),
       Formula::Constraint(c) => self.constraint_to_back_literal(c),
-      Formula::Conjunction(_)
+      Formula::Case(_)
+      | Formula::Conjunction(_)
       | Formula::Disjunction(_)
       | Formula::Implies(_)
       | Formula::Reduce(_)
@@ -447,6 +473,22 @@ impl<'a> NodeVisitor for FlattenExprContext<'a> {
         },
         function,
         args: c.iter_args().map(|a| a.location().clone()).collect(),
+      },
+    );
+  }
+
+  fn visit_new_expr(&mut self, n: &ast::NewExpr) {
+    let tmp_var_name = self.allocate_tmp_var();
+    let functor = format!("adt#{}", n.functor_name());
+    self.internal.insert(
+      n.location().clone(),
+      FlattenedNode::New {
+        left: back::Variable {
+          name: tmp_var_name,
+          ty: self.type_inference.expr_value_type(n).unwrap(),
+        },
+        functor,
+        args: n.iter_args().map(|a| a.location().clone()).collect(),
       },
     );
   }

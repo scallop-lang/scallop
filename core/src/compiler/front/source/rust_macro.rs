@@ -103,7 +103,7 @@ fn token_stream_to_src_lines(tokens: TokenStream) -> (usize, Vec<String>) {
   (first_line_num, src_lines)
 }
 
-fn populate_str_tokens(str_tokens: &mut Vec<(String, proc_macro2::LineColumn, i32)>, tokens: TokenStream) {
+fn populate_str_tokens(str_tokens: &mut Vec<(String, LineColumn, i32)>, tokens: TokenStream) {
   let mut tokens_iter = tokens.into_iter();
   loop {
     if let Some(token) = tokens_iter.next() {
@@ -116,15 +116,15 @@ fn populate_str_tokens(str_tokens: &mut Vec<(String, proc_macro2::LineColumn, i3
             proc_macro2::Delimiter::Bracket => ("[".to_string(), -1, "]".to_string()),
             proc_macro2::Delimiter::None => ("".to_string(), 0, "".to_string()),
           };
-          str_tokens.push((open, span.start(), 0));
+          str_tokens.push((open, span_start_line_column(&span), 0));
 
           populate_str_tokens(str_tokens, g.stream());
 
-          str_tokens.push((close, span.end(), offset));
+          str_tokens.push((close, span_end_line_column(&span), offset));
         }
         proc_macro2::TokenTree::Ident(i) => {
           let span = i.span();
-          str_tokens.push((format!("{}", i), span.start(), 0));
+          str_tokens.push((format!("{}", i), span_start_line_column(&span), 0));
         }
         proc_macro2::TokenTree::Punct(p) => {
           let mut curr_p = p.clone();
@@ -140,15 +140,37 @@ fn populate_str_tokens(str_tokens: &mut Vec<(String, proc_macro2::LineColumn, i3
               panic!("Should not happen");
             }
           }
-          str_tokens.push((op, span.start(), 0));
+          str_tokens.push((op, span_start_line_column(&span), 0));
         }
         proc_macro2::TokenTree::Literal(l) => {
           let span = l.span();
-          str_tokens.push((format!("{}", l), span.start(), 0));
+          str_tokens.push((format!("{}", l), span_start_line_column(&span), 0));
         }
       }
     } else {
       break;
     }
+  }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LineColumn {
+  line: usize,
+  column: usize,
+}
+
+fn span_start_line_column(span: &proc_macro2::Span) -> LineColumn {
+  let s = span.unwrap().start();
+  LineColumn {
+    line: s.line,
+    column: s.column,
+  }
+}
+
+fn span_end_line_column(span: &proc_macro2::Span) -> LineColumn {
+  let s = span.unwrap().end();
+  LineColumn {
+    line: s.line,
+    column: s.column,
   }
 }

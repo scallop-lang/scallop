@@ -17,3 +17,4 @@ except:
   has_pytorch = False
   Context = _Context
   Tensor = _Tensor
+  torch = None

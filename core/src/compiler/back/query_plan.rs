@@ -51,7 +51,7 @@ impl<'a> QueryPlanContext<'a> {
           } else {
             ctx.pos_atoms.push(a.clone())
           }
-        },
+        }
         Literal::NegAtom(n) => ctx.neg_atoms.push(n.atom.clone()),
         Literal::Assign(a) => ctx.assigns.push(a.clone()),
         Literal::Constraint(c) => ctx.constraints.push(c.clone()),
@@ -65,7 +65,7 @@ impl<'a> QueryPlanContext<'a> {
   }
 
   /// Find all the bounded arguments given the set of positive atoms
-  pub fn bounded_args_from_pos_atoms_set(&self, set: &Vec<&usize>) -> HashSet<Variable> {
+  pub fn bounded_args_from_pos_atoms_set(&self, set: &Vec<&usize>, include_new: bool) -> HashSet<Variable> {
     let mut base_bounded_args = HashSet::new();
 
     // Add the base cases: all the arguments in the positive atoms form the base bounded args
@@ -103,6 +103,10 @@ impl<'a> QueryPlanContext<'a> {
             cond_bounded && then_br_bounded && else_br_bounded
           }
           AssignExpr::Call(c) => c.args.iter().all(|a| term_is_bounded(&new_bounded_args, a)),
+          AssignExpr::New(n) => {
+            // If not include new, we do not bound the left variable
+            include_new && n.args.iter().all(|a| term_is_bounded(&new_bounded_args, a))
+          }
         };
         if can_bound {
           new_bounded_args.insert(assign.left.clone());
@@ -115,7 +119,11 @@ impl<'a> QueryPlanContext<'a> {
         let predicate = self.foreign_predicate_registry.get(&atom.predicate).unwrap();
 
         // Then check if all the to-bound arguments are bounded
-        let can_bound = atom.args.iter().take(predicate.num_bounded()).all(|a| term_is_bounded(&new_bounded_args, a));
+        let can_bound = atom
+          .args
+          .iter()
+          .take(predicate.num_bounded())
+          .all(|a| term_is_bounded(&new_bounded_args, a));
 
         // If it can be bounded, add the rest of the arguments to the bounded args
         if can_bound {
@@ -205,7 +213,7 @@ impl<'a> QueryPlanContext<'a> {
   }
 
   /// Try applying as many assigns as possible
-  fn try_apply_assigns(&self, applied_assigns: &mut HashSet<usize>, mut fringe: Plan) -> Plan {
+  fn try_apply_non_new_assigns(&self, applied_assigns: &mut HashSet<usize>, mut fringe: Plan) -> Plan {
     // Find all the assigns that are needed to bound the need_projection_vars
     let mut bounded_vars = fringe.bounded_vars.clone();
     loop {
@@ -215,6 +223,7 @@ impl<'a> QueryPlanContext<'a> {
       for (i, assign) in self.assigns.iter().enumerate() {
         if !applied_assigns.contains(&i)
           && !bounded_vars.contains(&assign.left)
+          && !assign.right.is_new_expr()
           && assign.variable_args().into_iter().all(|v| bounded_vars.contains(v))
         {
           applied_assigns.insert(i);
@@ -236,31 +245,39 @@ impl<'a> QueryPlanContext<'a> {
   }
 
   /// Get the essential information for analyzing a foreign predicate atom
-  fn foreign_predicate_atom_info<'b, 'c>(&'b self, atom: &'c Atom) -> (&'b DynamicForeignPredicate, Vec<(usize, &'c Term)>, Vec<(usize, &'c Term)>) {
+  fn foreign_predicate_atom_info<'b, 'c>(
+    &'b self,
+    atom: &'c Atom,
+  ) -> (
+    &'b DynamicForeignPredicate,
+    Vec<(usize, &'c Term)>,
+    Vec<(usize, &'c Term)>,
+  ) {
     let pred = self.foreign_predicate_registry.get(&atom.predicate).unwrap();
-    let (to_bound_arguments, free_arguments): (Vec<_>, Vec<_>) = atom
-      .args
-      .iter()
-      .enumerate()
-      .partition(|(i, _)| *i < pred.num_bounded());
+    let (to_bound_arguments, free_arguments): (Vec<_>, Vec<_>) =
+      atom.args.iter().enumerate().partition(|(i, _)| *i < pred.num_bounded());
     (pred, to_bound_arguments, free_arguments)
   }
 
   fn foreign_predicate_constant_constraints(&self, atom: &Atom, arguments: &Vec<(usize, &Term)>) -> Vec<Constraint> {
-    arguments.iter().filter_map(|(i, a)| match a {
-      Term::Constant(c) => {
-        let op1 = Term::variable(format!("c#{}#{}", &atom.predicate, i), ValueType::type_of(c));
-        let op2 = Term::Constant(c.clone());
-        Some(Constraint::eq(op1, op2))
-      }
-      Term::Variable(_) => {
-        None
-      }
-    }).collect()
+    arguments
+      .iter()
+      .filter_map(|(i, a)| match a {
+        Term::Constant(c) => {
+          let op1 = Term::variable(format!("c#{}#{}", &atom.predicate, i), ValueType::type_of(c));
+          let op2 = Term::Constant(c.clone());
+          Some(Constraint::eq(op1, op2))
+        }
+        Term::Variable(_) => None,
+      })
+      .collect()
   }
 
   fn foreign_predicate_equality_constraints(&self, var_eq: &Vec<(Variable, Variable)>) -> Vec<Constraint> {
-    var_eq.iter().map(|(v1, v2)| Constraint::eq(Term::Variable(v1.clone()), Term::Variable(v2.clone()))).collect()
+    var_eq
+      .iter()
+      .map(|(v1, v2)| Constraint::eq(Term::Variable(v1.clone()), Term::Variable(v2.clone())))
+      .collect()
   }
 
   /// Given a list of free arguments, rename them to avoid name conflicts
@@ -280,7 +297,8 @@ impl<'a> QueryPlanContext<'a> {
     occurred: &HashSet<Variable>,
   ) -> (Vec<Variable>, Vec<(Variable, Variable)>) {
     // First build a map from variable names to the number of occurrences
-    let mut var_occurrences: HashMap<String, (Variable, usize)> = occurred.iter().map(|v| (v.name.clone(), (v.clone(), 0))).collect();
+    let mut var_occurrences: HashMap<String, (Variable, usize)> =
+      occurred.iter().map(|v| (v.name.clone(), (v.clone(), 0))).collect();
     let mut var_equivalences: Vec<(Variable, Variable)> = Vec::new();
     let vars = arguments
       .iter()
@@ -306,10 +324,8 @@ impl<'a> QueryPlanContext<'a> {
             // Return the variable
             v.clone()
           }
-        },
-        Term::Constant(c) => {
-          Variable::new(format!("c#{}#{}", predicate, i), ValueType::type_of(c))
         }
+        Term::Constant(c) => Variable::new(format!("c#{}#{}", predicate, i), ValueType::type_of(c)),
       })
       .collect::<Vec<_>>();
     (vars, var_equivalences)
@@ -326,7 +342,13 @@ impl<'a> QueryPlanContext<'a> {
     let (all_vars, var_eq) = self.rename_free_arguments(&atom.predicate, free_arguments, &HashSet::new());
 
     // Create a ground plan
-    let args = atom.args.iter().take(pred.num_bounded()).cloned().chain(all_vars.iter().cloned().map(Term::Variable)).collect();
+    let args = atom
+      .args
+      .iter()
+      .take(pred.num_bounded())
+      .cloned()
+      .chain(all_vars.iter().cloned().map(Term::Variable))
+      .collect();
     let ground_atom = Atom::new(atom.predicate.clone(), args);
     let ground_plan = Plan {
       bounded_vars: all_vars.iter().cloned().collect(),
@@ -348,14 +370,14 @@ impl<'a> QueryPlanContext<'a> {
         .iter()
         .filter_map(|(_, a)| match a {
           Term::Variable(v) => Some(v.clone()),
-          _ => None
+          _ => None,
         })
         .collect();
 
       // Create a plan with filters on the constants
       let filter_plan = Plan {
         bounded_vars: new_bounded_vars,
-        ram_node: HighRamNode::filter(ground_plan, constraints)
+        ram_node: HighRamNode::filter(ground_plan, constraints),
       };
 
       filter_plan
@@ -376,12 +398,23 @@ impl<'a> QueryPlanContext<'a> {
     let (free_vars, var_eq) = self.rename_free_arguments(&atom.predicate, free_arguments, &occurred_variables);
 
     // Create an atom
-    let args = atom.args.iter().take(pred.num_bounded()).cloned().chain(free_vars.iter().cloned().map(Term::Variable)).collect();
+    let args = atom
+      .args
+      .iter()
+      .take(pred.num_bounded())
+      .cloned()
+      .chain(free_vars.iter().cloned().map(Term::Variable))
+      .collect();
     let to_join_atom = Atom::new(atom.predicate.clone(), args);
 
     // Create the join plan
     let join_plan = Plan {
-      bounded_vars: left.bounded_vars.iter().cloned().chain(free_vars.iter().cloned()).collect(),
+      bounded_vars: left
+        .bounded_vars
+        .iter()
+        .cloned()
+        .chain(free_vars.iter().cloned())
+        .collect(),
       ram_node: HighRamNode::foreign_predicate_join(left.clone(), to_join_atom),
     };
 
@@ -400,14 +433,19 @@ impl<'a> QueryPlanContext<'a> {
         .iter()
         .filter_map(|(_, a)| match a {
           Term::Variable(v) => Some(v.clone()),
-          _ => None
+          _ => None,
         })
         .collect();
 
       // Create a plan with filters on the constants
       let filter_plan = Plan {
-        bounded_vars: left.bounded_vars.iter().chain(right_bounded_vars.iter()).cloned().collect(),
-        ram_node: HighRamNode::filter(join_plan, constraints)
+        bounded_vars: left
+          .bounded_vars
+          .iter()
+          .chain(right_bounded_vars.iter())
+          .cloned()
+          .collect(),
+        ram_node: HighRamNode::filter(join_plan, constraints),
       };
 
       filter_plan
@@ -421,7 +459,11 @@ impl<'a> QueryPlanContext<'a> {
   ///
   /// - `applied_foreign_predicate_atoms`: The set of already applied foreign predicate atoms, represented by their index
   /// - `fringe`: The current Plan to apply the foreign predicate atoms
-  fn try_apply_foreign_predicate_atom(&self, applied_foreign_predicate_atoms: &mut HashSet<usize>, mut fringe: Plan) -> Plan {
+  fn try_apply_foreign_predicate_atom(
+    &self,
+    applied_foreign_predicate_atoms: &mut HashSet<usize>,
+    mut fringe: Plan,
+  ) -> Plan {
     // Find all the foreign predicate atoms
     let bounded_vars = fringe.bounded_vars.clone();
     loop {
@@ -434,7 +476,10 @@ impl<'a> QueryPlanContext<'a> {
           let (pred, to_bound_arguments, free_arguments) = self.foreign_predicate_atom_info(atom);
 
           // Check if all the to-bound arguments are bounded; if so, it means that we can apply the atom
-          if to_bound_arguments.iter().all(|(_, a)| term_is_bounded(&bounded_vars, a)) {
+          if to_bound_arguments
+            .iter()
+            .all(|(_, a)| term_is_bounded(&bounded_vars, a))
+          {
             // Mark the atom as applied
             applied_foreign_predicate_atoms.insert(i);
 
@@ -447,10 +492,7 @@ impl<'a> QueryPlanContext<'a> {
               // The atom is completely bounded; we add a foreign predicate constraint plan
               fringe = Plan {
                 bounded_vars: bounded_vars.clone(),
-                ram_node: HighRamNode::ForeignPredicateConstraint(
-                  Box::new(fringe),
-                  atom.clone(),
-                ),
+                ram_node: HighRamNode::ForeignPredicateConstraint(Box::new(fringe), atom.clone()),
               };
             } else if to_bound_arguments.iter().all(|(_, a)| a.is_constant()) {
               let plan = self.compute_foreign_predicate_ground_atom(atom, pred, &free_arguments);
@@ -505,10 +547,17 @@ impl<'a> QueryPlanContext<'a> {
           (node, 0)
         } else {
           // Find the foreign predicate atom
-          if let Some((i, atom)) = self.foreign_predicate_pos_atoms.iter().enumerate().find(|(_, a)| self.is_ground_foreign_atom(a)) {
+          if let Some((i, atom)) = self
+            .foreign_predicate_pos_atoms
+            .iter()
+            .enumerate()
+            .find(|(_, a)| self.is_ground_foreign_atom(a))
+          {
             applied_foreign_predicates.insert(i); // Mark the atom as applied
             let (pred, _, free_arguments) = self.foreign_predicate_atom_info(atom);
             let plan = self.compute_foreign_predicate_ground_atom(atom, pred, &free_arguments);
+            let plan = self.try_apply_non_new_assigns(&mut applied_assigns, plan);
+            let plan = self.try_apply_constraint(&mut applied_constraints, plan);
             (plan, 0)
           } else {
             panic!("[Internal Error] No foreign predicate atom is ground; should not happen");
@@ -523,7 +572,7 @@ impl<'a> QueryPlanContext<'a> {
         };
 
         // Note: We always apply constraint first and then assigns
-        let node = self.try_apply_assigns(&mut applied_assigns, node);
+        let node = self.try_apply_non_new_assigns(&mut applied_assigns, node);
         let node = self.try_apply_constraint(&mut applied_constraints, node);
         let node = self.try_apply_foreign_predicate_atom(&mut applied_foreign_predicates, node);
         (node, 1)
@@ -551,7 +600,7 @@ impl<'a> QueryPlanContext<'a> {
       }
 
       // Note: We always apply constraint first and then assigns
-      let node = self.try_apply_assigns(&mut applied_assigns, node);
+      let node = self.try_apply_non_new_assigns(&mut applied_assigns, node);
       let node = self.try_apply_constraint(&mut applied_constraints, node);
       let node = self.try_apply_foreign_predicate_atom(&mut applied_foreign_predicates, node);
       (node, 0)
@@ -594,9 +643,28 @@ impl<'a> QueryPlanContext<'a> {
       }
 
       // Note: We always apply constraint first and then assigns
-      fringe = self.try_apply_assigns(&mut applied_assigns, fringe);
-      fringe = self.try_apply_constraint(&mut applied_constraints, fringe);
-      fringe = self.try_apply_foreign_predicate_atom(&mut applied_foreign_predicates, fringe);
+      let mut num_applied_assigns = applied_assigns.len();
+      let mut num_applied_constraints = applied_constraints.len();
+      let mut num_applied_fp = applied_foreign_predicates.len();
+      loop {
+        fringe = self.try_apply_non_new_assigns(&mut applied_assigns, fringe);
+        fringe = self.try_apply_constraint(&mut applied_constraints, fringe);
+        fringe = self.try_apply_foreign_predicate_atom(&mut applied_foreign_predicates, fringe);
+
+        // Check if anything is applied
+        let does_apply_assign = applied_assigns.len() != num_applied_assigns;
+        let does_apply_constraint = applied_constraints.len() != num_applied_constraints;
+        let does_apply_fp = applied_foreign_predicates.len() != num_applied_fp;
+
+        // If so, we continue in a loop
+        if does_apply_assign || does_apply_constraint || does_apply_fp {
+          num_applied_assigns = applied_assigns.len();
+          num_applied_constraints = applied_constraints.len();
+          num_applied_fp = applied_foreign_predicates.len();
+        } else {
+          break;
+        }
+      }
     }
 
     // ==== Stage 4: Apply negative atoms ====
@@ -608,6 +676,26 @@ impl<'a> QueryPlanContext<'a> {
       fringe = Plan {
         bounded_vars: fringe.bounded_vars.clone(),
         ram_node: HighRamNode::antijoin(fringe, neg_node),
+      };
+    }
+
+    // ==== Stage 5: Apply new entity assigns ====
+    let new_entity_assigns = self
+      .assigns
+      .iter()
+      .filter(|a| a.right.is_new_expr())
+      .cloned()
+      .collect::<Vec<_>>();
+    if new_entity_assigns.len() > 0 {
+      let all_bounded_variables = new_entity_assigns
+        .iter()
+        .map(|a| &a.left)
+        .chain(fringe.bounded_vars.iter())
+        .cloned()
+        .collect();
+      fringe = Plan {
+        bounded_vars: all_bounded_variables,
+        ram_node: HighRamNode::project(fringe, new_entity_assigns),
       };
     }
 
@@ -660,9 +748,14 @@ impl State {
       vec![]
     } else {
       let mut next_states: Vec<Self> = vec![];
-      for (id, atom) in ctx.pos_atoms.iter().enumerate().filter(|(i, _)| !self.visited_atoms.contains(i)) {
+      for (id, atom) in ctx
+        .pos_atoms
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !self.visited_atoms.contains(i))
+      {
         for set in self.visited_atoms.iter().powerset() {
-          let all_bounded_args = ctx.bounded_args_from_pos_atoms_set(&set);
+          let all_bounded_args = ctx.bounded_args_from_pos_atoms_set(&set, false);
           let bounded_vars = atom
             .variable_args()
             .filter(|a| all_bounded_args.contains(a))
@@ -796,6 +889,11 @@ impl HighRamNode {
   /// Create a new FILTER high level ram node
   pub fn filter(p1: Plan, cs: Vec<Constraint>) -> Self {
     Self::Filter(Box::new(p1), cs)
+  }
+
+  /// Create a new Project high level ram node
+  pub fn project(p1: Plan, assigns: Vec<Assign>) -> Self {
+    Self::Project(Box::new(p1), assigns)
   }
 
   /// Create a new JOIN high level ram node

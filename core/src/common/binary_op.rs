@@ -1,6 +1,8 @@
 //! # Binary Operations
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+use serde::*;
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum BinaryOp {
   Add,
   Sub,

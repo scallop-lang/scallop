@@ -18,9 +18,29 @@ pub struct LocalBoundnessAnalysisContext<'a> {
 
 impl<'a> NodeVisitor for LocalBoundnessAnalysisContext<'a> {
   fn visit_atom(&mut self, atom: &Atom) {
-    if let Some(binding) = self.foreign_predicate_bindings.get(atom.predicate()) {
-      let bounded = atom.iter_arguments().enumerate().filter_map(|(i, a)| if binding[i].is_bound() { Some(a.location().clone()) } else { None } ).collect();
-      let to_bound = atom.iter_arguments().enumerate().filter_map(|(i, a)| if binding[i].is_free() { Some(a.location().clone()) } else { None } ).collect();
+    if let Some(binding) = self.foreign_predicate_bindings.get(&atom.predicate()) {
+      let bounded = atom
+        .iter_arguments()
+        .enumerate()
+        .filter_map(|(i, a)| {
+          if binding[i].is_bound() {
+            Some(a.location().clone())
+          } else {
+            None
+          }
+        })
+        .collect();
+      let to_bound = atom
+        .iter_arguments()
+        .enumerate()
+        .filter_map(|(i, a)| {
+          if binding[i].is_free() {
+            Some(a.location().clone())
+          } else {
+            None
+          }
+        })
+        .collect();
       let dep = BoundnessDependency::ForeignPredicateArgs(bounded, to_bound);
       self.dependencies.push(dep);
     } else {

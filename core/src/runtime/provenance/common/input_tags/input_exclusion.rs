@@ -1,4 +1,5 @@
 use crate::common::input_tag::*;
+use crate::common::tensors::*;
 
 use super::*;
 
@@ -57,13 +58,13 @@ impl ConvertFromInputTag<InputExclusiveProb> for Exclusion {
   }
 }
 
-impl<T: Clone + 'static> ConvertFromInputTag<InputDiffProb<T>> for Exclusion {
+impl<T: FromTensor> ConvertFromInputTag<InputDiffProb<T>> for Exclusion {
   fn from_input_tag(_: InputDiffProb<T>) -> Option<Self> {
     None
   }
 }
 
-impl<T: Clone + 'static> ConvertFromInputTag<InputExclusiveDiffProb<T>> for Exclusion {
+impl<T: FromTensor> ConvertFromInputTag<InputExclusiveDiffProb<T>> for Exclusion {
   fn from_input_tag(t: InputExclusiveDiffProb<T>) -> Option<Self> {
     match &t.exclusion {
       Some(e) => Some(Self::Exclusive(e.clone())),

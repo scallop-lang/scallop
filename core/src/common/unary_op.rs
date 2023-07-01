@@ -1,6 +1,8 @@
+use serde::*;
+
 use super::value_type::ValueType;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum UnaryOp {
   Neg,
   Pos,

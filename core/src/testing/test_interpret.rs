@@ -1,6 +1,7 @@
 use crate::common::tuple::Tuple;
 use crate::integrate::*;
 use crate::runtime::database::*;
+use crate::runtime::error::*;
 use crate::runtime::monitor;
 use crate::runtime::provenance::*;
 use crate::utils::*;
@@ -65,4 +66,35 @@ pub fn expect_interpret_within_iter_limit(s: &str, iter_limit: usize) {
   let prov = unit::UnitProvenance::default();
   let monitor = monitor::IterationCheckingMonitor::new(iter_limit);
   interpret_string_with_ctx_and_monitor(s.to_string(), prov, &monitor).expect("Interpret Error");
+}
+
+pub fn expect_interpret_failure<F>(s: &str) {
+  let result = interpret_string(s.to_string());
+  match result {
+    Ok(_) => panic!("Interpreting succeeded instead of expected failure"),
+    Err(err) => match err {
+      IntegrateError::Compile(_) => panic!("Expecting runtime error but got compile error instead"),
+      IntegrateError::Runtime(_) => { /* GOOD */ }
+    },
+  }
+}
+
+pub fn expect_interpret_specific_failure<F>(s: &str, f: F)
+where
+  F: Fn(RuntimeError) -> bool,
+{
+  let result = interpret_string(s.to_string());
+  match result {
+    Ok(_) => panic!("Interpreting succeeded instead of expected failure"),
+    Err(err) => match err {
+      IntegrateError::Compile(_) => panic!("Expecting runtime error but got compile error instead"),
+      IntegrateError::Runtime(r) => {
+        if f(r) {
+          /* GOOD */
+        } else {
+          panic!("Did not capture expected runtime failure")
+        }
+      }
+    },
+  }
 }

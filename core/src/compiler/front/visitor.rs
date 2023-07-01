@@ -15,14 +15,19 @@ pub trait NodeVisitor {
   node_visitor_func_def!(visit_import_file, ImportFile);
   node_visitor_func_def!(visit_arg_type_binding, ArgTypeBinding);
   node_visitor_func_def!(visit_type, Type);
+  node_visitor_func_def!(visit_type_decl, TypeDecl);
   node_visitor_func_def!(visit_alias_type_decl, AliasTypeDecl);
   node_visitor_func_def!(visit_subtype_decl, SubtypeDecl);
   node_visitor_func_def!(visit_relation_type_decl, RelationTypeDecl);
   node_visitor_func_def!(visit_relation_type, RelationType);
   node_visitor_func_def!(visit_enum_type_decl, EnumTypeDecl);
   node_visitor_func_def!(visit_enum_type_member, EnumTypeMember);
+  node_visitor_func_def!(visit_algebraic_data_type_decl, AlgebraicDataTypeDecl);
+  node_visitor_func_def!(visit_algebraic_data_type_variant, AlgebraicDataTypeVariant);
   node_visitor_func_def!(visit_const_decl, ConstDecl);
   node_visitor_func_def!(visit_const_assignment, ConstAssignment);
+  node_visitor_func_def!(visit_entity, Entity);
+  node_visitor_func_def!(visit_object, Object);
   node_visitor_func_def!(visit_relation_decl, RelationDecl);
   node_visitor_func_def!(visit_constant_set_decl, ConstantSetDecl);
   node_visitor_func_def!(visit_constant_set, ConstantSet);
@@ -38,12 +43,12 @@ pub trait NodeVisitor {
   node_visitor_func_def!(visit_rule_head, RuleHead);
   node_visitor_func_def!(visit_atom, Atom);
   node_visitor_func_def!(visit_neg_atom, NegAtom);
-  node_visitor_func_def!(visit_attribute, Attribute);
   node_visitor_func_def!(visit_formula, Formula);
   node_visitor_func_def!(visit_conjunction, Conjunction);
   node_visitor_func_def!(visit_disjunction, Disjunction);
   node_visitor_func_def!(visit_implies, Implies);
   node_visitor_func_def!(visit_constraint, Constraint);
+  node_visitor_func_def!(visit_case, Case);
   node_visitor_func_def!(visit_reduce, Reduce);
   node_visitor_func_def!(visit_forall_exists_reduce, ForallExistsReduce);
   node_visitor_func_def!(visit_variable_binding, VariableBinding);
@@ -52,11 +57,19 @@ pub trait NodeVisitor {
   node_visitor_func_def!(visit_unary_expr, UnaryExpr);
   node_visitor_func_def!(visit_if_then_else_expr, IfThenElseExpr);
   node_visitor_func_def!(visit_call_expr, CallExpr);
+  node_visitor_func_def!(visit_new_expr, NewExpr);
   node_visitor_func_def!(visit_constant, Constant);
+  node_visitor_func_def!(visit_constant_char, ConstantChar);
+  node_visitor_func_def!(visit_constant_string, ConstantString);
+  node_visitor_func_def!(visit_constant_symbol, ConstantSymbol);
+  node_visitor_func_def!(visit_constant_duration, ConstantDuration);
+  node_visitor_func_def!(visit_constant_datetime, ConstantDateTime);
   node_visitor_func_def!(visit_variable, Variable);
   node_visitor_func_def!(visit_wildcard, Wildcard);
   node_visitor_func_def!(visit_identifier, Identifier);
   node_visitor_func_def!(visit_function_identifier, FunctionIdentifier);
+  node_visitor_func_def!(visit_attribute, Attribute);
+  node_visitor_func_def!(visit_attribute_value, AttributeValue);
 
   fn walk_items(&mut self, items: &Vec<Item>) {
     for item in items {
@@ -101,12 +114,14 @@ pub trait NodeVisitor {
   }
 
   fn walk_type_decl(&mut self, type_decl: &TypeDecl) {
+    self.visit_type_decl(type_decl);
     self.visit_location(&type_decl.loc);
     match &type_decl.node {
       TypeDeclNode::Alias(a) => self.walk_alias_type_decl(a),
       TypeDeclNode::Subtype(s) => self.walk_subtype_decl(s),
       TypeDeclNode::Relation(r) => self.walk_relation_type_decl(r),
       TypeDeclNode::Enum(e) => self.walk_enum_type_decl(e),
+      TypeDeclNode::Algebraic(a) => self.walk_algebraic_data_type_decl(a),
     }
   }
 
@@ -162,6 +177,24 @@ pub trait NodeVisitor {
     }
   }
 
+  fn walk_algebraic_data_type_decl(&mut self, algebraic_data_type_decl: &AlgebraicDataTypeDecl) {
+    self.visit_algebraic_data_type_decl(algebraic_data_type_decl);
+    self.visit_location(&algebraic_data_type_decl.loc);
+    self.walk_identifier(&algebraic_data_type_decl.node.name);
+    for variant in algebraic_data_type_decl.iter_variants() {
+      self.walk_algebraic_data_type_variant(variant);
+    }
+  }
+
+  fn walk_algebraic_data_type_variant(&mut self, variant: &AlgebraicDataTypeVariant) {
+    self.visit_algebraic_data_type_variant(variant);
+    self.visit_location(&variant.loc);
+    self.walk_identifier(&variant.node.constructor);
+    for arg_type in variant.iter_arg_types() {
+      self.walk_type(arg_type)
+    }
+  }
+
   fn walk_const_decl(&mut self, const_decl: &ConstDecl) {
     self.visit_const_decl(const_decl);
     self.visit_location(const_decl.location());
@@ -178,7 +211,25 @@ pub trait NodeVisitor {
     if let Some(ty) = const_assign.ty() {
       self.walk_type(ty);
     }
-    self.walk_constant(const_assign.value())
+    self.walk_entity(const_assign.value())
+  }
+
+  fn walk_entity(&mut self, entity: &Entity) {
+    self.visit_entity(entity);
+    self.visit_location(entity.location());
+    match &entity.node {
+      EntityNode::Expr(e) => self.walk_expr(e),
+      EntityNode::Object(o) => self.walk_object(o),
+    }
+  }
+
+  fn walk_object(&mut self, object: &Object) {
+    self.visit_object(object);
+    self.visit_location(object.location());
+    self.walk_identifier(object.functor());
+    for arg in object.iter_args() {
+      self.walk_entity(arg);
+    }
   }
 
   fn walk_relation_decl(&mut self, relation_decl: &RelationDecl) {
@@ -273,11 +324,8 @@ pub trait NodeVisitor {
     self.visit_location(rule_head.location());
     match &rule_head.node {
       RuleHeadNode::Atom(a) => self.walk_atom(a),
-      RuleHeadNode::Disjunction(d) => {
-        for atom in d {
-          self.walk_atom(atom);
-        }
-      },
+      RuleHeadNode::Conjunction(c) => c.iter().for_each(|a| self.walk_atom(a)),
+      RuleHeadNode::Disjunction(d) => d.iter().for_each(|a| self.walk_atom(a)),
     }
   }
 
@@ -290,6 +338,7 @@ pub trait NodeVisitor {
       Formula::Constraint(c) => self.walk_constraint(c),
       Formula::Atom(a) => self.walk_atom(a),
       Formula::NegAtom(n) => self.walk_neg_atom(n),
+      Formula::Case(c) => self.walk_case(c),
       Formula::Reduce(r) => self.walk_reduce(r),
       Formula::ForallExistsReduce(r) => self.walk_forall_exists_reduce(r),
     }
@@ -322,6 +371,13 @@ pub trait NodeVisitor {
     self.visit_constraint(cons);
     self.visit_location(&cons.loc);
     self.walk_expr(&cons.node.expr);
+  }
+
+  fn walk_case(&mut self, case: &Case) {
+    self.visit_case(case);
+    self.visit_location(&case.loc);
+    self.walk_variable(&case.node.variable);
+    self.walk_entity(&case.node.entity);
   }
 
   fn walk_reduce_op(&mut self, reduce_op: &ReduceOperator) {
@@ -368,9 +424,12 @@ pub trait NodeVisitor {
 
   fn walk_atom(&mut self, atom: &Atom) {
     self.visit_atom(atom);
-    self.visit_location(&atom.loc);
-    self.walk_identifier(&atom.node.predicate);
-    for arg in &atom.node.args {
+    self.visit_location(atom.location());
+    self.walk_identifier(atom.predicate_identifier());
+    for type_arg in atom.iter_type_arguments() {
+      self.walk_type(type_arg)
+    }
+    for arg in atom.iter_arguments() {
       self.walk_expr(arg);
     }
   }
@@ -409,6 +468,7 @@ pub trait NodeVisitor {
       Expr::Unary(u) => self.walk_unary_expr(u),
       Expr::IfThenElse(i) => self.walk_if_then_else_expr(i),
       Expr::Call(c) => self.walk_call_expr(c),
+      Expr::New(n) => self.walk_new_expr(n),
     }
   }
 
@@ -452,6 +512,15 @@ pub trait NodeVisitor {
     }
   }
 
+  fn walk_new_expr(&mut self, n: &NewExpr) {
+    self.visit_new_expr(n);
+    self.visit_location(&n.loc);
+    self.walk_identifier(n.functor_identifier());
+    for arg in n.iter_args() {
+      self.walk_expr(arg);
+    }
+  }
+
   fn walk_variable(&mut self, variable: &Variable) {
     self.visit_variable(variable);
     self.visit_location(&variable.loc);
@@ -466,6 +535,39 @@ pub trait NodeVisitor {
   fn walk_constant(&mut self, constant: &Constant) {
     self.visit_constant(constant);
     self.visit_location(&constant.loc);
+    match &constant.node {
+      ConstantNode::Char(c) => self.walk_constant_char(c),
+      ConstantNode::String(s) => self.walk_constant_string(s),
+      ConstantNode::Symbol(s) => self.walk_constant_symbol(s),
+      ConstantNode::DateTime(d) => self.walk_constant_datetime(d),
+      ConstantNode::Duration(d) => self.walk_constant_duration(d),
+      _ => {}
+    }
+  }
+
+  fn walk_constant_char(&mut self, constant_char: &ConstantChar) {
+    self.visit_constant_char(constant_char);
+    self.visit_location(constant_char.location());
+  }
+
+  fn walk_constant_string(&mut self, constant_string: &ConstantString) {
+    self.visit_constant_string(constant_string);
+    self.visit_location(constant_string.location());
+  }
+
+  fn walk_constant_symbol(&mut self, constant_symbol: &ConstantSymbol) {
+    self.visit_constant_symbol(constant_symbol);
+    self.visit_location(constant_symbol.location());
+  }
+
+  fn walk_constant_datetime(&mut self, constant_datetime: &ConstantDateTime) {
+    self.visit_constant_datetime(constant_datetime);
+    self.visit_location(constant_datetime.location());
+  }
+
+  fn walk_constant_duration(&mut self, constant_duration: &ConstantDuration) {
+    self.visit_constant_duration(constant_duration);
+    self.visit_location(constant_duration.location());
   }
 
   fn walk_tag(&mut self, tag: &Tag) {
@@ -488,12 +590,30 @@ pub trait NodeVisitor {
       self.visit_attribute(attr);
       self.visit_location(&attr.loc);
       self.walk_identifier(&attr.node.name);
-      for c in &attr.node.pos_args {
-        self.walk_constant(c);
+      for v in &attr.node.pos_args {
+        self.walk_attribute_value(v);
       }
-      for (n, c) in &attr.node.kw_args {
+      for (n, v) in &attr.node.kw_args {
         self.walk_identifier(n);
-        self.walk_constant(c);
+        self.walk_attribute_value(v);
+      }
+    }
+  }
+
+  fn walk_attribute_value(&mut self, attribute_value: &AttributeValue) {
+    self.visit_attribute_value(attribute_value);
+    self.visit_location(&attribute_value.loc);
+    match &attribute_value.node {
+      AttributeValueNode::Constant(c) => self.walk_constant(c),
+      AttributeValueNode::List(l) => {
+        for v in l {
+          self.walk_attribute_value(v);
+        }
+      }
+      AttributeValueNode::Tuple(t) => {
+        for v in t {
+          self.walk_attribute_value(v);
+        }
       }
     }
   }
@@ -522,14 +642,19 @@ macro_rules! impl_node_visitor_tuple {
       node_visitor_visit_node!(visit_import_file, ImportFile, ($($id),*));
       node_visitor_visit_node!(visit_arg_type_binding, ArgTypeBinding, ($($id),*));
       node_visitor_visit_node!(visit_type, Type, ($($id),*));
+      node_visitor_visit_node!(visit_type_decl, TypeDecl, ($($id),*));
       node_visitor_visit_node!(visit_alias_type_decl, AliasTypeDecl, ($($id),*));
       node_visitor_visit_node!(visit_subtype_decl, SubtypeDecl, ($($id),*));
       node_visitor_visit_node!(visit_relation_type_decl, RelationTypeDecl, ($($id),*));
       node_visitor_visit_node!(visit_relation_type, RelationType, ($($id),*));
       node_visitor_visit_node!(visit_enum_type_decl, EnumTypeDecl, ($($id),*));
       node_visitor_visit_node!(visit_enum_type_member, EnumTypeMember, ($($id),*));
+      node_visitor_visit_node!(visit_algebraic_data_type_decl, AlgebraicDataTypeDecl, ($($id),*));
+      node_visitor_visit_node!(visit_algebraic_data_type_variant, AlgebraicDataTypeVariant, ($($id),*));
       node_visitor_visit_node!(visit_const_decl, ConstDecl, ($($id),*));
       node_visitor_visit_node!(visit_const_assignment, ConstAssignment, ($($id),*));
+      node_visitor_visit_node!(visit_entity, Entity, ($($id),*));
+      node_visitor_visit_node!(visit_object, Object, ($($id),*));
       node_visitor_visit_node!(visit_relation_decl, RelationDecl, ($($id),*));
       node_visitor_visit_node!(visit_constant_set_decl, ConstantSetDecl, ($($id),*));
       node_visitor_visit_node!(visit_constant_set, ConstantSet, ($($id),*));
@@ -545,12 +670,12 @@ macro_rules! impl_node_visitor_tuple {
       node_visitor_visit_node!(visit_rule_head, RuleHead, ($($id),*));
       node_visitor_visit_node!(visit_atom, Atom, ($($id),*));
       node_visitor_visit_node!(visit_neg_atom, NegAtom, ($($id),*));
-      node_visitor_visit_node!(visit_attribute, Attribute, ($($id),*));
       node_visitor_visit_node!(visit_formula, Formula, ($($id),*));
       node_visitor_visit_node!(visit_conjunction, Conjunction, ($($id),*));
       node_visitor_visit_node!(visit_disjunction, Disjunction, ($($id),*));
       node_visitor_visit_node!(visit_implies, Implies, ($($id),*));
       node_visitor_visit_node!(visit_constraint, Constraint, ($($id),*));
+      node_visitor_visit_node!(visit_case, Case, ($($id),*));
       node_visitor_visit_node!(visit_reduce, Reduce, ($($id),*));
       node_visitor_visit_node!(visit_forall_exists_reduce, ForallExistsReduce, ($($id),*));
       node_visitor_visit_node!(visit_variable_binding, VariableBinding, ($($id),*));
@@ -559,11 +684,19 @@ macro_rules! impl_node_visitor_tuple {
       node_visitor_visit_node!(visit_unary_expr, UnaryExpr, ($($id),*));
       node_visitor_visit_node!(visit_if_then_else_expr, IfThenElseExpr, ($($id),*));
       node_visitor_visit_node!(visit_call_expr, CallExpr, ($($id),*));
+      node_visitor_visit_node!(visit_new_expr, NewExpr, ($($id),*));
       node_visitor_visit_node!(visit_constant, Constant, ($($id),*));
+      node_visitor_visit_node!(visit_constant_char, ConstantChar, ($($id),*));
+      node_visitor_visit_node!(visit_constant_string, ConstantString, ($($id),*));
+      node_visitor_visit_node!(visit_constant_symbol, ConstantSymbol, ($($id),*));
+      node_visitor_visit_node!(visit_constant_datetime, ConstantDateTime, ($($id),*));
+      node_visitor_visit_node!(visit_constant_duration, ConstantDuration, ($($id),*));
       node_visitor_visit_node!(visit_variable, Variable, ($($id),*));
       node_visitor_visit_node!(visit_wildcard, Wildcard, ($($id),*));
       node_visitor_visit_node!(visit_identifier, Identifier, ($($id),*));
       node_visitor_visit_node!(visit_function_identifier, FunctionIdentifier, ($($id),*));
+      node_visitor_visit_node!(visit_attribute, Attribute, ($($id),*));
+      node_visitor_visit_node!(visit_attribute_value, AttributeValue, ($($id),*));
     }
   }
 }

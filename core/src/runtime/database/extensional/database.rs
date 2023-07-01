@@ -5,6 +5,7 @@ use crate::common::tuple::*;
 use crate::common::tuple_type::*;
 use crate::compiler::ram;
 use crate::runtime::dynamic::*;
+use crate::runtime::env::*;
 use crate::runtime::monitor::*;
 use crate::runtime::provenance::*;
 use crate::runtime::statics::*;
@@ -22,6 +23,9 @@ pub struct ExtensionalDatabase<Prov: Provenance> {
   /// Types of relations
   pub relation_types: HashMap<String, TupleType>,
 
+  /// Loaded Files
+  pub input_file_registry: io::InputFileRegistry,
+
   /// Extensional relations
   pub extensional_relations: HashMap<String, ExtensionalRelation<Prov>>,
 
@@ -36,6 +40,7 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
       type_check: true,
       disjunction_count: 0,
       relation_types: HashMap::new(),
+      input_file_registry: io::InputFileRegistry::new(),
       extensional_relations: HashMap::new(),
       internalized: false,
     }
@@ -46,6 +51,7 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
       type_check,
       disjunction_count: 0,
       relation_types: HashMap::new(),
+      input_file_registry: io::InputFileRegistry::new(),
       extensional_relations: HashMap::new(),
       internalized: false,
     }
@@ -59,10 +65,15 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
       type_check: self.type_check,
       disjunction_count: self.disjunction_count,
       relation_types: self.relation_types.clone(),
-      extensional_relations: self.extensional_relations.iter().map(|(pred, rel)| {
-        let new_rel = rel.clone_with_new_provenance();
-        (pred.clone(), new_rel)
-      }).collect(),
+      input_file_registry: self.input_file_registry.clone(),
+      extensional_relations: self
+        .extensional_relations
+        .iter()
+        .map(|(pred, rel)| {
+          let new_rel = rel.clone_with_new_provenance();
+          (pred.clone(), new_rel)
+        })
+        .collect(),
       internalized: false,
     }
   }
@@ -75,6 +86,7 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
       type_check: true,
       disjunction_count: 0,
       relation_types: types.collect(),
+      input_file_registry: io::InputFileRegistry::new(),
       extensional_relations: HashMap::new(),
       internalized: false,
     }
@@ -88,6 +100,7 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
       type_check,
       disjunction_count: 0,
       relation_types: types.collect(),
+      input_file_registry: io::InputFileRegistry::new(),
       extensional_relations: HashMap::new(),
       internalized: false,
     }
@@ -105,7 +118,11 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
     self.extensional_relations.contains_key(relation)
   }
 
-  pub fn add_dynamic_input_facts<T>(&mut self, relation: &str, facts: Vec<(DynamicInputTag, T)>) -> Result<(), DatabaseError>
+  pub fn add_dynamic_input_facts<T>(
+    &mut self,
+    relation: &str,
+    facts: Vec<(DynamicInputTag, T)>,
+  ) -> Result<(), DatabaseError>
   where
     T: Into<Tuple>,
   {
@@ -182,18 +199,23 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
     }
   }
 
-  pub fn populate_program_facts(&mut self, program: &ram::Program) -> Result<(), DatabaseError> {
+  pub fn populate_program_facts(
+    &mut self,
+    env: &RuntimeEnvironment,
+    program: &ram::Program,
+  ) -> Result<(), DatabaseError> {
+    // Load and cache all the input files
+    self.input_file_registry.load(program).map_err(DatabaseError::IO)?;
+
     // Iterate through all relations declared in the program
     for relation in program.relations() {
       // Check if we need to load the relation facts
       if !relation.facts.is_empty() {
-        let edb_relation = self
-          .extensional_relations
-          .entry(relation.predicate.clone())
-          .or_default();
+        let edb_relation = self.get_or_insert_relation(&relation.predicate);
         if edb_relation.internalized_program_facts
           && edb_relation.has_program_facts()
           && edb_relation.num_program_facts() < relation.facts.len()
+        // TODO: why?
         {
           return Err(DatabaseError::NewProgramFacts {
             relation: relation.predicate.clone(),
@@ -203,10 +225,17 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
       }
 
       // Check if we need to load external facts (from files or databases)
-      if relation.input_file.is_some() {
-        unimplemented!("Cannot load external file yet");
+      if let Some(input_file_config) = &relation.input_file {
+        let edb_relation = self
+          .extensional_relations
+          .entry(relation.predicate.to_string())
+          .or_default();
+        let loaded_file_content = self.input_file_registry.get(input_file_config.file_path()).unwrap(); // unwrap since this has to be populated before
+        edb_relation.load_from_file(env, input_file_config, loaded_file_content, &relation.tuple_type)?;
       }
     }
+
+    // Return
     Ok(())
   }
 
@@ -224,16 +253,16 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
     }
   }
 
-  pub fn internalize(&mut self, ctx: &mut Prov) {
+  pub fn internalize(&mut self, env: &RuntimeEnvironment, ctx: &Prov) {
     for (_, relation) in &mut self.extensional_relations {
-      relation.internalize(ctx);
+      relation.internalize(env, ctx);
     }
     self.internalized = true
   }
 
-  pub fn internalize_with_monitor<M: Monitor<Prov>>(&mut self, ctx: &mut Prov, m: &M) {
+  pub fn internalize_with_monitor<M: Monitor<Prov>>(&mut self, env: &RuntimeEnvironment, ctx: &Prov, m: &M) {
     for (_, relation) in &mut self.extensional_relations {
-      relation.internalize_with_monitor(ctx, m);
+      relation.internalize_with_monitor(env, ctx, m);
     }
     self.internalized = true
   }
@@ -265,6 +294,10 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
     } else {
       Ok(())
     }
+  }
+
+  fn get_or_insert_relation(&mut self, relation: &str) -> &mut ExtensionalRelation<Prov> {
+    self.extensional_relations.entry(relation.to_string()).or_default()
   }
 }
 

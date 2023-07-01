@@ -1,5 +1,6 @@
 use crate::common::tuple::*;
 use crate::common::tuple_type::*;
+use crate::runtime::error::*;
 
 #[derive(Clone, Debug)]
 pub enum DatabaseError {
@@ -14,6 +15,7 @@ pub enum DatabaseError {
   NewProgramFacts {
     relation: String,
   },
+  IO(IOError),
 }
 
 impl std::fmt::Display for DatabaseError {
@@ -32,6 +34,7 @@ impl std::fmt::Display for DatabaseError {
         "New facts in program declared for relation `{}`; cannot incrementally compute",
         relation
       )),
+      Self::IO(error) => error.fmt(f),
     }
   }
 }

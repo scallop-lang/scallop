@@ -69,7 +69,7 @@ impl<Prov: provenance::Provenance, Ptr: PointerFamily> InterpretContext<Prov, Pt
     // Execute the program
     self
       .execution_context
-      .execute(&mut self.runtime_env, &mut self.provenance)
+      .execute(&self.runtime_env, &mut self.provenance)
       .map_err(IntegrateError::Runtime)?;
 
     // Recover output collections
@@ -79,10 +79,13 @@ impl<Prov: provenance::Provenance, Ptr: PointerFamily> InterpretContext<Prov, Pt
         // Unwrap because predicate is absolutely part of the program
         OutputOption::Hidden => {}
         OutputOption::Default => {
-          relation.recover(&self.provenance, true);
+          // Recover
+          relation.recover(&self.runtime_env, &self.provenance, true);
         }
-        OutputOption::File(_) => {
-          unimplemented!("Cannot output into file for now")
+        OutputOption::File(f) => {
+          // Recover and export the file
+          relation.recover(&self.runtime_env, &self.provenance, true);
+          database::io::store_file(f, relation).map_err(IntegrateError::io)?;
         }
       }
     }
@@ -105,7 +108,7 @@ impl<Prov: provenance::Provenance, Ptr: PointerFamily> InterpretContext<Prov, Pt
     // Execute the program
     self
       .execution_context
-      .execute_with_monitor(&mut self.runtime_env, &mut self.provenance, m)
+      .execute_with_monitor(&self.runtime_env, &self.provenance, m)
       .map_err(IntegrateError::Runtime)?;
 
     // Recover output collections
@@ -115,10 +118,13 @@ impl<Prov: provenance::Provenance, Ptr: PointerFamily> InterpretContext<Prov, Pt
         // Unwrap because predicate is absolutely part of the program
         OutputOption::Hidden => {}
         OutputOption::Default => {
-          relation.recover_with_monitor(&self.provenance, m, true);
+          // Recover
+          relation.recover_with_monitor(&self.runtime_env, &self.provenance, m, true);
         }
-        OutputOption::File(_) => {
-          unimplemented!("Cannot output into file for now")
+        OutputOption::File(f) => {
+          // Recover and export the file
+          relation.recover_with_monitor(&self.runtime_env, &self.provenance, m, true);
+          database::io::store_file(f, relation).map_err(IntegrateError::io)?;
         }
       }
     }

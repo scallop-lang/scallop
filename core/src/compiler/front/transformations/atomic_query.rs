@@ -9,6 +9,23 @@ impl TransformAtomicQuery {
   pub fn new() -> Self {
     Self { to_add_rules: vec![] }
   }
+
+  pub fn drain_items(self) -> Vec<Item> {
+    self
+      .to_add_rules
+      .iter()
+      .map(|rule| {
+        let rule_decl = RuleDeclNode {
+          attrs: vec![],
+          tag: Tag::default_none(),
+          rule: rule.clone(),
+        };
+        let rel_decl = RelationDeclNode::Rule(rule_decl.into());
+        let item = Item::RelationDecl(rel_decl.into());
+        item
+      })
+      .collect()
+  }
 }
 
 impl NodeVisitorMut for TransformAtomicQuery {
@@ -32,10 +49,12 @@ impl NodeVisitorMut for TransformAtomicQuery {
           .collect::<Vec<_>>();
         let head_atom = AtomNode {
           predicate: IdentifierNode::new(query_name.clone()).into(),
+          type_args: Vec::new(),
           args: args.clone(),
         };
         let body_atom = AtomNode {
           predicate: IdentifierNode::new(a.predicate().clone()).into(),
+          type_args: Vec::new(),
           args: args.clone(),
         };
         let eq_constraints = a
@@ -65,24 +84,5 @@ impl NodeVisitorMut for TransformAtomicQuery {
       }
       _ => {}
     }
-  }
-}
-
-impl Transformation for TransformAtomicQuery {
-  fn generate_items(self) -> Vec<Item> {
-    self
-      .to_add_rules
-      .iter()
-      .map(|rule| {
-        let rule_decl = RuleDeclNode {
-          attrs: vec![],
-          tag: Tag::default_none(),
-          rule: rule.clone(),
-        };
-        let rel_decl = RelationDeclNode::Rule(rule_decl.into());
-        let item = Item::RelationDecl(rel_decl.into());
-        item
-      })
-      .collect()
   }
 }

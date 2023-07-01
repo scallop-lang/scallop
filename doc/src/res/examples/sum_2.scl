@@ -1,0 +1,2 @@
+type digit_a(i32), digit_b(i32)
+rel sum_2(a + b) = digit_a(a) and digit_b(b)

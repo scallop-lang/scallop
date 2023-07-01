@@ -26,6 +26,7 @@ impl TransformTaggedRule {
     // 2. Append the atom to the end
     let new_atom = AtomNode {
       predicate: IdentifierNode { name: pred.clone() }.into(),
+      type_args: vec![],
       args: vec![],
     };
     let new_atom_form = Formula::Atom(new_atom.into());
@@ -37,6 +38,28 @@ impl TransformTaggedRule {
 
     // Return the predicate
     pred
+  }
+
+  pub fn drain_items(self) -> Vec<Item> {
+    self
+      .to_add_tags
+      .into_iter()
+      .map(|(pred, tag)| {
+        let fact = AtomNode {
+          predicate: IdentifierNode { name: pred.clone() }.into(),
+          type_args: vec![],
+          args: vec![],
+        };
+        let fact_decl = FactDeclNode {
+          attrs: vec![],
+          tag: TagNode(tag).into(),
+          atom: fact.into(),
+        };
+        let rel_decl = RelationDeclNode::Fact(fact_decl.into());
+        let item = Item::RelationDecl(rel_decl.into());
+        item
+      })
+      .collect()
   }
 }
 
@@ -55,28 +78,5 @@ impl NodeVisitorMut for TransformTaggedRule {
       // If the rule is annotated with `@probabilistic`
       Self::transform(rule_decl);
     }
-  }
-}
-
-impl Transformation for TransformTaggedRule {
-  fn generate_items(self) -> Vec<Item> {
-    self
-      .to_add_tags
-      .into_iter()
-      .map(|(pred, tag)| {
-        let fact = AtomNode {
-          predicate: IdentifierNode { name: pred.clone() }.into(),
-          args: vec![],
-        };
-        let fact_decl = FactDeclNode {
-          attrs: vec![],
-          tag: TagNode(tag).into(),
-          atom: fact.into(),
-        };
-        let rel_decl = RelationDeclNode::Fact(fact_decl.into());
-        let item = Item::RelationDecl(rel_decl.into());
-        item
-      })
-      .collect()
   }
 }

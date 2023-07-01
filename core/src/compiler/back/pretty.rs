@@ -210,6 +210,7 @@ impl Display for AssignExpr {
       Self::Unary(u) => u.fmt(f),
       Self::IfThenElse(i) => i.fmt(f),
       Self::Call(c) => c.fmt(f),
+      Self::New(n) => n.fmt(f),
     }
   }
 }
@@ -245,6 +246,16 @@ impl Display for CallExpr {
     f.write_fmt(format_args!(
       "${}({})",
       self.function,
+      self.args.iter().map(|a| format!("{}", a)).collect::<Vec<_>>().join("")
+    ))
+  }
+}
+
+impl Display for NewExpr {
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    f.write_fmt(format_args!(
+      "new {}({})",
+      self.functor,
       self.args.iter().map(|a| format!("{}", a)).collect::<Vec<_>>().join("")
     ))
   }

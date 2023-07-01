@@ -1,0 +1,4 @@
+@gpt_complete(prompt="{x}'s {y} is {z}", pattern="bbf")
+type composition(x: String, y: String, z: String)
+
+rel result($string_lower(z)) = composition("father", "mother", z)

@@ -67,6 +67,11 @@ impl DisjunctionContext {
       }
       Formula::Atom(a) => vec![ConjunctionContext::from_atom(a)],
       Formula::NegAtom(a) => vec![ConjunctionContext::from_neg_atom(a)],
+      Formula::Case(_) => {
+        panic!(
+          "Unexpected `case` visited during boundness analysis; case should be rewritten by previous transformations"
+        )
+      }
       Formula::Constraint(a) => vec![ConjunctionContext::from_constraint(a)],
       Formula::Reduce(r) => vec![ConjunctionContext::from_reduce(r)],
       Formula::ForallExistsReduce(_) => {
@@ -294,27 +299,19 @@ impl AggregationContext {
 fn collect_vars_in_head(head: &RuleHead) -> Vec<(String, Loc)> {
   match &head.node {
     RuleHeadNode::Atom(atom) => collect_vars_in_atom(atom),
-    RuleHeadNode::Disjunction(d) => d.iter().map(collect_vars_in_atom).flatten().collect(),
+    RuleHeadNode::Conjunction(c) => c.iter().flat_map(collect_vars_in_atom).collect(),
+    RuleHeadNode::Disjunction(d) => d.iter().flat_map(collect_vars_in_atom).collect(),
   }
 }
 
 fn collect_vars_in_atom(atom: &Atom) -> Vec<(String, Loc)> {
-  atom.iter_arguments().map(collect_vars_in_expr).flatten().collect()
-}
-
-fn collect_vars_in_expr(expr: &Expr) -> Vec<(String, Loc)> {
-  match expr {
-    Expr::Binary(b) => vec![collect_vars_in_expr(b.op1()), collect_vars_in_expr(b.op2())].concat(),
-    Expr::Unary(u) => collect_vars_in_expr(u.op1()),
-    Expr::Variable(v) => vec![(v.name().to_string(), v.location().clone())],
-    Expr::Constant(_) => vec![],
-    Expr::Wildcard(_) => vec![],
-    Expr::IfThenElse(i) => vec![
-      collect_vars_in_expr(i.cond()),
-      collect_vars_in_expr(i.then_br()),
-      collect_vars_in_expr(i.else_br()),
-    ]
-    .concat(),
-    Expr::Call(c) => c.iter_args().map(|a| collect_vars_in_expr(a)).concat(),
-  }
+  atom
+    .iter_arguments()
+    .flat_map(|arg| {
+      arg
+        .collect_used_variables()
+        .into_iter()
+        .map(|v| (v.name().to_string(), v.location().clone()))
+    })
+    .collect()
 }

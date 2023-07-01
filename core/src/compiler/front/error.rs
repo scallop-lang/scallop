@@ -1,6 +1,8 @@
 use colored::*;
 use dyn_clone::DynClone;
 
+use crate::common::value_type::ValueParseError;
+
 use super::*;
 
 pub enum FrontCompileErrorType {
@@ -29,14 +31,6 @@ impl FrontCompileErrorType {
       _ => false,
     }
   }
-}
-
-pub trait FrontCompileErrorTrait: DynClone + std::fmt::Debug {
-  /// Get the error type of this error (warning/error)
-  fn error_type(&self) -> FrontCompileErrorType;
-
-  /// Report the error showing source into string
-  fn report(&self, src: &Sources) -> String;
 }
 
 #[derive(Debug)]
@@ -75,6 +69,13 @@ impl FrontCompileError {
     }
   }
 
+  pub fn with_sources(sources: &Sources) -> Self {
+    Self {
+      sources: sources.clone(),
+      errors: Vec::new(),
+    }
+  }
+
   pub fn singleton<E: FrontCompileErrorTrait + 'static>(e: E) -> Self {
     Self {
       sources: Sources::new(),
@@ -84,6 +85,10 @@ impl FrontCompileError {
 
   pub fn set_sources(&mut self, sources: &Sources) {
     self.sources = sources.clone();
+  }
+
+  pub fn add_source<S: Source>(&mut self, source: S) -> usize {
+    self.sources.add(source)
   }
 
   pub fn add<E: FrontCompileErrorTrait + 'static>(&mut self, error: E) {
@@ -105,18 +110,36 @@ impl FrontCompileError {
   }
 
   pub fn report_errors(&self) {
-    println!("{}", self)
+    eprintln!("{}", self)
   }
 
   pub fn report_warnings(&self) {
     for error in &self.errors {
       if error.error_type().is_warning() {
-        println!("{} {}\n", error.error_type().marker(), error.report(&self.sources))
+        eprintln!("{} {}\n", error.error_type().marker(), error.report(&self.sources))
       }
     }
   }
 
   pub fn clear_errors(&mut self) {
     self.errors.clear();
+  }
+}
+
+pub trait FrontCompileErrorTrait: DynClone + std::fmt::Debug {
+  /// Get the error type of this error (warning/error)
+  fn error_type(&self) -> FrontCompileErrorType;
+
+  /// Report the error showing source into string
+  fn report(&self, src: &Sources) -> String;
+}
+
+impl FrontCompileErrorTrait for ValueParseError {
+  fn error_type(&self) -> FrontCompileErrorType {
+    FrontCompileErrorType::Error
+  }
+
+  fn report(&self, _: &Sources) -> String {
+    format!("cannot parse value `{}` into type `{}`", self.source, self.ty)
   }
 }

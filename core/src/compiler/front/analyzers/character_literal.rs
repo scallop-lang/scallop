@@ -16,21 +16,17 @@ impl CharacterLiteralAnalysis {
 }
 
 impl NodeVisitor for CharacterLiteralAnalysis {
-  fn visit_constant(&mut self, c: &Constant) {
-    match &c.node {
-      ConstantNode::Char(s) => {
-        let loc = c.location().clone();
-        if s.len() == 1 {
-          // OK
-        } else if s.len() == 0 {
-          self.errors.push(CharacterLiteralAnalysisError::EmptyCharacter { loc })
-        } else {
-          self
-            .errors
-            .push(CharacterLiteralAnalysisError::InvalidCharacter { loc })
-        }
-      }
-      _ => {}
+  fn visit_constant_char(&mut self, c: &ConstantChar) {
+    let s = c.character_string();
+    let loc = c.location().clone();
+    if s.len() == 1 {
+      // OK
+    } else if s.len() == 0 {
+      self.errors.push(CharacterLiteralAnalysisError::EmptyCharacter { loc })
+    } else {
+      self
+        .errors
+        .push(CharacterLiteralAnalysisError::InvalidCharacter { loc })
     }
   }
 }

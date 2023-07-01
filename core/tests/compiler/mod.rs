@@ -1,3 +1,4 @@
+mod adt;
 mod errors;
 mod incremental;
 mod parse;

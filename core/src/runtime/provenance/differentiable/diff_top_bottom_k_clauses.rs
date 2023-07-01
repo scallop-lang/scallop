@@ -2,18 +2,20 @@ use std::collections::*;
 
 use itertools::Itertools;
 
-use super::*;
+use crate::common::tensors::*;
 use crate::runtime::dynamic::*;
 use crate::runtime::statics::*;
 use crate::utils::*;
 
-pub struct DiffTopBottomKClausesProvenance<T: Clone + 'static, P: PointerFamily = RcFamily> {
+use super::*;
+
+pub struct DiffTopBottomKClausesProvenance<T: FromTensor, P: PointerFamily = RcFamily> {
   pub k: usize,
   pub storage: DiffProbStorage<T, P>,
   pub disjunctions: P::Cell<Disjunctions>,
 }
 
-impl<T: Clone + 'static, P: PointerFamily> Clone for DiffTopBottomKClausesProvenance<T, P> {
+impl<T: FromTensor, P: PointerFamily> Clone for DiffTopBottomKClausesProvenance<T, P> {
   fn clone(&self) -> Self {
     Self {
       k: self.k,
@@ -23,7 +25,7 @@ impl<T: Clone + 'static, P: PointerFamily> Clone for DiffTopBottomKClausesProven
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> DiffTopBottomKClausesProvenance<T, P> {
+impl<T: FromTensor, P: PointerFamily> DiffTopBottomKClausesProvenance<T, P> {
   pub fn new(k: usize) -> Self {
     Self {
       k,
@@ -41,7 +43,7 @@ impl<T: Clone + 'static, P: PointerFamily> DiffTopBottomKClausesProvenance<T, P>
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> CNFDNFContextTrait for DiffTopBottomKClausesProvenance<T, P> {
+impl<T: FromTensor, P: PointerFamily> CNFDNFContextTrait for DiffTopBottomKClausesProvenance<T, P> {
   fn fact_probability(&self, id: &usize) -> f64 {
     self.storage.fact_probability(id)
   }
@@ -51,7 +53,7 @@ impl<T: Clone + 'static, P: PointerFamily> CNFDNFContextTrait for DiffTopBottomK
   }
 }
 
-impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopBottomKClausesProvenance<T, P> {
+impl<T: FromTensor, P: PointerFamily> Provenance for DiffTopBottomKClausesProvenance<T, P> {
   type Tag = CNFDNFFormula;
 
   type InputTag = InputExclusiveDiffProb<T>;
@@ -63,7 +65,11 @@ impl<T: Clone + 'static, P: PointerFamily> Provenance for DiffTopBottomKClausesP
   }
 
   fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {
-    let InputExclusiveDiffProb { prob, external_tag, exclusion } = input_tag;
+    let InputExclusiveDiffProb {
+      prob,
+      external_tag,
+      exclusion,
+    } = input_tag;
 
     // First store the probability and generate the id
     let fact_id = self.storage.add_prob(prob, external_tag);

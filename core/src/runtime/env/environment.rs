@@ -1,23 +1,25 @@
-use std::sync::*;
-
-use rand::rngs::SmallRng;
-use rand::SeedableRng;
+use std::collections::*;
 
 use crate::common::constants::*;
+use crate::common::entity;
 use crate::common::expr::*;
 use crate::common::foreign_function::*;
 use crate::common::foreign_predicate::*;
+use crate::common::tensors;
 use crate::common::tuple::*;
+use crate::common::value::*;
 use crate::common::value_type::*;
 use crate::utils::*;
 
-#[derive(Clone, Debug)]
+use super::*;
+
+#[derive(Clone)]
 pub struct RuntimeEnvironment {
   /// Random seed for reference
   pub random_seed: u64,
 
   /// Random number generater initialized from the random seed
-  pub rng: Arc<Mutex<SmallRng>>,
+  pub random: Random,
 
   /// Whether we want to early discard 0-tagged facts
   pub early_discard: bool,
@@ -32,7 +34,16 @@ pub struct RuntimeEnvironment {
   pub predicate_registry: ForeignPredicateRegistry,
 
   /// Mutual exclusion ID allocator
-  pub exclusion_id_allocator: Arc<Mutex<IdAllocator>>,
+  pub exclusion_id_allocator: IdAllocator2,
+
+  /// Symbol registry
+  pub symbol_registry: SymbolRegistry2,
+
+  /// New Entities
+  pub new_entities: NewEntitiesStorage2,
+
+  /// Tensor registry
+  pub tensor_registry: TensorRegistry2,
 }
 
 impl Default for RuntimeEnvironment {
@@ -45,51 +56,75 @@ impl RuntimeEnvironment {
   pub fn new_std() -> Self {
     Self {
       random_seed: DEFAULT_RANDOM_SEED,
-      rng: Arc::new(Mutex::new(SmallRng::seed_from_u64(DEFAULT_RANDOM_SEED))),
+      random: Random::new(DEFAULT_RANDOM_SEED),
       early_discard: true,
       iter_limit: None,
       function_registry: ForeignFunctionRegistry::std(),
       predicate_registry: ForeignPredicateRegistry::std(),
-      exclusion_id_allocator: Arc::new(Mutex::new(IdAllocator::new())),
+      exclusion_id_allocator: IdAllocator2::new(),
+      symbol_registry: SymbolRegistry2::new(),
+      new_entities: NewEntitiesStorage2::new(),
+      tensor_registry: TensorRegistry2::new(),
     }
   }
 
   pub fn new_with_random_seed(seed: u64) -> Self {
     Self {
       random_seed: seed,
-      rng: Arc::new(Mutex::new(SmallRng::seed_from_u64(seed))),
+      random: Random::new(seed),
       early_discard: true,
       iter_limit: None,
       function_registry: ForeignFunctionRegistry::std(),
       predicate_registry: ForeignPredicateRegistry::std(),
-      exclusion_id_allocator: Arc::new(Mutex::new(IdAllocator::new())),
+      exclusion_id_allocator: IdAllocator2::new(),
+      symbol_registry: SymbolRegistry2::new(),
+      new_entities: NewEntitiesStorage2::new(),
+      tensor_registry: TensorRegistry2::new(),
     }
   }
 
-  pub fn new(
-    ffr: ForeignFunctionRegistry,
-    fpr: ForeignPredicateRegistry,
-  ) -> Self {
+  pub fn new(ffr: ForeignFunctionRegistry, fpr: ForeignPredicateRegistry) -> Self {
     Self {
       random_seed: DEFAULT_RANDOM_SEED,
-      rng: Arc::new(Mutex::new(SmallRng::seed_from_u64(DEFAULT_RANDOM_SEED))),
+      random: Random::new(DEFAULT_RANDOM_SEED),
       early_discard: true,
       iter_limit: None,
       function_registry: ffr,
       predicate_registry: fpr,
-      exclusion_id_allocator: Arc::new(Mutex::new(IdAllocator::new())),
+      exclusion_id_allocator: IdAllocator2::new(),
+      symbol_registry: SymbolRegistry2::new(),
+      new_entities: NewEntitiesStorage2::new(),
+      tensor_registry: TensorRegistry2::new(),
     }
   }
 
   pub fn new_with_function_registry(ffr: ForeignFunctionRegistry) -> Self {
     Self {
       random_seed: DEFAULT_RANDOM_SEED,
-      rng: Arc::new(Mutex::new(SmallRng::seed_from_u64(DEFAULT_RANDOM_SEED))),
+      random: Random::new(DEFAULT_RANDOM_SEED),
       early_discard: true,
       iter_limit: None,
       function_registry: ffr,
       predicate_registry: ForeignPredicateRegistry::std(),
-      exclusion_id_allocator: Arc::new(Mutex::new(IdAllocator::new())),
+      exclusion_id_allocator: IdAllocator2::new(),
+      symbol_registry: SymbolRegistry2::new(),
+      new_entities: NewEntitiesStorage2::new(),
+      tensor_registry: TensorRegistry2::new(),
+    }
+  }
+
+  pub fn new_from_options(options: RuntimeEnvironmentOptions) -> Self {
+    Self {
+      random_seed: options.random_seed,
+      random: Random::new(options.random_seed),
+      early_discard: options.early_discard,
+      iter_limit: options.iter_limit,
+      function_registry: ForeignFunctionRegistry::std(),
+      predicate_registry: ForeignPredicateRegistry::std(),
+      exclusion_id_allocator: IdAllocator2::new(),
+      symbol_registry: SymbolRegistry2::new(),
+      new_entities: NewEntitiesStorage2::new(),
+      tensor_registry: TensorRegistry2::new(),
     }
   }
 
@@ -106,7 +141,80 @@ impl RuntimeEnvironment {
   }
 
   pub fn allocate_new_exclusion_id(&self) -> usize {
-    self.exclusion_id_allocator.lock().unwrap().alloc()
+    self.exclusion_id_allocator.alloc()
+  }
+
+  pub fn internalize_tuple(&self, tup: &Tuple) -> Tuple {
+    match tup {
+      Tuple::Tuple(ts) => Tuple::Tuple(ts.iter().map(|t| self.internalize_tuple(t)).collect()),
+      Tuple::Value(v) => Tuple::Value(self.internalize_value(v)),
+    }
+  }
+
+  pub fn internalize_value(&self, val: &Value) -> Value {
+    match val {
+      Value::SymbolString(s) => {
+        let symbol_id = self.symbol_registry.register(s.clone());
+        Value::Symbol(symbol_id)
+      }
+      Value::Tensor(t) => {
+        let tensor_symbol = self.tensor_registry.register(t.clone());
+        Value::TensorValue(tensor_symbol.into())
+      }
+      other => other.clone(),
+    }
+  }
+
+  pub fn internalize_expr(&self, expr: &Expr) -> Expr {
+    match expr {
+      Expr::Access(a) => Expr::Access(a.clone()),
+      Expr::Tuple(t) => Expr::Tuple(t.iter().map(|e| self.internalize_expr(e)).collect()),
+      Expr::Binary(b) => Expr::binary(
+        b.op.clone(),
+        self.internalize_expr(&b.op1),
+        self.internalize_expr(&b.op2),
+      ),
+      Expr::Unary(u) => Expr::unary(u.op.clone(), self.internalize_expr(&u.op1)),
+      Expr::Call(c) => Expr::call(
+        c.function.clone(),
+        c.args.iter().map(|e| self.internalize_expr(e)).collect(),
+      ),
+      Expr::Constant(c) => Expr::Constant(self.internalize_value(c)),
+      Expr::IfThenElse(ite) => Expr::ite(
+        self.internalize_expr(&ite.cond),
+        self.internalize_expr(&ite.then_br),
+        self.internalize_expr(&ite.else_br),
+      ),
+      Expr::New(n) => Expr::new(
+        n.functor.clone(),
+        n.args.iter().map(|e| self.internalize_expr(e)).collect(),
+      ),
+    }
+  }
+
+  pub fn externalize_tuple(&self, tup: &Tuple) -> Tuple {
+    match tup {
+      Tuple::Tuple(ts) => Tuple::Tuple(ts.iter().map(|t| self.externalize_tuple(t)).collect()),
+      Tuple::Value(v) => Tuple::Value(self.externalize_value(v)),
+    }
+  }
+
+  pub fn externalize_value(&self, val: &Value) -> Value {
+    match val {
+      Value::Symbol(s) => {
+        let symbol = self.symbol_registry.get_symbol(*s).expect("Cannot find symbol");
+        Value::SymbolString(symbol)
+      }
+      Value::TensorValue(t) => {
+        let tensor = self.tensor_registry.eval(t);
+        Value::Tensor(tensor)
+      }
+      other => other.clone(),
+    }
+  }
+
+  pub fn drain_new_entities(&self) -> HashMap<String, Vec<Tuple>> {
+    self.new_entities.drain_entities()
   }
 
   pub fn eval(&self, expr: &Expr, tuple: &Tuple) -> Option<Tuple> {
@@ -120,12 +228,13 @@ impl RuntimeEnvironment {
       Expr::Unary(u) => self.eval_unary(u, tuple),
       Expr::IfThenElse(i) => self.eval_if_then_else(i, tuple),
       Expr::Call(c) => self.eval_call(c, tuple),
+      Expr::New(n) => self.eval_new(n, tuple),
     }
   }
 
   pub fn eval_binary(&self, expr: &BinaryExpr, v: &Tuple) -> Option<Tuple> {
     use crate::common::binary_op::BinaryOp::*;
-    use crate::common::value::Value::*;
+    use Value::*;
 
     // Recursively evaluate sub-expressions
     let lhs_v = self.eval(&expr.op1, v)?;
@@ -152,6 +261,15 @@ impl RuntimeEnvironment {
       (Add, Tuple::Value(DateTime(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(DateTime(i1 + i2)),
       (Add, Tuple::Value(Duration(i1)), Tuple::Value(DateTime(i2))) => Tuple::Value(DateTime(i2 + i1)),
       (Add, Tuple::Value(Duration(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(Duration(i1 + i2)),
+      (Add, Tuple::Value(TensorValue(v1)), Tuple::Value(TensorValue(v2))) => {
+        v1.add(v2).map(TensorValue).map(Tuple::Value)?
+      }
+      (Add, Tuple::Value(TensorValue(v1)), Tuple::Value(F64(f2))) => {
+        v1.add(f2.into()).map(TensorValue).map(Tuple::Value)?
+      }
+      (Add, Tuple::Value(F64(f1)), Tuple::Value(TensorValue(v2))) => {
+        v2.add(f1.into()).map(TensorValue).map(Tuple::Value)?
+      }
       (Add, b1, b2) => panic!("Cannot perform ADD on {:?} and {:?}", b1, b2),
 
       // Subtraction
@@ -171,7 +289,17 @@ impl RuntimeEnvironment {
       (Sub, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => Tuple::Value(F64(i1 - i2)),
       (Sub, Tuple::Value(DateTime(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(DateTime(i1 - i2)),
       (Sub, Tuple::Value(DateTime(i1)), Tuple::Value(DateTime(i2))) => Tuple::Value(Duration(i1 - i2)),
-      (Sub, Tuple::Value(Duration(i1)), Tuple::Value(Duration(i2))) =>Tuple::Value(Duration(i1 - i2)),
+      (Sub, Tuple::Value(Duration(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(Duration(i1 - i2)),
+      (Sub, Tuple::Value(TensorValue(v1)), Tuple::Value(TensorValue(v2))) => {
+        v1.sub(v2).map(TensorValue).map(Tuple::Value)?
+      }
+      (Sub, Tuple::Value(TensorValue(v1)), Tuple::Value(F64(f2))) => {
+        v1.sub(f2.into()).map(TensorValue).map(Tuple::Value)?
+      }
+      (Sub, Tuple::Value(F64(f1)), Tuple::Value(TensorValue(v2))) => tensors::TensorValue::from(f1)
+        .sub(v2)
+        .map(TensorValue)
+        .map(Tuple::Value)?,
       (Sub, b1, b2) => panic!("Cannot perform SUB on {:?} and {:?}", b1, b2),
 
       // Multiplication
@@ -191,6 +319,16 @@ impl RuntimeEnvironment {
       (Mul, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => Tuple::Value(F64(i1 * i2)),
       (Mul, Tuple::Value(Duration(i1)), Tuple::Value(I32(i2))) => Tuple::Value(Duration(i1 * i2)),
       (Mul, Tuple::Value(I32(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(Duration(i2 * i1)),
+      (Mul, Tuple::Value(TensorValue(v1)), Tuple::Value(TensorValue(v2))) => {
+        v1.mul(v2).map(TensorValue).map(Tuple::Value)?
+      }
+      (Mul, Tuple::Value(TensorValue(v1)), Tuple::Value(F64(f2))) => {
+        v1.mul(f2.into()).map(TensorValue).map(Tuple::Value)?
+      }
+      (Mul, Tuple::Value(F64(f1)), Tuple::Value(TensorValue(v2))) => tensors::TensorValue::from(f1)
+        .mul(v2)
+        .map(TensorValue)
+        .map(Tuple::Value)?,
       (Mul, b1, b2) => panic!("Cannot perform MUL on {:?} and {:?}", b1, b2),
 
       // Division
@@ -213,7 +351,7 @@ impl RuntimeEnvironment {
         } else {
           Tuple::Value(F32(r))
         }
-      },
+      }
       (Div, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => {
         let r = i1 / i2;
         if r.is_nan() {
@@ -221,7 +359,7 @@ impl RuntimeEnvironment {
         } else {
           Tuple::Value(F64(r))
         }
-      },
+      }
       (Div, Tuple::Value(Duration(i1)), Tuple::Value(I32(i2))) => Tuple::Value(Duration(i1 / i2)),
       (Div, b1, b2) => panic!("Cannot perform DIV on {:?} and {:?}", b1, b2),
 
@@ -267,9 +405,10 @@ impl RuntimeEnvironment {
       (Eq, Tuple::Value(Bool(i1)), Tuple::Value(Bool(i2))) => Tuple::Value(Bool(i1 == i2)),
       (Eq, Tuple::Value(Str(i1)), Tuple::Value(Str(i2))) => Tuple::Value(Bool(i1 == i2)),
       (Eq, Tuple::Value(String(i1)), Tuple::Value(String(i2))) => Tuple::Value(Bool(i1 == i2)),
-      // (Eq, Tuple::Value(RcString(i1)), Tuple::Value(RcString(i2))) => Tuple::Value(Bool(i1 == i2)),
+      (Eq, Tuple::Value(Symbol(i1)), Tuple::Value(Symbol(i2))) => Tuple::Value(Bool(i1 == i2)),
       (Eq, Tuple::Value(DateTime(i1)), Tuple::Value(DateTime(i2))) => Tuple::Value(Bool(i1 == i2)),
       (Eq, Tuple::Value(Duration(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(Bool(i1 == i2)),
+      (Eq, Tuple::Value(Entity(i1)), Tuple::Value(Entity(i2))) => Tuple::Value(Bool(i1 == i2)),
       (Eq, b1, b2) => panic!("Cannot perform EQ on {:?} and {:?}", b1, b2),
 
       // Not equal to
@@ -291,9 +430,10 @@ impl RuntimeEnvironment {
       (Neq, Tuple::Value(Bool(i1)), Tuple::Value(Bool(i2))) => Tuple::Value(Bool(i1 != i2)),
       (Neq, Tuple::Value(Str(i1)), Tuple::Value(Str(i2))) => Tuple::Value(Bool(i1 != i2)),
       (Neq, Tuple::Value(String(i1)), Tuple::Value(String(i2))) => Tuple::Value(Bool(i1 != i2)),
-      // (Neq, Tuple::Value(RcString(i1)), Tuple::Value(RcString(i2))) => Tuple::Value(Bool(i1 != i2)),
+      (Neq, Tuple::Value(Symbol(i1)), Tuple::Value(Symbol(i2))) => Tuple::Value(Bool(i1 != i2)),
       (Neq, Tuple::Value(DateTime(i1)), Tuple::Value(DateTime(i2))) => Tuple::Value(Bool(i1 != i2)),
       (Neq, Tuple::Value(Duration(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(Bool(i1 != i2)),
+      (Neq, Tuple::Value(Entity(i1)), Tuple::Value(Entity(i2))) => Tuple::Value(Bool(i1 != i2)),
       (Neq, b1, b2) => panic!("Cannot perform NEQ on {:?} and {:?}", b1, b2),
 
       // Greater than
@@ -460,6 +600,8 @@ impl RuntimeEnvironment {
           (Tuple::Value(Char(s)), T::U64) => s.to_digit(10).map(|i| Tuple::Value(U64(i as u64))),
           (Tuple::Value(Char(s)), T::U128) => s.to_digit(10).map(|i| Tuple::Value(U128(i as u128))),
           (Tuple::Value(Char(s)), T::USize) => s.to_digit(10).map(|i| Tuple::Value(USize(i as usize))),
+          (Tuple::Value(Char(s)), T::F32) => s.to_string().parse().ok().map(|f| Tuple::Value(F32(f))),
+          (Tuple::Value(Char(s)), T::F64) => s.to_string().parse().ok().map(|f| Tuple::Value(F64(f))),
 
           (Tuple::Value(String(s)), T::I8) => s.parse().ok().map(|i| Tuple::Value(I8(i))),
           (Tuple::Value(String(s)), T::I16) => s.parse().ok().map(|i| Tuple::Value(I16(i))),
@@ -494,6 +636,12 @@ impl RuntimeEnvironment {
           (Tuple::Value(Char(c)), T::String) => Some(Tuple::Value(String(c.to_string()))),
           (Tuple::Value(Str(s)), T::String) => Some(Tuple::Value(String(s.to_string()))),
           (Tuple::Value(String(s)), T::String) => Some(Tuple::Value(String(s.clone()))),
+          (Tuple::Value(Symbol(id)), T::String) => Some(Tuple::Value(String(
+            self
+              .symbol_registry
+              .get_symbol(id)
+              .expect("[Internal Error] Cannot find symbol"),
+          ))),
 
           // Not implemented
           (v, t) => unimplemented!("Unimplemented type cast from `{:?}` to `{}`", v.tuple_type(), t),
@@ -521,10 +669,30 @@ impl RuntimeEnvironment {
         .collect::<Option<Vec<_>>>()?;
 
       // Run the function
-      let result = f.execute(args)?;
+      let result = f.execute_with_env(self, args)?;
 
       // Turn result into tuple
       Some(Tuple::Value(result))
     })
+  }
+
+  pub fn eval_new(&self, expr: &NewExpr, v: &Tuple) -> Option<Tuple> {
+    // Evaluate the arguments
+    let args = expr
+      .args
+      .iter()
+      .map(|a| self.eval(a, v).map(|t| t.as_value()))
+      .collect::<Option<Vec<_>>>()?;
+
+    // Hash all the arguments to get a new entity
+    let raw_id = entity::encode_entity(&expr.functor, args.iter());
+    let id = Value::Entity(raw_id);
+
+    // Combine them to form a tuple for later insertion to new entities list
+    let tuple = Tuple::from_values(args.into_iter());
+    self.new_entities.add(&expr.functor, id.clone(), tuple);
+
+    // Return the value
+    Some(Tuple::Value(id))
   }
 }

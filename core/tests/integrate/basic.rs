@@ -1,6 +1,6 @@
 use scallop_core::runtime::provenance::*;
-use scallop_core::utils::*;
 use scallop_core::testing::*;
+use scallop_core::utils::*;
 
 #[test]
 fn basic_edge_path_left_recursion() {
@@ -653,10 +653,7 @@ fn test_count_with_where_clause() {
       // Count how many student enrolls in CS class in each class
       rel count_enroll_cs_in_class(c, n) :- n = count(s: student(c, s), enroll(s, "CS") where c: classes(c))
     "#,
-    vec![(
-      "count_enroll_cs_in_class",
-      vec![(0, 1usize), (1, 2), (2, 0)].into(),
-    )],
+    vec![("count_enroll_cs_in_class", vec![(0, 1usize), (1, 2), (2, 0)].into())],
   )
 }
 
@@ -669,10 +666,7 @@ fn test_exists_path_1() {
       rel result1(b) = b := exists(path(0, 2))
       rel result2(b) = b := exists(path(0, 3))
     "#,
-    vec![
-      ("result1", vec![(true,)].into()),
-      ("result2", vec![(false,)].into()),
-    ],
+    vec![("result1", vec![(true,)].into()), ("result2", vec![(false,)].into())],
   )
 }
 
@@ -1175,14 +1169,16 @@ fn disjunctive_1() {
   let prov = proofs::ProofsProvenance::<RcFamily>::default();
 
   // Pre-generate true tags and false tags
-  let true_tag = proofs::Proofs::from_proofs(vec![
-    proofs::Proof::from_facts(vec![0, 1, 2, 4].into_iter()),
-    proofs::Proof::from_facts(vec![0, 1, 2, 5].into_iter()),
-    proofs::Proof::from_facts(vec![0, 1, 3, 4].into_iter()),
-  ].into_iter());
-  let false_tag = proofs::Proofs::from_proofs(vec![
-    proofs::Proof::from_facts(vec![0, 1, 3, 5].into_iter()),
-  ].into_iter());
+  let true_tag = proofs::Proofs::from_proofs(
+    vec![
+      proofs::Proof::from_facts(vec![0, 1, 2, 4].into_iter()),
+      proofs::Proof::from_facts(vec![0, 1, 2, 5].into_iter()),
+      proofs::Proof::from_facts(vec![0, 1, 3, 4].into_iter()),
+    ]
+    .into_iter(),
+  );
+  let false_tag =
+    proofs::Proofs::from_proofs(vec![proofs::Proof::from_facts(vec![0, 1, 3, 5].into_iter())].into_iter());
 
   // Test
   expect_interpret_result_with_tag(
@@ -1195,4 +1191,393 @@ fn disjunctive_1() {
     ("result", vec![(true_tag, (true,)), (false_tag, (false,))]),
     proofs::Proofs::eq,
   )
+}
+
+#[test]
+fn escape_single_newline_char() {
+  expect_interpret_result(
+    r#"
+      rel str = {"Hello\nWorld"}
+    "#,
+    ("str", vec![("Hello\nWorld".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiple_newline_char() {
+  expect_interpret_result(
+    r#"
+      rel str = {"Hello\n\n\nWorld"}
+    "#,
+    ("str", vec![("Hello\n\n\nWorld".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_newline_char_end() {
+  expect_interpret_result(
+    r#"
+      rel str = {"Scallop\n"}
+    "#,
+    ("str", vec![("Scallop\n".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_newline_char_beginning() {
+  expect_interpret_result(
+    r#"
+      rel str = {"\nScallop"}
+    "#,
+    ("str", vec![("\nScallop".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_tab_char() {
+  expect_interpret_result(
+    r#"
+      rel str = {"Hello\tWorld"}
+    "#,
+    ("str", vec![("Hello\tWorld".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_null_char() {
+  expect_interpret_result(
+    r#"
+      rel str = {"Null\0"}
+    "#,
+    ("str", vec![("Null\0".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_single_quote() {
+  expect_interpret_result(
+    r#"
+      rel str = {"Here is a quote: \'Hi\'"}
+    "#,
+    ("str", vec![("Here is a quote: \'Hi\'".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_double_quote() {
+  expect_interpret_result(
+    r#"
+      rel str = {"Here is a quote: \"Hi\""}
+    "#,
+    ("str", vec![("Here is a quote: \"Hi\"".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_backslash() {
+  expect_interpret_result(
+    r#"
+      rel str = {"Back \\ Slash"}
+    "#,
+    ("str", vec![("Back \\ Slash".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_carriage_return() {
+  expect_interpret_result(
+    r#"
+      rel str = {"Carriage Return\r"}
+    "#,
+    ("str", vec![("Carriage Return\r".to_string(),)]),
+  );
+}
+
+// #[test]
+// fn escape_unicode() {
+//   expect_interpret_result(
+//     r#"
+//       rel str = {"Thumbs up: \u{1F44D}"}
+//     "#,
+//     ("str", vec![("Thumbs up: \u{1F44D}".to_string(),)]),
+//   );
+// }
+
+#[test]
+fn escape_emoji_unicode() {
+  expect_interpret_result(
+    r#"
+      rel str = {"Thumbs up: 👍"}
+    "#,
+    ("str", vec![("Thumbs up: \u{1F44D}".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""This
+is
+a
+multiline
+string"""}
+    "#,
+    ("str", vec![("This\nis\na\nmultiline\nstring".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_indented_multiline_string() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""This
+                    is
+                    a
+                    multiline
+                    string"""}
+    "#,
+    ("str", vec![("This\n                    is\n                    a\n                    multiline\n                    string".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_mix_multiline_string_before() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""This
+is
+a
+multiline
+string""", "A regular string"}
+    "#,
+    ("str", vec![("This\nis\na\nmultiline\nstring".to_string(),), ("A regular string".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_mix_multiline_string_after() {
+  expect_interpret_result(
+    r#"
+      rel str = {"First string", """This
+is
+a
+multiline
+string"""}
+    "#,
+    ("str", vec![("First string".to_string(),), ("This\nis\na\nmultiline\nstring".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiple_multiline_string() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""This
+is
+a
+multiline
+string""",
+"""A
+second
+multiline
+string"""}
+    "#,
+    ("str", vec![("This\nis\na\nmultiline\nstring".to_string(),), ("A\nsecond\nmultiline\nstring".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_with_regular_string() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""Here is a multiline string with quote:
+"This is a test"
+By John Doe"""}
+    "#,
+    ("str", vec![("Here is a multiline string with quote:\n\"This is a test\"\nBy John Doe".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_with_multiple_regular_string() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""Here is a multiline string with quote:
+"This is a test"
+By
+"Anonymous"
+"""}
+    "#,
+    ("str", vec![("Here is a multiline string with quote:\n\"This is a test\"\nBy\n\"Anonymous\"\n".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_with_escaped_double_quote_string() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""Here is a multiline string with quote:
+\"\"This is a test\"\"
+By Jane Doe"""}
+    "#,
+    ("str", vec![("Here is a multiline string with quote:\n\"\"This is a test\"\"\nBy Jane Doe".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_with_double_quote_string() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""Here is a multiline string with quote:
+""This is a test""
+By Jane Doe"""}
+    "#,
+    ("str", vec![("Here is a multiline string with quote:\nThis is a test\nBy Jane Doe".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_with_triple_quote() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""This is not the end
+\"\"\"
+But this is"""}
+    "#,
+    ("str", vec![("This is not the end\n\"\"\"\nBut this is".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_as_single_line() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""This is only one line"""}
+    "#,
+    ("str", vec![("This is only one line".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_single_newline_char() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""Hello
+\n
+World"""}
+    "#,
+    ("str", vec![("Hello\n\n\nWorld".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_multiple_newline_char() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""Hello
+\n\n\n
+World"""}
+    "#,
+    ("str", vec![("Hello\n\n\n\n\nWorld".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_newline_char_end() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""Scallop
+\n"""}
+    "#,
+    ("str", vec![("Scallop\n\n".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_newline_char_beginning() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""\n
+Scallop"""}
+    "#,
+    ("str", vec![("\n\nScallop".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_tab_char() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""Hello
+\tWorld"""}
+    "#,
+    ("str", vec![("Hello\n\tWorld".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_null_char() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""Null
+\0"""}
+    "#,
+    ("str", vec![("Null\n\0".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_single_quote() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""Here is a quote:
+\'Hi\'"""}
+    "#,
+    ("str", vec![("Here is a quote:\n\'Hi\'".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_double_quote() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""Here is a quote:
+\"Hi\""""}
+    "#,
+    ("str", vec![("Here is a quote:\n\"Hi\"".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_backslash() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""Back
+\\ Slash"""}
+    "#,
+    ("str", vec![("Back\n\\ Slash".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_carriage_return() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""Carriage
+Return\r"""}
+    "#,
+    ("str", vec![("Carriage\nReturn\r".to_string(),)]),
+  );
+}
+
+#[test]
+fn escape_multiline_string_emoji_unicode() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""Thumbs up:
+👍"""}
+    "#,
+    ("str", vec![("Thumbs up:\n\u{1F44D}".to_string(),)]),
+  );
 }

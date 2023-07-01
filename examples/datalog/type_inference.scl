@@ -1,52 +1,89 @@
-// EXP ::= let V = EXP in EXP
-//       | if EXP then EXP else EXP
-//       | X + Y | X - Y
-//       | X and Y | X or Y | not X
-//       | X == Y | X != Y | X < Y | X <= Y | X > Y | X >= Y
+type Op = EQ | NEQ | GEQ | LEQ | GT | LT | AND | OR | XOR | ADD | SUB | MUL | DIV | NEG | NOT
 
-// Basic syntax constructs
-type number(usize, i32)
-type boolean(usize, bool)
-type variable(usize, String)
-type bexp(usize, String, usize, usize)
-type aexp(usize, String, usize, usize)
-type let_in(usize, String, usize, usize)
-type if_then_else(usize, usize, usize, usize)
+type Expr = Number(i32)
+          | Boolean(bool)
+          | Variable(String)
+          | Binary(Op, Expr, Expr)
+          | Unary(Op, Expr)
+          | Let(String, Expr, Expr)
+          | Ite(Expr, Expr, Expr)
 
-// Comparison operations
-rel comparison_op = {"==", "!=", ">=", "<=", ">", "<"}
-rel logical_op = {"&&", "||", "^"}
-rel arith_op = {"+", "-", "*", "/"}
+type Type = BOOL | INT
 
-// A program with each number 0-4 denoting their index
-//   let x = 3 in x == 4
-//   -------------------0
-//           -1   ------2
-//                -3   -4
-rel let_in = {(0, "x", 1, 2)}
-rel number = {(1, 3), (4, 4)}
-rel bexp = {(2, "==", 3, 4)}
-rel variable = {(3, "x")}
+type input_program(expr: Expr)
 
-// Type Inference:
+// =================
 
-// - Base case
-rel type_of(x, "bool") = boolean(x, _)
-rel type_of(x, "int") = number(x, _)
-rel type_of(x, t) = variable(x, v), env_type(x, v, t)
-rel type_of(e, "bool") = bexp(e, op, x, y), comparison_op(op), type_of(x, "int"), type_of(y, "int")
-rel type_of(e, "bool") = bexp(e, op, x, y), logical_op(op), type_of(x, "bool"), type_of(y, "bool")
-rel type_of(e, "int") = aexp(e, op, x, y), arith_op(op), type_of(x, "int"), type_of(y, "int")
-rel type_of(e, t) = let_in(e, v, b, c), env_type(c, v, tv), type_of(b, tv), type_of(c, t)
-rel type_of(e, t) = if_then_else(e, x, y, z), type_of(x, "bool"), type_of(y, t), type_of(z, t)
+// Pretty printing of operators
+rel op_to_string = {
+  (EQ, "=="), (NEQ, "!="),
+  (GEQ, ">="), (LEQ, "<="), (GT, ">"), (LT, "<"),
+  (AND, "&&"), (OR, "||"), (XOR, "^"),
+  (ADD, "+"), (SUB, "-"), (MUL, "*"), (DIV, "/"),
+  (NEG, "-"), (NOT, "!")
+}
 
-// - Environment variable type
-rel env_type(x, v, t) = bexp(e, _, x, _), env_type(e, v, t)
-rel env_type(y, v, t) = bexp(e, _, _, y), env_type(e, v, t)
-rel env_type(x, v, t) = aexp(e, _, x, _), env_type(e, v, t)
-rel env_type(y, v, t) = aexp(e, _, _, y), env_type(e, v, t)
-rel env_type(z, v, t) = let_in(_, v, y, z), type_of(y, t)
-rel env_type(z, v2, t) = let_in(x, v1, _, z), env_type(x, v2, t), v1 != v2
-rel env_type(x, v, t) = env_type(e, v, t), if_then_else(e, x, _, _)
-rel env_type(y, v, t) = env_type(e, v, t), if_then_else(e, _, y, _)
-rel env_type(z, v, t) = env_type(e, v, t), if_then_else(e, _, _, z)
+// Pretty printing of type
+rel ty_to_string = {(BOOL, "bool"), (INT, "int")}
+
+// Pretty printing of expressions
+rel expr_to_string(e, x as String) = case e is Number(x)
+rel expr_to_string(e, x as String) = case e is Boolean(x)
+rel expr_to_string(e, x) = case e is Variable(x)
+rel expr_to_string(e, $format("({} {} {})", op1_str, op_str, op2_str)) = case e is Binary(op, op1, op2) and expr_to_string(op1, op1_str) and expr_to_string(op2, op2_str) and op_to_string(op, op_str)
+rel expr_to_string(e, $format("({}{})", op_str, op1_str)) = case e is Unary(op, op1) and expr_to_string(op1, op1_str) and op_to_string(op, op_str)
+rel expr_to_string(e, $format("let {} = {} in {}", x, b_str, i_str)) = case e is Let(x, b, i) and expr_to_string(b, b_str) and expr_to_string(i, i_str)
+rel expr_to_string(e, $format("if {} then {} else {}", cs, ts, es)) = case e is Ite(c, t, e) and expr_to_string(c, cs) and expr_to_string(t, ts) and expr_to_string(e, es)
+
+// =================
+
+// Basic types of operators
+rel eq_op = {EQ, NEQ}
+rel comp_op = {GEQ, LEQ, GT, LT}
+rel logical_op = {AND, OR, XOR}
+rel arith_op = {ADD, SUB, MUL, DIV}
+rel unary_arith_op = {NEG}
+rel unary_logical_op = {NOT}
+
+// Typing environment
+type Env = Empty() | Cons(String, Type, Env)
+const EMPTY_ENV = Empty()
+
+// Find a variable stored in the typing environment
+@demand("bbf")
+rel find_type(env, var, ty) = case e is Cons(var, ty, _)
+rel find_type(env, var, ty) = case e is Cons(vp, _, tl) and vp != var and find_type(tl, var, ty)
+
+// The type (`ty`) of an expression (`expr`) under an environment (`env`)
+type type_of(env: Env, expr: Expr, ty: Type)
+
+// Typing rules
+@demand("bbf")
+rel type_of(env, e, BOOL) = case e is Boolean(_)
+rel type_of(env, e, INT) = case e is Number(_)
+rel type_of(env, e, ty) = case e is Variable(x) and find_type(env, x, ty)
+rel type_of(env, e, BOOL) = case e is Binary(op, op1, op2) and eq_op(op) and type_of(env, op1, ty) and type_of(env, op2, ty)
+rel type_of(env, e, BOOL) = case e is Binary(op, op1, op2) and comp_op(op) and type_of(env, op1, INT) and type_of(env, op2, INT)
+rel type_of(env, e, BOOL) = case e is Binary(op, op1, op2) and logical_op(op) and type_of(env, op1, BOOL) and type_of(env, op2, BOOL)
+rel type_of(env, e, INT) = case e is Binary(op, op1, op2) and arith_op(op) and type_of(env, op1, INT) and type_of(env, op2, INT)
+rel type_of(env, e, BOOL) = case e is Unary(op, op1) and unary_logical_op(op) and type_of(env, op1, BOOL)
+rel type_of(env, e, INT) = case e is Unary(op, op1) and unary_arith_op(op) and type_of(env, op1, INT)
+rel type_of(env, e, ty_i) = to_infer_let_cons(env, e, sub_env, i) and type_of(sub_env, i, ty_i)
+rel type_of(env, e, ty) = case e is Ite(c, t, e) and type_of(env, c, BOOL) and type_of(env, t, ty) and type_of(env, e, ty)
+
+// Helpers
+@demand("bbff")
+rel to_infer_let_cons(env, e, new Cons(x, ty_b, env), i) = case e is Let(x, b, i) and type_of(env, b, ty_b)
+
+// The result if the type of the input program
+rel result(expr_str, ty_str) = input_program(p) and expr_to_string(p, expr_str) and type_of(EMPTY_ENV, p, ty) and ty_to_string(ty, ty_str)
+
+// =================
+
+// let x = 3 in x == 4
+const PROGRAM = Let("x", Number(3), Binary(EQ, Variable("x"), Number(4)))
+
+// Input program is the `PROGRAM`
+rel input_program(PROGRAM)
+
+query result

@@ -15,6 +15,7 @@ use super::super::*;
 pub struct ConstantDeclAnalysis {
   pub variables: HashMap<String, (Loc, Option<Type>, Constant)>,
   pub variable_use: HashMap<Loc, String>,
+  pub entity_facts: Vec<EntityFact>,
   pub errors: Vec<ConstantDeclError>,
 }
 
@@ -24,6 +25,7 @@ impl ConstantDeclAnalysis {
     Self {
       variables: HashMap::new(),
       variable_use: HashMap::new(),
+      entity_facts: Vec::new(),
       errors: vec![],
     }
   }
@@ -82,13 +84,13 @@ impl ConstantDeclAnalysis {
               }
             } else {
               // If there is no previous max, then directly give it `i`.
-              return Ok(i)
+              return Ok(i);
             }
           }
           _ => {
             // We don't care other cases
           }
-        }
+        },
         _ => {}
       };
 
@@ -111,7 +113,11 @@ impl ConstantDeclAnalysis {
         // Then store the variable into the storage
         self.variables.insert(
           member.name().to_string(),
-          (member.location().clone(), Some(Type::usize()), Constant::integer(id as i64))
+          (
+            member.location().clone(),
+            Some(Type::usize()),
+            Constant::integer(id as i64),
+          ),
         );
         Ok(())
       }
@@ -145,11 +151,35 @@ impl NodeVisitor for ConstantDeclAnalysis {
         second_decl: ca.location().clone(),
       })
     } else {
-      // Then store the variable into the storage
-      self.variables.insert(
-        ca.name().to_string(),
-        (ca.location().clone(), ca.ty().cloned(), ca.value().clone()),
-      );
+      let entity = ca.value();
+
+      // Then we make sure that the entity is indeed a constant
+      if let Some(var_loc) = entity.get_first_non_constant_location(&|v| self.variables.contains_key(v.name())) {
+        self.errors.push(ConstantDeclError::EntityContainsNonConstant {
+          const_decl_loc: ca.location().clone(),
+          var_loc: var_loc.clone(),
+        })
+      } else {
+        // Annotate the type of the entity
+        let ty = if entity.is_constant() {
+          ca.ty().cloned()
+        } else {
+          Some(Type::entity())
+        };
+
+        // Process the entity into a set of entity facts and one final constant value
+        let (entity_facts, constant) =
+          entity.to_facts_with_constant_variables(|v| self.variables.get(v.name()).map(|(_, _, c)| c.clone()));
+
+        // Extend the entity facts with the storage
+        self.entity_facts.extend(entity_facts);
+
+        // Store the variable
+        self.variables.insert(
+          ca.identifier().name().to_string(),
+          (ca.location().clone(), ty, constant),
+        );
+      }
     }
   }
 
@@ -230,6 +260,10 @@ pub enum ConstantDeclError {
     id: i64,
     loc: Loc,
   },
+  EntityContainsNonConstant {
+    const_decl_loc: Loc,
+    var_loc: Loc,
+  },
 }
 
 impl FrontCompileErrorTrait for ConstantDeclError {
@@ -262,7 +296,18 @@ impl FrontCompileErrorTrait for ConstantDeclError {
         format!("unknown variable `{}`:\n{}", name, loc.report(src))
       }
       Self::EnumIDAlreadyAssigned { curr_name, id, loc } => {
-        format!("the enum ID `{}` for variant `{}` has already been assigned\n{}", id, curr_name, loc.report(src))
+        format!(
+          "the enum ID `{}` for variant `{}` has already been assigned\n{}",
+          id,
+          curr_name,
+          loc.report(src)
+        )
+      }
+      Self::EntityContainsNonConstant { var_loc, .. } => {
+        format!(
+          "non-constant expression found in constant entity:\n{}",
+          var_loc.report(src)
+        )
       }
     }
   }

@@ -56,9 +56,9 @@ pub fn create_pylib(
 
     Ok(())
   } else {
-    println!("[Compile Error]");
-    println!("stdout: {}", std::str::from_utf8(&output.stdout).unwrap());
-    println!("{}", std::str::from_utf8(&output.stderr).unwrap());
+    eprintln!("[Compile Error]");
+    eprintln!("stdout: {}", std::str::from_utf8(&output.stdout).unwrap());
+    eprintln!("{}", std::str::from_utf8(&output.stderr).unwrap());
     Ok(())
   }
 }
@@ -145,6 +145,7 @@ fn generate_pylib_code(
     use pyo3::exceptions::*;
     use pyo3::types::*;
     use rayon::prelude::*;
+    use scallop_core::common::tensors::*;
     use scallop_core::common::tuple::*;
     use scallop_core::common::tuple_type::*;
     use scallop_core::common::value::*;
@@ -281,9 +282,9 @@ fn generate_context_code() -> TokenStream {
       Unit(StaticContext<unit::UnitProvenance>),
       MinMaxProb(StaticContext<min_max_prob::MinMaxProbProvenance>),
       AddMultProb(StaticContext<add_mult_prob::AddMultProbProvenance>),
-      DiffMinMaxProb(StaticContext<diff_min_max_prob::DiffMinMaxProbProvenance<Py<PyAny>, ArcFamily>>),
-      DiffTopKProofs(StaticContext<diff_top_k_proofs::DiffTopKProofsProvenance<Py<PyAny>, ArcFamily>>),
-      DiffTopBottomKClauses(StaticContext<diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance<Py<PyAny>, ArcFamily>>),
+      DiffMinMaxProb(StaticContext<diff_min_max_prob::DiffMinMaxProbProvenance<ExtTag, ArcFamily>>),
+      DiffTopKProofs(StaticContext<diff_top_k_proofs::DiffTopKProofsProvenance<ExtTag, ArcFamily>>),
+      DiffTopBottomKClauses(StaticContext<diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance<ExtTag, ArcFamily>>),
     }
 
     #[pyclass(unsendable, name = "StaticContext")]
@@ -312,8 +313,8 @@ fn generate_context_code() -> TokenStream {
           ContextEnum::MinMaxProb(_) => None,
           ContextEnum::AddMultProb(_) => None,
           ContextEnum::DiffMinMaxProb(_) => None,
-          ContextEnum::DiffTopKProofs(c) => Some(c.prov_ctx.input_tags()),
-          ContextEnum::DiffTopBottomKClauses(c) => Some(c.prov_ctx.input_tags()),
+          ContextEnum::DiffTopKProofs(c) => Some(c.prov_ctx.input_tags().into_vec()),
+          ContextEnum::DiffTopBottomKClauses(c) => Some(c.prov_ctx.input_tags().into_vec()),
         }
       }
 
@@ -502,6 +503,13 @@ fn generate_helper_functions() -> TokenStream {
             Bool(b) => Python::with_gil(|py| b.to_object(py)),
             Str(s) => Python::with_gil(|py| s.to_object(py)),
             String(s) => Python::with_gil(|py| s.to_object(py)),
+            Symbol(_) => unimplemented!(),
+            SymbolString(_) => unimplemented!(),
+            DateTime(_) => unimplemented!(),
+            Duration(_) => unimplemented!(),
+            Entity(i) => Python::with_gil(|py| i.to_object(py)),
+            Tensor(_) => unimplemented!(),
+            TensorValue(_) => unimplemented!(),
           }
         }
       }
@@ -544,7 +552,80 @@ fn generate_helper_functions() -> TokenStream {
           ValueType::Bool => Ok(Tuple::Value(Value::Bool(v.extract()?))),
           ValueType::Str => panic!("Static reference string cannot be used for Python binding"),
           ValueType::String => Ok(Tuple::Value(Value::String(v.extract()?))),
+          ValueType::Symbol => unimplemented!(),
+          ValueType::DateTime => unimplemented!(),
+          ValueType::Duration => unimplemented!(),
+          ValueType::Entity => Ok(Tuple::Value(Value::Entity(v.extract()?))),
+          ValueType::Tensor => unimplemented!(),
         },
+      }
+    }
+
+    #[derive(Clone)]
+    pub struct ExtTag {
+      pub tag: Py<PyAny>,
+    }
+
+    impl FromTensor for ExtTag {
+      #[allow(unused)]
+      #[cfg(not(feature = "torch-tensor"))]
+      fn from_tensor(tensor: Tensor) -> Option<Self> {
+        None
+      }
+
+      #[cfg(feature = "torch-tensor")]
+      fn from_tensor(tensor: Tensor) -> Option<Self> {
+        use super::torch::*;
+        Python::with_gil(|py| {
+          let py_tensor = PyTensor(tensor.tensor);
+          let py_obj: Py<PyAny> = py_tensor.into_py(py);
+          let ext_tag: ExtTag = py_obj.into();
+          Some(ext_tag)
+        })
+      }
+    }
+
+    impl From<Py<PyAny>> for ExtTag {
+      fn from(tag: Py<PyAny>) -> Self {
+        Self { tag }
+      }
+    }
+
+    impl From<&PyAny> for ExtTag {
+      fn from(tag: &PyAny) -> Self {
+        Self { tag: tag.into() }
+      }
+    }
+
+    impl Into<Py<PyAny>> for ExtTag {
+      fn into(self) -> Py<PyAny> {
+        self.tag
+      }
+    }
+
+    pub trait ExtTagVec {
+      fn into_vec(self) -> Vec<Py<PyAny>>;
+    }
+
+    impl ExtTagVec for Vec<ExtTag> {
+      fn into_vec(self) -> Vec<Py<PyAny>> {
+        self.into_iter().map(|v| v.tag).collect()
+      }
+    }
+
+    pub trait ExtTagOption {
+      fn into_option(self) -> Option<Py<PyAny>>;
+    }
+
+    impl ExtTagOption for Option<ExtTag> {
+      fn into_option(self) -> Option<Py<PyAny>> {
+        self.map(|v| v.tag)
+      }
+    }
+
+    impl ExtTagOption for Option<&ExtTag> {
+      fn into_option(self) -> Option<Py<PyAny>> {
+        self.map(|v| v.tag.clone())
       }
     }
 
@@ -616,7 +697,7 @@ fn generate_helper_functions() -> TokenStream {
     impl PythonProvenance for proofs::ProofsProvenance<ArcFamily> {
       fn process_py_tag(disj_id: &PyAny) -> Result<Option<Self::InputTag>, BindingError> {
         let disj_id: usize = disj_id.extract()?;
-        Ok(Some(proofs::ProofsInputTag::Exclusive(disj_id)))
+        Ok(Some(Exclusion::Exclusive(disj_id)))
       }
 
       fn to_output_py_tag(proofs: &Self::OutputTag) -> Py<PyAny> {
@@ -681,26 +762,26 @@ fn generate_helper_functions() -> TokenStream {
       }
     }
 
-    impl PythonProvenance for diff_min_max_prob::DiffMinMaxProbProvenance<Py<PyAny>, ArcFamily> {
+    impl PythonProvenance for diff_min_max_prob::DiffMinMaxProbProvenance<ExtTag, ArcFamily> {
       fn process_py_tag(tag: &PyAny) -> Result<Option<Self::InputTag>, BindingError> {
         let prob: f64 = tag.extract().map_err(BindingError::from)?;
-        let tag: Py<PyAny> = tag.into();
+        let tag: ExtTag = tag.into();
         Ok(Some((prob, Some(tag)).into()))
       }
 
       fn to_output_py_tag(tag: &Self::OutputTag) -> Py<PyAny> {
         match tag.2 {
-          1 => Python::with_gil(|py| (1, tag.3.clone().unwrap()).to_object(py)),
+          1 => Python::with_gil(|py| (1, tag.3.as_ref().into_option().unwrap()).to_object(py)),
           0 => Python::with_gil(|py| (0, tag.0).to_object(py)),
-          _ => Python::with_gil(|py| (-1, tag.3.clone().unwrap()).to_object(py)),
+          _ => Python::with_gil(|py| (-1, tag.3.as_ref().into_option().unwrap()).to_object(py)),
         }
       }
     }
 
-    impl PythonProvenance for diff_add_mult_prob::DiffAddMultProbProvenance<Py<PyAny>, ArcFamily> {
+    impl PythonProvenance for diff_add_mult_prob::DiffAddMultProbProvenance<ExtTag, ArcFamily> {
       fn process_py_tag(tag: &PyAny) -> Result<Option<Self::InputTag>, BindingError> {
         let prob: f64 = tag.extract().map_err(BindingError::from)?;
-        let tag: Py<PyAny> = tag.into();
+        let tag: ExtTag = tag.into();
         Ok(Some((prob, Some(tag)).into()))
       }
 
@@ -709,14 +790,14 @@ fn generate_helper_functions() -> TokenStream {
       }
 
       fn get_input_tags(&self) -> Option<Vec<Py<PyAny>>> {
-        Some(self.input_tags())
+        Some(self.input_tags().into_vec())
       }
     }
 
-    impl PythonProvenance for diff_nand_mult_prob::DiffNandMultProbProvenance<Py<PyAny>, ArcFamily> {
+    impl PythonProvenance for diff_nand_mult_prob::DiffNandMultProbProvenance<ExtTag, ArcFamily> {
       fn process_py_tag(tag: &PyAny) -> Result<Option<Self::InputTag>, BindingError> {
         let prob: f64 = tag.extract().map_err(BindingError::from)?;
-        let tag: Py<PyAny> = tag.into();
+        let tag: ExtTag = tag.into();
         Ok(Some((prob, Some(tag)).into()))
       }
 
@@ -725,14 +806,14 @@ fn generate_helper_functions() -> TokenStream {
       }
 
       fn get_input_tags(&self) -> Option<Vec<Py<PyAny>>> {
-        Some(self.input_tags())
+        Some(self.input_tags().into_vec())
       }
     }
 
-    impl PythonProvenance for diff_max_mult_prob::DiffMaxMultProbProvenance<Py<PyAny>, ArcFamily> {
+    impl PythonProvenance for diff_max_mult_prob::DiffMaxMultProbProvenance<ExtTag, ArcFamily> {
       fn process_py_tag(tag: &PyAny) -> Result<Option<Self::InputTag>, BindingError> {
         let prob: f64 = tag.extract().map_err(BindingError::from)?;
-        let tag: Py<PyAny> = tag.into();
+        let tag: ExtTag = tag.into();
         Ok(Some((prob, Some(tag)).into()))
       }
 
@@ -741,14 +822,14 @@ fn generate_helper_functions() -> TokenStream {
       }
 
       fn get_input_tags(&self) -> Option<Vec<Py<PyAny>>> {
-        Some(self.input_tags())
+        Some(self.input_tags().into_vec())
       }
     }
 
-    impl PythonProvenance for diff_nand_min_prob::DiffNandMinProbProvenance<Py<PyAny>, ArcFamily> {
+    impl PythonProvenance for diff_nand_min_prob::DiffNandMinProbProvenance<ExtTag, ArcFamily> {
       fn process_py_tag(tag: &PyAny) -> Result<Option<Self::InputTag>, BindingError> {
         let prob: f64 = tag.extract()?;
-        let tag: Py<PyAny> = tag.into();
+        let tag: ExtTag = tag.into();
         Ok(Some((prob, Some(tag)).into()))
       }
 
@@ -757,15 +838,15 @@ fn generate_helper_functions() -> TokenStream {
       }
 
       fn get_input_tags(&self) -> Option<Vec<Py<PyAny>>> {
-        Some(self.input_tags())
+        Some(self.input_tags().into_vec())
       }
     }
 
-    impl PythonProvenance for diff_sample_k_proofs::DiffSampleKProofsProvenance<Py<PyAny>, ArcFamily> {
+    impl PythonProvenance for diff_sample_k_proofs::DiffSampleKProofsProvenance<ExtTag, ArcFamily> {
       fn process_py_tag(tag: &PyAny) -> Result<Option<Self::InputTag>, BindingError> {
         let tag_disj_id: (&PyAny, Option<usize>) = tag.extract()?;
         if let Some(prob) = tag_disj_id.0.extract()? {
-          let tag: Py<PyAny> = tag_disj_id.0.into();
+          let tag: ExtTag = tag_disj_id.0.into();
           Ok(Some((prob, tag, tag_disj_id.1).into()))
         } else {
           Ok(None)
@@ -777,15 +858,15 @@ fn generate_helper_functions() -> TokenStream {
       }
 
       fn get_input_tags(&self) -> Option<Vec<Py<PyAny>>> {
-        Some(self.input_tags())
+        Some(self.input_tags().into_vec())
       }
     }
 
-    impl PythonProvenance for diff_top_k_proofs::DiffTopKProofsProvenance<Py<PyAny>, ArcFamily> {
+    impl PythonProvenance for diff_top_k_proofs::DiffTopKProofsProvenance<ExtTag, ArcFamily> {
       fn process_py_tag(tag: &PyAny) -> Result<Option<Self::InputTag>, BindingError> {
         let tag_disj_id: (&PyAny, Option<usize>) = tag.extract()?;
         if let Some(prob) = tag_disj_id.0.extract()? {
-          let tag: Py<PyAny> = tag_disj_id.0.into();
+          let tag: ExtTag = tag_disj_id.0.into();
           Ok(Some((prob, tag, tag_disj_id.1).into()))
         } else {
           Ok(None)
@@ -797,35 +878,15 @@ fn generate_helper_functions() -> TokenStream {
       }
 
       fn get_input_tags(&self) -> Option<Vec<Py<PyAny>>> {
-        Some(self.input_tags())
+        Some(self.input_tags().into_vec())
       }
     }
 
-    impl PythonProvenance for diff_top_k_proofs_indiv::DiffTopKProofsIndivProvenance<Py<PyAny>, ArcFamily> {
+    impl PythonProvenance for diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance<ExtTag, ArcFamily> {
       fn process_py_tag(tag: &PyAny) -> Result<Option<Self::InputTag>, BindingError> {
         let tag_disj_id: (&PyAny, Option<usize>) = tag.extract()?;
         if let Some(prob) = tag_disj_id.0.extract()? {
-          let tag: Py<PyAny> = tag_disj_id.0.into();
-          Ok(Some((prob, tag, tag_disj_id.1).into()))
-        } else {
-          Ok(None)
-        }
-      }
-
-      fn to_output_py_tag(tag: &Self::OutputTag) -> Py<PyAny> {
-        Python::with_gil(|py| (tag.k, tag.proofs.clone()).to_object(py))
-      }
-
-      fn get_input_tags(&self) -> Option<Vec<Py<PyAny>>> {
-        Some(self.input_tags())
-      }
-    }
-
-    impl PythonProvenance for diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance<Py<PyAny>, ArcFamily> {
-      fn process_py_tag(tag: &PyAny) -> Result<Option<Self::InputTag>, BindingError> {
-        let tag_disj_id: (&PyAny, Option<usize>) = tag.extract()?;
-        if let Some(prob) = tag_disj_id.0.extract()? {
-          let tag: Py<PyAny> = tag_disj_id.0.into();
+          let tag: ExtTag = tag_disj_id.0.into();
           Ok(Some((prob, tag, tag_disj_id.1).into()))
         } else {
           Ok(None)
@@ -837,7 +898,7 @@ fn generate_helper_functions() -> TokenStream {
       }
 
       fn get_input_tags(&self) -> Option<Vec<Py<PyAny>>> {
-        Some(self.input_tags())
+        Some(self.input_tags().into_vec())
       }
     }
   }

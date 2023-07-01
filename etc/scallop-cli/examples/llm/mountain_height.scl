@@ -1,0 +1,8 @@
+@gpt_complete(prompt="The mountain {x}'s height is {y} meters", pattern="bf")
+type mountain_height(x: String, y: String)
+
+rel mountains = {"Mount Everest", "K2"}
+
+rel result(x, y) = mountains(x), mountain_height(x, y)
+
+query result

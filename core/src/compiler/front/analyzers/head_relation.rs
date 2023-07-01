@@ -14,7 +14,10 @@ pub struct HeadRelationAnalysis {
 
 impl HeadRelationAnalysis {
   pub fn new(foreign_predicate_registry: &ForeignPredicateRegistry) -> Self {
-    let declared_relations = foreign_predicate_registry.iter().map(|(_, p)| p.name().to_string()).collect();
+    let declared_relations = foreign_predicate_registry
+      .iter()
+      .map(|(_, p)| p.name().to_string())
+      .collect();
     Self {
       errors: vec![],
       used_relations: HashMap::new(),

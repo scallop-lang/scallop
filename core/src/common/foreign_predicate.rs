@@ -2,10 +2,12 @@ use std::collections::*;
 
 use dyn_clone::*;
 
+use crate::runtime::env::RuntimeEnvironment;
+
+use super::foreign_predicates as fps;
+use super::input_tag::*;
 use super::value::*;
 use super::value_type::*;
-use super::input_tag::*;
-use super::foreign_predicates as fps;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Binding {
@@ -52,7 +54,12 @@ impl std::fmt::Display for ForeignPredicateIdentifier {
       "pred {}[{}]({})",
       self.identifier,
       self.binding_pattern,
-      self.types.iter().map(|t| format!("{}", t)).collect::<Vec<_>>().join(", ")
+      self
+        .types
+        .iter()
+        .map(|t| format!("{}", t))
+        .collect::<Vec<_>>()
+        .join(", ")
     ))
   }
 }
@@ -77,10 +84,9 @@ impl BindingPattern {
   pub fn new(arity: usize, num_bounded: usize) -> Self {
     assert!(num_bounded <= arity);
     Self {
-      pattern: (0..arity).map(|i| {
-        if i < num_bounded { Binding::Bound }
-        else { Binding::Free }
-      }).collect()
+      pattern: (0..arity)
+        .map(|i| if i < num_bounded { Binding::Bound } else { Binding::Free })
+        .collect(),
     }
   }
 
@@ -119,6 +125,29 @@ pub trait ForeignPredicate: DynClone {
   /// The name of the predicate
   fn name(&self) -> String;
 
+  /// Generic type parameters
+  fn generic_type_parameters(&self) -> Vec<ValueType> {
+    vec![]
+  }
+
+  fn internal_name(&self) -> String {
+    let name = self.name();
+    let type_params = self.generic_type_parameters();
+    if type_params.len() > 0 {
+      format!(
+        "{}#{}",
+        name,
+        type_params
+          .into_iter()
+          .map(|t| t.to_string())
+          .collect::<Vec<_>>()
+          .join("#")
+      )
+    } else {
+      name.to_string()
+    }
+  }
+
   /// The arity of the predicate (i.e. number of arguments)
   fn arity(&self) -> usize;
 
@@ -149,7 +178,19 @@ pub trait ForeignPredicate: DynClone {
   ///
   /// The `bounded` tuple (`Vec<Value>`) should have arity (length) `self.num_bounded()`.
   /// The function returns a sequence of (dynamically) tagged-tuples where the arity is `self.num_free()`
-  fn evaluate(&self, bounded: &[Value]) -> Vec<(DynamicInputTag, Vec<Value>)>;
+  #[allow(unused_variables)]
+  fn evaluate(&self, bounded: &[Value]) -> Vec<(DynamicInputTag, Vec<Value>)> {
+    panic!(
+      "[Internal Error] Missing evaluate function in the foreign predicate `{}`",
+      self.name()
+    )
+  }
+
+  /// Evaluate the foreign predicate given a tuple containing bounded variables and an environment
+  #[allow(unused_variables)]
+  fn evaluate_with_env(&self, env: &RuntimeEnvironment, bounded: &[Value]) -> Vec<(DynamicInputTag, Vec<Value>)> {
+    self.evaluate(bounded)
+  }
 }
 
 /// The dynamic foreign predicate
@@ -176,6 +217,10 @@ impl ForeignPredicate for DynamicForeignPredicate {
     self.fp.name()
   }
 
+  fn generic_type_parameters(&self) -> Vec<ValueType> {
+    self.fp.generic_type_parameters()
+  }
+
   fn arity(&self) -> usize {
     self.fp.arity()
   }
@@ -191,14 +236,20 @@ impl ForeignPredicate for DynamicForeignPredicate {
   fn evaluate(&self, bounded: &[Value]) -> Vec<(DynamicInputTag, Vec<Value>)> {
     self.fp.evaluate(bounded)
   }
+
+  fn evaluate_with_env(&self, env: &RuntimeEnvironment, bounded: &[Value]) -> Vec<(DynamicInputTag, Vec<Value>)> {
+    self.fp.evaluate_with_env(env, bounded)
+  }
 }
 
 impl std::fmt::Debug for DynamicForeignPredicate {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f
-      .debug_struct("ForeignPredicate")
+    f.debug_struct("ForeignPredicate")
       .field("name", &self.name())
-      .field("types", &(0..self.arity()).map(|i| self.argument_type(i)).collect::<Vec<_>>())
+      .field(
+        "types",
+        &(0..self.arity()).map(|i| self.argument_type(i)).collect::<Vec<_>>(),
+      )
       .field("num_bounded", &self.num_bounded())
       .finish()
   }
@@ -232,7 +283,7 @@ impl ForeignPredicateRegistry {
   /// Create an empty foreign predicate registry
   pub fn new() -> Self {
     Self {
-      registry: HashMap::new()
+      registry: HashMap::new(),
     }
   }
 
@@ -256,15 +307,23 @@ impl ForeignPredicateRegistry {
       reg.register(fps::SoftNumberLt::new(value_type.clone())).unwrap();
     }
 
+    // Register soft eq on tensors
+    reg.register(fps::SoftNumberEq::new(ValueType::Tensor)).unwrap();
+
     // String operations
     reg.register(fps::StringCharsBFF::new()).unwrap();
+    reg.register(fps::StringFindBBFF::new()).unwrap();
+    reg.register(fps::StringSplitBBF::new()).unwrap();
+
+    // DateTime
+    reg.register(fps::DateTimeYMD::new()).unwrap();
 
     reg
   }
 
   /// Register a new foreign predicate in the registry
   pub fn register<P: ForeignPredicate + Send + Sync + 'static>(&mut self, p: P) -> Result<(), ForeignPredicateError> {
-    let id = p.name();
+    let id = p.internal_name();
     if self.contains(&id) {
       Err(ForeignPredicateError::AlreadyExisted { id: format!("{}", id) })
     } else {

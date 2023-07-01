@@ -22,6 +22,21 @@ impl<T> GenericTuple<T> {
       false
     }
   }
+
+  /// Return the size of the tuple; if is a value, then `None` is returned
+  pub fn len(&self) -> Option<usize> {
+    match self {
+      Self::Value(_) => None,
+      Self::Tuple(ts) => Some(ts.len()),
+    }
+  }
+
+  pub fn get_value(&self) -> Option<&T> {
+    match self {
+      Self::Value(v) => Some(v),
+      Self::Tuple(_) => None,
+    }
+  }
 }
 
 impl<T> std::ops::Index<usize> for GenericTuple<T> {

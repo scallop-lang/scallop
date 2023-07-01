@@ -39,10 +39,12 @@ impl DemandAttributeAnalysis {
 
   pub fn set_disjunctive(&mut self, pred: &String, loc: &AstNodeLocation) {
     if self.demand_attrs.contains_key(pred) {
-      self.errors.push(DemandAttributeError::DisjunctivePredicateWithDemandAttribute {
-        pred: pred.clone(),
-        loc: loc.clone(),
-      });
+      self
+        .errors
+        .push(DemandAttributeError::DisjunctivePredicateWithDemandAttribute {
+          pred: pred.clone(),
+          loc: loc.clone(),
+        });
     } else {
       self.disjunctive_predicates.insert(pred.clone());
     }
@@ -51,28 +53,31 @@ impl DemandAttributeAnalysis {
   pub fn process_attribute(&mut self, pred: &str, attr: &Attribute) {
     // Check if the predicate occurs in a disjunctive head
     if self.disjunctive_predicates.contains(pred) {
-      self.errors.push(DemandAttributeError::DisjunctivePredicateWithDemandAttribute {
-        pred: pred.to_string(),
-        loc: attr.location().clone(),
-      });
+      self
+        .errors
+        .push(DemandAttributeError::DisjunctivePredicateWithDemandAttribute {
+          pred: pred.to_string(),
+          loc: attr.location().clone(),
+        });
     }
 
     // Check the pattern
     if attr.name() == "demand" {
       if attr.num_pos_args() == 1 {
         let value = attr.pos_arg(0).unwrap();
-        match &value.node {
-          ConstantNode::String(s) => {
-            if is_valid_demand_pattern(s) {
+        match value.as_constant().map(|v| &v.node) {
+          Some(ConstantNode::String(s)) => {
+            let string_content = s.string();
+            if is_valid_demand_pattern(string_content) {
               if let Some((p, l)) = self.demand_attrs.get(pred) {
-                if p != s {
+                if p != string_content {
                   self.errors.push(DemandAttributeError::ConflictingPattern {
                     first_loc: l.clone(),
                     second_loc: value.location().clone(),
                   });
                 }
               } else {
-                let attr = (s.clone(), value.location().clone());
+                let attr = (string_content.to_string(), value.location().clone());
                 self.demand_attrs.insert(pred.to_string(), attr);
               }
             } else {
@@ -81,8 +86,12 @@ impl DemandAttributeAnalysis {
               });
             }
           }
-          _ => self.errors.push(DemandAttributeError::InvalidArgumentType {
-            found: value.kind().to_string(),
+          Some(c) => self.errors.push(DemandAttributeError::InvalidArgumentType {
+            found: c.kind().to_string(),
+            loc: value.location().clone(),
+          }),
+          None => self.errors.push(DemandAttributeError::InvalidArgumentType {
+            found: "list".to_string(),
             loc: value.location().clone(),
           }),
         }
@@ -113,14 +122,14 @@ impl NodeVisitor for DemandAttributeAnalysis {
   fn visit_rule_decl(&mut self, rule_decl: &ast::RuleDecl) {
     if rule_decl.rule().head().is_disjunction() {
       for predicate in rule_decl.rule().head().iter_predicates() {
-        self.set_disjunctive(predicate, rule_decl.rule().head().location());
+        self.set_disjunctive(&predicate, rule_decl.rule().head().location());
         return; // early stopping because this is an error
       }
     }
 
     // Otherwise, we add the demand attribute
     if let Some(atom) = rule_decl.rule().head().atom() {
-      self.process_attributes(atom.predicate(), rule_decl.attributes());
+      self.process_attributes(&atom.predicate(), rule_decl.attributes());
     }
   }
 }
@@ -210,7 +219,11 @@ impl FrontCompileErrorTrait for DemandAttributeError {
         format!("Invalid demand pattern\n{}", loc.report(src))
       }
       Self::DisjunctivePredicateWithDemandAttribute { pred, loc } => {
-        format!("The predicate `{}` being annotated by `demand` but occurs in a disjunctive rule head\n{}", pred, loc.report(src))
+        format!(
+          "The predicate `{}` being annotated by `demand` but occurs in a disjunctive rule head\n{}",
+          pred,
+          loc.report(src)
+        )
       }
     }
   }

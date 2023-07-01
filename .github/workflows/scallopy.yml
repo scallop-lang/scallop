@@ -1,0 +1,46 @@
+name: Scallopy
+
+on: [push]
+
+env:
+  SCALLOPDIR: ${{ github.workspace }}
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 5
+      matrix:
+        python-version:
+          - "3.8"
+          - "3.9"
+          - "3.10"
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Add conda to system path
+      run: echo $CONDA/bin >> $GITHUB_PATH
+
+    - name: Install PyTorch
+      run: conda install pytorch::pytorch torchvision torchaudio -c pytorch
+
+    - name: Install other dependencies
+      run: conda install maturin tqdm
+
+    - name: Setup rustup toolchain
+      run: |
+        rustup update nightly
+        rustup default nightly
+
+    - name: Install scallopy
+      run: make install-scallopy
+
+    - name: Test
+      run: python3 etc/scallopy/tests/test.py

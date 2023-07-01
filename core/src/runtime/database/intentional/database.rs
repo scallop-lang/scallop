@@ -1,7 +1,8 @@
 use std::collections::*;
 
-use crate::runtime::database::extensional::ExtensionalRelation;
+use crate::runtime::database::extensional::*;
 use crate::runtime::dynamic::*;
+use crate::runtime::env::*;
 use crate::runtime::monitor::*;
 use crate::runtime::provenance::*;
 use crate::utils::*;
@@ -74,35 +75,49 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalDatabase<Prov, Ptr> {
     self.intentional_relations.contains_key(relation)
   }
 
-  pub fn recover_from_edb(&mut self, relation: &str, ctx: &Prov, edb_relation: &ExtensionalRelation<Prov>) {
+  pub fn recover_from_edb(
+    &mut self,
+    relation: &str,
+    env: &RuntimeEnvironment,
+    ctx: &Prov,
+    edb_relation: &ExtensionalRelation<Prov>,
+  ) {
     self.intentional_relations.insert(
       relation.to_string(),
       IntentionalRelation {
         recovered: true,
         internal_facts: DynamicCollection::empty(),
-        recovered_facts: Ptr::new_rc(DynamicOutputCollection::from(
-          edb_relation
-            .internal
-            .iter()
-            .map(|elem| (ctx.recover_fn(&elem.tag), elem.tuple.clone())),
-        )),
+        recovered_facts: Ptr::new_rc(DynamicOutputCollection::from(edb_relation.internal.iter().map(
+          |elem| {
+            let tag = ctx.recover_fn(&elem.tag);
+            let tup = env.externalize_tuple(&elem.tuple);
+            (tag, tup)
+          },
+        ))),
       },
     );
   }
 
   /// Recover the output collection for a relation
-  pub fn recover(&mut self, relation: &str, ctx: &Prov, drain: bool) {
+  pub fn recover(&mut self, relation: &str, env: &RuntimeEnvironment, ctx: &Prov, drain: bool) {
     if let Some(r) = self.intentional_relations.get_mut(relation) {
-      r.recover(ctx, drain);
+      r.recover(env, ctx, drain);
     }
   }
 
   /// Recover the output collection for a relation, with a monitor
-  pub fn recover_with_monitor<M: Monitor<Prov>>(&mut self, relation: &str, ctx: &Prov, m: &M, drain: bool) {
+  pub fn recover_with_monitor<M: Monitor<Prov>>(
+    &mut self,
+    relation: &str,
+    env: &RuntimeEnvironment,
+    ctx: &Prov,
+    m: &M,
+    drain: bool,
+  ) {
     if let Some(r) = self.intentional_relations.get_mut(relation) {
       // !SPECIAL MONITORING!
       m.observe_recovering_relation(relation);
-      r.recover_with_monitor(ctx, m, drain);
+      r.recover_with_monitor(env, ctx, m, drain);
     }
   }
 

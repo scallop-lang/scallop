@@ -80,7 +80,9 @@ fn incr_edge_path_left_branching_1() {
   );
 
   // Second branch, continuation
-  second_branch.add_rule(r#"result(x, y) = path(x, y) and x == 1"#).unwrap();
+  second_branch
+    .add_rule(r#"result(x, y) = path(x, y) and x == 1"#)
+    .unwrap();
   second_branch.run().unwrap();
   expect_output_collection(
     "result",

@@ -1,6 +1,8 @@
+use serde::*;
+
 use super::*;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub enum QueryNode {
   Predicate(Identifier),
@@ -19,7 +21,7 @@ impl Query {
         } else {
           n.to_string()
         }
-      },
+      }
       QueryNode::Atom(a) => a.predicate().to_string(),
     }
   }
@@ -44,7 +46,7 @@ impl Into<Vec<Item>> for Query {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct QueryDeclNode {
   pub attrs: Attributes,

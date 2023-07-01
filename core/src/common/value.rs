@@ -1,9 +1,9 @@
-// use std::rc::Rc;
-
 use std::convert::*;
 
-use super::value_type::*;
 use chrono::{DateTime, Duration, Utc};
+
+use super::tensors::*;
+use super::value_type::*;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Value {
@@ -25,9 +25,13 @@ pub enum Value {
   Bool(bool),
   Str(&'static str),
   String(String),
+  Symbol(usize),
+  SymbolString(String),
   DateTime(DateTime<Utc>),
   Duration(Duration),
-  // RcString(Rc<String>),
+  Entity(u64),
+  Tensor(Tensor),
+  TensorValue(TensorValue),
 }
 
 impl Value {
@@ -38,14 +42,14 @@ impl Value {
   pub fn as_date_time(&self) -> DateTime<Utc> {
     match self {
       Self::DateTime(d) => d.clone(),
-      _ => panic!("Not a DateTime")
+      _ => panic!("Not a DateTime"),
     }
   }
 
   pub fn as_duration(&self) -> Duration {
     match self {
       Self::Duration(d) => d.clone(),
-      _ => panic!("Not a Duration")
+      _ => panic!("Not a Duration"),
     }
   }
 
@@ -62,6 +66,10 @@ impl Value {
       Self::String(s) => &s,
       v => panic!("Cannot get string from value {}", v),
     }
+  }
+
+  pub fn symbol_str(s: &str) -> Self {
+    Self::SymbolString(s.to_string())
   }
 }
 
@@ -97,8 +105,16 @@ impl std::hash::Hash for Value {
       Self::Bool(b) => b.hash(state),
       Self::Str(s) => s.hash(state),
       Self::String(s) => s.hash(state),
+      Self::Symbol(s) => s.hash(state),
+      Self::SymbolString(_) => panic!("[Internal Error] Hash should not happen for symbol string"),
       Self::DateTime(d) => d.hash(state),
       Self::Duration(d) => d.hash(state),
+      Self::Entity(e) => {
+        "entity".hash(state);
+        e.hash(state);
+      }
+      Self::Tensor(_) => panic!("[Internal Error] Hash should not happen for tensor"),
+      Self::TensorValue(v) => v.hash(state),
     }
   }
 }
@@ -124,9 +140,13 @@ impl std::fmt::Display for Value {
       Self::Bool(i) => f.write_fmt(format_args!("{}", i)),
       Self::Str(i) => f.write_fmt(format_args!("{:?}", i)),
       Self::String(i) => f.write_fmt(format_args!("{:?}", i)),
+      Self::Symbol(_) => panic!("[Internal Error] Cannot display symbol"),
+      Self::SymbolString(s) => f.write_fmt(format_args!("s\"{}\"", s)),
       Self::DateTime(i) => f.write_fmt(format_args!("t\"{}\"", i)),
       Self::Duration(i) => f.write_fmt(format_args!("d\"{}\"", i)),
-      // Self::RcString(i) => f.write_fmt(format_args!("{:?}", i)),
+      Self::Entity(e) => f.write_fmt(format_args!("entity({e:#x})")),
+      Self::Tensor(t) => f.write_fmt(format_args!("{:?}", t)),
+      Self::TensorValue(v) => f.write_fmt(format_args!("`{}`", v)),
     }
   }
 }

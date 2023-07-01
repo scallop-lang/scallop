@@ -1,11 +1,13 @@
+use serde::*;
+
 use super::*;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct ConstAssignmentNode {
   pub name: Identifier,
   pub ty: Option<Type>,
-  pub value: Constant,
+  pub value: Entity,
 }
 
 /// A single constant assignment, e.g. `X = 42`
@@ -32,16 +34,16 @@ impl ConstAssignment {
     self.node.ty.as_mut()
   }
 
-  pub fn value(&self) -> &Constant {
+  pub fn value(&self) -> &Entity {
     &self.node.value
   }
 
-  pub fn value_mut(&mut self) -> &mut Constant {
+  pub fn value_mut(&mut self) -> &mut Entity {
     &mut self.node.value
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct ConstDeclNode {
   pub attrs: Attributes,

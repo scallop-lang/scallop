@@ -1,4 +1,5 @@
 pub mod aggregation;
+pub mod algebraic_data_type;
 pub mod boundness;
 pub mod character_literal;
 pub mod constant_decl;
@@ -12,6 +13,7 @@ pub mod output_files;
 pub mod type_inference;
 
 pub use aggregation::AggregationAnalysis;
+pub use algebraic_data_type::AlgebraicDataTypeAnalysis;
 pub use boundness::BoundnessAnalysis;
 pub use character_literal::CharacterLiteralAnalysis;
 pub use constant_decl::ConstantDeclAnalysis;
@@ -26,6 +28,7 @@ pub use type_inference::TypeInference;
 
 pub mod errors {
   pub use super::aggregation::AggregationAnalysisError;
+  pub use super::algebraic_data_type::ADTError;
   pub use super::boundness::BoundnessAnalysisError;
   pub use super::constant_decl::ConstantDeclError;
   pub use super::demand_attr::DemandAttributeError;

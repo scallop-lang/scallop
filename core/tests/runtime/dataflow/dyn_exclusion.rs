@@ -1,6 +1,6 @@
 use scallop_core::common::expr::*;
-use scallop_core::runtime::env::*;
 use scallop_core::runtime::dynamic::*;
+use scallop_core::runtime::env::*;
 use scallop_core::runtime::provenance::*;
 use scallop_core::testing::*;
 use scallop_core::utils::*;
@@ -24,7 +24,7 @@ fn test_dynamic_exclusion_1() {
     target.insert_dataflow_recent(
       &ctx,
       &dataflow::DynamicDataflow::from(&source)
-        .dynamic_exclusion(dataflow::DynamicDataflow::untagged_vec(&ctx, &exc), &ctx)
+        .dynamic_exclusion(dataflow::DynamicDataflow::untagged_vec(&ctx, exc.clone()), &ctx)
         .project((Expr::access((0, 0)), Expr::access((1, 0))).into()),
       &rt,
     );
@@ -32,10 +32,13 @@ fn test_dynamic_exclusion_1() {
   }
 
   // Inspect the result
-  expect_collection(&target.complete(&ctx), vec![
-    (0, "red".to_string()),
-    (0, "blue".to_string()),
-    (1, "red".to_string()),
-    (1, "blue".to_string()),
-  ]);
+  expect_collection(
+    &target.complete(&ctx),
+    vec![
+      (0, "red".to_string()),
+      (0, "blue".to_string()),
+      (1, "red".to_string()),
+      (1, "blue".to_string()),
+    ],
+  );
 }

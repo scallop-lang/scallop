@@ -1,6 +1,8 @@
+use serde::*;
+
 use super::*;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct RuleNode {
   pub head: RuleHead,
@@ -41,10 +43,11 @@ impl Into<Vec<Item>> for Rule {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub enum RuleHeadNode {
   Atom(Atom),
+  Conjunction(Vec<Atom>),
   Disjunction(Vec<Atom>),
 }
 
@@ -54,6 +57,7 @@ impl RuleHead {
   pub fn is_atomic(&self) -> bool {
     match &self.node {
       RuleHeadNode::Atom(_) => true,
+      RuleHeadNode::Conjunction(_) => false,
       RuleHeadNode::Disjunction(_) => false,
     }
   }
@@ -61,20 +65,31 @@ impl RuleHead {
   pub fn is_disjunction(&self) -> bool {
     match &self.node {
       RuleHeadNode::Atom(_) => false,
+      RuleHeadNode::Conjunction(_) => false,
       RuleHeadNode::Disjunction(_) => true,
+    }
+  }
+
+  pub fn is_conjunction(&self) -> bool {
+    match &self.node {
+      RuleHeadNode::Atom(_) => false,
+      RuleHeadNode::Conjunction(_) => true,
+      RuleHeadNode::Disjunction(_) => false,
     }
   }
 
   pub fn atom(&self) -> Option<&Atom> {
     match &self.node {
       RuleHeadNode::Atom(atom) => Some(atom),
+      RuleHeadNode::Conjunction(_) => None,
       RuleHeadNode::Disjunction(_) => None,
     }
   }
 
-  pub fn iter_predicates(&self) -> Vec<&String> {
+  pub fn iter_predicates(&self) -> Vec<String> {
     match &self.node {
       RuleHeadNode::Atom(atom) => vec![atom.predicate()],
+      RuleHeadNode::Conjunction(atoms) => atoms.iter().map(|atom| atom.predicate()).collect(),
       RuleHeadNode::Disjunction(atoms) => atoms.iter().map(|atom| atom.predicate()).collect(),
     }
   }
@@ -82,10 +97,8 @@ impl RuleHead {
   pub fn iter_arguments(&self) -> Vec<&Expr> {
     match &self.node {
       RuleHeadNode::Atom(atom) => atom.iter_arguments().collect(),
-      RuleHeadNode::Disjunction(atoms) => atoms
-        .iter()
-        .flat_map(|atom| atom.iter_arguments())
-        .collect(),
+      RuleHeadNode::Conjunction(atoms) => atoms.iter().flat_map(|atom| atom.iter_arguments()).collect(),
+      RuleHeadNode::Disjunction(atoms) => atoms.iter().flat_map(|atom| atom.iter_arguments()).collect(),
     }
   }
 }

@@ -5,6 +5,7 @@ use scallop_core::common::foreign_function::*;
 use scallop_core::common::type_family::*;
 use scallop_core::common::value::*;
 use scallop_core::common::value_type::*;
+use scallop_core::runtime::env::*;
 
 use super::tuple::*;
 
@@ -80,7 +81,9 @@ impl ForeignFunction for PythonForeignFunction {
         .ff
         .getattr(py, "static_arg_types")
         .expect("Cannot get foreign function static arg types");
-      let static_arg_types: &PyList = static_arg_types.downcast::<PyList>(py).expect("Cannot cast into PyList");
+      let static_arg_types: &PyList = static_arg_types
+        .downcast::<PyList>(py)
+        .expect("Cannot cast into PyList");
       static_arg_types.len()
     })
   }
@@ -91,7 +94,9 @@ impl ForeignFunction for PythonForeignFunction {
         .ff
         .getattr(py, "static_arg_types")
         .expect("Cannot get foreign function static arg types");
-      let static_arg_types: &PyList = static_arg_types.downcast::<PyList>(py).expect("Cannot cast into PyList");
+      let static_arg_types: &PyList = static_arg_types
+        .downcast::<PyList>(py)
+        .expect("Cannot cast into PyList");
       let param_type: PyObject = static_arg_types
         .get_item(i)
         .expect("Cannot get i-th param")
@@ -162,7 +167,7 @@ impl ForeignFunction for PythonForeignFunction {
     })
   }
 
-  fn execute(&self, args: Vec<Value>) -> Option<Value> {
+  fn execute_with_env(&self, env: &RuntimeEnvironment, args: Vec<Value>) -> Option<Value> {
     let ty = self.infer_return_type(&args);
 
     // Actually run the function
@@ -176,16 +181,22 @@ impl ForeignFunction for PythonForeignFunction {
         .expect("Cannot extract function");
 
       // Construct the arguments
-      let args: Vec<Py<PyAny>> = args.iter().map(to_python_value).collect();
+      let args: Vec<Py<PyAny>> = args.iter().map(|a| to_python_value(a, &env.into())).collect();
       let args_tuple = PyTuple::new(py, args);
 
       // Invoke the function
-      let maybe_result = func.call1(py, args_tuple).ok();
+      let maybe_result = match func.call1(py, args_tuple) {
+        Ok(result) => Some(result),
+        Err(err) => {
+          eprintln!("{}", err);
+          None
+        }
+      };
 
       // Turn the result back to Scallop value
       if let Some(result) = maybe_result {
         let result: &PyAny = result.extract(py).expect("");
-        from_python_value(result, &ty).ok()
+        from_python_value(result, &ty, &env.into()).ok()
       } else {
         None
       }

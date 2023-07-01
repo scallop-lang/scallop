@@ -1,0 +1,8 @@
+rel questions = {
+  (1, "what is the height of highest mountain in the world?"),
+  (2, "are cats larger than dogs?"),
+}
+
+rel answer(id, y) = questions(id, x), gpt_complete(x, y)
+
+query answer

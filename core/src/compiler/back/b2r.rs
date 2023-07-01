@@ -17,6 +17,7 @@ use crate::utils::IdAllocator;
 struct B2RContext<'a> {
   id_alloc: &'a mut IdAllocator,
   relations: &'a mut BTreeMap<String, ram::Relation>,
+  old_relations: &'a BTreeMap<String, ram::Relation>,
   temp_updates: &'a mut Vec<ram::Update>,
   pred_permutations: &'a mut HashMap<String, HashSet<Permutation>>,
   negative_dataflows: &'a mut Vec<NegativeDataflow>,
@@ -25,6 +26,10 @@ struct B2RContext<'a> {
 impl<'a> B2RContext<'a> {
   pub fn add_permutation(&mut self, pred: String, perm: Permutation) {
     self.pred_permutations.entry(pred).or_default().insert(perm);
+  }
+
+  pub fn get_relation(&self, pred: &str) -> Option<&ram::Relation> {
+    self.relations.get(pred).or_else(|| self.old_relations.get(pred))
   }
 }
 
@@ -76,6 +81,7 @@ impl Program {
     let mut id_alloc = IdAllocator::default();
     let mut pred_permutations = HashMap::<String, HashSet<Permutation>>::new();
     let mut negative_dataflows = Vec::<NegativeDataflow>::new();
+    let mut all_relations = BTreeMap::new();
 
     // For each stratum, generate a ram stratum
     // populate the EDB permutations
@@ -84,8 +90,16 @@ impl Program {
       .enumerate()
       .map(|(_, s)| {
         // Compute the ram stratum
-        let ram_stratum =
-          self.stratum_to_ram_stratum(s, &mut id_alloc, &mut pred_permutations, &mut negative_dataflows);
+        let ram_stratum = self.stratum_to_ram_stratum(
+          s,
+          &mut id_alloc,
+          &all_relations,
+          &mut pred_permutations,
+          &mut negative_dataflows,
+        );
+
+        // Extend the list of relations
+        all_relations.extend(ram_stratum.relations.clone());
 
         // Return the stratum
         ram_stratum
@@ -123,7 +137,7 @@ impl Program {
 
       // Get the negative dataflows that can be computed at this stratum
       let curr_neg_dfs = negative_dataflows
-        .drain_filter(|ndf| ndf.sources.is_subset(&accumulated_sources))
+        .extract_if(|ndf| ndf.sources.is_subset(&accumulated_sources))
         .collect::<Vec<_>>();
 
       // Add the negative dataflow into the stratum
@@ -145,6 +159,7 @@ impl Program {
     &self,
     stratum: &Stratum,
     id_alloc: &mut IdAllocator,
+    old_relations: &BTreeMap<String, ram::Relation>,
     pred_permutations: &mut HashMap<String, HashSet<Permutation>>,
     negative_dataflows: &mut Vec<NegativeDataflow>,
   ) -> ram::Stratum {
@@ -158,6 +173,7 @@ impl Program {
     // Compile context
     let mut b2r_context = B2RContext {
       id_alloc,
+      old_relations,
       relations: &mut relations,
       temp_updates: &mut temp_updates,
       pred_permutations,
@@ -274,7 +290,17 @@ impl Program {
     let output = self.outputs.get(pred).cloned().unwrap_or(OutputOption::Hidden);
 
     // Check immutability, i.e., the relation is not updated by rules
-    let immutable = self.rules.iter().find_position(|r| r.head.predicate() == pred).is_none();
+    let immutable = self
+      .rules
+      .iter()
+      .find_position(|r| {
+        if r.head.predicate() == pred {
+          true
+        } else {
+          r.collect_new_expr_functors().find_position(|f| *f == pred).is_some()
+        }
+      })
+      .is_none();
 
     // The Final Relation
     let ram_relation = ram::Relation {
@@ -356,18 +382,16 @@ impl Program {
           let projection: Expr = head_atoms[0]
             .args
             .iter()
-            .map(|arg| {
-              match arg {
-                Term::Variable(_) => {
-                  let result = Expr::access((0, var_counter));
-                  var_counter += 1;
-                  result
-                }
-                Term::Constant(_) => {
-                  let result = Expr::access((1, const_counter));
-                  const_counter += 1;
-                  result
-                }
+            .map(|arg| match arg {
+              Term::Variable(_) => {
+                let result = Expr::access((0, var_counter));
+                var_counter += 1;
+                result
+              }
+              Term::Constant(_) => {
+                let result = Expr::access((1, const_counter));
+                const_counter += 1;
+                result
               }
             })
             .collect();
@@ -408,6 +432,182 @@ impl Program {
     }
   }
 
+  fn empty_ground_plan_to_ram_dataflow(&self, goal: &VariableTuple, atom: &Atom) -> ram::Dataflow {
+    let ground = ram::Dataflow::relation(atom.predicate.clone());
+    if goal.matches(atom) {
+      ground
+    } else {
+      let atom_var_tuple = VariableTuple::empty();
+      ram::Dataflow::project(ground, atom_var_tuple.projection(goal))
+    }
+  }
+
+  fn static_with_constant_ground_plan_to_ram_dataflow(
+    &self,
+    ctx: &mut B2RContext,
+    goal: &VariableTuple,
+    atom: &Atom,
+    prop: DataflowProp,
+  ) -> ram::Dataflow {
+    // Use filter
+    let sub_vars = atom
+      .args
+      .iter()
+      .enumerate()
+      .map(|(i, t)| match t {
+        Term::Constant(c) => const_var(i, c.value_type()),
+        Term::Variable(v) => v.clone(),
+      })
+      .collect::<Vec<_>>();
+
+    // Create an atom
+    let sub_atom = Atom {
+      predicate: atom.predicate.clone(),
+      args: sub_vars.iter().map(|v| Term::Variable(v.clone())).collect(),
+    };
+    let sub_goal = VariableTuple::from_vars(sub_vars.iter().cloned(), true);
+    let sub_dataflow = self.ground_plan_to_ram_dataflow(ctx, &sub_goal, &sub_atom, prop.with_need_sorted(false));
+
+    // Get the filters
+    let mut filter_exprs = atom.args.iter().enumerate().filter_map(|(i, t)| match t {
+      Term::Constant(c) => Some(Expr::eq(Expr::access(i), Expr::constant(c.clone()))),
+      Term::Variable(_) => None,
+    });
+    let mut filter_expr = filter_exprs
+      .next()
+      .expect("There should be at least one filter expression.");
+    for expr in filter_exprs {
+      filter_expr = filter_expr & expr;
+    }
+
+    // Filter dataflow
+    let filter_dataflow = sub_dataflow.filter(filter_expr);
+
+    // Projection dataflow
+    let project_dataflow = filter_dataflow.project(sub_goal.projection(goal));
+
+    // Check if we need to create temporary variable
+    Self::process_dataflow(ctx, goal, project_dataflow, prop)
+  }
+
+  fn dynamic_with_constant_ground_plan_to_ram_dataflow(
+    &self,
+    ctx: &mut B2RContext,
+    goal: &VariableTuple,
+    atom: &Atom,
+    prop: DataflowProp,
+  ) -> ram::Dataflow {
+    // Use find
+    let (constants, variables) = atom.const_var_partition();
+
+    // Temp atom
+    let sub_atom = Atom {
+      predicate: atom.predicate.clone(),
+      args: atom
+        .args
+        .iter()
+        .enumerate()
+        .map(|(i, t)| match t {
+          Term::Constant(c) => Term::Variable(const_var(i, c.value_type())),
+          Term::Variable(v) => Term::Variable(v.clone()),
+        })
+        .collect(),
+    };
+
+    // Subgoal
+    let constants_sub_goal = if constants.len() == 1 {
+      VariableTuple::Value(const_var(constants[0].0, constants[0].1.value_type()))
+    } else {
+      VariableTuple::Tuple(
+        constants
+          .iter()
+          .map(|(i, c)| VariableTuple::Value(const_var(i.clone(), c.value_type())))
+          .collect(),
+      )
+    };
+    let variables_sub_goal = if variables.len() == 1 {
+      VariableTuple::Value(variables[0].1.clone())
+    } else {
+      VariableTuple::Tuple(
+        variables
+          .iter()
+          .map(|(_, v)| VariableTuple::Value((*v).clone()))
+          .collect(),
+      )
+    };
+    let sub_goal = VariableTuple::from((constants_sub_goal, variables_sub_goal));
+
+    // 1. Project it into (constants, variables) tuple
+    let project_1_dataflow = self.ground_plan_to_ram_dataflow(ctx, &sub_goal, &sub_atom, prop.with_need_sorted(true));
+
+    // 2. Find using the constants
+    let find_tuple = if constants.len() == 1 {
+      Tuple::Value(constants[0].1.clone())
+    } else {
+      Tuple::Tuple(constants.into_iter().map(|(_, t)| Tuple::Value(t.clone())).collect())
+    };
+    let find_dataflow = ram::Dataflow::find(project_1_dataflow, find_tuple);
+
+    // 3. Project into goal
+    let dataflow = ram::Dataflow::project(find_dataflow, sub_goal.projection(goal));
+
+    // 4. Check if we need to create temporary variable
+    Self::process_dataflow(ctx, goal, dataflow, prop)
+  }
+
+  fn with_constant_ground_plan_to_ram_dataflow(
+    &self,
+    ctx: &mut B2RContext,
+    goal: &VariableTuple,
+    atom: &Atom,
+    prop: DataflowProp,
+  ) -> ram::Dataflow {
+    let relation = ctx.get_relation(&atom.predicate).unwrap(); // NOTE: `unwrap` is ok here
+    if relation.immutable && relation.input_file.is_some() && !atom.constant_args_are_upfront() {
+      self.static_with_constant_ground_plan_to_ram_dataflow(ctx, goal, atom, prop)
+    } else {
+      self.dynamic_with_constant_ground_plan_to_ram_dataflow(ctx, goal, atom, prop)
+    }
+  }
+
+  fn no_constant_ground_plan_to_ram_dataflow(
+    &self,
+    ctx: &mut B2RContext,
+    goal: &VariableTuple,
+    atom: &Atom,
+    prop: DataflowProp,
+  ) -> ram::Dataflow {
+    if goal.matches(atom) {
+      ram::Dataflow::Relation(atom.predicate.clone())
+    } else {
+      let perm = goal.permutation(atom);
+      if let Some(filter) = Self::atom_filter(atom) {
+        let dataflow = ram::Dataflow::project(
+          ram::Dataflow::filter(ram::Dataflow::Relation(atom.predicate.clone()), filter),
+          perm.expr(),
+        );
+        if prop.need_sorted && !perm.order_preserving() {
+          ctx.add_permutation(atom.predicate.clone(), perm);
+          if prop.is_negative {
+            Self::create_negative_temp_relation(ctx, goal, dataflow)
+          } else {
+            Self::create_temp_relation(ctx, goal, dataflow)
+          }
+        } else {
+          dataflow
+        }
+      } else {
+        if prop.need_sorted && !perm.order_preserving() {
+          let perm_name = Self::permutated_predicate_name(&atom.predicate, &perm);
+          ctx.add_permutation(atom.predicate.clone(), perm);
+          ram::Dataflow::Relation(perm_name)
+        } else {
+          ram::Dataflow::project(ram::Dataflow::Relation(atom.predicate.clone()), perm.expr())
+        }
+      }
+    }
+  }
+
   fn ground_plan_to_ram_dataflow(
     &self,
     ctx: &mut B2RContext,
@@ -416,106 +616,11 @@ impl Program {
     prop: DataflowProp,
   ) -> ram::Dataflow {
     if atom.args.is_empty() {
-      let ground = ram::Dataflow::relation(atom.predicate.clone());
-      if goal.matches(atom) {
-        ground
-      } else {
-        let atom_var_tuple = VariableTuple::empty();
-        ram::Dataflow::project(ground, atom_var_tuple.projection(goal))
-      }
+      self.empty_ground_plan_to_ram_dataflow(goal, atom)
     } else if atom.has_constant_arg() {
-      // Use find
-      let (constants, variables) = atom.const_var_partition();
-      let const_var = |i: usize, ty: Type| -> Variable {
-        Variable {
-          name: format!("const#{}", i),
-          ty,
-        }
-      };
-
-      // Temp atom
-      let sub_atom = Atom {
-        predicate: atom.predicate.clone(),
-        args: atom
-          .args
-          .iter()
-          .enumerate()
-          .map(|(i, t)| match t {
-            Term::Constant(c) => Term::Variable(const_var(i, c.value_type())),
-            Term::Variable(v) => Term::Variable(v.clone()),
-          })
-          .collect(),
-      };
-
-      // Subgoal
-      let constants_sub_goal = if constants.len() == 1 {
-        VariableTuple::Value(const_var(constants[0].0, constants[0].1.value_type()))
-      } else {
-        VariableTuple::Tuple(
-          constants
-            .iter()
-            .map(|(i, c)| VariableTuple::Value(const_var(i.clone(), c.value_type())))
-            .collect(),
-        )
-      };
-      let variables_sub_goal = if variables.len() == 1 {
-        VariableTuple::Value(variables[0].1.clone())
-      } else {
-        VariableTuple::Tuple(
-          variables
-            .iter()
-            .map(|(_, v)| VariableTuple::Value((*v).clone()))
-            .collect(),
-        )
-      };
-      let sub_goal = VariableTuple::from((constants_sub_goal, variables_sub_goal));
-
-      // 1. Project it into (constants, variables) tuple
-      let project_1_dataflow = self.ground_plan_to_ram_dataflow(ctx, &sub_goal, &sub_atom, prop.with_need_sorted(true));
-
-      // 2. Find using the constants
-      let find_tuple = if constants.len() == 1 {
-        Tuple::Value(constants[0].1.clone())
-      } else {
-        Tuple::Tuple(constants.into_iter().map(|(_, t)| Tuple::Value(t.clone())).collect())
-      };
-      let find_dataflow = ram::Dataflow::find(project_1_dataflow, find_tuple);
-
-      // 3. Project into goal
-      let dataflow = ram::Dataflow::project(find_dataflow, sub_goal.projection(goal));
-
-      // 4. Check if we need to create temporary variable
-      Self::process_dataflow(ctx, goal, dataflow, prop)
+      self.with_constant_ground_plan_to_ram_dataflow(ctx, goal, atom, prop)
     } else {
-      if goal.matches(atom) {
-        ram::Dataflow::Relation(atom.predicate.clone())
-      } else {
-        let perm = goal.permutation(atom);
-        if let Some(filter) = Self::atom_filter(atom) {
-          let dataflow = ram::Dataflow::project(
-            ram::Dataflow::filter(ram::Dataflow::Relation(atom.predicate.clone()), filter),
-            perm.expr(),
-          );
-          if prop.need_sorted && !perm.order_preserving() {
-            ctx.add_permutation(atom.predicate.clone(), perm);
-            if prop.is_negative {
-              Self::create_negative_temp_relation(ctx, goal, dataflow)
-            } else {
-              Self::create_temp_relation(ctx, goal, dataflow)
-            }
-          } else {
-            dataflow
-          }
-        } else {
-          if prop.need_sorted && !perm.order_preserving() {
-            let perm_name = Self::permutated_predicate_name(&atom.predicate, &perm);
-            ctx.add_permutation(atom.predicate.clone(), perm);
-            ram::Dataflow::Relation(perm_name)
-          } else {
-            ram::Dataflow::project(ram::Dataflow::Relation(atom.predicate.clone()), perm.expr())
-          }
-        }
-      }
+      self.no_constant_ground_plan_to_ram_dataflow(ctx, goal, atom, prop)
     }
   }
 
@@ -867,11 +972,22 @@ impl Program {
 
     // Get information from the atom
     let pred: String = atom.predicate.clone();
-    let inputs: Vec<Constant> = atom.args.iter().take(fp.num_bounded()).map(|arg| arg.as_constant().unwrap()).cloned().collect();
+    let inputs: Vec<Constant> = atom
+      .args
+      .iter()
+      .take(fp.num_bounded())
+      .map(|arg| arg.as_constant().unwrap())
+      .cloned()
+      .collect();
     let ground_dataflow = ram::Dataflow::ForeignPredicateGround(pred, inputs);
 
     // Get the projection onto the variable tuple
-    let var_tuple = atom.args.iter().skip(fp.num_bounded()).map(|arg| arg.as_variable().unwrap()).cloned();
+    let var_tuple = atom
+      .args
+      .iter()
+      .skip(fp.num_bounded())
+      .map(|arg| arg.as_variable().unwrap())
+      .cloned();
     let project = VariableTuple::from_vars(var_tuple, false).projection(goal);
 
     // Project the dataflow
@@ -893,12 +1009,14 @@ impl Program {
 
     // Generate information for foreign predicate constraint
     let pred: String = atom.predicate.clone();
-    let exprs: Vec<Expr> = atom.args.iter().map(|arg| {
-      match arg {
+    let exprs: Vec<Expr> = atom
+      .args
+      .iter()
+      .map(|arg| match arg {
         Term::Constant(c) => Expr::Constant(c.clone()),
         Term::Variable(v) => Expr::Access(sub_goal.accessor_of(v).unwrap()),
-      }
-    }).collect();
+      })
+      .collect();
 
     // Return a foreign predicate constraint dataflow
     let dataflow = sub_dataflow.foreign_predicate_constraint(pred, exprs);
@@ -926,20 +1044,27 @@ impl Program {
 
     // Generate information for foreign predicate constraint
     let pred: String = atom.predicate.clone();
-    let exprs: Vec<Expr> = atom.args.iter().take(fp.num_bounded()).map(|arg| {
-      match arg {
+    let exprs: Vec<Expr> = atom
+      .args
+      .iter()
+      .take(fp.num_bounded())
+      .map(|arg| match arg {
         Term::Constant(c) => Expr::Constant(c.clone()),
-        Term::Variable(v) => {
-          Expr::Access(left_goal.accessor_of(v).unwrap())
-        },
-      }
-    }).collect();
+        Term::Variable(v) => Expr::Access(left_goal.accessor_of(v).unwrap()),
+      })
+      .collect();
 
     // Generate the joint dataflow
     let join_dataflow = left_dataflow.foreign_predicate_join(pred, exprs);
 
     // Get the variable tuple of the joined output
-    let free_vars: Vec<_> = atom.args.iter().skip(fp.num_bounded()).map(|arg| arg.as_variable().unwrap()).cloned().collect();
+    let free_vars: Vec<_> = atom
+      .args
+      .iter()
+      .skip(fp.num_bounded())
+      .map(|arg| arg.as_variable().unwrap())
+      .cloned()
+      .collect();
     let right_tuple = VariableTuple::from_vars(free_vars.iter().cloned(), false);
     let var_tuple = VariableTuple::from((left_goal, right_tuple));
 
@@ -1015,9 +1140,7 @@ impl Program {
         .args
         .iter()
         .filter_map(|arg| match arg {
-          Term::Variable(v) => {
-            Some(VariableTuple::Value(v.clone()))
-          },
+          Term::Variable(v) => Some(VariableTuple::Value(v.clone())),
           _ => {
             need_projection = true;
             None
@@ -1164,5 +1287,12 @@ impl Program {
 
   fn permutated_predicate_name(pred: &String, perm: &Permutation) -> String {
     format!("{}#perm#{}", pred, perm)
+  }
+}
+
+fn const_var(i: usize, ty: Type) -> Variable {
+  Variable {
+    name: format!("const#{}", i),
+    ty,
   }
 }

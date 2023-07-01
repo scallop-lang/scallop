@@ -5,13 +5,13 @@ import sys
 import zipfile
 import shutil
 
-from .torch_importer import *
+from .torch_importer import Context, Tensor, torch
 from .sample_type import *
 from .context import ScallopContext
 from .provenance import ScallopProvenance
-from .utils import _mapping_tuple
+from .utils import _mapping_tuple, _map_entity_tuple_to_str_tuple
 
-class ScallopForwardFunction(torch.nn.Module):
+class ScallopForwardFunction(Context):
   def __init__(
     self,
     file: Optional[str] = None,
@@ -104,7 +104,7 @@ class ScallopForwardFunction(torch.nn.Module):
     return self.forward_fn(*pos_args, **kw_args)
 
 
-class InternalScallopForwardFunction(torch.nn.Module):
+class InternalScallopForwardFunction(Context):
   FORWARD_FN_COUNTER = 1
 
   """
@@ -261,7 +261,8 @@ class InternalScallopForwardFunction(torch.nn.Module):
 
   def __call__(
     self,
-    disjunctions: Optional[Dict[str, List[List[List[int]]]]] = None,
+    disjunctions: Dict[str, List[List[List[int]]]] = {},
+    entities: Dict[str, List[List[str]]] = {},
     output_relations: Optional[List[Union[str, List[str]]]] = None,
     **input_facts: Dict[str, Union[Tensor, List]],
   ) -> Union[Tensor, Tuple[List[Tuple], Tensor]]:
@@ -274,14 +275,20 @@ class InternalScallopForwardFunction(torch.nn.Module):
     - None, if outputs are provided
     """
     if self.jit:
-      return self._call_with_static_ctx(disjunctions=disjunctions, input_facts=input_facts)
+      return self._call_with_static_ctx(
+        disjunctions=disjunctions,
+        input_facts=input_facts)
     else:
-      return self._call_with_dynamic_ctx(disjunctions=disjunctions, output_relations=output_relations, input_facts=input_facts)
+      return self._call_with_dynamic_ctx(
+        disjunctions=disjunctions,
+        entities=entities,
+        output_relations=output_relations,
+        input_facts=input_facts)
 
   def _call_with_static_ctx(
     self,
-    disjunctions: Optional[Dict] = None,
-    input_facts: Dict[str, Union[Tensor, List]] = None,
+    disjunctions: Dict,
+    input_facts: Dict[str, Union[Tensor, List]],
   ):
     # First make sure all facts share the same batch size
     batch_size = self._compute_and_check_batch_size(input_facts)
@@ -315,16 +322,21 @@ class InternalScallopForwardFunction(torch.nn.Module):
 
   def _call_with_dynamic_ctx(
     self,
-    disjunctions: Optional[Dict] = None,
-    output_relations: Optional[List[Union[str, List[str]]]] = None,
-    input_facts: Dict[str, Union[Tensor, List]] = None,
+    disjunctions: Optional[Dict],
+    entities: Optional[Dict[str, List[List[str]]]],
+    output_relations: Optional[List[Union[str, List[str]]]],
+    input_facts: Dict[str, Union[Tensor, List]],
   ):
     self.ctx._refresh_training_eval_state() # Set train/eval
     self.ctx._internal.set_non_incremental()
     self.ctx._internal.compile() # Compile into back IR
 
     # First make sure that all facts share the same batch size
-    batch_size = self._compute_and_check_batch_size(input_facts)
+    batch_size = self._compute_and_check_batch_size(input_facts, entities)
+
+    # Get all the entity facts
+    for (entity_relation, entity_facts) in self._compute_entity_facts(batch_size, entities).items():
+      input_facts[entity_relation] = entity_facts
 
     # Process the input into a unified form
     all_inputs = self._process_all_input_facts(batch_size, input_facts, disjunctions)
@@ -358,7 +370,7 @@ class InternalScallopForwardFunction(torch.nn.Module):
     # Process the output
     return self._process_output(batch_size, input_tags, output_results)
 
-  def _compute_and_check_batch_size(self, inputs: Dict[str, Union[Tensor, List]]) -> int:
+  def _compute_and_check_batch_size(self, inputs: Dict[str, Union[Tensor, List]], entities: Dict[str, List[List[str]]] = {}) -> int:
     """
     Given the inputs, check if the batch size is consistent over all relations.
     If so, return the batch size.
@@ -370,10 +382,28 @@ class InternalScallopForwardFunction(torch.nn.Module):
         batch_size = len(rela_facts)
       elif batch_size != len(rela_facts):
         raise Exception(f"Inconsistency in batch size: expected {batch_size}, found {len(rela_facts)} for relation `{rela}`")
+    for (rela, rela_entities) in entities.items():
+      if batch_size is None:
+        batch_size = len(rela_entities)
+      elif batch_size != len(rela_entities):
+        raise Exception(f"Inconsistency in entity batch size: expected {batch_size}, found {len(rela_facts)} for relation `{rela}`")
     if batch_size is None:
       raise Exception("There is no input to the forward function")
     else:
       return batch_size
+
+  def _compute_entity_facts(self, batch_size, entities):
+    all_entity_facts = {}
+    for (relation, batch_of_entities) in entities.items():
+      for (i, entities) in enumerate(batch_of_entities):
+        for entity in entities:
+          entity = _map_entity_tuple_to_str_tuple(entity)
+          entity_raw_facts = self.ctx._internal.compile_entity(relation, entity)
+          for (obj_relation, obj_facts) in entity_raw_facts.items():
+            if obj_relation not in all_entity_facts:
+              all_entity_facts[obj_relation] = [[] for _ in range(batch_size)]
+            all_entity_facts[obj_relation][i] += [(None, fact) for fact in obj_facts]
+    return all_entity_facts
 
   def _process_all_input_facts(self, batch_size, all_input_facts, all_disjunctions):
     """
@@ -633,30 +663,6 @@ class InternalScallopForwardFunction(torch.nn.Module):
         tensor_results.append(torch.stack(task_tensor_results))
       return self._torch_tensor_apply(torch.stack(tensor_results))
 
-    # Provenance diff topkproofs indiv
-    elif self.ctx.provenance == "difftopkproofsindiv":
-      tensor_results = []
-      for task_results in tasks:
-        task_tensor_results = []
-        for (k, proofs) in task_results:
-          task_tensor_proofs = []
-          for i in range(k):
-            if i < len(proofs):
-              proof = proofs[i]
-              if len(proof) == 0:
-                task_tensor_proofs.append(torch.tensor(1.0))
-              else:
-                get_literal_prob = lambda i: proof[i][2] if proof[i][1] else 1 - proof[i][2]
-                agg_prob = get_literal_prob(0)
-                for j in range(1, len(proof)):
-                  agg_prob *= get_literal_prob(j)
-                task_tensor_proofs.append(agg_prob)
-            else:
-              task_tensor_proofs.append(torch.tensor(0.0))
-          task_tensor_results.append(torch.stack(task_tensor_proofs))
-        tensor_results.append(torch.stack(task_tensor_results))
-      return self._torch_tensor_apply(torch.stack(tensor_results))
-
     # If we have a custom provenance, use its collate function
     elif self.ctx.provenance == "custom":
       return self.ctx._custom_provenance.collate(tasks)
@@ -672,7 +678,6 @@ class InternalScallopForwardFunction(torch.nn.Module):
     elif self.ctx.provenance == "diffnandminprob": return True
     elif self.ctx.provenance == "diffsamplekproofs": return True
     elif self.ctx.provenance == "difftopkproofs": return True
-    elif self.ctx.provenance == "difftopkproofsindiv": return False
     elif self.ctx.provenance == "difftopbottomkclauses": return True
     else: return False
 
@@ -691,8 +696,6 @@ class InternalScallopForwardFunction(torch.nn.Module):
          self.ctx.provenance == "diffsamplekproofs" or \
          self.ctx.provenance == "difftopbottomkclauses":
       return self._diff_proofs_batched_output_hook(input_tags, tasks)
-    elif self.ctx.provenance == "difftopkproofsindiv":
-      raise Exception("[Internal Error] Should not happen; difftopkproofsindiv does not need output hook")
     else:
       raise Exception("[Internal Error] Should not happen")
 

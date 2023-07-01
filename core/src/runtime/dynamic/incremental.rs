@@ -102,7 +102,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
     &mut self,
     program: ram::Program,
     runtime: &RuntimeEnvironment,
-    ctx: &mut Prov,
+    ctx: &Prov,
   ) -> Result<(), RuntimeError> {
     self.incremental_execute_helper(Some(program), runtime, ctx)
   }
@@ -111,7 +111,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
     &mut self,
     maybe_new_program: Option<ram::Program>,
     runtime: &RuntimeEnvironment,
-    ctx: &mut Prov,
+    ctx: &Prov,
   ) -> Result<(), RuntimeError> {
     // Pull the IDB
     let mut incremental_result = IntentionalDatabase::default();
@@ -122,7 +122,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
     std::mem::swap(&mut self.program, &mut temp_program);
     let program_ref = if let Some(new_program) = &maybe_new_program {
       // Process the EDB; populate using program facts
-      self.edb.populate_program_facts(new_program)?;
+      self.edb.populate_program_facts(runtime, new_program)?;
 
       // If need to incrementalize, remove such computed results
       let edb_need_update_relations = self.edb.need_update_relations();
@@ -142,17 +142,14 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
       // Return this new program
       &new_program
     } else {
-      self
-        .edb
-        .populate_program_facts(&temp_program)
-        .expect("Since there is no new program, no error should be raised during program facts population");
+      self.edb.populate_program_facts(runtime, &temp_program)?;
 
       // If there is no new program, we directly take our current program
       &temp_program
     };
 
     // Internalize EDB relations
-    self.edb.internalize(ctx);
+    self.edb.internalize(runtime, ctx);
 
     // Generate stratum information
     let strata_info = stratum_inputs_outputs(program_ref);
@@ -224,7 +221,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
     ram_program: &ram::Program,
     strata_info: &StrataInformation,
     runtime: &RuntimeEnvironment,
-    ctx: &mut Prov,
+    ctx: &Prov,
   ) -> Result<IntentionalDatabase<Prov, Ptr>, RuntimeError> {
     let dyn_relas = stratum
       .relations
@@ -285,7 +282,10 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
 
       // Check if we need it to be output
       if self.options.incremental_maintain
-        || strata_info.stratum_outputs[&stratum_id].contains(rela)
+        || strata_info
+          .stratum_outputs
+          .get(&stratum_id)
+          .map_or(false, |o| o.contains(rela))
         || ram_program.relation_unchecked(rela).output.is_not_hidden()
       {
         iter.add_output_relation(rela);
@@ -316,12 +316,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
   }
 
   /// Directly execute the program stored in the file
-  pub fn execute_with_monitor<M>(
-    &mut self,
-    runtime: &RuntimeEnvironment,
-    ctx: &mut Prov,
-    m: &M,
-  ) -> Result<(), RuntimeError>
+  pub fn execute_with_monitor<M>(&mut self, runtime: &RuntimeEnvironment, ctx: &Prov, m: &M) -> Result<(), RuntimeError>
   where
     M: Monitor<Prov>,
   {
@@ -332,7 +327,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
     &mut self,
     program: ram::Program,
     runtime: &RuntimeEnvironment,
-    ctx: &mut Prov,
+    ctx: &Prov,
     m: &M,
   ) -> Result<(), RuntimeError>
   where
@@ -345,7 +340,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
     &mut self,
     maybe_new_program: Option<ram::Program>,
     runtime: &RuntimeEnvironment,
-    ctx: &mut Prov,
+    ctx: &Prov,
     m: &M,
   ) -> Result<(), RuntimeError>
   where
@@ -360,7 +355,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
     std::mem::swap(&mut self.program, &mut temp_program);
     let program_ref = if let Some(new_program) = &maybe_new_program {
       // Process the EDB; populate using program facts
-      self.edb.populate_program_facts(new_program)?;
+      self.edb.populate_program_facts(runtime, new_program)?;
 
       // If need to incrementalize, remove such computed results
       let edb_need_update_relations = self.edb.need_update_relations();
@@ -382,7 +377,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
     } else {
       self
         .edb
-        .populate_program_facts(&temp_program)
+        .populate_program_facts(runtime, &temp_program)
         .expect("Since there is no new program, no error should be raised during program facts population");
 
       // If there is no new program, we directly take our current program
@@ -391,7 +386,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
 
     // Internalize EDB relations
     // !SPECIAL MONITORING!
-    self.edb.internalize_with_monitor(ctx, m);
+    self.edb.internalize_with_monitor(runtime, ctx, m);
 
     // Generate stratum information
     let strata_info = stratum_inputs_outputs(program_ref);
@@ -472,7 +467,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
     ram_program: &ram::Program,
     strata_info: &StrataInformation,
     runtime: &RuntimeEnvironment,
-    ctx: &mut Prov,
+    ctx: &Prov,
     m: &M,
   ) -> Result<IntentionalDatabase<Prov, Ptr>, RuntimeError>
   where
@@ -613,18 +608,22 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
     self.idb.get_internal_collection(r)
   }
 
-  pub fn recover(&mut self, r: &str, ctx: &Prov) {
+  pub fn recover(&mut self, r: &str, runtime: &RuntimeEnvironment, ctx: &Prov) {
     if self.idb.has_relation(r) {
-      self.idb.recover(r, ctx, !self.options.retain_internal_when_recover);
+      self
+        .idb
+        .recover(r, runtime, ctx, !self.options.retain_internal_when_recover);
     } else if self.edb.has_relation(r) {
-      self.idb.recover_from_edb(r, ctx, &self.edb.extensional_relations[r]);
+      self
+        .idb
+        .recover_from_edb(r, runtime, ctx, &self.edb.extensional_relations[r]);
     }
   }
 
-  pub fn recover_with_monitor<M: Monitor<Prov>>(&mut self, r: &str, ctx: &Prov, m: &M) {
+  pub fn recover_with_monitor<M: Monitor<Prov>>(&mut self, r: &str, runtime: &RuntimeEnvironment, ctx: &Prov, m: &M) {
     self
       .idb
-      .recover_with_monitor(r, ctx, m, !self.options.retain_internal_when_recover)
+      .recover_with_monitor(r, runtime, ctx, m, !self.options.retain_internal_when_recover)
   }
 
   pub fn relation_ref(&self, r: &str) -> Option<&DynamicOutputCollection<Prov>> {

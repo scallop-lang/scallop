@@ -39,7 +39,7 @@ impl BoundnessAnalysis {
         // Make sure the demand attribute is affecting boundness analysis,
         // through some of the head expressions being bounded
         let bounded_exprs = if let Some(head_atom) = rule.head().atom() {
-          if let Some((pattern, _)) = demand_attrs.get(head_atom.predicate()) {
+          if let Some((pattern, _)) = demand_attrs.get(&head_atom.predicate()) {
             head_atom
               .iter_arguments()
               .zip(pattern.chars())

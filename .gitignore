@@ -1,4 +1,6 @@
+# Rust and compilation
 target
+/.tmp
 /Cargo.lock
 
 # MacOS

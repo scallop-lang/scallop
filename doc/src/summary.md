@@ -7,30 +7,55 @@
 - [Installation](installation.md)
 - [Crash Course](crash_course.md)
 
-# Reference Guide
+# Language Reference Guide
 
 - [Scallop and Logic Programming](language/index.md)
-  - [Types, Relations, and Facts](language/facts.md)
-  - [Writing Simple Rules](language/rules.md)
+  - [Relations and Facts](language/relation.md)
+  - [Writing Rules](language/rules.md)
+  - [Values and Types](language/value_type.md)
   - [Writing a Query](language/query.md)
   - [Recursive Rules](language/recursion.md)
-  - [Rules with Negations](language/negation.md)
-  - [Rules with Aggregations](language/aggregation.md)
+  - [Negations](language/negation.md)
+  - [Aggregations](language/aggregation.md)
+  - [Declaring Constants](language/constants.md)
+  - [Algebraic Data Type and Entities](language/adt_and_entity.md)
+  - [Loading from CSV](language/loading_csv.md)
   - [Foreign Functions](language/foreign_functions.md)
   - [Foreign Predicates](language/foreign_predicates.md)
-- [Scallop and Probabilistic Programming](probabilistic/index.md)
+  - [Magic-Set Transformation](language/magic_set.md)
+  - [Reference Guide](language/reference_guide.md)
+- [Provenance and Probabilistic Programming](probabilistic/index.md)
+  - [Provenance](probabilistic/provenance.md)
+  - [Proofs Provenance](probabilistic/proofs.md)
   - [Fact with Probability](probabilistic/facts.md)
   - [Logic and Probability](probabilistic/logic.md)
+  - [Provenance Library](probabilistic/library.md)
   - [Aggregation and Probability](probabilistic/reasoning.md)
   - [Sampling with Probability](probabilistic/sampling.md)
-  - [Tags and Provenance](language/provenance.md)
-- [Python and Scallop](scallopy/index.md)
-  - [Creating Context](scallopy/context.md)
+- [`scallopy`](scallopy/index.md)
+  - [Getting Started](scallopy/getting_started.md)
+  - [Scallop Context](scallopy/context.md)
   - [Branching Executions](scallopy/branching.md)
   - [Configuring Provenance](scallopy/provenance.md)
+  - [Creating Module](scallopy/module.md)
+  - [Configuring Input Relations](scallopy/module_input.md)
+  - [Configuring Output Relations](scallopy/module_output.md)
+  - [Foreign Functions](scallopy/foreign_function.md)
+  - [Foreign Predicate](scallopy/foreign_predicate.md)
+  - [Saving and Loading](scallopy/save_and_load.md)
+
+# Toolchain
+
+- [Scallop CLI](toolchain/cli.md)
+- [Scallop Interpreter](toolchain/scli.md)
+- [Scallop REPL](toolchain/sclrepl.md)
+- [Scallop Compiler](toolchain/sclc.md)
+
+# For Developers
+
 - [For Developers](developer/index.md)
-  - [New Language Construct](developer/language_construct.md)
-  - [New Binding](developer/binding.md)
+- [New Language Construct](developer/language_construct.md)
+- [New Binding](developer/binding.md)
 
 # Resources
 

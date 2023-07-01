@@ -1,6 +1,6 @@
 use super::*;
 
-/// Range foreign predicate
+/// String chars foreign predicate
 ///
 /// ``` scl
 /// extern pred string_chars(s: String, id: usize, c: char)[bff]
@@ -46,14 +46,12 @@ impl ForeignPredicate for StringCharsBFF {
     assert_eq!(bounded.len(), 1);
     let s = &bounded[0];
     match s {
-      Value::String(s) => {
-        s
-          .chars()
-          .enumerate()
-          .map(|(i, c)| (DynamicInputTag::None, vec![Value::from(i), Value::from(c)]))
-          .collect()
-      }
-      _ => panic!("Bounded argument is not string")
+      Value::String(s) => s
+        .chars()
+        .enumerate()
+        .map(|(i, c)| (DynamicInputTag::None, vec![Value::from(i), Value::from(c)]))
+        .collect(),
+      _ => panic!("Bounded argument is not string"),
     }
   }
 }

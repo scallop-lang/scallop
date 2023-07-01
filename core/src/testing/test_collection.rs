@@ -42,9 +42,7 @@ impl<Prov: Provenance, Tup: Into<Tuple>> From<Vec<(OutputTagOf<Prov>, Tup)>> for
 
 pub fn test_equals(t1: &Tuple, t2: &Tuple) -> bool {
   match (t1, t2) {
-    (Tuple::Tuple(ts1), Tuple::Tuple(ts2)) => {
-      ts1.iter().zip(ts2.iter()).all(|(s1, s2)| test_equals(s1, s2))
-    },
+    (Tuple::Tuple(ts1), Tuple::Tuple(ts2)) => ts1.iter().zip(ts2.iter()).all(|(s1, s2)| test_equals(s1, s2)),
     (Tuple::Value(Value::F32(t1)), Tuple::Value(Value::F32(t2))) => {
       if t1.is_infinite() && t1.is_sign_positive() && t2.is_infinite() && t2.is_sign_positive() {
         true
@@ -55,7 +53,7 @@ pub fn test_equals(t1: &Tuple, t2: &Tuple) -> bool {
       } else {
         (t1 - t2).abs() < 0.001
       }
-    },
+    }
     (Tuple::Value(Value::F64(t1)), Tuple::Value(Value::F64(t2))) => {
       if t1.is_infinite() && t1.is_sign_positive() && t2.is_infinite() && t2.is_sign_positive() {
         true
@@ -66,7 +64,7 @@ pub fn test_equals(t1: &Tuple, t2: &Tuple) -> bool {
       } else {
         (t1 - t2).abs() < 0.001
       }
-    },
+    }
     _ => t1 == t2,
   }
 }
@@ -100,11 +98,8 @@ where
   }
 }
 
-pub fn expect_output_collection<Prov, C>(
-  name: &str,
-  actual: &DynamicOutputCollection<Prov>,
-  expected: C
-) where
+pub fn expect_output_collection<Prov, C>(name: &str, actual: &DynamicOutputCollection<Prov>, expected: C)
+where
   Prov: Provenance,
   Prov::Tag: std::fmt::Debug,
   C: Into<TestCollection>,
@@ -115,7 +110,13 @@ pub fn expect_output_collection<Prov, C>(
   for e in &expected.elements {
     let te = e.clone().into();
     let pos = actual.iter().position(|(_, tuple)| test_equals(&tuple, &te));
-    assert!(pos.is_some(), "Tuple {:?} not found in `{}` collection {:?}", te, name, actual)
+    assert!(
+      pos.is_some(),
+      "Tuple {:?} not found in `{}` collection {:?}",
+      te,
+      name,
+      actual
+    )
   }
 
   // Then check everything in actual is in expected

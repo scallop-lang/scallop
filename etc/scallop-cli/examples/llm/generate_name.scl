@@ -1,0 +1,6 @@
+@gpt_chat_complete(prompt="A typical {lang} name is {n}", pattern="bf")
+type generate_name(lang: String, n: String)
+
+rel languages = {"english", "chinese", "japanese", "french", "germany"}
+
+rel sampled_name(l, n) = languages(l) and generate_name(l, n)

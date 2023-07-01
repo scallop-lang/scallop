@@ -38,9 +38,7 @@ impl provenance::Provenance for CustomProvenance {
 
   /// Invoking the provenance's tagging function on the input tag
   fn tagging_fn(&self, i: Self::InputTag) -> Self::Tag {
-    Python::with_gil(|py| {
-      Self::Tag::new(self.0.call_method(py, "tagging_fn", (i,), None).unwrap())
-    })
+    Python::with_gil(|py| Self::Tag::new(self.0.call_method(py, "tagging_fn", (i,), None).unwrap()))
   }
 
   /// Invoking the provenance's recover function on an internal tag
@@ -68,17 +66,42 @@ impl provenance::Provenance for CustomProvenance {
   }
 
   fn zero(&self) -> Self::Tag {
-    Python::with_gil(|py| Self::Tag::new(self.0.call_method(py, "zero", (), None).unwrap().extract(py).unwrap()))
+    Python::with_gil(|py| {
+      Self::Tag::new(
+        self
+          .0
+          .call_method(py, "zero", (), None)
+          .expect("Python error in `zero`")
+          .extract(py)
+          .expect("Python error in `zero`"),
+      )
+    })
   }
 
   fn one(&self) -> Self::Tag {
-    Python::with_gil(|py| Self::Tag::new(self.0.call_method(py, "one", (), None).unwrap().extract(py).unwrap()))
+    Python::with_gil(|py| {
+      Self::Tag::new(
+        self
+          .0
+          .call_method(py, "one", (), None)
+          .expect("Python error in `one`")
+          .extract(py)
+          .expect("Python error in `one`"),
+      )
+    })
   }
 
   fn add(&self, t1: &Self::Tag, t2: &Self::Tag) -> Self::Tag {
     Python::with_gil(|py| {
       let input = (t1.0.clone(), t2.0.clone());
-      Self::Tag::new(self.0.call_method(py, "add", input, None).unwrap().extract(py).unwrap())
+      Self::Tag::new(
+        self
+          .0
+          .call_method(py, "add", input, None)
+          .expect("Python error in `add`")
+          .extract(py)
+          .expect("Python error in `add`"),
+      )
     })
   }
 
@@ -89,9 +112,9 @@ impl provenance::Provenance for CustomProvenance {
         self
           .0
           .call_method(py, "mult", input, None)
-          .unwrap()
+          .expect("Python error in `mult`")
           .extract(py)
-          .unwrap(),
+          .expect("Python error in `mult`"),
       )
     })
   }
@@ -103,9 +126,9 @@ impl provenance::Provenance for CustomProvenance {
         self
           .0
           .call_method(py, "negate", input, None)
-          .unwrap()
+          .expect("Python error in `negate`")
           .extract(py)
-          .unwrap(),
+          .expect("Python error in `negate`"),
       ))
     })
   }

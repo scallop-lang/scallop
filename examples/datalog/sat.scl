@@ -1,0 +1,22 @@
+// Boolean formula language
+type Formula = Var(String)
+             | Not(Formula)
+             | And(Formula, Formula)
+             | Or(Formula, Formula)
+
+// Each variable could be assigned either true or false, but not both
+rel { assign(v, true); assign(v, false) } = case bf is Var(v)
+
+// Evaluation the formula to see if it is satisfiable
+rel eval(bf, r)        = case bf is Var(v) and assign(v, r)
+rel eval(bf, !r)       = case bf is Not(c) and eval(c, r)
+rel eval(bf, lr && rr) = case bf is And(lbf, rbf) and eval(lbf, lr) and eval(rbf, rr)
+rel eval(bf, lr || rr) = case bf is Or(lbf, rbf) and eval(lbf, lr) and eval(rbf, rr)
+
+// ===============
+
+// (A /\ ~A) \/ (B /\ ~B)
+const MY_FORMULA = Or(And(Var("A"), Not(Var("A"))), And(Var("B"), Not(Var("B"))))
+
+// Query the evaluated result
+query eval(MY_FORMULA, r)

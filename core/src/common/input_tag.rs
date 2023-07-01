@@ -1,10 +1,15 @@
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+use serde::*;
+
+use super::tensors::Tensor;
+
+#[derive(Clone, Debug, PartialEq, PartialOrd, Serialize)]
 pub enum DynamicInputTag {
   None,
   Exclusive(usize),
   Bool(bool),
   Float(f64),
   ExclusiveFloat(f64, usize),
+  Tensor(Tensor),
 }
 
 impl DynamicInputTag {
@@ -40,6 +45,7 @@ impl std::fmt::Display for DynamicInputTag {
       Self::Bool(b) => b.fmt(f),
       Self::Float(n) => n.fmt(f),
       Self::ExclusiveFloat(n, i) => f.write_str(&format!("{} [ME({})]", n, i)),
+      Self::Tensor(t) => t.fmt(f),
     }
   }
 }

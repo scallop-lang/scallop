@@ -1,6 +1,6 @@
 use scallop_core::common::expr::*;
-use scallop_core::common::value::*;
 use scallop_core::common::tuple::*;
+use scallop_core::common::value::*;
 use scallop_core::runtime::dynamic::dataflow::*;
 use scallop_core::runtime::dynamic::*;
 use scallop_core::runtime::env::*;
@@ -11,7 +11,7 @@ fn test_dyn_dataflow_free_range() {
   let runtime = RuntimeEnvironment::new_std();
   let ctx = unit::UnitProvenance::new();
   let df = DynamicDataflow::foreign_predicate_ground(
-    "range_usize".to_string(),
+    "range#usize".to_string(),
     vec![Value::USize(1), Value::USize(5)],
     true,
     &ctx,
@@ -43,7 +43,7 @@ fn test_dyn_dataflow_soft_lt_1() {
     DynamicElement::new((1.0, 5.0), 1.0),
   ];
   let df = DynamicDataflow::vec(&source_df).foreign_predicate_constraint(
-    "soft_lt_f64".to_string(),
+    "soft_lt#f64".to_string(),
     vec![Expr::access(0), Expr::access(1)],
     &ctx,
   );
@@ -69,9 +69,22 @@ fn test_dyn_dataflow_join_range() {
     DynamicElement::new((10usize, 10usize), unit::Unit),
     DynamicElement::new((100usize, 101usize), unit::Unit),
   ];
-  let df = DynamicDataflow::vec(&data).foreign_predicate_join("range_usize".to_string(), vec![Expr::access(0), Expr::access(1)], &ctx);
+  let df = DynamicDataflow::vec(&data).foreign_predicate_join(
+    "range#usize".to_string(),
+    vec![Expr::access(0), Expr::access(1)],
+    &ctx,
+  );
   let batch = df.iter_recent(&runtime).next().unwrap().collect::<Vec<_>>();
-  assert_eq!(AsTuple::<((usize, usize), (usize,))>::as_tuple(&batch[0].tuple), ((1usize, 3usize), (1usize,)));
-  assert_eq!(AsTuple::<((usize, usize), (usize,))>::as_tuple(&batch[1].tuple), ((1usize, 3usize), (2usize,)));
-  assert_eq!(AsTuple::<((usize, usize), (usize,))>::as_tuple(&batch[2].tuple), ((100usize, 101usize), (100usize,)));
+  assert_eq!(
+    AsTuple::<((usize, usize), (usize,))>::as_tuple(&batch[0].tuple),
+    ((1usize, 3usize), (1usize,))
+  );
+  assert_eq!(
+    AsTuple::<((usize, usize), (usize,))>::as_tuple(&batch[1].tuple),
+    ((1usize, 3usize), (2usize,))
+  );
+  assert_eq!(
+    AsTuple::<((usize, usize), (usize,))>::as_tuple(&batch[2].tuple),
+    ((100usize, 101usize), (100usize,))
+  );
 }

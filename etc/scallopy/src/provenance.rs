@@ -6,11 +6,13 @@ use pyo3::types::*;
 use scallop_core::common::tuple::*;
 use scallop_core::common::tuple_type::*;
 use scallop_core::runtime::dynamic::*;
+use scallop_core::runtime::env::*;
 use scallop_core::runtime::provenance::*;
 use scallop_core::utils::*;
 
 use super::collection::*;
 use super::custom_tag;
+use super::external_tag::*;
 use super::tuple::*;
 
 /// The trait which all provenance contexts used in `scallopy` should implement
@@ -18,14 +20,18 @@ use super::tuple::*;
 /// Contains the functions and default implementations for type conversion from and to python objects
 pub trait PythonProvenance: Provenance {
   /// Process a list of python facts while the tuples are typed with `tuple_type`
-  fn process_typed_py_facts(facts: &PyList, tuple_type: &TupleType) -> PyResult<Vec<(Option<Self::InputTag>, Tuple)>> {
+  fn process_typed_py_facts(
+    facts: &PyList,
+    tuple_type: &TupleType,
+    env: &RuntimeEnvironment,
+  ) -> PyResult<Vec<(Option<Self::InputTag>, Tuple)>> {
     let facts: Vec<&PyAny> = facts.extract()?;
     facts
       .into_iter()
       .map(|fact| {
         let (maybe_py_tag, py_tup) = Self::split_py_fact(fact)?;
         let tag = Self::process_optional_py_tag(maybe_py_tag)?;
-        let tup = from_python_tuple(py_tup, tuple_type)?;
+        let tup = from_python_tuple(py_tup, tuple_type, &env.into())?;
         Ok((tag, tup))
       })
       .collect::<PyResult<Vec<_>>>()
@@ -166,10 +172,10 @@ impl PythonProvenance for top_bottom_k_clauses::TopBottomKClausesProvenance<ArcF
   }
 }
 
-impl PythonProvenance for diff_min_max_prob::DiffMinMaxProbProvenance<Py<PyAny>, ArcFamily> {
+impl PythonProvenance for diff_min_max_prob::DiffMinMaxProbProvenance<ExtTag, ArcFamily> {
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let prob: f64 = tag.extract()?;
-    let tag: Py<PyAny> = tag.into();
+    let tag: ExtTag = tag.into();
     Ok(Some((prob, Some(tag)).into()))
   }
 
@@ -182,17 +188,17 @@ impl PythonProvenance for diff_min_max_prob::DiffMinMaxProbProvenance<Py<PyAny>,
 
   fn to_output_py_tag(tag: &Self::OutputTag) -> Py<PyAny> {
     match tag.2 {
-      1 => Python::with_gil(|py| (1, tag.3.clone().unwrap()).to_object(py)),
+      1 => Python::with_gil(|py| (1, tag.3.as_ref().into_option().unwrap()).to_object(py)),
       0 => Python::with_gil(|py| (0, tag.0).to_object(py)),
-      _ => Python::with_gil(|py| (-1, tag.3.clone().unwrap()).to_object(py)),
+      _ => Python::with_gil(|py| (-1, tag.3.as_ref().into_option().unwrap()).to_object(py)),
     }
   }
 }
 
-impl PythonProvenance for diff_add_mult_prob::DiffAddMultProbProvenance<Py<PyAny>, ArcFamily> {
+impl PythonProvenance for diff_add_mult_prob::DiffAddMultProbProvenance<ExtTag, ArcFamily> {
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let prob: f64 = tag.extract()?;
-    let tag: Py<PyAny> = tag.into();
+    let tag: ExtTag = tag.into();
     Ok(Some((prob, Some(tag)).into()))
   }
 
@@ -208,10 +214,10 @@ impl PythonProvenance for diff_add_mult_prob::DiffAddMultProbProvenance<Py<PyAny
   }
 }
 
-impl PythonProvenance for diff_nand_mult_prob::DiffNandMultProbProvenance<Py<PyAny>, ArcFamily> {
+impl PythonProvenance for diff_nand_mult_prob::DiffNandMultProbProvenance<ExtTag, ArcFamily> {
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let prob: f64 = tag.extract()?;
-    let tag: Py<PyAny> = tag.into();
+    let tag: ExtTag = tag.into();
     Ok(Some((prob, Some(tag)).into()))
   }
 
@@ -227,10 +233,10 @@ impl PythonProvenance for diff_nand_mult_prob::DiffNandMultProbProvenance<Py<PyA
   }
 }
 
-impl PythonProvenance for diff_max_mult_prob::DiffMaxMultProbProvenance<Py<PyAny>, ArcFamily> {
+impl PythonProvenance for diff_max_mult_prob::DiffMaxMultProbProvenance<ExtTag, ArcFamily> {
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let prob: f64 = tag.extract()?;
-    let tag: Py<PyAny> = tag.into();
+    let tag: ExtTag = tag.into();
     Ok(Some((prob, Some(tag)).into()))
   }
 
@@ -246,10 +252,10 @@ impl PythonProvenance for diff_max_mult_prob::DiffMaxMultProbProvenance<Py<PyAny
   }
 }
 
-impl PythonProvenance for diff_nand_min_prob::DiffNandMinProbProvenance<Py<PyAny>, ArcFamily> {
+impl PythonProvenance for diff_nand_min_prob::DiffNandMinProbProvenance<ExtTag, ArcFamily> {
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let prob: f64 = tag.extract()?;
-    let tag: Py<PyAny> = tag.into();
+    let tag: ExtTag = tag.into();
     Ok(Some((prob, Some(tag)).into()))
   }
 
@@ -265,11 +271,11 @@ impl PythonProvenance for diff_nand_min_prob::DiffNandMinProbProvenance<Py<PyAny
   }
 }
 
-impl PythonProvenance for diff_sample_k_proofs::DiffSampleKProofsProvenance<Py<PyAny>, ArcFamily> {
+impl PythonProvenance for diff_sample_k_proofs::DiffSampleKProofsProvenance<ExtTag, ArcFamily> {
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let tag_disj_id: (&PyAny, Option<usize>) = tag.extract()?;
     if let Some(prob) = tag_disj_id.0.extract()? {
-      let tag: Py<PyAny> = tag_disj_id.0.into();
+      let tag: ExtTag = tag_disj_id.0.into();
       Ok(Some((prob, tag, tag_disj_id.1).into()))
     } else {
       Ok(None)
@@ -288,11 +294,11 @@ impl PythonProvenance for diff_sample_k_proofs::DiffSampleKProofsProvenance<Py<P
   }
 }
 
-impl PythonProvenance for diff_top_k_proofs::DiffTopKProofsProvenance<Py<PyAny>, ArcFamily> {
+impl PythonProvenance for diff_top_k_proofs::DiffTopKProofsProvenance<ExtTag, ArcFamily> {
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let tag_disj_id: (&PyAny, Option<usize>) = tag.extract()?;
     if let Some(prob) = tag_disj_id.0.extract()? {
-      let tag: Py<PyAny> = tag_disj_id.0.into();
+      let tag: ExtTag = tag_disj_id.0.into();
       Ok(Some((prob, tag, tag_disj_id.1).into()))
     } else {
       Ok(None)
@@ -311,34 +317,11 @@ impl PythonProvenance for diff_top_k_proofs::DiffTopKProofsProvenance<Py<PyAny>,
   }
 }
 
-impl PythonProvenance for diff_top_k_proofs_indiv::DiffTopKProofsIndivProvenance<Py<PyAny>, ArcFamily> {
+impl PythonProvenance for diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance<ExtTag, ArcFamily> {
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let tag_disj_id: (&PyAny, Option<usize>) = tag.extract()?;
     if let Some(prob) = tag_disj_id.0.extract()? {
-      let tag: Py<PyAny> = tag_disj_id.0.into();
-      Ok(Some((prob, tag, tag_disj_id.1).into()))
-    } else {
-      Ok(None)
-    }
-  }
-
-  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum<ArcFamily> {
-    CollectionEnum::DiffTopKProofsIndiv {
-      collection: col,
-      tags: ctx.storage.clone_rc(),
-    }
-  }
-
-  fn to_output_py_tag(tag: &Self::OutputTag) -> Py<PyAny> {
-    Python::with_gil(|py| (tag.k, tag.proofs.clone()).to_object(py))
-  }
-}
-
-impl PythonProvenance for diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance<Py<PyAny>, ArcFamily> {
-  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
-    let tag_disj_id: (&PyAny, Option<usize>) = tag.extract()?;
-    if let Some(prob) = tag_disj_id.0.extract()? {
-      let tag: Py<PyAny> = tag_disj_id.0.into();
+      let tag: ExtTag = tag_disj_id.0.into();
       Ok(Some((prob, tag, tag_disj_id.1).into()))
     } else {
       Ok(None)

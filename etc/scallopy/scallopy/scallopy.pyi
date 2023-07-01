@@ -3,6 +3,14 @@ from typing import Dict, List, Union, Tuple, Optional, Any
 from .provenance import ScallopProvenance
 from .io import CSVFileOptions
 
+
+def torch_tensor_enabled() -> bool:
+  """
+  Returns a boolean indicating whether this version of `scallopy`
+  is compiled with torch tensor enabled.
+  """
+
+
 class InternalScallopContext:
   def __init__(
     self,
@@ -64,7 +72,15 @@ class InternalScallopContext:
     demand: Optional[str] = None,
   ) -> None: ...
 
+  def add_entity(self, relation: str, entity_tuple: Tuple[str]) -> None: ...
+
+  def compile_entity(self, relation: str, entity_tuple: Tuple[str]) -> Dict[str, List[Tuple]]: ...
+
   def register_foreign_function(self, ff: Any) -> None: ...
+
+  def register_foreign_predicate(self, fp: Any) -> None: ...
+
+  def register_foreign_attribute(self, ff: Any) -> None: ...
 
   def dump_front_ir(self): ...
 
@@ -88,6 +104,16 @@ class InternalScallopCollection:
   def num_input_facts(self) -> Optional[int]:
     """
     Get the number of input facts for a valid provenance semiring
+    """
+
+  def input_tags(self) -> Optional[List[Any]]:
+    """
+    Get all the input tags
+    """
+
+  def len(self) -> int:
+    """
+    Get the number of elements in the collection
     """
 
   def __iter__(self) -> InternalScallopCollectionIterator:

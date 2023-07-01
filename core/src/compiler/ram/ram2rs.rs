@@ -84,9 +84,9 @@ impl ast::Program {
 
     // Composite
     quote! {
-      // use std::rc::Rc;
       use scallop_core::common::input_tag::*;
       use scallop_core::runtime::provenance::*;
+      use scallop_core::runtime::env::*;
       use scallop_core::runtime::statics::*;
       use scallop_core::runtime::database::extensional::*;
       #(#strata_rs)*
@@ -95,7 +95,8 @@ impl ast::Program {
         run_with_edb(ctx, ExtensionalDatabase::new())
       }
       pub fn run_with_edb<C: Provenance>(ctx: &mut C, mut edb: ExtensionalDatabase<C>) -> OutputRelations<C> {
-        edb.internalize(ctx);
+        let runtime_env = RuntimeEnvironment::default();
+        edb.internalize(&runtime_env, ctx);
         #(#exec_strata)*
         #output_relations
       }
@@ -451,9 +452,11 @@ fn value_type_to_rs_type(ty: &ValueType) -> TokenStream {
     ValueType::Char => quote! { char },
     ValueType::Str => quote! { &'static str },
     ValueType::String => quote! { String },
+    ValueType::Symbol => unimplemented!(),
     ValueType::DateTime => quote! { DateTime<Utc> },
     ValueType::Duration => quote! { Duration },
-    // ValueType::RcString => quote! { Rc<String> },
+    ValueType::Entity => quote! { u64 },
+    ValueType::Tensor => unimplemented!(),
   }
 }
 
@@ -503,6 +506,9 @@ fn expr_to_rs_expr(expr: &Expr) -> TokenStream {
     Expr::Call(_) => {
       unimplemented!()
     }
+    Expr::New(_) => {
+      unimplemented!()
+    }
   }
 }
 
@@ -513,6 +519,7 @@ fn input_tag_to_rs_input_tag(tag: &DynamicInputTag) -> TokenStream {
     DynamicInputTag::Bool(b) => quote! { DynamicInputTag::Bool(#b) },
     DynamicInputTag::Float(f) => quote! { DynamicInputTag::Float(#f) },
     DynamicInputTag::ExclusiveFloat(f, u) => quote! { DynamicInputTag::ExclusiveFloat(#f, #u) },
+    DynamicInputTag::Tensor(_) => unimplemented!(),
   }
 }
 
@@ -568,9 +575,13 @@ fn value_to_rs_value(value: &Value) -> TokenStream {
     Bool(b) => quote! { #b },
     Str(s) => quote! { #s },
     String(s) => quote! { String::from(#s) },
-    // RcString(s) => quote! { Rc::new(String::from(#s)) },
+    Symbol(_) => unimplemented!(),
+    SymbolString(_) => unimplemented!(),
     DateTime(_) => unimplemented!(),
     Duration(_) => unimplemented!(),
+    Entity(e) => quote! { #e },
+    Tensor(_) => panic!("[Internal Error] Should not have raw tensor during compilation"),
+    TensorValue(_) => panic!("[Internal Error] Should not have tensor value during compilation"),
   }
 }
 

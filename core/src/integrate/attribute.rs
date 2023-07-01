@@ -8,17 +8,21 @@ pub enum AttributeArgument {
   Integer(i64),
   Boolean(bool),
   String(String),
+  List(Vec<AttributeArgument>),
 }
 
 impl AttributeArgument {
-  pub fn to_front(&self) -> front::Constant {
-    let c = match self {
-      Self::Float(f) => front::ConstantNode::Float(f.clone()),
-      Self::Integer(i) => front::ConstantNode::Integer(i.clone()),
-      Self::Boolean(b) => front::ConstantNode::Boolean(b.clone()),
-      Self::String(s) => front::ConstantNode::String(s.clone()),
-    };
-    front::Constant::default(c)
+  pub fn to_front(&self) -> front::ast::AttributeValue {
+    match self {
+      Self::Float(f) => front::ast::Constant::float(f.clone()).into(),
+      Self::Integer(i) => front::ast::Constant::integer(i.clone()).into(),
+      Self::Boolean(b) => front::ast::Constant::boolean(b.clone()).into(),
+      Self::String(s) => front::ast::Constant::string(s.clone()).into(),
+      Self::List(l) => {
+        let l = l.iter().map(AttributeArgument::to_front).collect();
+        front::ast::AttributeValue::default(front::ast::AttributeValueNode::List(l))
+      }
+    }
   }
 }
 
@@ -40,6 +44,15 @@ impl From<i64> for AttributeArgument {
   }
 }
 
+impl<T> From<Vec<T>> for AttributeArgument
+where
+  T: Into<AttributeArgument>,
+{
+  fn from(v: Vec<T>) -> Self {
+    Self::List(v.into_iter().map(|t| t.into()).collect())
+  }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Attribute {
   pub name: String,
@@ -56,8 +69,8 @@ impl Attribute {
     }
   }
 
-  pub fn to_front(&self) -> front::Attribute {
-    front::Attribute::default(front::AttributeNode {
+  pub fn to_front(&self) -> front::ast::Attribute {
+    front::ast::Attribute::default(front::ast::AttributeNode {
       name: string_to_front_identifier(&self.name),
       pos_args: self
         .positional_arguments
@@ -77,6 +90,6 @@ impl Attribute {
   }
 }
 
-fn string_to_front_identifier(s: &str) -> front::Identifier {
-  front::Identifier::default(front::IdentifierNode { name: s.to_string() })
+fn string_to_front_identifier(s: &str) -> front::ast::Identifier {
+  front::ast::Identifier::default(front::ast::IdentifierNode { name: s.to_string() })
 }

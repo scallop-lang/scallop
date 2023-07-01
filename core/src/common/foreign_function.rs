@@ -75,10 +75,12 @@ use std::collections::*;
 
 use dyn_clone::DynClone;
 
+use super::foreign_functions as ffs;
 use super::type_family::*;
 use super::value::*;
 use super::value_type::*;
-use super::foreign_functions as ffs;
+
+use crate::runtime::env::*;
 
 /// A type used for defining a foreign function.
 ///
@@ -237,7 +239,19 @@ pub trait ForeignFunction: DynClone {
   ///
   /// We assume that the given arguments obey the type declaration.
   /// In case error happens, we return `None` as the result.
-  fn execute(&self, args: Vec<Value>) -> Option<Value>;
+  #[allow(unused_variables)]
+  fn execute(&self, args: Vec<Value>) -> Option<Value> {
+    panic!(
+      "[Internal Error] Missing execute function in the foreign function `{}`",
+      self.name()
+    )
+  }
+
+  /// Execute the function given arguments and a runtime environment
+  #[allow(unused_variables)]
+  fn execute_with_env(&self, env: &RuntimeEnvironment, args: Vec<Value>) -> Option<Value> {
+    self.execute(args)
+  }
 
   /// Get all the arguments
   fn arguments(&self) -> Vec<(ArgumentKind, ForeignFunctionParameterType)> {
@@ -467,6 +481,10 @@ impl ForeignFunction for DynamicForeignFunction {
   fn execute(&self, args: Vec<Value>) -> Option<Value> {
     self.ff.execute(args)
   }
+
+  fn execute_with_env(&self, env: &RuntimeEnvironment, args: Vec<Value>) -> Option<Value> {
+    self.ff.execute_with_env(env, args)
+  }
 }
 
 /// Dynamic foreign function registry
@@ -497,9 +515,22 @@ impl ForeignFunctionRegistry {
 
     // Arithmetic
     registry.register(ffs::Abs).unwrap();
+    registry.register(ffs::Floor).unwrap();
+    registry.register(ffs::Ceil).unwrap();
+    registry.register(ffs::Exp).unwrap();
+    registry.register(ffs::Exp2).unwrap();
+    registry.register(ffs::Log).unwrap();
+    registry.register(ffs::Log2).unwrap();
+    registry.register(ffs::Pow).unwrap();
+    registry.register(ffs::Powf).unwrap();
     registry.register(ffs::Sin).unwrap();
     registry.register(ffs::Cos).unwrap();
     registry.register(ffs::Tan).unwrap();
+    registry.register(ffs::Asin).unwrap();
+    registry.register(ffs::Acos).unwrap();
+    registry.register(ffs::Atan).unwrap();
+    registry.register(ffs::Atan2).unwrap();
+    registry.register(ffs::Sign).unwrap();
 
     // Min/Max
     registry.register(ffs::Max).unwrap();
@@ -510,6 +541,11 @@ impl ForeignFunctionRegistry {
     registry.register(ffs::StringLength).unwrap();
     registry.register(ffs::StringCharAt).unwrap();
     registry.register(ffs::Substring).unwrap();
+    registry.register(ffs::Format).unwrap();
+    registry.register(ffs::StringUpper).unwrap();
+    registry.register(ffs::StringLower).unwrap();
+    registry.register(ffs::StringIndexOf).unwrap();
+    registry.register(ffs::StringTrim).unwrap();
 
     // DateTime operations
     registry.register(ffs::DateTimeDay).unwrap();
@@ -519,6 +555,9 @@ impl ForeignFunctionRegistry {
 
     // Hashing operation
     registry.register(ffs::Hash).unwrap();
+
+    // Tensor operation
+    registry.register(ffs::Dot).unwrap();
 
     registry
   }
@@ -566,9 +605,23 @@ impl<'a> IntoIterator for &'a ForeignFunctionRegistry {
 pub trait UnaryFloatFunction: Clone {
   fn name(&self) -> String;
 
-  fn execute_f32(&self, arg: f32) -> f32;
+  #[allow(unused_variables)]
+  fn execute_f32(&self, arg: f32) -> f32 {
+    0.0
+  }
 
-  fn execute_f64(&self, arg: f64) -> f64;
+  fn execute_f32_partial(&self, arg: f32) -> Option<f32> {
+    Some(self.execute_f32(arg))
+  }
+
+  #[allow(unused_variables)]
+  fn execute_f64(&self, arg: f64) -> f64 {
+    0.0
+  }
+
+  fn execute_f64_partial(&self, arg: f64) -> Option<f64> {
+    Some(self.execute_f64(arg))
+  }
 }
 
 impl<F: UnaryFloatFunction> ForeignFunction for F {
@@ -600,8 +653,8 @@ impl<F: UnaryFloatFunction> ForeignFunction for F {
 
   fn execute(&self, args: Vec<Value>) -> Option<Value> {
     match args[0] {
-      Value::F32(f) => Some(Value::F32(self.execute_f32(f))),
-      Value::F64(f) => Some(Value::F64(self.execute_f64(f))),
+      Value::F32(f) => self.execute_f32_partial(f).map(Value::F32),
+      Value::F64(f) => self.execute_f64_partial(f).map(Value::F64),
       _ => panic!("Expect floating point input"),
     }
   }

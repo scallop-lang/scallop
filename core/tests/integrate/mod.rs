@@ -1,3 +1,5 @@
+mod adt;
+mod attr;
 mod basic;
 mod bug;
 mod dt;
@@ -5,6 +7,7 @@ mod edb;
 mod ff;
 mod fp;
 mod incr;
+mod io;
 mod iter;
 mod prob;
 mod time;

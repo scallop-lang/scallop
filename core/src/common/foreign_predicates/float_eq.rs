@@ -14,23 +14,21 @@ pub struct FloatEq {
 impl FloatEq {
   pub fn new(ty: ValueType) -> Self {
     assert!(ty.is_float());
-    Self {
-      ty,
-      threshold: 0.001,
-    }
+    Self { ty, threshold: 0.001 }
   }
 
   pub fn new_with_threshold(ty: ValueType, threshold: f64) -> Self {
-    Self {
-      ty,
-      threshold,
-    }
+    Self { ty, threshold }
   }
 }
 
 impl ForeignPredicate for FloatEq {
   fn name(&self) -> String {
-    format!("float_eq_{}", self.ty)
+    "float_eq".to_string()
+  }
+
+  fn generic_type_parameters(&self) -> Vec<ValueType> {
+    vec![self.ty.clone()]
   }
 
   fn arity(&self) -> usize {
@@ -53,10 +51,10 @@ impl ForeignPredicate for FloatEq {
     match (&self.ty, lhs, rhs) {
       (ValueType::F32, Value::F32(l), Value::F32(r)) if (l - r).abs() < (self.threshold as f32) => {
         vec![(DynamicInputTag::None, vec![])]
-      },
+      }
       (ValueType::F64, Value::F64(l), Value::F64(r)) if (l - r).abs() < self.threshold => {
         vec![(DynamicInputTag::None, vec![])]
-      },
+      }
       _ => vec![],
     }
   }

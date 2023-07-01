@@ -1,0 +1,42 @@
+// The language for simple symbolic arithmetic expression
+type Expr = Const(i32) | Var(String) | Add(Expr, Expr)
+
+// The input to this module is a program
+type input_program(program: Expr)
+
+// A relation `to_string` for visualizing
+rel to_string(p, i as String) = case p is Const(i)
+rel to_string(p, v) = case p is Var(v)
+rel to_string(p, $format("({} + {})", s1, s2)) = case p is Add(p1, p2) and to_string(p1, s1) and to_string(p2, s2)
+
+// Relation for expression
+rel expr(p) = case p is Const(_) or case p is Var(_) or case p is Add(_, _)
+
+// Basic definition of equivalency: it is identity and transitive
+rel equivalent(p, p)   = expr(p)
+rel equivalent(p1, p3) = equivalent(p1, p2) and equivalent(p2, p3)
+
+// Definition of rewrite rules suggesting equivalence
+rel equivalent(p, new Add(b, a))             = case p is Add(a, b)
+rel equivalent(p1, new Add(a2, b2))          = case p1 is Add(a1, b1) and equivalent(a1, a2) and equivalent(b1, b2)
+rel equivalent(p, new Add(a, new Add(b, c))) = case p is Add(Add(a, b), c)
+rel equivalent(p, new Const(a + b))          = case p is Add(Const(a), Const(b))
+rel equivalent(p, p1)                        = case p is Add(p1, Const(0))
+
+// Definition of weight on each type of construct
+rel weight(p, 1)           = case p is Const(_)
+rel weight(p, 1)           = case p is Var(_)
+rel weight(p, w1 + w2 + 1) = case p is Add(p1, p2) and weight(p1, w1) and weight(p2, w2)
+
+// Equivalent program strings
+rel equiv_programs(sp) = input_program(p) and equivalent(p, sp)
+
+// Find the best program (minimum weight) among all programs equivalent to p
+rel best_program(p) = _ := min[p](w: equiv_programs(p) and weight(p, w))
+rel best_program_str(s) = best_program(best_prog) and to_string(best_prog, s)
+
+// ========================================
+
+const MY_PROGRAM = Add(Add(Const(3), Var("a")), Const(-3))
+rel input_program(MY_PROGRAM)
+query best_program_str

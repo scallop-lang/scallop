@@ -4,9 +4,7 @@ import "other_file.scl"
 type MyID <: i8
 
 // Alias type and builtin type `&str`
-type MyString <: &str
 type MyString2 <: String
-type MyString3 <: Rc<String>
 
 // Relation type declaration
 type digit(x: usize, y: i8)

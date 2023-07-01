@@ -1,23 +1,57 @@
+use serde::*;
+
 use super::*;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub enum TypeDeclNode {
   Subtype(SubtypeDecl),
   Alias(AliasTypeDecl),
   Relation(RelationTypeDecl),
   Enum(EnumTypeDecl),
+  Algebraic(AlgebraicDataTypeDecl),
 }
 
 pub type TypeDecl = AstNode<TypeDeclNode>;
 
 impl TypeDecl {
+  pub fn alias(name: Identifier, alias_of: Type) -> Self {
+    TypeDeclNode::Alias(
+      AliasTypeDeclNode {
+        attrs: Attributes::default(),
+        name,
+        alias_of,
+      }
+      .into(),
+    )
+    .into()
+  }
+
+  pub fn relation(name: Identifier, args: Vec<Type>) -> Self {
+    TypeDeclNode::Relation(
+      RelationTypeDeclNode {
+        attrs: Attributes::default(),
+        rel_types: vec![RelationTypeNode {
+          name,
+          arg_types: args
+            .into_iter()
+            .map(|a| ArgTypeBindingNode { name: None, ty: a }.into())
+            .collect(),
+        }
+        .into()],
+      }
+      .into(),
+    )
+    .into()
+  }
+
   pub fn attributes(&self) -> &Attributes {
     match &self.node {
       TypeDeclNode::Subtype(s) => s.attributes(),
       TypeDeclNode::Alias(a) => a.attributes(),
       TypeDeclNode::Relation(r) => r.attributes(),
       TypeDeclNode::Enum(e) => e.attributes(),
+      TypeDeclNode::Algebraic(a) => a.attributes(),
     }
   }
 
@@ -27,11 +61,12 @@ impl TypeDecl {
       TypeDeclNode::Alias(a) => a.attributes_mut(),
       TypeDeclNode::Relation(r) => r.attributes_mut(),
       TypeDeclNode::Enum(e) => e.attributes_mut(),
+      TypeDeclNode::Algebraic(a) => a.attributes_mut(),
     }
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct SubtypeDeclNode {
   pub attrs: Attributes,
@@ -59,7 +94,7 @@ impl SubtypeDecl {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct AliasTypeDeclNode {
   pub attrs: Attributes,
@@ -87,7 +122,7 @@ impl AliasTypeDecl {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct ArgTypeBindingNode {
   pub name: Option<Identifier>,
@@ -106,7 +141,7 @@ impl ArgTypeBinding {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct RelationTypeNode {
   pub name: Identifier,
@@ -140,7 +175,7 @@ impl RelationType {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct RelationTypeDeclNode {
   pub attrs: Attributes,
@@ -171,7 +206,7 @@ impl RelationTypeDecl {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[doc(hidden)]
 pub struct EnumTypeDeclNode {
   pub attrs: Attributes,
@@ -207,7 +242,7 @@ impl EnumTypeDecl {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct EnumTypeMemberNode {
   pub name: Identifier,
   pub assigned_num: Option<Constant>,
@@ -226,5 +261,70 @@ impl EnumTypeMember {
 
   pub fn assigned_number_mut(&mut self) -> Option<&mut Constant> {
     self.node.assigned_num.as_mut()
+  }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct AlgebraicDataTypeDeclNode {
+  pub attrs: Attributes,
+  pub name: Identifier,
+  pub variants: Vec<AlgebraicDataTypeVariant>,
+}
+
+pub type AlgebraicDataTypeDecl = AstNode<AlgebraicDataTypeDeclNode>;
+
+impl AlgebraicDataTypeDecl {
+  pub fn attributes(&self) -> &Vec<Attribute> {
+    &self.node.attrs
+  }
+
+  pub fn attributes_mut(&mut self) -> &mut Attributes {
+    &mut self.node.attrs
+  }
+
+  pub fn name(&self) -> &str {
+    self.node.name.name()
+  }
+
+  pub fn name_identifier(&self) -> &Identifier {
+    &self.node.name
+  }
+
+  pub fn iter_variants(&self) -> impl Iterator<Item = &AlgebraicDataTypeVariant> {
+    self.node.variants.iter()
+  }
+
+  pub fn iter_variants_mut(&mut self) -> impl Iterator<Item = &mut AlgebraicDataTypeVariant> {
+    self.node.variants.iter_mut()
+  }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct AlgebraicDataTypeVariantNode {
+  pub constructor: Identifier,
+  pub args: Vec<Type>,
+}
+
+pub type AlgebraicDataTypeVariant = AstNode<AlgebraicDataTypeVariantNode>;
+
+impl AlgebraicDataTypeVariant {
+  pub fn name(&self) -> &str {
+    self.node.constructor.name()
+  }
+
+  pub fn name_identifier(&self) -> &Identifier {
+    &self.node.constructor
+  }
+
+  pub fn iter_arg_types(&self) -> impl Iterator<Item = &Type> {
+    self.node.args.iter()
+  }
+
+  pub fn iter_arg_types_mut(&mut self) -> impl Iterator<Item = &mut Type> {
+    self.node.args.iter_mut()
+  }
+
+  pub fn args(&self) -> &Vec<Type> {
+    &self.node.args
   }
 }
