@@ -162,15 +162,15 @@ struct LineColumn {
 fn span_start_line_column(span: &proc_macro2::Span) -> LineColumn {
   let s = span.unwrap().start();
   LineColumn {
-    line: s.line,
-    column: s.column,
+    line: s.line(),
+    column: s.column(),
   }
 }
 
 fn span_end_line_column(span: &proc_macro2::Span) -> LineColumn {
   let s = span.unwrap().end();
   LineColumn {
-    line: s.line,
-    column: s.column,
+    line: s.line(),
+    column: s.column(),
   }
 }
