@@ -69,24 +69,24 @@ pub fn constant_fold(rule: &mut Rule, function_registry: &ForeignFunctionRegistr
           }
           _ => {}
         },
-        AssignExpr::Call(c) => {
-          let all_constant = c.args.iter().all(|a| a.is_constant());
-          if all_constant {
-            if let Some(f) = runtime.function_registry.get(&c.function) {
-              let args = c.args.iter().map(|a| a.as_constant().unwrap().clone()).collect();
-              let maybe_value = f.execute(args);
-              if let Some(value) = maybe_value {
-                *lit = Literal::Constraint(Constraint::Binary(BinaryConstraint {
-                  op: BinaryConstraintOp::Eq,
-                  op1: Term::Variable(a.left.clone()),
-                  op2: Term::Constant(value),
-                }))
-              } else {
-                *lit = Literal::False
-              }
-            }
-          }
-        }
+        // AssignExpr::Call(c) => {
+        //   let all_constant = c.args.iter().all(|a| a.is_constant());
+        //   if all_constant {
+        //     if let Some(f) = runtime.function_registry.get(&c.function) {
+        //       let args = c.args.iter().map(|a| a.as_constant().unwrap().clone()).collect();
+        //       let maybe_value = f.execute(args);
+        //       if let Some(value) = maybe_value {
+        //         *lit = Literal::Constraint(Constraint::Binary(BinaryConstraint {
+        //           op: BinaryConstraintOp::Eq,
+        //           op1: Term::Variable(a.left.clone()),
+        //           op2: Term::Constant(value),
+        //         }))
+        //       } else {
+        //         *lit = Literal::False
+        //       }
+        //     }
+        //   }
+        // }
         AssignExpr::New(n) => {
           let all_constant = n.args.iter().all(|a| a.is_constant());
           if all_constant {
@@ -99,6 +99,7 @@ pub fn constant_fold(rule: &mut Rule, function_registry: &ForeignFunctionRegistr
             }))
           }
         }
+        _ => {}
       },
       Literal::Constraint(c) => match c {
         Constraint::Binary(b) => match (&b.op, &b.op1, &b.op2) {

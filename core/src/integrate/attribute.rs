@@ -1,95 +1,95 @@
-use std::collections::*;
-
-use crate::compiler::front;
+use crate::compiler::front::ast;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum AttributeArgument {
+pub enum AttributeValue {
   Float(f64),
   Integer(i64),
   Boolean(bool),
   String(String),
-  List(Vec<AttributeArgument>),
+  List(Vec<AttributeValue>),
+  Tuple(Vec<AttributeValue>),
 }
 
-impl AttributeArgument {
-  pub fn to_front(&self) -> front::ast::AttributeValue {
+impl AttributeValue {
+  pub fn string(s: String) -> Self {
+    Self::String(s)
+  }
+
+  pub fn to_front(&self) -> ast::AttributeValue {
     match self {
-      Self::Float(f) => front::ast::Constant::float(f.clone()).into(),
-      Self::Integer(i) => front::ast::Constant::integer(i.clone()).into(),
-      Self::Boolean(b) => front::ast::Constant::boolean(b.clone()).into(),
-      Self::String(s) => front::ast::Constant::string(s.clone()).into(),
+      Self::Float(f) => ast::AttributeValue::float(f.clone()),
+      Self::Integer(i) => ast::AttributeValue::integer(i.clone()),
+      Self::Boolean(b) => ast::AttributeValue::boolean(b.clone()),
+      Self::String(s) => ast::AttributeValue::string(s.clone()),
       Self::List(l) => {
-        let l = l.iter().map(AttributeArgument::to_front).collect();
-        front::ast::AttributeValue::default(front::ast::AttributeValueNode::List(l))
+        let l = l.iter().map(AttributeValue::to_front).collect();
+        ast::AttributeValue::list(ast::AttributeValueList::new(l))
+      }
+      Self::Tuple(l) => {
+        let l = l.iter().map(AttributeValue::to_front).collect();
+        ast::AttributeValue::tuple(ast::AttributeValueTuple::new(l))
       }
     }
   }
 }
 
-impl From<String> for AttributeArgument {
-  fn from(s: String) -> Self {
-    Self::String(s)
-  }
+#[derive(Clone, Debug, PartialEq)]
+pub enum AttributeArgument {
+  Positional(AttributeValue),
+  Keyword(String, AttributeValue),
 }
 
-impl From<bool> for AttributeArgument {
-  fn from(b: bool) -> Self {
-    Self::Boolean(b)
+impl AttributeArgument {
+  pub fn string(s: String) -> Self {
+    Self::Positional(AttributeValue::String(s))
   }
-}
 
-impl From<i64> for AttributeArgument {
-  fn from(i: i64) -> Self {
-    Self::Integer(i)
+  pub fn named_string(n: &str, s: String) -> Self {
+    Self::Keyword(n.to_string(), AttributeValue::String(s))
   }
-}
 
-impl<T> From<Vec<T>> for AttributeArgument
-where
-  T: Into<AttributeArgument>,
-{
-  fn from(v: Vec<T>) -> Self {
-    Self::List(v.into_iter().map(|t| t.into()).collect())
+  pub fn named_bool(n: &str, b: bool) -> Self {
+    Self::Keyword(n.to_string(), AttributeValue::Boolean(b))
+  }
+
+  pub fn named_list(n: &str, l: Vec<AttributeValue>) -> Self {
+    Self::Keyword(n.to_string(), AttributeValue::List(l))
+  }
+
+  pub fn to_front(&self) -> ast::AttributeArg {
+    match self {
+      Self::Positional(v) => ast::AttributeArg::Pos(v.to_front()),
+      Self::Keyword(n, v) => {
+        let id = ast::Identifier::new(n.clone());
+        let val = v.to_front();
+        ast::AttributeArg::Kw(ast::AttributeKwArg::new(id, val))
+      }
+    }
   }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Attribute {
   pub name: String,
-  pub positional_arguments: Vec<AttributeArgument>,
-  pub keyword_arguments: HashMap<String, AttributeArgument>,
+  pub args: Vec<AttributeArgument>,
 }
 
 impl Attribute {
   pub fn named(name: &str) -> Self {
     Self {
       name: name.to_string(),
-      positional_arguments: vec![],
-      keyword_arguments: HashMap::new(),
+      args: vec![],
     }
   }
 
-  pub fn to_front(&self) -> front::ast::Attribute {
-    front::ast::Attribute::default(front::ast::AttributeNode {
-      name: string_to_front_identifier(&self.name),
-      pos_args: self
-        .positional_arguments
-        .iter()
-        .map(AttributeArgument::to_front)
-        .collect(),
-      kw_args: self
-        .keyword_arguments
-        .iter()
-        .map(|(name, arg)| {
-          let name = string_to_front_identifier(name);
-          let arg = arg.to_front();
-          (name, arg)
-        })
-        .collect(),
-    })
+  pub fn iter_args(&self) -> impl Iterator<Item = &AttributeArgument> {
+    self.args.iter()
   }
-}
 
-fn string_to_front_identifier(s: &str) -> front::ast::Identifier {
-  front::ast::Identifier::default(front::ast::IdentifierNode { name: s.to_string() })
+  pub fn to_front(&self) -> ast::Attribute {
+    ast::Attribute::new(
+      ast::Identifier::new(self.name.clone()),
+      self.iter_args().map(AttributeArgument::to_front).collect(),
+    )
+  }
 }

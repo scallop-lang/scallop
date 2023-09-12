@@ -3,7 +3,6 @@ use std::collections::*;
 use super::*;
 
 use crate::compiler::front::ast::*;
-use crate::compiler::front::visitor::*;
 
 #[derive(Clone, Debug)]
 pub struct LocalBoundnessAnalysisContext<'a> {
@@ -16,43 +15,50 @@ pub struct LocalBoundnessAnalysisContext<'a> {
   pub errors: Vec<BoundnessAnalysisError>,
 }
 
-impl<'a> NodeVisitor for LocalBoundnessAnalysisContext<'a> {
-  fn visit_atom(&mut self, atom: &Atom) {
-    if let Some(binding) = self.foreign_predicate_bindings.get(&atom.predicate()) {
-      let bounded = atom
-        .iter_arguments()
-        .enumerate()
-        .filter_map(|(i, a)| {
-          if binding[i].is_bound() {
-            Some(a.location().clone())
-          } else {
-            None
-          }
-        })
-        .collect();
-      let to_bound = atom
-        .iter_arguments()
-        .enumerate()
-        .filter_map(|(i, a)| {
-          if binding[i].is_free() {
-            Some(a.location().clone())
-          } else {
-            None
-          }
-        })
-        .collect();
-      let dep = BoundnessDependency::ForeignPredicateArgs(bounded, to_bound);
-      self.dependencies.push(dep);
+impl<'a> NodeVisitor<Atom> for LocalBoundnessAnalysisContext<'a> {
+  fn visit(&mut self, atom: &Atom) {
+    let pred = atom.formatted_predicate();
+    if let Some(binding) = self.foreign_predicate_bindings.get(&pred) {
+      if binding.len() == atom.arity() {
+        let bounded = atom
+          .iter_args()
+          .enumerate()
+          .filter_map(|(i, a)| {
+            if binding[i].is_bound() {
+              Some(a.location().clone())
+            } else {
+              None
+            }
+          })
+          .collect();
+        let to_bound = atom
+          .iter_args()
+          .enumerate()
+          .filter_map(|(i, a)| {
+            if binding[i].is_free() {
+              Some(a.location().clone())
+            } else {
+              None
+            }
+          })
+          .collect();
+        let dep = BoundnessDependency::ForeignPredicateArgs(bounded, to_bound);
+        self.dependencies.push(dep);
+      } else {
+        // Error; abort
+      }
     } else {
-      for arg in atom.iter_arguments() {
+      for arg in atom.iter_args() {
         let loc = arg.location().clone();
         let dep = BoundnessDependency::RelationArg(loc);
         self.dependencies.push(dep);
       }
     }
   }
+}
 
-  fn visit_variable(&mut self, variable: &Variable) {
+impl<'a> NodeVisitor<Variable> for LocalBoundnessAnalysisContext<'a> {
+  fn visit(&mut self, variable: &Variable) {
     // First put that into a location
     let name = variable.name().to_string();
     let loc = variable.location().clone();
@@ -63,13 +69,17 @@ impl<'a> NodeVisitor for LocalBoundnessAnalysisContext<'a> {
       self.expr_boundness.insert(variable.location().clone(), true);
     }
   }
+}
 
-  fn visit_constant(&mut self, constant: &Constant) {
+impl<'a> NodeVisitor<Constant> for LocalBoundnessAnalysisContext<'a> {
+  fn visit(&mut self, constant: &Constant) {
     let dep = BoundnessDependency::Constant(constant.location().clone());
     self.dependencies.push(dep);
   }
+}
 
-  fn visit_constraint(&mut self, constraint: &Constraint) {
+impl<'a> NodeVisitor<Constraint> for LocalBoundnessAnalysisContext<'a> {
+  fn visit(&mut self, constraint: &Constraint) {
     // First put the constraint expression
     self.constraints.push(constraint.expr().location().clone());
 
@@ -84,8 +94,10 @@ impl<'a> NodeVisitor for LocalBoundnessAnalysisContext<'a> {
       _ => {}
     }
   }
+}
 
-  fn visit_binary_expr(&mut self, binary_expr: &BinaryExpr) {
+impl<'a> NodeVisitor<BinaryExpr> for LocalBoundnessAnalysisContext<'a> {
+  fn visit(&mut self, binary_expr: &BinaryExpr) {
     let op = binary_expr.op();
     let dep = if op.is_add_sub() {
       BoundnessDependency::AddSub(
@@ -102,21 +114,27 @@ impl<'a> NodeVisitor for LocalBoundnessAnalysisContext<'a> {
     };
     self.dependencies.push(dep);
   }
+}
 
-  fn visit_unary_expr(&mut self, unary_expr: &UnaryExpr) {
+impl<'a> NodeVisitor<UnaryExpr> for LocalBoundnessAnalysisContext<'a> {
+  fn visit(&mut self, unary_expr: &UnaryExpr) {
     let dep = BoundnessDependency::UnaryOp(unary_expr.op1().location().clone(), unary_expr.location().clone());
     self.dependencies.push(dep);
   }
+}
 
-  fn visit_if_then_else_expr(&mut self, ite_expr: &IfThenElseExpr) {
+impl<'a> NodeVisitor<IfThenElseExpr> for LocalBoundnessAnalysisContext<'a> {
+  fn visit(&mut self, ite_expr: &IfThenElseExpr) {
     let cl = ite_expr.cond().location().clone();
     let tl = ite_expr.then_br().location().clone();
     let el = ite_expr.else_br().location().clone();
     let dep = BoundnessDependency::IfThenElseOp(cl, tl, el, ite_expr.location().clone());
     self.dependencies.push(dep);
   }
+}
 
-  fn visit_call_expr(&mut self, call_expr: &CallExpr) {
+impl<'a> NodeVisitor<CallExpr> for LocalBoundnessAnalysisContext<'a> {
+  fn visit(&mut self, call_expr: &CallExpr) {
     let arg_locs = call_expr.iter_args().map(|a| a.location().clone()).collect::<Vec<_>>();
     let dep = BoundnessDependency::CallOp(arg_locs, call_expr.location().clone());
     self.dependencies.push(dep);

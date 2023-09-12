@@ -24,6 +24,7 @@ use super::foreign_function::*;
 use super::foreign_predicate::*;
 use super::io::*;
 use super::provenance::*;
+use super::tensor::*;
 use super::tuple::*;
 
 type AF = ArcFamily;
@@ -301,6 +302,22 @@ impl Context {
     }
   }
 
+  fn enable_tensor_registry(&mut self) {
+    match_context!(&mut self.ctx, c, c.set_tensor_registry(TensorRegistry::new()))
+  }
+
+  fn set_debug_front(&mut self, debug_front: bool) {
+    match_context!(&mut self.ctx, c, c.set_debug_front(debug_front))
+  }
+
+  fn set_debug_back(&mut self, debug_back: bool) {
+    match_context!(&mut self.ctx, c, c.set_debug_back(debug_back))
+  }
+
+  fn set_debug_ram(&mut self, debug_ram: bool) {
+    match_context!(&mut self.ctx, c, c.set_debug_ram(debug_ram))
+  }
+
   /// Set the current context to be non-incremental
   fn set_non_incremental(&mut self) {
     match_context!(&mut self.ctx, c, c.set_non_incremental())
@@ -365,6 +382,11 @@ impl Context {
   /// Add a program in the form of string
   fn add_program(&mut self, program: &str) -> Result<(), BindingError> {
     match_context!(&mut self.ctx, c, c.add_program(program).map_err(BindingError::from))
+  }
+
+  /// Add an item and check whether it is a query
+  fn add_item(&mut self, item: &str) -> Result<Vec<String>, BindingError> {
+    match_context!(&mut self.ctx, c, c.add_item(item).map_err(BindingError::from))
   }
 
   /// Print the scallop program
@@ -462,8 +484,7 @@ impl Context {
     if let Some(d) = demand {
       attrs.push(Attribute {
         name: "demand".to_string(),
-        positional_arguments: vec![AttributeArgument::String(d)],
-        keyword_arguments: HashMap::new(),
+        args: vec![AttributeArgument::string(d)],
       })
     }
 
@@ -490,36 +511,11 @@ impl Context {
     if let Some(d) = demand {
       attrs.push(Attribute {
         name: "demand".to_string(),
-        positional_arguments: vec![AttributeArgument::String(d)],
-        keyword_arguments: HashMap::new(),
+        args: vec![AttributeArgument::string(d)],
       })
     }
 
     match_context!(&mut self.ctx, c, add_py_rule(c, rule, tag, attrs))
-  }
-
-  fn add_entity(&mut self, relation: &str, entity_tuple: Vec<String>) -> Result<(), BindingError> {
-    match_context!(&mut self.ctx, c, { c.add_entity(relation, entity_tuple)? });
-    Ok(())
-  }
-
-  fn compile_entity(
-    &mut self,
-    relation: &str,
-    entity_tuple: Vec<String>,
-  ) -> Result<HashMap<String, Vec<Py<PyAny>>>, BindingError> {
-    match_context!(&mut self.ctx, c, {
-      let curr_env = c.runtime_environment().into();
-      let facts = c
-        .compile_entity(relation, entity_tuple)?
-        .into_iter()
-        .map(|(relation_name, tuples)| {
-          let py_objs = tuples.iter().map(|tuple| to_python_tuple(tuple, &curr_env)).collect();
-          (relation_name, py_objs)
-        })
-        .collect();
-      Ok(facts)
-    })
   }
 
   /// Register a foreign function
@@ -665,6 +661,10 @@ impl Context {
     } else {
       match_context!(&self.ctx, c, c.relations())
     }
+  }
+
+  fn relation_field_names(&self, relation: &str) -> Option<Vec<Option<String>>> {
+    match_context!(&self.ctx, c, c.relation_field_names(relation).cloned())
   }
 }
 

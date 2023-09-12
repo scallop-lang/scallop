@@ -88,7 +88,7 @@ impl<'a> FlattenExprContext<'a> {
     } else if let Some(leaf) = self.leaf.get(loc) {
       leaf.clone()
     } else {
-      panic!("[Internal Error] Should not happen")
+      panic!("[Internal Error] Cannot find loc {:?} from the context, should not happen", loc)
     }
   }
 
@@ -255,9 +255,9 @@ impl<'a> FlattenExprContext<'a> {
     let mut literals = vec![];
 
     // First get the atom
-    let back_atom_args = atom.iter_arguments().map(|a| self.get_expr_term(a)).collect();
+    let back_atom_args = atom.iter_args().map(|a| self.get_expr_term(a)).collect();
     let back_atom = back::Atom {
-      predicate: atom.predicate().clone(),
+      predicate: atom.formatted_predicate().clone(),
       args: back_atom_args,
     };
 
@@ -266,7 +266,7 @@ impl<'a> FlattenExprContext<'a> {
     literals.push(back_literal);
 
     // Then collect all the intermediate variables
-    for arg in atom.iter_arguments() {
+    for arg in atom.iter_args() {
       literals.extend(self.collect_flattened_literals(arg.location()));
     }
 
@@ -279,12 +279,12 @@ impl<'a> FlattenExprContext<'a> {
     // First get the atom
     let back_atom_args = neg_atom
       .atom()
-      .iter_arguments()
+      .iter_args()
       .map(|a| self.get_expr_term(a))
       .collect();
     let back_atom = back::NegAtom {
       atom: back::Atom {
-        predicate: neg_atom.predicate().clone(),
+        predicate: neg_atom.atom().formatted_predicate().clone(),
         args: back_atom_args,
       },
     };
@@ -294,32 +294,7 @@ impl<'a> FlattenExprContext<'a> {
     literals.push(back_literal);
 
     // Then collect all the intermediate variables
-    for arg in neg_atom.atom().iter_arguments() {
-      literals.extend(self.collect_flattened_literals(arg.location()));
-    }
-
-    literals
-  }
-
-  pub fn domestic_neg_atom_to_back_literals(&self, neg_atom: &NegAtom) -> Vec<back::Literal> {
-    let mut literals = vec![];
-
-    // First get the atom
-    let back_atom_args = neg_atom
-      .atom()
-      .iter_arguments()
-      .map(|a| self.get_expr_term(a))
-      .collect();
-    let back_atom = back::Literal::NegAtom(back::NegAtom {
-      atom: back::Atom {
-        predicate: neg_atom.atom().predicate().clone(),
-        args: back_atom_args,
-      },
-    });
-    literals.push(back_atom);
-
-    // Then collect all the intermediate variables
-    for arg in neg_atom.atom().iter_arguments() {
+    for arg in neg_atom.atom().iter_args() {
       literals.extend(self.collect_flattened_literals(arg.location()));
     }
 
@@ -327,7 +302,7 @@ impl<'a> FlattenExprContext<'a> {
   }
 
   pub fn binary_constraint_to_back_literal(&self, b: &BinaryExpr) -> Vec<back::Literal> {
-    if let Some(op) = Option::<back::BinaryConstraintOp>::from(&b.op().node) {
+    if let Some(op) = Option::<back::BinaryConstraintOp>::from(b.op().op()) {
       let mut curr_literals = vec![];
 
       // First generate the `op1 (<=>) op2` constraint
@@ -342,12 +317,12 @@ impl<'a> FlattenExprContext<'a> {
 
       curr_literals
     } else {
-      panic!("[Internal Error] Cannot use `{}` for binary constraint", b.op().node);
+      panic!("[Internal Error] Cannot use `{}` for binary constraint", b.op().op());
     }
   }
 
   pub fn unary_constraint_to_back_literal(&self, u: &UnaryExpr) -> Vec<back::Literal> {
-    if let Some(op) = Option::<back::UnaryConstraintOp>::from(&u.op().node) {
+    if let Some(op) = Option::<back::UnaryConstraintOp>::from(u.op().internal()) {
       let mut curr_literals = vec![];
 
       // First generate the `(*) op1` constraint
@@ -360,7 +335,7 @@ impl<'a> FlattenExprContext<'a> {
 
       curr_literals
     } else {
-      panic!("[Internal Error] Cannot use `{}` for unary constraint", u.op().node);
+      panic!("[Internal Error] Cannot use `{}` for unary constraint", u.op().internal());
     }
   }
 
@@ -384,8 +359,9 @@ impl<'a> FlattenExprContext<'a> {
       | Formula::Disjunction(_)
       | Formula::Implies(_)
       | Formula::Reduce(_)
-      | Formula::ForallExistsReduce(_) => {
-        panic!("[Internal Error] Should not contain conjunction, disjunction, implies, or reduce");
+      | Formula::ForallExistsReduce(_)
+      | Formula::Range(_) => {
+        panic!("[Internal Error] Should not contain conjunction, disjunction, implies, reduce, or range");
       }
     }
   }
@@ -399,12 +375,14 @@ impl<'a> FlattenExprContext<'a> {
   }
 }
 
-impl<'a> NodeVisitor for FlattenExprContext<'a> {
-  fn visit_constraint(&mut self, constraint: &Constraint) {
+impl<'a> NodeVisitor<Constraint> for FlattenExprContext<'a> {
+  fn visit(&mut self, constraint: &Constraint) {
     self.ignore_exprs.insert(constraint.expr().location().clone());
   }
+}
 
-  fn visit_binary_expr(&mut self, b: &BinaryExpr) {
+impl<'a> NodeVisitor<BinaryExpr> for FlattenExprContext<'a> {
+  fn visit(&mut self, b: &BinaryExpr) {
     if !self.ignore_exprs.contains(b.location()) {
       let tmp_var_name = self.allocate_tmp_var();
       self.internal.insert(
@@ -414,22 +392,24 @@ impl<'a> NodeVisitor for FlattenExprContext<'a> {
             name: tmp_var_name,
             ty: self.type_inference.expr_value_type(b).unwrap(),
           },
-          op: b.op().node.clone(),
+          op: b.op().op().clone(),
           op1: b.op1().location().clone(),
           op2: b.op2().location().clone(),
         },
       );
     }
   }
+}
 
-  fn visit_unary_expr(&mut self, u: &UnaryExpr) {
+impl<'a> NodeVisitor<UnaryExpr> for FlattenExprContext<'a> {
+  fn visit(&mut self, u: &UnaryExpr) {
     if !self.ignore_exprs.contains(u.location()) {
       let tmp_var_name = self.allocate_tmp_var();
-      let op = match &u.op().node {
-        UnaryOpNode::Neg => back::UnaryExprOp::Neg,
-        UnaryOpNode::Pos => back::UnaryExprOp::Pos,
-        UnaryOpNode::Not => back::UnaryExprOp::Not,
-        UnaryOpNode::TypeCast(t) => back::UnaryExprOp::TypeCast(self.type_inference.find_value_type(t).unwrap()),
+      let op = match u.op().internal() {
+        _UnaryOp::Neg => back::UnaryExprOp::Neg,
+        _UnaryOp::Pos => back::UnaryExprOp::Pos,
+        _UnaryOp::Not => back::UnaryExprOp::Not,
+        _UnaryOp::TypeCast(t) => back::UnaryExprOp::TypeCast(self.type_inference.find_value_type(t).unwrap()),
       };
       self.internal.insert(
         u.location().clone(),
@@ -444,8 +424,10 @@ impl<'a> NodeVisitor for FlattenExprContext<'a> {
       );
     }
   }
+}
 
-  fn visit_if_then_else_expr(&mut self, i: &ast::IfThenElseExpr) {
+impl<'a> NodeVisitor<IfThenElseExpr> for FlattenExprContext<'a> {
+  fn visit(&mut self, i: &IfThenElseExpr) {
     let tmp_var_name = self.allocate_tmp_var();
     self.internal.insert(
       i.location().clone(),
@@ -460,8 +442,10 @@ impl<'a> NodeVisitor for FlattenExprContext<'a> {
       },
     );
   }
+}
 
-  fn visit_call_expr(&mut self, c: &ast::CallExpr) {
+impl<'a> NodeVisitor<CallExpr> for FlattenExprContext<'a> {
+  fn visit(&mut self, c: &CallExpr) {
     let tmp_var_name = self.allocate_tmp_var();
     let function = c.function_identifier().name().to_string();
     self.internal.insert(
@@ -476,8 +460,10 @@ impl<'a> NodeVisitor for FlattenExprContext<'a> {
       },
     );
   }
+}
 
-  fn visit_new_expr(&mut self, n: &ast::NewExpr) {
+impl<'a> NodeVisitor<NewExpr> for FlattenExprContext<'a> {
+  fn visit(&mut self, n: &NewExpr) {
     let tmp_var_name = self.allocate_tmp_var();
     let functor = format!("adt#{}", n.functor_name());
     self.internal.insert(
@@ -492,8 +478,10 @@ impl<'a> NodeVisitor for FlattenExprContext<'a> {
       },
     );
   }
+}
 
-  fn visit_variable(&mut self, v: &Variable) {
+impl<'a> NodeVisitor<Variable> for FlattenExprContext<'a> {
+  fn visit(&mut self, v: &Variable) {
     let back_var = back::Variable {
       name: v.name().to_string(),
       ty: self.type_inference.expr_value_type(v).unwrap(),
@@ -502,8 +490,10 @@ impl<'a> NodeVisitor for FlattenExprContext<'a> {
       .leaf
       .insert(v.location().clone(), FlattenedLeaf::Variable(back_var));
   }
+}
 
-  fn visit_wildcard(&mut self, w: &Wildcard) {
+impl<'a> NodeVisitor<Wildcard> for FlattenExprContext<'a> {
+  fn visit(&mut self, w: &Wildcard) {
     let wc_name = self.allocate_wildcard_var();
     let back_var = back::Variable {
       name: wc_name,
@@ -513,8 +503,10 @@ impl<'a> NodeVisitor for FlattenExprContext<'a> {
       .leaf
       .insert(w.location().clone(), FlattenedLeaf::Variable(back_var));
   }
+}
 
-  fn visit_constant(&mut self, c: &Constant) {
+impl<'a> NodeVisitor<Constant> for FlattenExprContext<'a> {
+  fn visit(&mut self, c: &Constant) {
     let ty = self.type_inference.expr_types[c.location()].to_default_value_type();
     self
       .leaf

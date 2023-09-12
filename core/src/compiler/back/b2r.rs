@@ -290,17 +290,14 @@ impl Program {
     let output = self.outputs.get(pred).cloned().unwrap_or(OutputOption::Hidden);
 
     // Check immutability, i.e., the relation is not updated by rules
-    let immutable = self
-      .rules
-      .iter()
-      .find_position(|r| {
-        if r.head.predicate() == pred {
-          true
-        } else {
-          r.collect_new_expr_functors().find_position(|f| *f == pred).is_some()
-        }
-      })
-      .is_none();
+    // All the `adt` variant relations are not immutable
+    // The variants without an update rule are immutable
+    let immutable = !pred.starts_with("adt#")
+      && self
+        .rules
+        .iter()
+        .find_position(|r| r.head.predicate() == pred)
+        .is_none();
 
     // The Final Relation
     let ram_relation = ram::Relation {

@@ -56,14 +56,14 @@ fn adt_binary_tree_1() {
 const RE_PROGRAM: &'static str = r#"
   type RE = Char(char) | Nil() | Con(RE, RE) | Or(RE, RE) | Star(RE)
 
-  rel match(r, i, i)       = case r is Nil(), string_chars(s, i, _), input_string(s)
-  rel match(r, i, i + 1)   = case r is Char(c), input_string(s), string_chars(s, i, c)
-  rel match(r, s, e)       = case r is Con(r1, r2), match(r1, s, m), match(r2, m, e)
-  rel match(r, s, e)       = case r is Or(r1, r2), match(r1, s, e)
-  rel match(r, s, e)       = case r is Or(r1, r2), match(r2, s, e)
-  rel match(r, i, i)       = case r is Star(r1), string_chars(s, i, _), input_string(s)
-  rel match(r, s, e)       = case r is Star(r1), match(r1, s, e)
-  rel match(r, s, e)       = case r is Star(r1), match(r1, s, m), match(r, m, e)
+  rel match(r, i, i)     = case r is Nil(), string_chars(s, i, _), input_string(s)
+  rel match(r, i, i + 1) = case r is Char(c), input_string(s), string_chars(s, i, c)
+  rel match(r, s, e)     = case r is Con(r1, r2), match(r1, s, m), match(r2, m, e)
+  rel match(r, s, e)     = case r is Or(r1, r2), match(r1, s, e)
+  rel match(r, s, e)     = case r is Or(r1, r2), match(r2, s, e)
+  rel match(r, i, i)     = case r is Star(r1), string_chars(s, i, _), input_string(s)
+  rel match(r, s, e)     = case r is Star(r1), match(r1, s, e)
+  rel match(r, s, e)     = case r is Star(r1), match(r1, s, m), match(r, m, e)
 "#;
 
 #[test]
@@ -246,15 +246,14 @@ const TYPE_INF_1_PROGRAM: &'static str = r#"
   const EMPTY_ENV = Empty()
 
   // Find a variable stored in the typing environment
-  @demand("bbf")
+  type find_type(bound env: Env, bound var: String, free ty: Type)
   rel find_type(env, var, ty) = case e is Cons(var, ty, _)
   rel find_type(env, var, ty) = case e is Cons(vp, _, tl) and vp != var and find_type(tl, var, ty)
 
   // The type (`ty`) of an expression (`expr`) under an environment (`env`)
-  type type_of(env: Env, expr: Expr, ty: Type)
+  type type_of(bound env: Env, bound expr: Expr, ty: Type)
 
   // Typing rules
-  @demand("bbf")
   rel type_of(env, e, BOOL) = case e is Boolean(_)
   rel type_of(env, e, INT) = case e is Number(_)
   rel type_of(env, e, ty) = case e is Variable(x) and find_type(env, x, ty)
@@ -268,7 +267,7 @@ const TYPE_INF_1_PROGRAM: &'static str = r#"
   rel type_of(env, e, ty) = case e is Ite(c, t, e) and type_of(env, c, BOOL) and type_of(env, t, ty) and type_of(env, e, ty)
 
   // Helpers
-  @demand("bbff")
+  type to_infer_let_cons(bound env: Env, bound expr: Expr, out_env: Env, cont: Expr)
   rel to_infer_let_cons(env, e, new Cons(x, ty_b, env), i) = case e is Let(x, b, i) and type_of(env, b, ty_b)
 
   // The result if the type of the input program
@@ -305,4 +304,106 @@ fn type_inf_2() {
     ),
     "result",
   )
+}
+
+#[test]
+fn adt_dynamic_1() {
+  expect_interpret_result(
+    r#"
+    type Expr = Const(f32) | Add(Expr, Expr) | Sub(Expr, Expr)
+
+    rel my_entity($parse_entity("Add(Const(1), Const(3))"))
+
+    type eval(bound e: Expr, v: f32)
+    rel eval(e, v) = case e is Const(v)
+    rel eval(e, v1 + v2) = case e is Add(e1, e2) and eval(e1, v1) and eval(e2, v2)
+    rel eval(e, v1 - v2) = case e is Sub(e1, e2) and eval(e1, v1) and eval(e2, v2)
+
+    rel result(v) = my_entity(e) and eval(e, v)
+
+    query result
+    "#,
+    ("result", vec![(4.0f32,)]),
+  )
+}
+
+#[test]
+fn foreign_predicate_dynamic_adt_1() {
+  use scallop_core::common::foreign_predicate::ForeignPredicate;
+  use scallop_core::common::input_tag::DynamicInputTag;
+  use scallop_core::common::value::Value;
+  use scallop_core::common::value_type::ValueType;
+  use scallop_core::integrate;
+  use scallop_core::runtime::*;
+  use scallop_core::utils::*;
+
+  #[derive(Clone, Debug)]
+  struct DummySemanticParser;
+
+  impl ForeignPredicate for DummySemanticParser {
+    fn name(&self) -> String {
+      "dummy_semantic_parser".to_string()
+    }
+
+    fn arity(&self) -> usize {
+      2
+    }
+
+    fn num_bounded(&self) -> usize {
+      1
+    }
+
+    fn argument_type(&self, i: usize) -> ValueType {
+      match i {
+        0 => ValueType::String,
+        1 => ValueType::Entity,
+        _ => panic!("Should not happen"),
+      }
+    }
+
+    fn evaluate(&self, args: &[Value]) -> Vec<(DynamicInputTag, Vec<Value>)> {
+      println!("{:?}", args);
+      match args[0].as_str() {
+        "prompt_1" => vec![(
+          DynamicInputTag::None,
+          vec![Value::EntityString("Add(Const(1), Const(2))".to_string())],
+        )],
+        "prompt_2" => vec![(
+          DynamicInputTag::None,
+          vec![Value::EntityString("Const(10)".to_string())],
+        )],
+        _ => vec![],
+      }
+    }
+  }
+
+  // Initialize a context
+  let prov_ctx = provenance::unit::UnitProvenance::default();
+  let mut ctx = integrate::IntegrateContext::<_, RcFamily>::new(prov_ctx);
+
+  // Register the foreign predicate
+  ctx.register_foreign_predicate(DummySemanticParser).unwrap();
+
+  // Add a program
+  ctx
+    .add_program(
+      r#"
+    type Expr = Const(f32) | Add(Expr, Expr)
+    rel eval(x, y)       = case x is Const(y)
+    rel eval(x, y1 + y2) = case x is Add(x1, x2) and eval(x1, y1) and eval(x2, y2)
+    rel prompt = {(1, "prompt_1"), (2, "prompt_2")}
+    rel result(i, y) = prompt(i, x) and dummy_semantic_parser(x, e) and eval(e, y)
+    "#,
+    )
+    .unwrap();
+
+  // Run the context
+  ctx.run().unwrap();
+
+  // Test the result
+  expect_output_collection(
+    "result",
+    ctx.computed_relation_ref("result").unwrap(),
+    vec![(1i32, 3.0f32), (2, 10.0f32)],
+  );
 }

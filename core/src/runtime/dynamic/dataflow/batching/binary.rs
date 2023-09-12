@@ -1,24 +1,25 @@
 use super::super::*;
 
-#[derive(Clone)]
-pub enum BatchBinaryOp<'a, Prov: Provenance> {
-  Intersect(IntersectOp<'a, Prov>),
-  Join(JoinOp<'a, Prov>),
-  Product(ProductOp<'a, Prov>),
-  Difference(DifferenceOp<'a, Prov>),
-  Antijoin(AntijoinOp<'a, Prov>),
-  Exclusion(ExclusionOp<'a, Prov>),
+pub trait BatchBinaryOp<'a, Prov: Provenance>: dyn_clone::DynClone + 'a {
+  fn apply(&self, b1: DynamicBatch<'a, Prov>, b2: DynamicBatch<'a, Prov>) -> DynamicBatch<'a, Prov>;
 }
 
-impl<'a, Prov: Provenance> BatchBinaryOp<'a, Prov> {
-  pub fn apply(&self, b1: DynamicBatch<'a, Prov>, b2: DynamicBatch<'a, Prov>) -> DynamicBatch<'a, Prov> {
-    match self {
-      Self::Intersect(i) => i.apply(b1, b2),
-      Self::Join(j) => j.apply(b1, b2),
-      Self::Product(p) => p.apply(b1, b2),
-      Self::Difference(d) => d.apply(b1, b2),
-      Self::Antijoin(a) => a.apply(b1, b2),
-      Self::Exclusion(e) => e.apply(b1, b2),
-    }
+pub struct DynamicBatchBinaryOp<'a, Prov: Provenance>(Box<dyn BatchBinaryOp<'a, Prov> + 'a>);
+
+impl<'a, Prov: Provenance> DynamicBatchBinaryOp<'a, Prov> {
+  pub fn new<Op: BatchBinaryOp<'a, Prov>>(op: Op) -> Self {
+    Self(Box::new(op))
+  }
+}
+
+impl<'a, Prov: Provenance> Clone for DynamicBatchBinaryOp<'a, Prov> {
+  fn clone(&self) -> Self {
+    Self(dyn_clone::clone_box(&*self.0))
+  }
+}
+
+impl<'a, Prov: Provenance> BatchBinaryOp<'a, Prov> for DynamicBatchBinaryOp<'a, Prov> {
+  fn apply(&self, b1: DynamicBatch<'a, Prov>, b2: DynamicBatch<'a, Prov>) -> DynamicBatch<'a, Prov> {
+    self.0.apply(b1, b2)
   }
 }

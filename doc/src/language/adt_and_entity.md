@@ -454,3 +454,28 @@ If we query for the best program and turn it into string, we will get our expect
 rel best_program_str(s) = best_program(p) and to_string(p, s)
 query best_program_str // {("a")}
 ```
+
+## Parsing Entities from String
+
+Scallop provides foreign functions and predicates for dynamically parsing entities from string input.
+Consider the following example:
+
+``` scl
+type Expr = Const(f32) | Add(Expr, Expr)
+
+rel expr_str = {"Add(Const(1), Const(2.5))"}
+```
+
+Let us say that we want to parse an expression from the `expr_str`, we can do the following:
+
+``` scl
+rel expr($parse_entity(s)) = expr_str(s)
+```
+
+Here, we are using the foreign function of `$parse_entity`.
+We would get the following result:
+
+``` scl
+query expr
+// expr: {(entity(0xadea13a2621dd155))}
+```

@@ -4,6 +4,7 @@ use pyo3::*;
 use scallop_core::compiler::front::attribute::*;
 use scallop_core::compiler::front::*;
 
+use crate::foreign_function::PythonForeignFunction;
 use crate::foreign_predicate::PythonForeignPredicate;
 
 #[derive(Clone)]
@@ -42,6 +43,15 @@ impl PythonForeignAttribute {
         let msg: String = result.getattr(py, "msg").unwrap().extract(py).unwrap();
         AttributeAction::Error(msg)
       }
+      "register_foreign_function" => {
+        let py_ff: Py<PyAny> = result.getattr(py, "foreign_function").unwrap().extract(py).unwrap();
+        let ff = PythonForeignFunction::new(py_ff);
+        AttributeAction::Context(Box::new(move |ctx| {
+          ctx
+            .register_foreign_function(ff)
+            .expect("Cannot register foreign function")
+        }))
+      }
       "register_foreign_predicate" => {
         let py_fp: Py<PyAny> = result.getattr(py, "foreign_predicate").unwrap().extract(py).unwrap();
         let fp = PythonForeignPredicate::new(py_fp);
@@ -63,10 +73,21 @@ impl AttributeProcessor for PythonForeignAttribute {
 
   fn apply(&self, item: &ast::Item, attr: &ast::Attribute) -> Result<AttributeAction, AttributeError> {
     Python::with_gil(|py| {
-      let item_py = pythonize::pythonize(py, item).unwrap();
-      let attr_py = pythonize::pythonize(py, attr).unwrap();
+      let item_py = pythonize::pythonize(py, item)
+        .map_err(|e| AttributeError::Custom {
+          msg: format!("Error pythonizing item: {e}")
+        })?;
+      let attr_py = pythonize::pythonize(py, attr)
+        .map_err(|e| AttributeError::Custom {
+          msg: format!("Error pythonizing attribute: {e}")
+        })?;
       let args = PyTuple::new(py, vec![item_py, attr_py]);
-      let result = self.py_attr.call_method(py, "apply", args, None).unwrap();
+      let result = self.py_attr.call_method(py, "apply", args, None).map_err(|e| {
+        e.print(py);
+        AttributeError::Custom {
+          msg: format!("Error applying attribute: {e}")
+        }
+      })?;
       Ok(self.process_action(py, result))
     })
   }

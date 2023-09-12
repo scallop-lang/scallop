@@ -1,8 +1,8 @@
 use super::*;
 
 pub struct DynamicDifferenceDataflow<'a, Prov: Provenance> {
-  pub d1: Box<DynamicDataflow<'a, Prov>>,
-  pub d2: Box<DynamicDataflow<'a, Prov>>,
+  pub d1: DynamicDataflow<'a, Prov>,
+  pub d2: DynamicDataflow<'a, Prov>,
   pub ctx: &'a Prov,
 }
 
@@ -16,29 +16,13 @@ impl<'a, Prov: Provenance> Clone for DynamicDifferenceDataflow<'a, Prov> {
   }
 }
 
-impl<'a, Prov: Provenance> DynamicDifferenceDataflow<'a, Prov> {
-  pub fn iter_stable(&self, _: &RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::Empty
-  }
-
-  pub fn iter_recent(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
+impl<'a, Prov: Provenance> Dataflow<'a, Prov> for DynamicDifferenceDataflow<'a, Prov> {
+  fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     let op = DifferenceOp { ctx: self.ctx };
     DynamicBatches::chain(vec![
-      DynamicBatches::binary(
-        self.d1.iter_stable(runtime),
-        self.d2.iter_recent(runtime),
-        op.clone().into(),
-      ),
-      DynamicBatches::binary(
-        self.d1.iter_recent(runtime),
-        self.d2.iter_stable(runtime),
-        op.clone().into(),
-      ),
-      DynamicBatches::binary(
-        self.d1.iter_recent(runtime),
-        self.d2.iter_recent(runtime),
-        op.clone().into(),
-      ),
+      DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_recent(), op.clone()),
+      DynamicBatches::binary(self.d1.iter_recent(), self.d2.iter_stable(), op.clone()),
+      DynamicBatches::binary(self.d1.iter_recent(), self.d2.iter_recent(), op.clone()),
     ])
   }
 }
@@ -53,20 +37,14 @@ impl<'a, Prov: Provenance> Clone for DifferenceOp<'a, Prov> {
   }
 }
 
-impl<'a, Prov: Provenance> From<DifferenceOp<'a, Prov>> for BatchBinaryOp<'a, Prov> {
-  fn from(op: DifferenceOp<'a, Prov>) -> Self {
-    Self::Difference(op)
-  }
-}
-
-impl<'a, Prov: Provenance> DifferenceOp<'a, Prov> {
-  pub fn apply(&self, mut i1: DynamicBatch<'a, Prov>, mut i2: DynamicBatch<'a, Prov>) -> DynamicBatch<'a, Prov> {
-    let i1_curr = i1.next();
-    let i2_curr = i2.next();
-    DynamicBatch::Difference(DynamicDifferenceBatch {
-      i1: Box::new(i1),
+impl<'a, Prov: Provenance> BatchBinaryOp<'a, Prov> for DifferenceOp<'a, Prov> {
+  fn apply(&self, mut i1: DynamicBatch<'a, Prov>, mut i2: DynamicBatch<'a, Prov>) -> DynamicBatch<'a, Prov> {
+    let i1_curr = i1.next_elem();
+    let i2_curr = i2.next_elem();
+    DynamicBatch::new(DynamicDifferenceBatch {
+      i1: i1,
       i1_curr,
-      i2: Box::new(i2),
+      i2: i2,
       i2_curr,
       ctx: self.ctx,
     })
@@ -74,9 +52,9 @@ impl<'a, Prov: Provenance> DifferenceOp<'a, Prov> {
 }
 
 pub struct DynamicDifferenceBatch<'a, Prov: Provenance> {
-  i1: Box<DynamicBatch<'a, Prov>>,
+  i1: DynamicBatch<'a, Prov>,
   i1_curr: Option<DynamicElement<Prov>>,
-  i2: Box<DynamicBatch<'a, Prov>>,
+  i2: DynamicBatch<'a, Prov>,
   i2_curr: Option<DynamicElement<Prov>>,
   ctx: &'a Prov,
 }
@@ -93,38 +71,36 @@ impl<'a, Prov: Provenance> Clone for DynamicDifferenceBatch<'a, Prov> {
   }
 }
 
-impl<'a, Prov: Provenance> Iterator for DynamicDifferenceBatch<'a, Prov> {
-  type Item = DynamicElement<Prov>;
-
-  fn next(&mut self) -> Option<Self::Item> {
+impl<'a, Prov: Provenance> Batch<'a, Prov> for DynamicDifferenceBatch<'a, Prov> {
+  fn next_elem(&mut self) -> Option<DynamicElement<Prov>> {
     use std::cmp::Ordering;
     loop {
       match (&self.i1_curr, &self.i2_curr) {
         (Some(i1_curr_elem), Some(i2_curr_elem)) => match i1_curr_elem.tuple.cmp(&i2_curr_elem.tuple) {
           Ordering::Less => {
             let result = i1_curr_elem.clone();
-            self.i1_curr = self.i1.next();
+            self.i1_curr = self.i1.next_elem();
             return Some(result);
           }
           Ordering::Equal => {
             let maybe_tag = self.ctx.minus(&i1_curr_elem.tag, &i2_curr_elem.tag);
             if let Some(tag) = maybe_tag {
               let result = DynamicElement::new(i1_curr_elem.tuple.clone(), tag);
-              self.i1_curr = self.i1.next();
-              self.i2_curr = self.i2.next();
+              self.i1_curr = self.i1.next_elem();
+              self.i2_curr = self.i2.next_elem();
               return Some(result);
             } else {
-              self.i1_curr = self.i1.next();
-              self.i2_curr = self.i2.next();
+              self.i1_curr = self.i1.next_elem();
+              self.i2_curr = self.i2.next_elem();
             }
           }
           Ordering::Greater => {
-            self.i2_curr = self.i2.search_ahead(|i2_next| i2_next < &i1_curr_elem.tuple);
+            self.i2_curr = self.i2.search_until(&i1_curr_elem.tuple);
           }
         },
         (Some(i1_curr_elem), None) => {
           let result = i1_curr_elem.clone();
-          self.i1_curr = self.i1.next();
+          self.i1_curr = self.i1.next_elem();
           return Some(result);
         }
         _ => return None,

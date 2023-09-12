@@ -31,13 +31,13 @@ impl LocalTypeInferenceContext {
 
   pub fn from_rule(r: &Rule) -> Self {
     let mut ctx = Self::new(r.location().clone());
-    ctx.walk_rule(r);
+    r.walk(&mut ctx);
     ctx
   }
 
   pub fn from_atom(a: &Atom) -> Self {
     let mut ctx = Self::new(a.location().clone());
-    ctx.walk_atom(a);
+    a.walk(&mut ctx);
     ctx
   }
 
@@ -280,26 +280,30 @@ impl LocalTypeInferenceContext {
   }
 }
 
-impl NodeVisitor for LocalTypeInferenceContext {
-  fn visit_atom(&mut self, atom: &Atom) {
-    let pred = atom.predicate();
+impl NodeVisitor<Atom> for LocalTypeInferenceContext {
+  fn visit(&mut self, atom: &Atom) {
+    let pred = atom.formatted_predicate();
     self
       .atom_arities
       .entry(pred.clone())
       .or_default()
       .push((atom.arity(), atom.location().clone()));
-    for (i, arg) in atom.iter_arguments().enumerate() {
+    for (i, arg) in atom.iter_args().enumerate() {
       self
         .unifications
         .push(Unification::IthArgOfRelation(arg.location().clone(), pred.clone(), i));
     }
   }
+}
 
-  fn visit_constraint(&mut self, c: &Constraint) {
+impl NodeVisitor<Constraint> for LocalTypeInferenceContext {
+  fn visit(&mut self, c: &Constraint) {
     self.constraints.push(c.expr().location().clone());
   }
+}
 
-  fn visit_reduce(&mut self, r: &Reduce) {
+impl NodeVisitor<Reduce> for LocalTypeInferenceContext {
+  fn visit(&mut self, r: &Reduce) {
     // First check the output validity
     let vars = r.left();
     if let Some(arity) = r.operator().output_arity() {
@@ -330,15 +334,15 @@ impl NodeVisitor for LocalTypeInferenceContext {
     }
 
     // Then propagate the variables
-    match &r.operator().node {
-      ReduceOperatorNode::Count => {
+    match r.operator().internal() {
+      _ReduceOp::Count(_) => {
         if let Some(n) = vars[0].name() {
           let loc = vars[0].location();
           let ty = TypeSet::BaseType(ValueType::USize, loc.clone());
           self.var_types.insert(n.to_string(), (ty, loc.clone()));
         }
       }
-      ReduceOperatorNode::Sum => {
+      _ReduceOp::Sum => {
         if let Some(n) = vars[0].name() {
           let loc = vars[0].location();
           let ty = TypeSet::Numeric(loc.clone());
@@ -350,7 +354,7 @@ impl NodeVisitor for LocalTypeInferenceContext {
             .push((n.to_string(), bindings[0].name().to_string()));
         }
       }
-      ReduceOperatorNode::Prod => {
+      _ReduceOp::Prod => {
         if let Some(n) = vars[0].name() {
           let loc = vars[0].location();
           let ty = TypeSet::Numeric(loc.clone());
@@ -362,7 +366,7 @@ impl NodeVisitor for LocalTypeInferenceContext {
             .push((n.to_string(), bindings[0].name().to_string()));
         }
       }
-      ReduceOperatorNode::Min => {
+      _ReduceOp::Min => {
         if let Some(n) = vars[0].name() {
           let loc = vars[0].location();
           let ty = TypeSet::Numeric(loc.clone());
@@ -374,7 +378,7 @@ impl NodeVisitor for LocalTypeInferenceContext {
             .push((n.to_string(), bindings[0].name().to_string()));
         }
       }
-      ReduceOperatorNode::Max => {
+      _ReduceOp::Max => {
         if let Some(n) = vars[0].name() {
           let loc = vars[0].location();
           let ty = TypeSet::Numeric(loc.clone());
@@ -386,21 +390,21 @@ impl NodeVisitor for LocalTypeInferenceContext {
             .push((n.to_string(), bindings[0].name().to_string()));
         }
       }
-      ReduceOperatorNode::Exists => {
+      _ReduceOp::Exists => {
         if let Some(n) = vars[0].name() {
           let loc = vars[0].location();
           let ty = TypeSet::BaseType(ValueType::Bool, loc.clone());
           self.var_types.insert(n.to_string(), (ty, loc.clone()));
         }
       }
-      ReduceOperatorNode::Forall => {
+      _ReduceOp::Forall => {
         if let Some(n) = vars[0].name() {
           let loc = vars[0].location();
           let ty = TypeSet::BaseType(ValueType::Bool, loc.clone());
           self.var_types.insert(n.to_string(), (ty, loc.clone()));
         }
       }
-      ReduceOperatorNode::Unique | ReduceOperatorNode::TopK(_) | ReduceOperatorNode::CategoricalK(_) => {
+      _ReduceOp::Unique | _ReduceOp::TopK(_) | _ReduceOp::CategoricalK(_) => {
         if vars.len() == bindings.len() {
           for (var, binding) in vars.iter().zip(bindings.iter()) {
             if let Some(n) = var.name() {
@@ -416,29 +420,35 @@ impl NodeVisitor for LocalTypeInferenceContext {
           return;
         }
       }
-      ReduceOperatorNode::Unknown(_) => {}
+      _ReduceOp::Unknown(_) => {}
     }
   }
+}
 
-  fn visit_variable(&mut self, v: &Variable) {
+impl NodeVisitor<Variable> for LocalTypeInferenceContext {
+  fn visit(&mut self, v: &Variable) {
     let var_name = v.name().to_string();
     self
       .unifications
       .push(Unification::OfVariable(v.location().clone(), var_name));
   }
+}
 
-  fn visit_constant(&mut self, c: &Constant) {
+impl NodeVisitor<Constant> for LocalTypeInferenceContext {
+  fn visit(&mut self, c: &Constant) {
     let type_set = TypeSet::from_constant(c);
     self
       .unifications
       .push(Unification::OfConstant(c.location().clone(), type_set));
   }
+}
 
-  fn visit_binary_expr(&mut self, b: &BinaryExpr) {
+impl NodeVisitor<BinaryExpr> for LocalTypeInferenceContext {
+  fn visit(&mut self, b: &BinaryExpr) {
     let op1 = b.op1().location().clone();
     let op2 = b.op2().location().clone();
     let loc = b.location().clone();
-    let unif = match b.op().node {
+    let unif = match b.op().op() {
       BinaryOp::Add => Unification::Add(op1, op2, loc),
       BinaryOp::Sub => Unification::Sub(op1, op2, loc),
       BinaryOp::Mul => Unification::Mult(op1, op2, loc),
@@ -450,20 +460,24 @@ impl NodeVisitor for LocalTypeInferenceContext {
     };
     self.unifications.push(unif);
   }
+}
 
-  fn visit_unary_expr(&mut self, u: &UnaryExpr) {
+impl NodeVisitor<UnaryExpr> for LocalTypeInferenceContext {
+  fn visit(&mut self, u: &UnaryExpr) {
     let unif = if u.op().is_pos_neg() {
       Unification::PosNeg(u.op1().location().clone(), u.location().clone())
     } else if u.op().is_not() {
       Unification::Not(u.op1().location().clone(), u.location().clone())
     } else {
-      let ty = u.op().cast_to_type().unwrap();
+      let ty = u.op().as_typecast().unwrap();
       Unification::TypeCast(u.op1().location().clone(), u.location().clone(), ty.clone())
     };
     self.unifications.push(unif)
   }
+}
 
-  fn visit_if_then_else_expr(&mut self, i: &IfThenElseExpr) {
+impl NodeVisitor<IfThenElseExpr> for LocalTypeInferenceContext {
+  fn visit(&mut self, i: &IfThenElseExpr) {
     let unif = Unification::IfThenElse(
       i.location().clone(),
       i.cond().location().clone(),
@@ -472,8 +486,10 @@ impl NodeVisitor for LocalTypeInferenceContext {
     );
     self.unifications.push(unif)
   }
+}
 
-  fn visit_call_expr(&mut self, c: &CallExpr) {
+impl NodeVisitor<CallExpr> for LocalTypeInferenceContext {
+  fn visit(&mut self, c: &CallExpr) {
     let unif = Unification::Call(
       c.function_identifier().name().to_string(),
       c.iter_args().map(|a| a.location().clone()).collect(),
@@ -481,8 +497,10 @@ impl NodeVisitor for LocalTypeInferenceContext {
     );
     self.unifications.push(unif)
   }
+}
 
-  fn visit_new_expr(&mut self, n: &NewExpr) {
+impl NodeVisitor<NewExpr> for LocalTypeInferenceContext {
+  fn visit(&mut self, n: &NewExpr) {
     let unif = Unification::New(
       n.functor_name().to_string(),
       n.iter_args().map(|a| a.location().clone()).collect(),

@@ -11,10 +11,8 @@ mod io;
 mod provenance;
 mod runtime;
 mod tag;
+mod tensor;
 mod tuple;
-
-#[cfg(feature = "torch-tensor")]
-mod torch;
 
 use pyo3::prelude::*;
 

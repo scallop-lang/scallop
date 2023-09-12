@@ -34,38 +34,36 @@ impl TransformForall {
           Formula::Implies(i) => {
             // Create b = !b_temp constraint
             let temp_var_name = format!("{}#forall#temp", left_var.name());
-            let temp_var = Variable::default_with_name(temp_var_name);
-            let not_temp_var = Expr::unary(UnaryOp::default_not(), Expr::Variable(temp_var.clone()));
+            let temp_var = Variable::new(Identifier::new(temp_var_name));
+            let not_temp_var = Expr::unary(UnaryExpr::new(UnaryOp::not(), Expr::Variable(temp_var.clone())));
             let left_var_expr = Expr::Variable(left_var.clone());
-            let left_var_eq_not_temp_var = Expr::binary(BinaryOp::default_eq(), left_var_expr, not_temp_var);
-            let constraint = Constraint::default_with_expr(left_var_eq_not_temp_var);
+            let left_var_eq_not_temp_var = Expr::binary(BinaryExpr::new(BinaryOp::new_eq(), left_var_expr, not_temp_var));
+            let constraint = Constraint::new(left_var_eq_not_temp_var);
 
             // Create exists aggregation literal
-            let left_and_not_right = Formula::Conjunction(Conjunction::new(
+            let left_and_not_right = Formula::Conjunction(Conjunction::new_with_loc(
+              vec![i.left().clone(), i.right().negate()],
               i.location().clone_without_id(),
-              ConjunctionNode {
-                args: vec![i.left().clone(), i.right().negate()],
-              },
             ));
-            let reduce = Reduce::new(
+            let reduce = Reduce::new_with_loc(
+              vec![
+                VariableOrWildcard::Variable(temp_var)
+              ], // Left
+              ReduceOp::exists_with_loc(r.operator().location().clone_without_id()), // Reduce op
+              r.args().clone(), // args
+              r.bindings().clone(), // bindings
+              left_and_not_right,
+              r.group_by().clone(),
               i.location().clone_without_id(),
-              ReduceNode {
-                left: vec![VariableOrWildcard::Variable(temp_var)],
-                operator: ReduceOperator::new(r.operator().location().clone_without_id(), ReduceOperatorNode::Exists),
-                args: r.node.args.clone(),
-                bindings: r.node.bindings.clone(),
-                body: Box::new(left_and_not_right),
-                group_by: r.node.group_by.clone(),
-              },
             );
 
             // Conjunction of both
-            let result = Formula::Conjunction(Conjunction::new(
-              r.location().clone_without_id(),
-              ConjunctionNode {
-                args: vec![Formula::Constraint(constraint), Formula::Reduce(reduce)],
-              },
-            ));
+            let result = Formula::Conjunction(
+              Conjunction::new_with_loc(
+                vec![Formula::Constraint(constraint), Formula::Reduce(reduce)],
+                r.location().clone_without_id(),
+              ),
+            );
             Some(result)
           }
           _ => None,
@@ -79,8 +77,8 @@ impl TransformForall {
   }
 }
 
-impl NodeVisitorMut for TransformForall {
-  fn visit_formula(&mut self, formula: &mut Formula) {
+impl NodeVisitor<Formula> for TransformForall {
+  fn visit_mut(&mut self, formula: &mut Formula) {
     match formula {
       Formula::Reduce(r) => {
         if let Some(f) = self.transform_forall(r) {

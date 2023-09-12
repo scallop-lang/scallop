@@ -23,9 +23,9 @@ fn test_dynamic_exclusion_1() {
   while source.changed(&ctx) || target.changed(&ctx) || first_time {
     target.insert_dataflow_recent(
       &ctx,
-      &dataflow::DynamicDataflow::from(&source)
-        .dynamic_exclusion(dataflow::DynamicDataflow::untagged_vec(&ctx, exc.clone()), &ctx)
-        .project((Expr::access((0, 0)), Expr::access((1, 0))).into()),
+      &dataflow::DynamicDataflow::dynamic_relation(&source)
+        .dynamic_exclusion(dataflow::DynamicDataflow::untagged_vec(&ctx, exc.clone()), &ctx, &rt)
+        .project((Expr::access((0, 0)), Expr::access((1, 0))).into(), &rt),
       &rt,
     );
     first_time = false;

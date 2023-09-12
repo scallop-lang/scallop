@@ -1,5 +1,6 @@
 #![feature(min_specialization)]
 #![feature(extract_if)]
+#![feature(hash_extract_if)]
 #![feature(proc_macro_span)]
 
 pub mod common;

@@ -23,7 +23,7 @@ fn test_dynamic_aggregate_count_1() {
   while source_1.changed(&ctx) || source_2.changed(&ctx) || target.changed(&ctx) {
     target.insert_dataflow_recent(
       &ctx,
-      &DynamicDataflow::from(&source_1).intersect(DynamicDataflow::from(&source_2), &ctx),
+      &DynamicDataflow::dynamic_relation(&source_1).intersect(DynamicDataflow::dynamic_relation(&source_2), &ctx),
       &rt,
     )
   }
@@ -35,12 +35,12 @@ fn test_dynamic_aggregate_count_1() {
   while agg.changed(&ctx) || first_time {
     agg.insert_dataflow_recent(
       &ctx,
-      &DynamicAggregationDataflow::single(
-        AggregateOp::Count.into(),
+      &DynamicDataflow::new(DynamicAggregationSingleGroupDataflow::new(
+        AggregateOp::count().into(),
         DynamicDataflow::dynamic_collection(&completed_target, first_time),
         &ctx,
-      )
-      .into(),
+        &rt,
+      )),
       &rt,
     );
     first_time = false;

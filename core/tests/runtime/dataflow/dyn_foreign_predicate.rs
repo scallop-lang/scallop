@@ -15,8 +15,9 @@ fn test_dyn_dataflow_free_range() {
     vec![Value::USize(1), Value::USize(5)],
     true,
     &ctx,
+    &runtime,
   );
-  let batch = df.iter_recent(&runtime).next().unwrap().collect::<Vec<_>>();
+  let batch = df.iter_recent().next().unwrap().collect::<Vec<_>>();
   for i in 1..5 {
     match &batch[i - 1].tuple {
       Tuple::Tuple(vs) => {
@@ -46,8 +47,9 @@ fn test_dyn_dataflow_soft_lt_1() {
     "soft_lt#f64".to_string(),
     vec![Expr::access(0), Expr::access(1)],
     &ctx,
+    &runtime,
   );
-  let batch = df.iter_recent(&runtime).next().unwrap().collect::<Vec<_>>();
+  let batch = df.iter_recent().next().unwrap().collect::<Vec<_>>();
   for elem in batch {
     let tup: (f64, f64) = elem.tuple.as_tuple();
     if tup.0 < tup.1 {
@@ -73,8 +75,9 @@ fn test_dyn_dataflow_join_range() {
     "range#usize".to_string(),
     vec![Expr::access(0), Expr::access(1)],
     &ctx,
+    &runtime,
   );
-  let batch = df.iter_recent(&runtime).next().unwrap().collect::<Vec<_>>();
+  let batch = df.iter_recent().next().unwrap().collect::<Vec<_>>();
   assert_eq!(
     AsTuple::<((usize, usize), (usize,))>::as_tuple(&batch[0].tuple),
     ((1usize, 3usize), (1usize,))

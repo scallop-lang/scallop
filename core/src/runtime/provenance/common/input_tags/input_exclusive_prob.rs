@@ -1,5 +1,5 @@
 use crate::common::input_tag::*;
-use crate::common::tensors::*;
+use crate::common::foreign_tensor::*;
 
 use super::*;
 
@@ -53,6 +53,7 @@ impl StaticInputTag for InputExclusiveProb {
     match t {
       DynamicInputTag::Float(f) => Some(Self::new(f.clone(), None)),
       DynamicInputTag::ExclusiveFloat(f, id) => Some(Self::new(f.clone(), Some(id.clone()))),
+      DynamicInputTag::Tensor(t) => Some(Self::new(t.get_f64(), None)),
       _ => None,
     }
   }

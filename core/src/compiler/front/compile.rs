@@ -9,7 +9,6 @@ use super::*;
 
 use crate::common::foreign_function::*;
 use crate::common::foreign_predicate::*;
-use crate::common::tuple::*;
 use crate::common::tuple_type::*;
 use crate::common::value_type::*;
 use crate::utils::CopyOnWrite;
@@ -95,7 +94,7 @@ impl FrontContext {
         .type_inference
         .foreign_function_type_registry
         .add_function_type(func_name, func_type)
-    });
+    })?;
 
     Ok(())
   }
@@ -254,9 +253,11 @@ impl FrontContext {
     let mut source_id_annotator = SourceIdAnnotator::new(source_id);
 
     // Annotate it
-    let node_id_annotator = &mut dup_ctx.node_id_annotator;
-    let mut annotators = (node_id_annotator, &mut loc_annotator, &mut source_id_annotator);
-    annotators.walk_items(&mut ast);
+    ast.walk_mut(&mut (
+      &mut dup_ctx.node_id_annotator,
+      &mut loc_annotator,
+      &mut source_id_annotator,
+    ));
 
     // Use external annotator to annotate each item
     if let Some(annotate) = &mut maybe_annotator {
@@ -288,7 +289,7 @@ impl FrontContext {
     dup_ctx.analysis.modify_without_copy(|analysis| {
       apply_transformations(&mut ast, analysis);
     });
-    dup_ctx.node_id_annotator.walk_items(&mut ast);
+    ast.walk_mut(&mut dup_ctx.node_id_annotator);
 
     // Front analysis
     dup_ctx.analysis.modify(|analysis| {
@@ -317,7 +318,7 @@ impl FrontContext {
     let mut error_ctx = FrontCompileError::new();
     for item in ast {
       if let Item::ImportDecl(id) = item {
-        let f = s.resolve_import_file_path(id.input_file());
+        let f = s.resolve_import_file_path(id.import_file_path());
         if self.is_imported(&f) {
           error_ctx.add(CycleImportError { path: f });
           return Err(error_ctx);
@@ -351,112 +352,24 @@ impl FrontContext {
     }
   }
 
-  /// Compile an entity (written in string) into a set of entity facts
-  pub fn compile_entity_to_facts(
-    &self,
-    relation: &str,
-    entity_tuple: Vec<String>,
-  ) -> Result<HashMap<String, Vec<Tuple>>, FrontCompileError> {
-    use crate::compiler::front::analyzers::type_inference::*;
-
-    // Create an error context
-    let mut error_ctx = FrontCompileError::with_sources(&self.sources);
-
-    // Check relation types
-    if let Some(arg_types) = self.type_inference().relation_arg_types(relation) {
-      // First parse the entities from the strings
-      let mut all_entity_facts = Vec::new();
-      let mut final_entity_constants = Vec::new();
-
-      // Iterate through
-      for (entity_str, expected_ty) in entity_tuple.into_iter().zip(arg_types.into_iter()) {
-        let value = if expected_ty.is_entity() {
-          // Create a source containing the entity string
-          let entity_source = StringSource::new(entity_str);
-
-          // Try to parse the entity
-          let mut entity = match parser::str_to_entity(&entity_source.string) {
-            Ok(entity) => entity,
-            Err(mut err) => {
-              let source_id = error_ctx.add_source(entity_source);
-              err.set_source_id(source_id);
-              error_ctx.add(err);
-              return Err(error_ctx);
-            }
-          };
-
-          // Annotate locations on the entity for error reporting
-          let source_id = error_ctx.add_source(entity_source);
-          let mut source_id_annotator = SourceIdAnnotator::new(source_id);
-          let mut node_id_annotator = self.node_id_annotator.clone();
-          NodeVisitorMut::walk_entity(&mut (&mut source_id_annotator, &mut node_id_annotator), &mut entity);
-
-          // Then parse the entity into a set of entity facts
-          let (entity_facts, constant) = entity.to_facts();
-
-          // Check the types of the entity facts
-          let entity_facts = match self.type_inference().parse_entity_facts(&entity_facts) {
-            Ok(entity_facts) => entity_facts,
-            Err(err) => {
-              error_ctx.add(err);
-              return Err(error_ctx);
-            }
-          };
-
-          // Add things into the aggregated list
-          all_entity_facts.extend(entity_facts);
-
-          // Add the value
-          if constant.can_unify(&expected_ty) {
-            constant.to_value(&expected_ty)
-          } else {
-            error_ctx.add(TypeInferenceError::CannotUnifyTypes {
-              t1: TypeSet::from_constant(&constant),
-              t2: TypeSet::base(expected_ty),
-              loc: None,
-            });
-            return Err(error_ctx);
-          }
-        } else {
-          match expected_ty.parse(&entity_str) {
-            Ok(value) => value,
-            Err(err) => {
-              error_ctx.add(err);
-              return Err(error_ctx);
-            }
-          }
-        };
-        final_entity_constants.push(value)
-      }
-
-      // Use the type inference engine
-      let tuple = Tuple::from_values(final_entity_constants.into_iter());
-
-      // Post-process the facts into a storage
-      let mut facts: HashMap<_, Vec<_>> = std::iter::once((relation.to_string(), vec![tuple])).collect();
-      for (functor, id, args) in all_entity_facts {
-        let tuple = Tuple::from_values(std::iter::once(id).chain(args.into_iter()));
-        facts.entry(functor).or_default().push(tuple);
-      }
-      Ok(facts)
-    } else {
-      error_ctx.add(TypeInferenceError::UnknownRelation {
-        relation: relation.to_string(),
-      });
-      Err(error_ctx)
-    }
-  }
-
   pub fn num_relations(&self) -> usize {
     self.type_inference().num_relations()
   }
 
   pub fn relations(&self) -> Vec<String> {
-    self.type_inference().relations()
+    self.type_inference().relations().into_iter().filter(|r| !self.is_hidden_relation(r)).collect()
+  }
+
+  pub fn is_hidden_relation(&self, r: &str) -> bool {
+    self.hidden_relation_analysis().contains(r)
   }
 
   pub fn type_inference(&self) -> &TypeInference {
     &self.analysis.borrow().type_inference
+  }
+
+  pub fn hidden_relation_analysis(&self) -> &HiddenRelationAnalysis {
+    &self.analysis.borrow().hidden_analysis
   }
 
   pub fn items_of_source_id(&self, source_id: SourceId) -> impl Iterator<Item = &Item> {
@@ -475,32 +388,14 @@ impl FrontContext {
 
   pub fn rule_decl_of_source_id(&self, source_id: SourceId) -> Option<&RuleDecl> {
     self.items.iter().find_map(|i| match i {
-      Item::RelationDecl(rd) => match &rd.node {
-        RelationDeclNode::Rule(rd) => {
-          if rd.source_id() == source_id.0 {
-            Some(rd)
-          } else {
-            None
-          }
-        }
-        _ => None,
-      },
+      Item::RelationDecl(RelationDecl::Rule(rd)) if rd.location_source_id() == source_id.0 => Some(rd),
       _ => None,
     })
   }
 
   pub fn relation_type_decl_of_source_id(&self, source_id: SourceId) -> Option<&RelationTypeDecl> {
     self.items.iter().find_map(|i| match i {
-      Item::TypeDecl(td) => match &td.node {
-        TypeDeclNode::Relation(rtd) => {
-          if rtd.source_id() == source_id.0 {
-            Some(rtd)
-          } else {
-            None
-          }
-        }
-        _ => None,
-      },
+      Item::TypeDecl(TypeDecl::Relation(rtd)) if rtd.location_source_id() == source_id.0 => Some(rtd),
       _ => None,
     })
   }

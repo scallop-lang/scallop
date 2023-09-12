@@ -367,7 +367,11 @@ impl ast::Dataflow {
 
         // Get the aggregator
         let agg = match &r.op {
-          AggregateOp::Count => quote! { CountAggregator::new() },
+          AggregateOp::Count { discrete } => if *discrete {
+            unimplemented! {}
+          } else {
+            quote! { CountAggregator::new() }
+          },
           AggregateOp::Sum(_) => quote! { SumAggregator::new() },
           AggregateOp::Prod(_) => quote! { ProdAggregator::new() },
           AggregateOp::Max => quote! { MaxAggregator::new() },
@@ -517,6 +521,7 @@ fn input_tag_to_rs_input_tag(tag: &DynamicInputTag) -> TokenStream {
     DynamicInputTag::None => quote! { DynamicInputTag::None },
     DynamicInputTag::Exclusive(i) => quote! { DynamicInputTag::Exclusive(#i) },
     DynamicInputTag::Bool(b) => quote! { DynamicInputTag::Bool(#b) },
+    DynamicInputTag::Natural(n) => quote! { DynamicInputTag::Natural(#n) },
     DynamicInputTag::Float(f) => quote! { DynamicInputTag::Float(#f) },
     DynamicInputTag::ExclusiveFloat(f, u) => quote! { DynamicInputTag::ExclusiveFloat(#f, #u) },
     DynamicInputTag::Tensor(_) => unimplemented!(),
@@ -580,6 +585,7 @@ fn value_to_rs_value(value: &Value) -> TokenStream {
     DateTime(_) => unimplemented!(),
     Duration(_) => unimplemented!(),
     Entity(e) => quote! { #e },
+    EntityString(_) => panic!("[Internal Error] Should not have raw entity string during compilation"),
     Tensor(_) => panic!("[Internal Error] Should not have raw tensor during compilation"),
     TensorValue(_) => panic!("[Internal Error] Should not have tensor value during compilation"),
   }

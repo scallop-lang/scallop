@@ -1,6 +1,8 @@
 [workspace]
 members = [
   "core",
+
+  # Extra packages
   "etc/codegen",
   "etc/sclc",
   "etc/scli",
@@ -8,9 +10,19 @@ members = [
   "etc/scallopy",
   # "etc/scallop-node",
   "etc/scallop-wasm",
+
+  # Additional dependencies
+  "lib/astnode-derive",
+  "lib/parse_relative_duration",
   "lib/sdd",
-  "lib/rsat",
-  "lib/ram",
+
+  # Laboratory
+  # "lab/rsat",
+  # "lab/dyn-tensor-registry",
+  # "lab/ram-egg",
+  # "lab/ast-derive",
+  # "lab/type-inference",
+  # "lab/visitor",
 ]
 
 default-members = [

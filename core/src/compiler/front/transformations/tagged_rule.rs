@@ -13,9 +13,9 @@ impl TransformTaggedRule {
 
   pub fn has_prob_attr(rule_decl: &RuleDecl) -> bool {
     rule_decl
-      .attributes()
+      .attrs()
       .iter()
-      .find(|a| a.name() == "probabilistic")
+      .find(|a| a.name().name() == "probabilistic")
       .is_some()
   }
 
@@ -24,17 +24,9 @@ impl TransformTaggedRule {
     let pred = rule_decl.rule_tag_predicate();
 
     // 2. Append the atom to the end
-    let new_atom = AtomNode {
-      predicate: IdentifierNode { name: pred.clone() }.into(),
-      type_args: vec![],
-      args: vec![],
-    };
-    let new_atom_form = Formula::Atom(new_atom.into());
-    let new_conj = ConjunctionNode {
-      args: vec![new_atom_form, rule_decl.node.rule.node.body.clone()],
-    };
-    let new_body = Formula::Conjunction(new_conj.into());
-    rule_decl.node.rule.node.body = new_body;
+    let new_atom = Formula::Atom(Atom::new(Identifier::new(pred.clone()), vec![], vec![]));
+    let new_body = Formula::Conjunction(Conjunction::new(vec![new_atom, rule_decl.rule().body().clone()]));
+    *rule_decl.rule_mut().body_mut() = new_body;
 
     // Return the predicate
     pred
@@ -45,26 +37,18 @@ impl TransformTaggedRule {
       .to_add_tags
       .into_iter()
       .map(|(pred, tag)| {
-        let fact = AtomNode {
-          predicate: IdentifierNode { name: pred.clone() }.into(),
-          type_args: vec![],
-          args: vec![],
-        };
-        let fact_decl = FactDeclNode {
-          attrs: vec![],
-          tag: TagNode(tag).into(),
-          atom: fact.into(),
-        };
-        let rel_decl = RelationDeclNode::Fact(fact_decl.into());
-        let item = Item::RelationDecl(rel_decl.into());
+        let fact = Atom::new(Identifier::new(pred.clone()), vec![], vec![]);
+        let fact_decl = FactDecl::new(vec![], Tag::new(tag), fact);
+        let rel_decl = RelationDecl::Fact(fact_decl);
+        let item = Item::RelationDecl(rel_decl);
         item
       })
       .collect()
   }
 }
 
-impl NodeVisitorMut for TransformTaggedRule {
-  fn visit_rule_decl(&mut self, rule_decl: &mut RuleDecl) {
+impl NodeVisitor<RuleDecl> for TransformTaggedRule {
+  fn visit_mut(&mut self, rule_decl: &mut RuleDecl) {
     // If rule is directly declared with probability
     if rule_decl.tag().is_some() {
       // Transform the rule
@@ -73,7 +57,7 @@ impl NodeVisitorMut for TransformTaggedRule {
       // Store this probability for later
       self
         .to_add_tags
-        .push((pred.clone(), rule_decl.tag().input_tag().clone()));
+        .push((pred.clone(), rule_decl.tag().tag().clone()));
     } else if Self::has_prob_attr(rule_decl) {
       // If the rule is annotated with `@probabilistic`
       Self::transform(rule_decl);

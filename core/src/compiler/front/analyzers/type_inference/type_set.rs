@@ -5,20 +5,20 @@ use crate::compiler::front::*;
 
 #[derive(Clone, Debug)]
 pub enum TypeSet {
-  BaseType(ValueType, AstNodeLocation), // Concrete base type
-  Numeric(AstNodeLocation),             // Contains integer and float, default i32
-  Arith(AstNodeLocation),               // Numeric but with arithmetics, default integer i32
-  Integer(AstNodeLocation),             // integer, default `i32`
-  SignedInteger(AstNodeLocation),       // signed integer, default `i32`
-  UnsignedInteger(AstNodeLocation),     // unsigned integer, default `u32`
-  Float(AstNodeLocation),               // float, default `f32`
-  String(AstNodeLocation),              // string, default `String`
-  Any(AstNodeLocation),                 // Any type, default i32
+  BaseType(ValueType, NodeLocation), // Concrete base type
+  Numeric(NodeLocation),             // Contains integer and float, default i32
+  Arith(NodeLocation),               // Numeric but with arithmetics, default integer i32
+  Integer(NodeLocation),             // integer, default `i32`
+  SignedInteger(NodeLocation),       // signed integer, default `i32`
+  UnsignedInteger(NodeLocation),     // unsigned integer, default `u32`
+  Float(NodeLocation),               // float, default `f32`
+  String(NodeLocation),              // string, default `String`
+  Any(NodeLocation),                 // Any type, default i32
 }
 
 impl Default for TypeSet {
   fn default() -> Self {
-    Self::Any(AstNodeLocation::default())
+    Self::Any(NodeLocation::default())
   }
 }
 
@@ -158,42 +158,42 @@ impl std::fmt::Display for TypeSet {
 
 impl TypeSet {
   pub fn base(ty: ValueType) -> Self {
-    Self::BaseType(ty, AstNodeLocation::default())
+    Self::BaseType(ty, NodeLocation::default())
   }
 
   pub fn any() -> Self {
-    Self::Any(AstNodeLocation::default())
+    Self::Any(NodeLocation::default())
   }
 
   pub fn numeric() -> Self {
-    Self::Numeric(AstNodeLocation::default())
+    Self::Numeric(NodeLocation::default())
   }
 
   pub fn arith() -> Self {
-    Self::Arith(AstNodeLocation::default())
+    Self::Arith(NodeLocation::default())
   }
 
   pub fn string() -> Self {
-    Self::String(AstNodeLocation::default())
+    Self::String(NodeLocation::default())
   }
 
   pub fn from_constant(c: &Constant) -> Self {
-    match &c.node {
-      ConstantNode::Integer(i) => {
-        if i < &0 {
+    match c {
+      Constant::Integer(i) => {
+        if i.int() < &0 {
           Self::SignedInteger(c.location().clone())
         } else {
           Self::Numeric(c.location().clone())
         }
       }
-      ConstantNode::Float(_) => Self::Float(c.location().clone()),
-      ConstantNode::Char(_) => Self::BaseType(ValueType::Char, c.location().clone()),
-      ConstantNode::Boolean(_) => Self::BaseType(ValueType::Bool, c.location().clone()),
-      ConstantNode::String(_) => Self::String(c.location().clone()),
-      ConstantNode::Symbol(_) => Self::BaseType(ValueType::Symbol, c.location().clone()),
-      ConstantNode::DateTime(_) => Self::BaseType(ValueType::DateTime, c.location().clone()),
-      ConstantNode::Duration(_) => Self::BaseType(ValueType::Duration, c.location().clone()),
-      ConstantNode::Entity(_) => Self::BaseType(ValueType::Entity, c.location().clone()),
+      Constant::Float(_) => Self::Float(c.location().clone()),
+      Constant::Char(_) => Self::BaseType(ValueType::Char, c.location().clone()),
+      Constant::Boolean(_) => Self::BaseType(ValueType::Bool, c.location().clone()),
+      Constant::String(_) => Self::String(c.location().clone()),
+      Constant::Symbol(_) => Self::BaseType(ValueType::Symbol, c.location().clone()),
+      Constant::DateTime(_) => Self::BaseType(ValueType::DateTime, c.location().clone()),
+      Constant::Duration(_) => Self::BaseType(ValueType::Duration, c.location().clone()),
+      Constant::Entity(_) => Self::BaseType(ValueType::Entity, c.location().clone()),
     }
   }
 
@@ -224,7 +224,7 @@ impl TypeSet {
     }
   }
 
-  pub fn location(&self) -> &AstNodeLocation {
+  pub fn location(&self) -> &NodeLocation {
     match self {
       Self::BaseType(_, l) => l,
       Self::Numeric(l) => l,

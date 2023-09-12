@@ -1,15 +1,16 @@
 use std::collections::*;
 
-use super::super::analyzers::boundness::{AggregationContext, ForeignPredicateBindings, RuleContext};
-use super::super::ast as front;
-use super::super::ast::{AstNodeLocation, WithLocation};
-use super::super::compile::*;
-use super::super::visitor::*;
-use super::FlattenExprContext;
 use crate::common::aggregate_op::*;
 use crate::common::output_option::OutputOption;
 use crate::common::value_type::ValueType;
 use crate::compiler::back;
+
+use super::super::analyzers::boundness::{AggregationContext, ForeignPredicateBindings, RuleContext};
+use super::super::ast as front;
+use super::super::compile::*;
+use super::FlattenExprContext;
+
+use front::{AstNode, NodeLocation, AstWalker};
 
 impl FrontContext {
   pub fn to_back_program(&self) -> back::Program {
@@ -46,6 +47,7 @@ impl FrontContext {
       rules,
       function_registry: self.foreign_function_registry.clone(),
       predicate_registry: self.foreign_predicate_registry.clone(),
+      adt_variant_registry: self.type_inference().create_adt_variant_registry(),
     }
   }
 
@@ -55,7 +57,7 @@ impl FrontContext {
       .iter()
       .filter_map(|item| match item {
         front::Item::QueryDecl(q) => {
-          let name = q.node.query.create_relation_name().clone();
+          let name = q.query().create_relation_name().clone();
           if let Some(file) = self.analysis.borrow().output_files_analysis.output_file(&name) {
             Some((name, OutputOption::File(file.clone())))
           } else {
@@ -92,9 +94,9 @@ impl FrontContext {
   fn to_back_facts(&self) -> Vec<back::Fact> {
     self
       .iter_relation_decls()
-      .filter_map(|rd| match &rd.node {
-        front::RelationDeclNode::Set(cs) if !cs.is_disjunction() => {
-          let pred = cs.predicate();
+      .filter_map(|rd| match rd {
+        front::RelationDecl::Set(cs) if !cs.is_disjunction() => {
+          let pred = cs.name().name();
 
           // If there is no relation arg types being inferred, we return None
           let tys = match self.relation_arg_types(pred) {
@@ -106,6 +108,7 @@ impl FrontContext {
 
           // Otherwise, we turn all the tuples into the corresponding types
           let fs = cs
+            .set()
             .iter_tuples()
             .map(|tuple| {
               let args = tuple
@@ -113,11 +116,11 @@ impl FrontContext {
                 .zip(tys.iter())
                 .map(|(c, t)| {
                   // Unwrap is okay here since we have checked for constant in pre-transformation analysis
-                  c.constant().unwrap().to_value(t)
+                  c.as_constant().unwrap().to_value(t)
                 })
                 .collect();
               back::Fact {
-                tag: tuple.tag().input_tag().clone(),
+                tag: tuple.tag().tag().clone(),
                 predicate: pred.clone(),
                 args,
               }
@@ -125,12 +128,12 @@ impl FrontContext {
             .collect();
           Some(fs)
         }
-        front::RelationDeclNode::Fact(f) => {
-          let pred = f.predicate();
+        front::RelationDecl::Fact(f) => {
+          let pred = f.predicate_name();
           let tys = self.relation_arg_types(&pred).unwrap();
           let args = f.iter_constants().zip(tys.iter()).map(|(c, t)| c.to_value(t)).collect();
           let back_fact = back::Fact {
-            tag: f.tag().input_tag().clone(),
+            tag: f.tag().tag().clone(),
             predicate: pred.clone(),
             args,
           };
@@ -145,11 +148,12 @@ impl FrontContext {
   fn to_back_disjunctive_facts(&self) -> Vec<Vec<back::Fact>> {
     self
       .iter_relation_decls()
-      .filter_map(|rd| match &rd.node {
-        front::RelationDeclNode::Set(cs) if cs.is_disjunction() => {
-          let pred = cs.predicate();
+      .filter_map(|rd| match rd {
+        front::RelationDecl::Set(cs) if cs.is_disjunction() => {
+          let pred = cs.name().name();
           let tys = self.relation_arg_types(pred).unwrap();
           let fs = cs
+            .set()
             .iter_tuples()
             .map(|tuple| {
               let args = tuple
@@ -157,11 +161,11 @@ impl FrontContext {
                 .zip(tys.iter())
                 .map(|(c, t)| {
                   // Unwrap is okay here since we have checked for constant in pre-transformation analysis
-                  c.constant().unwrap().to_value(t)
+                  c.as_constant().unwrap().to_value(t)
                 })
                 .collect();
               back::Fact {
-                tag: tuple.tag().input_tag().clone(),
+                tag: tuple.tag().tag().clone(),
                 predicate: pred.clone(),
                 args,
               }
@@ -177,8 +181,8 @@ impl FrontContext {
   fn to_back_rules(&self, temp_relations: &mut Vec<back::Relation>) -> Vec<back::Rule> {
     self
       .iter_relation_decls()
-      .filter_map(|rd| match &rd.node {
-        front::RelationDeclNode::Rule(rd) => Some(self.rule_decl_to_back_rules(rd, temp_relations)),
+      .filter_map(|rd| match rd {
+        front::RelationDecl::Rule(rd) => Some(self.rule_decl_to_back_rules(rd, temp_relations)),
         _ => None,
       })
       .collect::<Vec<_>>()
@@ -187,20 +191,20 @@ impl FrontContext {
 
   fn rule_decl_to_back_rules(&self, rd: &front::RuleDecl, temp_relations: &mut Vec<back::Relation>) -> Vec<back::Rule> {
     let rule_loc = rd.rule().location();
-    match &rd.rule().head().node {
-      front::RuleHeadNode::Atom(head) => self.atomic_rule_decl_to_back_rules(rule_loc, head, temp_relations),
-      front::RuleHeadNode::Conjunction(_) => {
+    match rd.rule().head() {
+      front::RuleHead::Atom(head) => self.atomic_rule_decl_to_back_rules(rule_loc, head, temp_relations),
+      front::RuleHead::Conjunction(_) => {
         panic!("[Internal Error] Conjunction should be flattened and de-sugared. This is probably a bug.")
       }
-      front::RuleHeadNode::Disjunction(head_atoms) => {
-        self.disjunctive_rule_decl_to_back_rules(rule_loc, head_atoms, temp_relations)
+      front::RuleHead::Disjunction(head_atoms) => {
+        self.disjunctive_rule_decl_to_back_rules(rule_loc, head_atoms.atoms(), temp_relations)
       }
     }
   }
 
   fn atomic_rule_decl_to_back_rules(
     &self,
-    rule_loc: &AstNodeLocation,
+    rule_loc: &NodeLocation,
     head: &front::Atom,
     temp_relations: &mut Vec<back::Relation>,
   ) -> Vec<back::Rule> {
@@ -212,18 +216,18 @@ impl FrontContext {
 
     // Collect information for flattening
     let mut flatten_expr = FlattenExprContext::new(&analysis.type_inference, &self.foreign_predicate_registry);
-    flatten_expr.walk_atom(head);
+    head.walk(&mut flatten_expr);
 
     // Create the flattened expression that the head needs
     let head_exprs = head
-      .iter_arguments()
+      .iter_args()
       .map(|a| flatten_expr.collect_flattened_literals(a.location()))
       .flatten()
       .collect::<Vec<_>>();
 
     // Create the head that will be shared across all back rules
-    let args = head.iter_arguments().map(|a| flatten_expr.get_expr_term(a)).collect();
-    let head = back::Head::atom(pred.clone(), args);
+    let args = head.iter_args().map(|a| flatten_expr.get_expr_term(a)).collect();
+    let head = back::Head::atom(pred.name().clone(), args);
 
     // Get the back rules
     let boundness_analysis = &self.analysis.borrow().boundness_analysis;
@@ -232,7 +236,7 @@ impl FrontContext {
       &mut flatten_expr,
       rule_loc,
       attributes,
-      pred.clone(),
+      pred.name().clone(),
       rule_ctx,
       head,
       head_exprs,
@@ -242,7 +246,7 @@ impl FrontContext {
 
   fn disjunctive_rule_decl_to_back_rules(
     &self,
-    rule_loc: &AstNodeLocation,
+    rule_loc: &NodeLocation,
     head_atoms: &[front::Atom],
     temp_relations: &mut Vec<back::Relation>,
   ) -> Vec<back::Rule> {
@@ -255,13 +259,13 @@ impl FrontContext {
     // Collect information for flattening
     let mut flatten_expr = FlattenExprContext::new(&analysis.type_inference, &self.foreign_predicate_registry);
     for head in head_atoms {
-      flatten_expr.walk_atom(head);
+      head.walk(&mut flatten_expr)
     }
 
     // Create the flattened expression that the head needs
     let head_exprs = head_atoms
       .iter()
-      .flat_map(|a| a.iter_arguments())
+      .flat_map(|a| a.iter_args())
       .flat_map(|a| flatten_expr.collect_flattened_literals(a.location()))
       .collect::<Vec<_>>();
 
@@ -269,8 +273,8 @@ impl FrontContext {
     let back_head_atoms = head_atoms
       .iter()
       .map(|a| {
-        let args = a.iter_arguments().map(|a| flatten_expr.get_expr_term(a)).collect();
-        back::Atom::new(a.predicate().clone(), args)
+        let args = a.iter_args().map(|a| flatten_expr.get_expr_term(a)).collect();
+        back::Atom::new(a.predicate().name().clone(), args)
       })
       .collect();
     let head = back::Head::Disjunction(back_head_atoms);
@@ -282,7 +286,7 @@ impl FrontContext {
       &mut flatten_expr,
       rule_loc,
       attributes,
-      pred.clone(),
+      pred.name().clone(),
       rule_ctx,
       head,
       head_exprs,
@@ -293,7 +297,7 @@ impl FrontContext {
   fn formula_to_back_rules(
     &self,
     flatten_expr: &mut FlattenExprContext,
-    src_rule_loc: &AstNodeLocation,
+    src_rule_loc: &NodeLocation,
     attributes: back::Attributes,
     parent_predicate: String,
     rule_ctx: &RuleContext,
@@ -332,8 +336,8 @@ impl FrontContext {
         .collect::<Vec<_>>();
 
       // Create a context and visit all atoms
-      conj_ctx.pos_atoms.iter().for_each(|a| flatten_expr.walk_formula(a));
-      conj_ctx.neg_atoms.iter().for_each(|a| flatten_expr.walk_formula(a));
+      conj_ctx.pos_atoms.walk(flatten_expr);
+      conj_ctx.neg_atoms.walk(flatten_expr);
 
       // Add positive/negative atoms
       let pos_formulas = flatten_expr.to_back_literals(&conj_ctx.pos_atoms);
@@ -358,7 +362,7 @@ impl FrontContext {
   fn reduce_to_back_literal(
     &self,
     flatten_expr: &mut FlattenExprContext,
-    src_rule_loc: &AstNodeLocation,
+    src_rule_loc: &NodeLocation,
     rule_ctx: &RuleContext,
     agg_ctx: &AggregationContext,
     predicate: String,
@@ -477,8 +481,10 @@ impl FrontContext {
 
     // Generate the internal aggregate operator
     let op = match &agg_ctx.aggregate_op {
-      front::ReduceOperatorNode::Count => AggregateOp::Count,
-      front::ReduceOperatorNode::Sum => {
+      front::_ReduceOp::Count(discrete) => {
+        AggregateOp::Count { discrete: *discrete }
+      },
+      front::_ReduceOp::Sum => {
         assert_eq!(
           left_vars.len(),
           1,
@@ -486,7 +492,7 @@ impl FrontContext {
         );
         AggregateOp::Sum(left_vars[0].ty.clone())
       }
-      front::ReduceOperatorNode::Prod => {
+      front::_ReduceOp::Prod => {
         assert_eq!(
           left_vars.len(),
           1,
@@ -494,16 +500,16 @@ impl FrontContext {
         );
         AggregateOp::Prod(left_vars[0].ty.clone())
       }
-      front::ReduceOperatorNode::Min => AggregateOp::min(!arg_vars.is_empty()),
-      front::ReduceOperatorNode::Max => AggregateOp::max(!arg_vars.is_empty()),
-      front::ReduceOperatorNode::Exists => AggregateOp::Exists,
-      front::ReduceOperatorNode::Unique => AggregateOp::top_k(1),
-      front::ReduceOperatorNode::TopK(k) => AggregateOp::top_k(k.clone()),
-      front::ReduceOperatorNode::CategoricalK(k) => AggregateOp::categorical_k(k.clone()),
-      front::ReduceOperatorNode::Forall => {
+      front::_ReduceOp::Min => AggregateOp::min(!arg_vars.is_empty()),
+      front::_ReduceOp::Max => AggregateOp::max(!arg_vars.is_empty()),
+      front::_ReduceOp::Exists => AggregateOp::Exists,
+      front::_ReduceOp::Unique => AggregateOp::top_k(1),
+      front::_ReduceOp::TopK(k) => AggregateOp::top_k(k.clone()),
+      front::_ReduceOp::CategoricalK(k) => AggregateOp::categorical_k(k.clone()),
+      front::_ReduceOp::Forall => {
         panic!("[Internal Error] There should be no forall aggregator op. This is a bug");
       }
-      front::ReduceOperatorNode::Unknown(_) => {
+      front::_ReduceOp::Unknown(_) => {
         panic!("[Internal Error] There should be no unknown aggregator op. This is a bug");
       }
     };
@@ -554,7 +560,7 @@ impl FrontContext {
       .collect()
   }
 
-  // fn back_terms(&self, src_rule_loc: &AstNodeLocation, var_names: Vec<String>) -> Vec<back::Term> {
+  // fn back_terms(&self, src_rule_loc: &NodeLocation, var_names: Vec<String>) -> Vec<back::Term> {
   //   let var_tys = self.type_inference().variable_types(src_rule_loc, var_names.iter());
   //   self.back_terms_with_types(var_names, var_tys)
   // }
@@ -567,7 +573,7 @@ impl FrontContext {
       .collect()
   }
 
-  fn back_vars(&self, src_rule_loc: &AstNodeLocation, var_names: Vec<String>) -> Vec<back::Variable> {
+  fn back_vars(&self, src_rule_loc: &NodeLocation, var_names: Vec<String>) -> Vec<back::Variable> {
     let var_tys = self.type_inference().variable_types(src_rule_loc, var_names.iter());
     self.back_vars_with_types(var_names, var_tys)
   }

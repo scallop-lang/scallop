@@ -30,14 +30,7 @@ impl<Prov: provenance::Provenance, Ptr: PointerFamily> InterpretContext<Prov, Pt
   ) -> Result<Self, IntegrateError> {
     let program = compiler::compile_string_to_ram_with_options(program_string, &options.compiler_options)
       .map_err(IntegrateError::Compile)?;
-    let runtime_env = options.runtime_environment_options.build();
-    let execution_context =
-      dynamic::DynamicExecutionContext::new_with_program_and_options(program, options.execution_options);
-    Ok(Self {
-      provenance,
-      runtime_env,
-      execution_context,
-    })
+    Self::new_from_program_with_options(program, provenance, options)
   }
 
   pub fn new_from_file(file_name: &PathBuf, provenance: Prov) -> Result<Self, IntegrateError> {
@@ -51,9 +44,23 @@ impl<Prov: provenance::Provenance, Ptr: PointerFamily> InterpretContext<Prov, Pt
   ) -> Result<Self, IntegrateError> {
     let program = compiler::compile_file_to_ram_with_options(file_name, &options.compiler_options)
       .map_err(IntegrateError::Compile)?;
-    let runtime_env = options.runtime_environment_options.build();
+    Self::new_from_program_with_options(program, provenance, options)
+  }
+
+  pub fn new_from_program_with_options(
+    program: compiler::ram::Program,
+    provenance: Prov,
+    options: IntegrateOptions,
+  ) -> Result<Self, IntegrateError> {
+    // Create a runtime environment, and update it with existing information in the program
+    let mut runtime_env = options.runtime_environment_options.build();
+    runtime_env.load_from_ram_program(&program);
+
+    // Create an execution context
     let execution_context =
       dynamic::DynamicExecutionContext::new_with_program_and_options(program, options.execution_options);
+
+    // Return!
     Ok(Self {
       provenance,
       runtime_env,

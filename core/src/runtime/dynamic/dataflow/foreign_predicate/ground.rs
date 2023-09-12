@@ -6,7 +6,7 @@ use crate::runtime::provenance::*;
 
 use super::*;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ForeignPredicateGroundDataflow<'a, Prov: Provenance> {
   /// The foreign predicate
   pub foreign_predicate: String,
@@ -19,11 +19,14 @@ pub struct ForeignPredicateGroundDataflow<'a, Prov: Provenance> {
 
   /// Provenance context
   pub ctx: &'a Prov,
+
+  /// Runtime environment
+  pub runtime: &'a RuntimeEnvironment,
 }
 
 impl<'a, Prov: Provenance> ForeignPredicateGroundDataflow<'a, Prov> {
   /// Generate a batch from the foreign predicate
-  fn generate_batch(&self, runtime: &RuntimeEnvironment) -> DynamicBatch<'a, Prov> {
+  fn generate_batch(&self, runtime: &RuntimeEnvironment) -> ElementsBatch<Prov> {
     // Fetch the foreign predicate
     let foreign_predicate = runtime
       .predicate_registry
@@ -34,29 +37,31 @@ impl<'a, Prov: Provenance> ForeignPredicateGroundDataflow<'a, Prov> {
     let elements = foreign_predicate
       .evaluate_with_env(runtime, &self.bounded_constants)
       .into_iter()
-      .map(|(input_tag, values)| {
+      .filter_map(|(input_tag, values)| {
         let input_tag = StaticInputTag::from_dynamic_input_tag(&input_tag);
         let tag = self.ctx.tagging_optional_fn(input_tag);
         let tuple = Tuple::from(values);
-        DynamicElement::new(tuple, tag)
+        let internal_tuple = runtime.internalize_tuple(&tuple)?;
+        Some(DynamicElement::new(internal_tuple, tag))
       })
       .collect::<Vec<_>>();
-    DynamicBatch::source_vec(elements)
+
+    ElementsBatch::new(elements)
   }
 }
 
-impl<'a, Prov: Provenance> ForeignPredicateGroundDataflow<'a, Prov> {
-  pub fn iter_stable(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
+impl<'a, Prov: Provenance> Dataflow<'a, Prov> for ForeignPredicateGroundDataflow<'a, Prov> {
+  fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     if self.first_iteration {
       DynamicBatches::empty()
     } else {
-      DynamicBatches::single(self.generate_batch(runtime))
+      DynamicBatches::single(self.generate_batch(self.runtime))
     }
   }
 
-  pub fn iter_recent(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
+  fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     if self.first_iteration {
-      DynamicBatches::single(self.generate_batch(runtime))
+      DynamicBatches::single(self.generate_batch(self.runtime))
     } else {
       DynamicBatches::empty()
     }

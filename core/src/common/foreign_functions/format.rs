@@ -68,11 +68,12 @@ impl ForeignFunction for Format {
             Value::Bool(i) => i.to_string(),
             Value::Str(i) => i.to_string(),
             Value::String(i) => i.to_string(),
-            Value::Symbol(_) => panic!("[Internal Error] Symbol should not be processed"),
+            Value::Symbol(_) => panic!("[Internal Error] Symbol should not be processed by format"),
             Value::SymbolString(s) => s.to_string(),
             Value::DateTime(i) => i.to_string(),
             Value::Duration(i) => i.to_string(),
             Value::Entity(e) => format!("entity({e:#x})"),
+            Value::EntityString(_) => panic!("[Internal Error] Entity string should not be processed by format"),
             Value::Tensor(_) | Value::TensorValue(_) => "tensor".to_string(),
           };
           result += s.as_str();
@@ -120,6 +121,7 @@ impl ForeignFunction for Format {
             Value::DateTime(i) => i.to_string(),
             Value::Duration(i) => i.to_string(),
             Value::Entity(e) => format!("entity({e:#x})"),
+            Value::EntityString(_) => panic!("[Internal Error] Entity string should not be processed by format"),
             Value::Tensor(_) | Value::TensorValue(_) => "tensor".to_string(),
           };
           result += s.as_str();

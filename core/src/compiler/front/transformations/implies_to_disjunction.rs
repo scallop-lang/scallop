@@ -4,16 +4,16 @@ use crate::compiler::front::*;
 #[derive(Clone, Debug)]
 pub struct TransformImplies;
 
-impl NodeVisitorMut for TransformImplies {
-  fn visit_formula(&mut self, formula: &mut Formula) {
+impl NodeVisitor<Formula> for TransformImplies {
+  fn visit_mut(&mut self, formula: &mut Formula) {
     match formula {
       Formula::Implies(i) => {
-        let rewrite = Formula::Disjunction(Disjunction::new(
-          i.location().clone(),
-          DisjunctionNode {
-            args: vec![i.left().negate(), i.right().clone()],
-          },
-        ));
+        let rewrite = Formula::Disjunction(
+          Disjunction::new_with_loc(
+            vec![i.left().negate(), i.right().clone()],
+            i.location().clone(),
+          )
+        );
         *formula = rewrite;
       }
       _ => {}

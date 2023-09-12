@@ -16,28 +16,29 @@ impl Display for Item {
 
 impl Display for ImportDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    for attr in self.attributes() {
+    for attr in self.attrs() {
       f.write_fmt(format_args!("{} ", attr))?;
     }
-    f.write_fmt(format_args!("import \"{}\"", self.input_file()))
+    f.write_fmt(format_args!("import \"{}\"", self.import_file_path()))
   }
 }
 
 impl Display for TypeDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    match &self.node {
-      TypeDeclNode::Subtype(s) => s.fmt(f),
-      TypeDeclNode::Alias(s) => s.fmt(f),
-      TypeDeclNode::Relation(s) => s.fmt(f),
-      TypeDeclNode::Enum(e) => e.fmt(f),
-      TypeDeclNode::Algebraic(a) => a.fmt(f),
+    match self {
+      TypeDecl::Subtype(s) => s.fmt(f),
+      TypeDecl::Alias(s) => s.fmt(f),
+      TypeDecl::Relation(s) => s.fmt(f),
+      TypeDecl::Enumerate(e) => e.fmt(f),
+      TypeDecl::Algebraic(a) => a.fmt(f),
+      TypeDecl::Function(t) => t.fmt(f),
     }
   }
 }
 
 impl Display for ConstDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    for attr in self.attributes() {
+    for attr in self.attrs() {
       f.write_fmt(format_args!("{} ", attr))?;
     }
     f.write_fmt(format_args!("const "))?;
@@ -63,9 +64,9 @@ impl Display for ConstAssignment {
 
 impl Display for Entity {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    match &self.node {
-      EntityNode::Expr(e) => e.fmt(f),
-      EntityNode::Object(o) => o.fmt(f),
+    match self {
+      Entity::Expr(e) => e.fmt(f),
+      Entity::Object(o) => o.fmt(f),
     }
   }
 }
@@ -86,17 +87,17 @@ impl Display for Object {
 
 impl Display for RelationDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    match &self.node {
-      RelationDeclNode::Set(s) => Display::fmt(s, f),
-      RelationDeclNode::Fact(a) => Display::fmt(a, f),
-      RelationDeclNode::Rule(r) => Display::fmt(r, f),
+    match self {
+      RelationDecl::Set(s) => s.fmt(f),
+      RelationDecl::Fact(a) => a.fmt(f),
+      RelationDecl::Rule(r) => r.fmt(f),
     }
   }
 }
 
 impl Display for QueryDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    for attr in self.attributes() {
+    for attr in self.attrs() {
       f.write_fmt(format_args!("{} ", attr))?;
     }
     f.write_fmt(format_args!("query {}", self.query()))
@@ -105,18 +106,20 @@ impl Display for QueryDecl {
 
 impl Display for Query {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    match &self.node {
-      QueryNode::Atom(a) => Display::fmt(a, f),
-      QueryNode::Predicate(p) => Display::fmt(p, f),
+    match self {
+      Query::Atom(a) => a.fmt(f),
+      Query::Predicate(p) => p.fmt(f),
     }
   }
 }
 
 impl Display for AttributeValue {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    match &self.node {
-      AttributeValueNode::Constant(c) => c.fmt(f),
-      AttributeValueNode::List(l) => {
+    match &self {
+      AttributeValue::Constant(c) => {
+        c.fmt(f)
+      },
+      AttributeValue::List(l) => {
         f.write_str("[")?;
         for (i, v) in l.iter().enumerate() {
           if i > 0 {
@@ -125,8 +128,8 @@ impl Display for AttributeValue {
           v.fmt(f)?;
         }
         f.write_str("]")
-      }
-      AttributeValueNode::Tuple(l) => {
+      },
+      AttributeValue::Tuple(l) => {
         f.write_str("(")?;
         for (i, v) in l.iter().enumerate() {
           if i > 0 {
@@ -135,7 +138,7 @@ impl Display for AttributeValue {
           v.fmt(f)?;
         }
         f.write_str(")")
-      }
+      },
     }
   }
 }
@@ -143,29 +146,21 @@ impl Display for AttributeValue {
 impl Display for Attribute {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     f.write_fmt(format_args!("@{}", self.name()))?;
-    if self.num_pos_args() + self.num_kw_args() > 0 {
+    if self.num_args() > 0 {
       f.write_str("(")?;
-      f.write_str(
-        &self
-          .node
-          .pos_args
-          .iter()
-          .map(|a| format!("{}", a))
-          .collect::<Vec<_>>()
-          .join(", "),
-      )?;
-      if self.num_pos_args() > 0 && self.num_kw_args() > 0 {
-        f.write_str(", ")?;
+      for (i, arg) in self.iter_args().enumerate() {
+        if i > 0 {
+          f.write_str(", ")?;
+        }
+        match arg {
+          AttributeArg::Pos(p) => {
+            f.write_fmt(format_args!("{}", p))?;
+          },
+          AttributeArg::Kw(kw) => {
+            f.write_fmt(format_args!("{} = {}", kw.name(), kw.value()))?;
+          }
+        }
       }
-      f.write_str(
-        &self
-          .node
-          .kw_args
-          .iter()
-          .map(|(n, a)| format!("{} = {}", n, a))
-          .collect::<Vec<_>>()
-          .join(", "),
-      )?;
       f.write_str(")")
     } else {
       Ok(())
@@ -185,13 +180,13 @@ impl Display for ArgTypeBinding {
 
 impl Display for Type {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    Display::fmt(&self.node, f)
+    Display::fmt(self.internal(), f)
   }
 }
 
 impl Display for SubtypeDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    for attr in self.attributes() {
+    for attr in self.attrs() {
       f.write_fmt(format_args!("{} ", attr))?;
     }
     f.write_fmt(format_args!("type {} <: {}", self.name(), self.subtype_of()))
@@ -200,7 +195,7 @@ impl Display for SubtypeDecl {
 
 impl Display for AliasTypeDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    for attr in self.attributes() {
+    for attr in self.attrs() {
       f.write_fmt(format_args!("{} ", attr))?;
     }
     f.write_fmt(format_args!("type {} = {}", self.name(), self.alias_of()))
@@ -209,11 +204,11 @@ impl Display for AliasTypeDecl {
 
 impl Display for RelationTypeDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    for attr in self.attributes() {
+    for attr in self.attrs() {
       f.write_fmt(format_args!("{} ", attr))?;
     }
     f.write_str("type ")?;
-    for (i, relation_type) in self.relation_types().enumerate() {
+    for (i, relation_type) in self.iter_rel_types().enumerate() {
       if i > 0 {
         f.write_str(", ")?;
       }
@@ -225,9 +220,9 @@ impl Display for RelationTypeDecl {
 
 impl Display for RelationType {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    f.write_str(self.predicate())?;
+    f.write_str(self.predicate_name())?;
     f.write_str("(")?;
-    for (i, arg_type) in self.arg_types().enumerate() {
+    for (i, arg_type) in self.iter_arg_types().enumerate() {
       if i > 0 {
         f.write_str(", ")?;
       }
@@ -239,7 +234,7 @@ impl Display for RelationType {
 
 impl Display for EnumTypeDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    for attr in self.attributes() {
+    for attr in self.attrs() {
       f.write_fmt(format_args!("{} ", attr))?;
     }
     f.write_fmt(format_args!("type {} = ", self.name()))?;
@@ -256,7 +251,7 @@ impl Display for EnumTypeDecl {
 impl Display for EnumTypeMember {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     self.name().fmt(f)?;
-    if let Some(assigned_num) = self.assigned_number() {
+    if let Some(assigned_num) = self.assigned_num() {
       f.write_fmt(format_args!(" = {}", assigned_num))?;
     }
     Ok(())
@@ -265,7 +260,7 @@ impl Display for EnumTypeMember {
 
 impl Display for AlgebraicDataTypeDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    for attr in self.attributes() {
+    for attr in self.attrs() {
       f.write_fmt(format_args!("{} ", attr))?;
     }
     let name = self.name();
@@ -282,13 +277,30 @@ impl Display for AlgebraicDataTypeDecl {
 
 impl Display for AlgebraicDataTypeVariant {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    let name = self.name();
+    let name = self.constructor_name();
     let args = self
-      .iter_arg_types()
+      .iter_args()
       .map(|t| format!("{t}"))
       .collect::<Vec<_>>()
       .join(", ");
     f.write_fmt(format_args!("{name}({args})"))
+  }
+}
+
+impl Display for FunctionTypeDecl {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    for attr in self.attrs() {
+      f.write_fmt(format_args!("{} ", attr))?;
+    }
+    f.write_fmt(format_args!("type ${}(", self.func_name()))?;
+    for (i, arg) in self.iter_args().enumerate() {
+      if i > 0 {
+        f.write_str(", ")?;
+      }
+      f.write_fmt(format_args!("{}", arg))?;
+    }
+    f.write_fmt(format_args!(") -> {}", self.ret_ty()))?;
+    Ok(())
   }
 }
 
@@ -300,13 +312,14 @@ impl Display for Identifier {
 
 impl Display for ConstantSetDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    for attr in self.attributes() {
+    for attr in self.attrs() {
       f.write_fmt(format_args!("{} ", attr))?;
     }
     f.write_fmt(format_args!(
       "rel {} = {{{}}}",
-      self.predicate(),
+      self.name(),
       self
+        .set()
         .iter_tuples()
         .map(|t| format!("{}", t))
         .collect::<Vec<_>>()
@@ -317,14 +330,14 @@ impl Display for ConstantSetDecl {
 
 impl Display for FactDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    for attr in self.attributes() {
+    for attr in self.attrs() {
       f.write_fmt(format_args!("{} ", attr))?;
     }
     f.write_fmt(format_args!(
       "rel {}({})",
-      self.predicate(),
+      self.predicate_name(),
       self
-        .iter_arguments()
+        .iter_args()
         .map(|a| format!("{}", a))
         .collect::<Vec<_>>()
         .join(", ")
@@ -334,7 +347,7 @@ impl Display for FactDecl {
 
 impl Display for RuleDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    for attr in self.attributes() {
+    for attr in self.attrs() {
       f.write_fmt(format_args!("{} ", attr))?;
     }
     f.write_fmt(format_args!("rel {}", self.rule()))
@@ -343,22 +356,39 @@ impl Display for RuleDecl {
 
 impl std::fmt::Display for Atom {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.write_fmt(format_args!(
-      "{}({})",
-      self.predicate(),
-      self
-        .iter_arguments()
-        .map(|a| format!("{}", a))
-        .collect::<Vec<_>>()
-        .join(", ")
-    ))
+    if self.has_type_args() {
+      f.write_fmt(format_args!(
+        "{}<{}>({})",
+        self.predicate(),
+        self
+          .iter_type_args()
+          .map(|t| format!("{}", t))
+          .collect::<Vec<_>>()
+          .join(", "),
+        self
+          .iter_args()
+          .map(|a| format!("{}", a))
+          .collect::<Vec<_>>()
+          .join(", ")
+      ))
+    } else {
+      f.write_fmt(format_args!(
+        "{}({})",
+        self.predicate(),
+        self
+          .iter_args()
+          .map(|a| format!("{}", a))
+          .collect::<Vec<_>>()
+          .join(", ")
+      ))
+    }
   }
 }
 
 impl Display for ConstantSetTuple {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     if self.tag().is_some() {
-      f.write_fmt(format_args!("{}::", self.tag().input_tag()))?;
+      f.write_fmt(format_args!("{}::", self.tag().tag()))?;
     }
     f.write_fmt(format_args!(
       "({})",
@@ -382,53 +412,71 @@ impl Display for ConstantOrVariable {
 
 impl std::fmt::Display for Constant {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match &self.node {
-      ConstantNode::Integer(i) => f.write_fmt(format_args!("{i}")),
-      ConstantNode::Entity(e) => f.write_fmt(format_args!("{e:#x}")),
-      ConstantNode::Float(n) => f.write_fmt(format_args!("{n}")),
-      ConstantNode::Char(c) => c.fmt(f),
-      ConstantNode::Boolean(b) => f.write_fmt(format_args!("{b}")),
-      ConstantNode::String(s) => s.fmt(f),
-      ConstantNode::Symbol(s) => s.fmt(f),
-      ConstantNode::DateTime(d) => d.fmt(f),
-      ConstantNode::Duration(d) => d.fmt(f),
+    match self {
+      Constant::Integer(i) => i.fmt(f),
+      Constant::Entity(e) => e.fmt(f),
+      Constant::Float(n) => n.fmt(f),
+      Constant::Char(c) => c.fmt(f),
+      Constant::Boolean(b) => b.fmt(f),
+      Constant::String(s) => s.fmt(f),
+      Constant::Symbol(s) => s.fmt(f),
+      Constant::DateTime(d) => d.fmt(f),
+      Constant::Duration(d) => d.fmt(f),
     }
   }
 }
 
-impl std::fmt::Display for ConstantChar {
+impl std::fmt::Display for IntLiteral {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.write_fmt(format_args!("'{}'", self.character_string()))
+    f.write_fmt(format_args!("{}", self.int()))
   }
 }
 
-impl std::fmt::Display for ConstantString {
+impl std::fmt::Display for FloatLiteral {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_fmt(format_args!("{}", self.float()))
+  }
+}
+
+impl std::fmt::Display for BoolLiteral {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_fmt(format_args!("{}", self.value()))
+  }
+}
+
+impl std::fmt::Display for CharLiteral {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_fmt(format_args!("'{}'", self.character()))
+  }
+}
+
+impl std::fmt::Display for StringLiteral {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_fmt(format_args!("\"{}\"", self.string()))
   }
 }
 
-impl std::fmt::Display for ConstantSymbol {
+impl std::fmt::Display for SymbolLiteral {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_fmt(format_args!("s\"{}\"", self.symbol()))
   }
 }
 
-impl std::fmt::Display for ConstantDateTime {
+impl std::fmt::Display for DateTimeLiteral {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match &self.node {
-      Ok(n) => f.write_fmt(format_args!("t\"{}\"", n.datetime)),
-      Err(msg) => f.write_fmt(format_args!("[Invalid DateTime: \"{}\"]", msg)),
-    }
+    f.write_fmt(format_args!("t\"{}\"", self.datetime()))
   }
 }
 
-impl std::fmt::Display for ConstantDuration {
+impl std::fmt::Display for DurationLiteral {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match &self.node {
-      Ok(n) => f.write_fmt(format_args!("d\"{}\"", n.duration)),
-      Err(msg) => f.write_fmt(format_args!("[Invalid Duration: \"{}\"]", msg)),
-    }
+    f.write_fmt(format_args!("d\"{}\"", self.duration()))
+  }
+}
+
+impl std::fmt::Display for EntityLiteral {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_fmt(format_args!("e\"{}\"", self.symbol()))
   }
 }
 
@@ -440,10 +488,10 @@ impl Display for Rule {
 
 impl Display for RuleHead {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    match &self.node {
-      RuleHeadNode::Atom(a) => a.fmt(f),
-      RuleHeadNode::Conjunction(c) => {
-        for (i, a) in c.iter().enumerate() {
+    match self {
+      Self::Atom(a) => a.fmt(f),
+      Self::Conjunction(c) => {
+        for (i, a) in c.iter_atoms().enumerate() {
           if i > 0 {
             f.write_str(", ")?;
           }
@@ -451,9 +499,9 @@ impl Display for RuleHead {
         }
         Ok(())
       }
-      RuleHeadNode::Disjunction(d) => {
+      Self::Disjunction(d) => {
         f.write_str("{")?;
-        for (i, a) in d.iter().enumerate() {
+        for (i, a) in d.iter_atoms().enumerate() {
           if i > 0 {
             f.write_str("; ")?;
           }
@@ -477,6 +525,7 @@ impl Display for Formula {
       Self::Constraint(a) => a.fmt(f),
       Self::Reduce(a) => a.fmt(f),
       Self::ForallExistsReduce(a) => a.fmt(f),
+      Self::Range(a) => a.fmt(f),
     }
   }
 }
@@ -497,7 +546,7 @@ impl Display for Disjunction {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     f.write_fmt(format_args!(
       "({})",
-      self.args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(" or ")
+      self.iter_args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(" or ")
     ))
   }
 }
@@ -506,7 +555,7 @@ impl Display for Conjunction {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     f.write_fmt(format_args!(
       "({})",
-      self.args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(" and ")
+      self.iter_args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(" and ")
     ))
   }
 }
@@ -583,7 +632,13 @@ impl Display for ForallExistsReduce {
   }
 }
 
-impl Display for ReduceOperator {
+impl Display for ReduceOp {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    f.write_str(&self.to_string())
+  }
+}
+
+impl Display for Range {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     f.write_str(&self.to_string())
   }
@@ -600,10 +655,10 @@ impl Display for VariableOrWildcard {
 
 impl Display for VariableBinding {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    if let Some(ty) = &self.node.ty {
-      f.write_fmt(format_args!("({}: {})", self.node.name, ty))
+    if let Some(ty) = self.ty() {
+      f.write_fmt(format_args!("({}: {})", self.name(), ty))
     } else {
-      Display::fmt(&self.node.name, f)
+      Display::fmt(self.name(), f)
     }
   }
 }
@@ -629,7 +684,7 @@ impl std::fmt::Display for Expr {
       )),
       Self::New(n) => f.write_fmt(format_args!(
         "new {}({})",
-        n.functor_identifier(),
+        n.functor(),
         n.iter_args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(", ")
       )),
     }
@@ -644,7 +699,7 @@ impl std::fmt::Display for Wildcard {
 
 impl std::fmt::Display for BinaryOp {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.write_fmt(format_args!("{}", self.node))
+    f.write_fmt(format_args!("{}", self.internal().op))
   }
 }
 
@@ -654,22 +709,22 @@ impl std::fmt::Display for BinaryExpr {
   }
 }
 
-impl std::fmt::Display for UnaryOpNode {
+impl std::fmt::Display for UnaryOp {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      Self::Neg => f.write_str("-"),
-      Self::Pos => f.write_str("+"),
-      Self::Not => f.write_str("!"),
-      Self::TypeCast(t) => f.write_fmt(format_args!("as {}", t.node)),
+    match self.internal() {
+      _UnaryOp::Neg => f.write_str("-"),
+      _UnaryOp::Pos => f.write_str("+"),
+      _UnaryOp::Not => f.write_str("!"),
+      _UnaryOp::TypeCast(t) => f.write_fmt(format_args!("as {}", t)),
     }
   }
 }
 
 impl std::fmt::Display for UnaryExpr {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    let op = &self.op().node;
-    match op {
-      UnaryOpNode::TypeCast(_) => f.write_fmt(format_args!("({} {})", self.op1(), op)),
+    let op = &self.op();
+    match op.internal() {
+      _UnaryOp::TypeCast(_) => f.write_fmt(format_args!("({} {})", self.op1(), op)),
       _ => f.write_fmt(format_args!("({}{})", op, self.op1())),
     }
   }

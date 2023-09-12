@@ -22,7 +22,7 @@ pub enum DynamicAggregator {
 impl From<AggregateOp> for DynamicAggregator {
   fn from(o: AggregateOp) -> Self {
     match o {
-      AggregateOp::Count => Self::count(),
+      AggregateOp::Count { discrete } => Self::count(discrete),
       AggregateOp::Sum(t) => Self::sum(t),
       AggregateOp::Prod(t) => Self::prod(t),
       AggregateOp::Min => Self::min(),
@@ -37,8 +37,8 @@ impl From<AggregateOp> for DynamicAggregator {
 }
 
 impl DynamicAggregator {
-  pub fn count() -> Self {
-    Self::Count(DynamicCount)
+  pub fn count(discrete: bool) -> Self {
+    Self::Count(DynamicCount { discrete })
   }
 
   pub fn sum(ty: ValueType) -> Self {

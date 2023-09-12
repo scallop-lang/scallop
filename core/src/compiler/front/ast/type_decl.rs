@@ -1,330 +1,182 @@
-use serde::*;
-
 use super::*;
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub enum TypeDeclNode {
+pub enum TypeDecl {
   Subtype(SubtypeDecl),
   Alias(AliasTypeDecl),
   Relation(RelationTypeDecl),
-  Enum(EnumTypeDecl),
+  Enumerate(EnumTypeDecl),
   Algebraic(AlgebraicDataTypeDecl),
+  Function(FunctionTypeDecl),
 }
-
-pub type TypeDecl = AstNode<TypeDeclNode>;
 
 impl TypeDecl {
-  pub fn alias(name: Identifier, alias_of: Type) -> Self {
-    TypeDeclNode::Alias(
-      AliasTypeDeclNode {
-        attrs: Attributes::default(),
-        name,
-        alias_of,
-      }
-      .into(),
-    )
-    .into()
-  }
-
-  pub fn relation(name: Identifier, args: Vec<Type>) -> Self {
-    TypeDeclNode::Relation(
-      RelationTypeDeclNode {
-        attrs: Attributes::default(),
-        rel_types: vec![RelationTypeNode {
-          name,
-          arg_types: args
-            .into_iter()
-            .map(|a| ArgTypeBindingNode { name: None, ty: a }.into())
-            .collect(),
-        }
-        .into()],
-      }
-      .into(),
-    )
-    .into()
-  }
-
-  pub fn attributes(&self) -> &Attributes {
-    match &self.node {
-      TypeDeclNode::Subtype(s) => s.attributes(),
-      TypeDeclNode::Alias(a) => a.attributes(),
-      TypeDeclNode::Relation(r) => r.attributes(),
-      TypeDeclNode::Enum(e) => e.attributes(),
-      TypeDeclNode::Algebraic(a) => a.attributes(),
+  pub fn attrs(&self) -> &Attributes {
+    match self {
+      TypeDecl::Subtype(s) => s.attrs(),
+      TypeDecl::Alias(a) => a.attrs(),
+      TypeDecl::Relation(r) => r.attrs(),
+      TypeDecl::Enumerate(e) => e.attrs(),
+      TypeDecl::Algebraic(a) => a.attrs(),
+      TypeDecl::Function(a) => a.attrs(),
     }
   }
 
-  pub fn attributes_mut(&mut self) -> &mut Attributes {
-    match &mut self.node {
-      TypeDeclNode::Subtype(s) => s.attributes_mut(),
-      TypeDeclNode::Alias(a) => a.attributes_mut(),
-      TypeDeclNode::Relation(r) => r.attributes_mut(),
-      TypeDeclNode::Enum(e) => e.attributes_mut(),
-      TypeDeclNode::Algebraic(a) => a.attributes_mut(),
+  pub fn attrs_mut(&mut self) -> &mut Attributes {
+    match self {
+      TypeDecl::Subtype(s) => s.attrs_mut(),
+      TypeDecl::Alias(a) => a.attrs_mut(),
+      TypeDecl::Relation(r) => r.attrs_mut(),
+      TypeDecl::Enumerate(e) => e.attrs_mut(),
+      TypeDecl::Algebraic(a) => a.attrs_mut(),
+      TypeDecl::Function(a) => a.attrs_mut(),
     }
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct SubtypeDeclNode {
+pub struct _SubtypeDecl {
   pub attrs: Attributes,
   pub name: Identifier,
   pub subtype_of: Type,
 }
 
-pub type SubtypeDecl = AstNode<SubtypeDeclNode>;
-
-impl SubtypeDecl {
-  pub fn name(&self) -> &str {
-    self.node.name.name()
-  }
-
-  pub fn subtype_of(&self) -> &Type {
-    &self.node.subtype_of
-  }
-
-  pub fn attributes(&self) -> &Attributes {
-    &self.node.attrs
-  }
-
-  pub fn attributes_mut(&mut self) -> &mut Attributes {
-    &mut self.node.attrs
-  }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct AliasTypeDeclNode {
+pub struct _AliasTypeDecl {
   pub attrs: Attributes,
   pub name: Identifier,
   pub alias_of: Type,
 }
 
-pub type AliasTypeDecl = AstNode<AliasTypeDeclNode>;
-
-impl AliasTypeDecl {
-  pub fn name(&self) -> &str {
-    self.node.name.name()
-  }
-
-  pub fn alias_of(&self) -> &Type {
-    &self.node.alias_of
-  }
-
-  pub fn attributes(&self) -> &Attributes {
-    &self.node.attrs
-  }
-
-  pub fn attributes_mut(&mut self) -> &mut Attributes {
-    &mut self.node.attrs
-  }
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+#[doc(hidden)]
+pub enum _ArgTypeBindingAdornment {
+  Bound,
+  Free,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct ArgTypeBindingNode {
+pub struct _ArgTypeBinding {
+  pub adornment: Option<ArgTypeBindingAdornment>,
   pub name: Option<Identifier>,
   pub ty: Type,
 }
 
-pub type ArgTypeBinding = AstNode<ArgTypeBindingNode>;
-
-impl ArgTypeBinding {
-  pub fn name(&self) -> Option<&str> {
-    self.node.name.as_ref().map(Identifier::name)
-  }
-
-  pub fn ty(&self) -> &Type {
-    &self.node.ty
-  }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct RelationTypeNode {
+pub struct _RelationType {
   pub name: Identifier,
-  pub arg_types: Vec<ArgTypeBinding>,
+  pub arg_bindings: Vec<ArgTypeBinding>,
 }
-
-pub type RelationType = AstNode<RelationTypeNode>;
 
 impl Into<Vec<Item>> for RelationType {
   fn into(self) -> Vec<Item> {
-    vec![Item::TypeDecl(
-      TypeDeclNode::Relation(
-        RelationTypeDeclNode {
-          attrs: Attributes::new(),
-          rel_types: vec![self],
-        }
-        .into(),
-      )
-      .into(),
-    )]
+    vec![
+      Item::TypeDecl(
+        TypeDecl::Relation(
+          RelationTypeDecl::new(
+            Attributes::new(),
+            vec![self]
+          ),
+        ),
+      ),
+    ]
   }
 }
 
 impl RelationType {
-  pub fn predicate(&self) -> &str {
-    self.node.name.name()
+  pub fn has_adornment(&self) -> bool {
+    self.iter_arg_bindings().any(|arg_ty| arg_ty.adornment().is_some())
   }
 
-  pub fn arg_types(&self) -> impl Iterator<Item = &Type> {
-    self.node.arg_types.iter().map(|arg| arg.ty())
+  pub fn demand_pattern(&self) -> String {
+    self
+      .iter_arg_bindings()
+      .map(|arg| match arg.adornment() {
+        Some(anno) if anno.is_bound() => "b",
+        _ => "f",
+      })
+      .collect::<Vec<_>>()
+      .join("")
+  }
+
+  pub fn predicate_name(&self) -> &String {
+    self.name().name()
+  }
+
+  pub fn has_arg_name(&self) -> bool {
+    self.iter_arg_bindings().any(|a| a.name().is_some())
+  }
+
+  pub fn iter_arg_types(&self) -> impl Iterator<Item = &Type> {
+    self.iter_arg_bindings().map(|arg| arg.ty())
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct RelationTypeDeclNode {
+pub struct _RelationTypeDecl {
   pub attrs: Attributes,
   pub rel_types: Vec<RelationType>,
 }
 
-pub type RelationTypeDecl = AstNode<RelationTypeDeclNode>;
-
 impl RelationTypeDecl {
-  pub fn relation_types(&self) -> impl Iterator<Item = &RelationType> {
-    self.node.rel_types.iter()
+  pub fn get_rel_type(&self, i: usize) -> Option<&RelationType> {
+    self.rel_types().get(i)
   }
 
-  pub fn relation_types_mut(&mut self) -> impl Iterator<Item = &mut RelationType> {
-    self.node.rel_types.iter_mut()
-  }
-
-  pub fn predicates(&self) -> impl Iterator<Item = &str> {
-    self.relation_types().map(|rel_type| rel_type.predicate())
-  }
-
-  pub fn attributes(&self) -> &Vec<Attribute> {
-    &self.node.attrs
-  }
-
-  pub fn attributes_mut(&mut self) -> &mut Attributes {
-    &mut self.node.attrs
+  pub fn predicates(&self) -> impl Iterator<Item = &String> {
+    self.iter_rel_types().map(|rel_type| rel_type.name().name())
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct EnumTypeDeclNode {
+pub struct _EnumTypeDecl {
   pub attrs: Attributes,
   pub name: Identifier,
   pub members: Vec<EnumTypeMember>,
 }
 
-pub type EnumTypeDecl = AstNode<EnumTypeDeclNode>;
-
-impl EnumTypeDecl {
-  pub fn attributes(&self) -> &Vec<Attribute> {
-    &self.node.attrs
-  }
-
-  pub fn attributes_mut(&mut self) -> &mut Attributes {
-    &mut self.node.attrs
-  }
-
-  pub fn name(&self) -> &str {
-    self.node.name.name()
-  }
-
-  pub fn members(&self) -> &[EnumTypeMember] {
-    &self.node.members
-  }
-
-  pub fn iter_members(&self) -> impl Iterator<Item = &EnumTypeMember> {
-    self.node.members.iter()
-  }
-
-  pub fn iter_members_mut(&mut self) -> impl Iterator<Item = &mut EnumTypeMember> {
-    self.node.members.iter_mut()
-  }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct EnumTypeMemberNode {
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+pub struct _EnumTypeMember {
   pub name: Identifier,
   pub assigned_num: Option<Constant>,
 }
 
-pub type EnumTypeMember = AstNode<EnumTypeMemberNode>;
-
 impl EnumTypeMember {
-  pub fn name(&self) -> &str {
-    self.node.name.name()
-  }
-
-  pub fn assigned_number(&self) -> Option<&Constant> {
-    self.node.assigned_num.as_ref()
-  }
-
-  pub fn assigned_number_mut(&mut self) -> Option<&mut Constant> {
-    self.node.assigned_num.as_mut()
+  pub fn member_name(&self) -> &String {
+    self.name().name()
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct AlgebraicDataTypeDeclNode {
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+pub struct _AlgebraicDataTypeDecl {
   pub attrs: Attributes,
   pub name: Identifier,
   pub variants: Vec<AlgebraicDataTypeVariant>,
 }
 
-pub type AlgebraicDataTypeDecl = AstNode<AlgebraicDataTypeDeclNode>;
-
-impl AlgebraicDataTypeDecl {
-  pub fn attributes(&self) -> &Vec<Attribute> {
-    &self.node.attrs
-  }
-
-  pub fn attributes_mut(&mut self) -> &mut Attributes {
-    &mut self.node.attrs
-  }
-
-  pub fn name(&self) -> &str {
-    self.node.name.name()
-  }
-
-  pub fn name_identifier(&self) -> &Identifier {
-    &self.node.name
-  }
-
-  pub fn iter_variants(&self) -> impl Iterator<Item = &AlgebraicDataTypeVariant> {
-    self.node.variants.iter()
-  }
-
-  pub fn iter_variants_mut(&mut self) -> impl Iterator<Item = &mut AlgebraicDataTypeVariant> {
-    self.node.variants.iter_mut()
-  }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct AlgebraicDataTypeVariantNode {
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+pub struct _AlgebraicDataTypeVariant {
   pub constructor: Identifier,
   pub args: Vec<Type>,
 }
 
-pub type AlgebraicDataTypeVariant = AstNode<AlgebraicDataTypeVariantNode>;
-
 impl AlgebraicDataTypeVariant {
-  pub fn name(&self) -> &str {
-    self.node.constructor.name()
+  pub fn constructor_name(&self) -> &str {
+    self.constructor().name()
   }
+}
 
-  pub fn name_identifier(&self) -> &Identifier {
-    &self.node.constructor
-  }
-
-  pub fn iter_arg_types(&self) -> impl Iterator<Item = &Type> {
-    self.node.args.iter()
-  }
-
-  pub fn iter_arg_types_mut(&mut self) -> impl Iterator<Item = &mut Type> {
-    self.node.args.iter_mut()
-  }
-
-  pub fn args(&self) -> &Vec<Type> {
-    &self.node.args
-  }
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+pub struct _FunctionTypeDecl {
+  pub attrs: Attributes,
+  pub func_name: Identifier,
+  pub args: Vec<ArgTypeBinding>,
+  pub ret_ty: Type,
 }

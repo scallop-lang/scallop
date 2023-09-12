@@ -92,7 +92,7 @@ impl FrontCompileErrorTrait for ParserError {
         let annotator = LocationSpanAnnotator {
           row_offset_length: (0..source.num_rows()).map(|i| source.row_offset_length(i)).collect(),
         };
-        let ast_loc = AstNodeLocation {
+        let ast_loc = NodeLocation {
           offset_span: Span::new(offset_span.0, offset_span.1),
           loc_span: Some(Span::new(
             annotator.row_col_of_offset(&offset_span.0),

@@ -35,7 +35,7 @@ class TestForeignFunction(unittest.TestCase):
     """
 
     # First create the foreign function
-    @scallopy.foreign_function
+    @scallopy.foreign_function(suppress_warning=True)
     def my_string_index_of(s1: str, s2: str) -> scallopy.usize:
       return s1.index(s2)
 

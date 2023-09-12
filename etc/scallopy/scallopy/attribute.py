@@ -1,7 +1,8 @@
 from typing import *
 
+from . import function
 from . import predicate
-
+from . import syntax
 
 class AttributeAction:
   def __init__(self):
@@ -25,13 +26,19 @@ class NoAction(AttributeAction):
 
 
 class ErrorAction(AttributeAction):
-  def __init__(self, msg):
+  def __init__(self, msg: str):
     self.name = "error"
     self.msg = msg
 
 
+class RegisterForeignFunctionAction(AttributeAction):
+  def __init__(self, ff: function.ForeignFunction):
+    self.name = "register_foreign_function"
+    self.foreign_function = ff
+
+
 class RegisterForeignPredicateAction(AttributeAction):
-  def __init__(self, fp):
+  def __init__(self, fp: predicate.ForeignPredicate):
     self.name = "register_foreign_predicate"
     self.foreign_predicate = fp
 
@@ -42,50 +49,51 @@ class ForeignAttributeProcessor:
     self.processor = processor
 
   def process_value(self, value):
-    if "Constant" in value["node"]:
-      return self.process_constant(value["node"]["Constant"])
-    elif "List" in value["node"]:
-      return [self.process_value(v) for v in value["node"]["List"]]
+    if value.is_constant():
+      return self.process_constant(value.as_constant())
+    elif value.is_list():
+      return [self.process_value(v) for v in value.as_list().values]
+    elif value.is_tuple():
+      return tuple([self.process_value(v) for v in value.as_tuple().values])
     else:
-      raise NotImplemented()
+      raise Exception(f"Unknown value {value}")
 
   def process_constant(self, constant):
-    if "String" in constant["node"]:
-      return constant["node"]["String"]["node"]["string"]
-    elif "Integer" in constant["node"]:
-      return constant["node"]["Integer"]
-    elif "Boolean" in constant["node"]:
-      return constant["node"]["Boolean"]
-    elif "Float" in constant["node"]:
-      return constant["node"]["Float"]
-    else:
-      print(constant["node"])
-      raise NotImplemented()
-
-  def process_kw_arg_name(self, kw_arg):
-    return kw_arg[0]["node"]["name"]
-
-  def process_kw_arg_value(self, kw_arg):
-    return self.process_value(kw_arg[1])
+    if constant.is_string(): return constant.as_string().string
+    elif constant.is_integer(): return constant.as_integer().int
+    elif constant.is_boolean(): return constant.as_boolean().value
+    elif constant.is_float(): return constant.as_float().float
+    else: raise Exception(f"Unknown constant type {constant.key()}")
 
   def process_attribute(self, attr):
-    # attr_name = attr["node"]["name"]["node"]["name"]
-    pos_args = [self.process_value(pos_arg) for pos_arg in attr["node"]["pos_args"]]
-    kw_args = {self.process_kw_arg_name(kw_arg): self.process_kw_arg_value(kw_arg) for kw_arg in attr["node"]["kw_args"]}
+    pos_args = [self.process_value(arg.as_pos()) for arg in attr.args if arg.is_pos()]
+    kw_args = {arg.as_kw().name.name: self.process_value(arg.as_kw().value) for arg in attr.args if arg.is_kw()}
     return (pos_args, kw_args)
 
-  def apply(self, item, attr):
+  def apply(self, internal_item, internal_attr):
+    item = syntax.AstNode.parse(internal_item)
+    attr = syntax.AstNode.parse(internal_attr)
     (pos_args, kw_args) = self.process_attribute(attr)
     try:
-      result = self.processor(item, *pos_args, **kw_args)
-      if result is None:
-        return NoAction()
-      elif isinstance(result, AttributeAction):
-        return result
-      else:
-        raise Exception("Invalid return value of foreign attribute")
+      action = self.processor(item, *pos_args, **kw_args)
+      return parse_processor_action(action)
     except Exception as err:
       return ErrorAction(str(err))
+
+
+def parse_processor_action(action):
+  if action is None:
+    return NoAction()
+  elif isinstance(action, AttributeAction):
+    return action
+  elif isinstance(action, list):
+    return MultipleActions([parse_processor_action(item) for item in action])
+  elif isinstance(action, function.ForeignFunction):
+    return MultipleActions([RemoveItemAction(), RegisterForeignFunctionAction(action)])
+  elif isinstance(action, predicate.ForeignPredicate):
+    return MultipleActions([RemoveItemAction(), RegisterForeignPredicateAction(action)])
+  else:
+    raise Exception("Invalid return value of foreign attribute")
 
 
 def foreign_attribute(func) -> ForeignAttributeProcessor:

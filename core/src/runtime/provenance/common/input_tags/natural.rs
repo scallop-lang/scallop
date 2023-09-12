@@ -1,5 +1,5 @@
 use crate::common::input_tag::*;
-use crate::common::tensors::*;
+use crate::common::foreign_tensor::*;
 
 use super::*;
 
@@ -8,6 +8,7 @@ impl StaticInputTag for usize {
     match t {
       DynamicInputTag::None => Some(1),
       DynamicInputTag::Exclusive(_) => Some(1),
+      DynamicInputTag::Natural(n) => Some(*n),
       DynamicInputTag::Bool(b) => Some(if *b { 1 } else { 0 }),
       DynamicInputTag::Float(f) => Some(if *f > 0.0 { 1 } else { 0 }),
       DynamicInputTag::ExclusiveFloat(_, _) => Some(1),

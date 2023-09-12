@@ -1,8 +1,10 @@
 //! # Common structures in Scallop
 
+pub mod adt_variant_registry;
 pub mod aggregate_op;
 pub mod binary_op;
 pub mod constants;
+pub mod duration;
 pub mod element;
 pub mod entity;
 pub mod expr;
@@ -10,13 +12,13 @@ pub mod foreign_function;
 pub mod foreign_functions;
 pub mod foreign_predicate;
 pub mod foreign_predicates;
+pub mod foreign_tensor;
 pub mod generic_tuple;
 pub mod input_file;
 pub mod input_tag;
 pub mod output_option;
 pub mod predicate_set;
 pub mod symbol_registry;
-pub mod tensors;
 pub mod tuple;
 pub mod tuple_access;
 pub mod tuple_type;

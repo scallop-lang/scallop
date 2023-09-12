@@ -1,7 +1,6 @@
-use std::collections::*;
-
 use crate::common::foreign_function::*;
 use crate::common::foreign_predicate::*;
+use crate::common::foreign_tensor::*;
 use crate::common::tuple::*;
 use crate::common::tuple_type::*;
 
@@ -144,6 +143,32 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     Ok(())
   }
 
+  /// Add an item string and check if there are query relation names
+  pub fn add_item(&mut self, item: &str) -> Result<Vec<String>, IntegrateError> {
+    // Compile the source
+    let source = compiler::front::StringSource::new(item.to_string());
+    let source_id = self.front_ctx.compile_source(source).map_err(IntegrateError::front)?;
+    let items = self.front_ctx.items_of_source_id(source_id).collect::<Vec<_>>();
+
+    // Collect the queries
+    let queries = items
+      .iter()
+      .filter_map(|item| {
+        if let compiler::front::ast::Item::QueryDecl(q) = item {
+          Some(q.query().create_relation_name())
+        } else {
+          None
+        }
+      })
+      .collect::<Vec<_>>();
+
+    // The front compile context has changed
+    self.front_has_changed = true;
+
+    // Return the queries
+    Ok(queries)
+  }
+
   /// Dump front ir
   pub fn dump_front_ir(&self) {
     self.front_ctx.dump_ir();
@@ -176,7 +201,7 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     self
       .front_ctx
       .compile_relation_with_annotator(source, |item| {
-        item.attributes_mut().extend(attrs.iter().map(Attribute::to_front))
+        item.attrs_mut().extend(attrs.iter().map(Attribute::to_front))
       })
       .map_err(IntegrateError::front)
       .map(move |sid| self.front_ctx.relation_type_decl_of_source_id(sid).unwrap())
@@ -232,7 +257,7 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     self
       .front_ctx
       .compile_rule_with_annotator(source, |item: &mut compiler::front::ast::Item| {
-        item.attributes_mut().extend(attrs.iter().map(Attribute::to_front))
+        item.attrs_mut().extend(attrs.iter().map(Attribute::to_front))
       })
       .map_err(IntegrateError::front)
   }
@@ -275,35 +300,6 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
       .add_facts(predicate, facts)
       .map_err(|e| IntegrateError::Runtime(RuntimeError::Database(e)))?;
     Ok(())
-  }
-
-  pub fn add_entity(&mut self, relation: &str, entity_tuple: Vec<String>) -> Result<(), IntegrateError> {
-    // First obtain the facts from the entity str
-    let facts = self
-      .front_ctx
-      .compile_entity_to_facts(relation, entity_tuple)
-      .map_err(|e| IntegrateError::Compile(vec![compiler::CompileError::Front(e)]))?;
-
-    // Then add the facts to the EDB
-    for (relation, tuples) in facts {
-      self
-        .edb()
-        .add_facts(&relation, tuples)
-        .map_err(|e| IntegrateError::Runtime(RuntimeError::Database(e)))?;
-    }
-
-    Ok(())
-  }
-
-  pub fn compile_entity(
-    &self,
-    relation: &str,
-    entity_tuple: Vec<String>,
-  ) -> Result<HashMap<String, Vec<Tuple>>, IntegrateError> {
-    self
-      .front_ctx
-      .compile_entity_to_facts(relation, entity_tuple)
-      .map_err(|e| IntegrateError::Compile(vec![compiler::CompileError::Front(e)]))
   }
 
   /// Register a foreign function to the context
@@ -359,6 +355,25 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     Ok(())
   }
 
+  pub fn set_tensor_registry<T: TensorRegistry>(&self, t: T) {
+    self.runtime_environment().tensor_registry.set(t)
+  }
+
+  /// Set the context to be output front IR when compiling
+  pub fn set_debug_front(&mut self, debug_front: bool) {
+    self.options.debug_front = debug_front;
+  }
+
+  /// Set the context to be output back IR when compiling
+  pub fn set_debug_back(&mut self, debug_back: bool) {
+    self.options.debug_back = debug_back;
+  }
+
+  /// Set the context to be output ram when compiling
+  pub fn set_debug_ram(&mut self, debug_ram: bool) {
+    self.options.debug_ram = debug_ram;
+  }
+
   /// Set the context to be non-incremental anymore
   pub fn set_non_incremental(&mut self) {
     self.internal.exec_ctx.set_non_incremental();
@@ -393,6 +408,10 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
   /// Compile the front context into back
   pub fn compile_with_output_relations(&mut self, outputs: Option<Vec<&str>>) -> Result<(), IntegrateError> {
     if self.front_has_changed {
+      if self.options.debug || self.options.debug_front {
+        self.front_ctx.dump_ir();
+      }
+
       // First convert front to back
       let mut back_ir = self.front_ctx.to_back_program();
 
@@ -406,6 +425,11 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
         return Err(IntegrateError::Compile(vec![compiler::CompileError::Back(e)]));
       }
 
+      // Debug back
+      if self.options.debug || self.options.debug_back {
+        println!("{}", back_ir);
+      }
+
       // Then convert back to ram
       let mut ram = match back_ir.to_ram_program(&self.options) {
         Ok(ram) => ram,
@@ -416,6 +440,11 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
 
       // Optimize the ram
       compiler::ram::optimizations::optimize_ram(&mut ram);
+
+      // Debug back
+      if self.options.debug || self.options.debug_back {
+        println!("{}", ram);
+      }
 
       // Store the ram
       self.internal.ram_program = ram;
@@ -509,6 +538,11 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
   {
     self.internal.computed_relation_with_monitor(relation, m)
   }
+
+  /// Get the relation field names
+  pub fn relation_field_names(&self, relation: &str) -> Option<&Vec<Option<String>>> {
+    self.front_ctx.type_inference().relation_field_names(relation)
+  }
 }
 
 pub struct InternalIntegrateContext<Prov: Provenance, P: PointerFamily> {
@@ -590,8 +624,7 @@ impl<Prov: Provenance, P: PointerFamily> InternalIntegrateContext<Prov, P> {
     M: Monitor<Prov>,
   {
     // Populate the runtime foreign function/predicate registry
-    self.runtime_env.function_registry = self.ram_program.function_registry.clone();
-    self.runtime_env.predicate_registry = self.ram_program.predicate_registry.clone();
+    self.runtime_env.load_from_ram_program(&self.ram_program);
 
     // Finally execute the ram
     self
@@ -606,8 +639,7 @@ impl<Prov: Provenance, P: PointerFamily> InternalIntegrateContext<Prov, P> {
   /// Execute the program in its current state, with a limit set on iteration count
   pub fn run(&mut self) -> Result<(), IntegrateError> {
     // Populate the runtime foreign function/predicate registry
-    self.runtime_env.function_registry = self.ram_program.function_registry.clone();
-    self.runtime_env.predicate_registry = self.ram_program.predicate_registry.clone();
+    self.runtime_env.load_from_ram_program(&self.ram_program);
 
     // Finally execute the ram
     self

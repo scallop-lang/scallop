@@ -9,7 +9,7 @@ use scallop_core::testing::*;
 #[test]
 fn test_dynamic_group_and_count_1() {
   let mut ctx = unit::UnitProvenance;
-  let mut rt = RuntimeEnvironment::new_std();
+  let rt = RuntimeEnvironment::new_std();
 
   // Relations
   let mut color = DynamicRelation::<unit::UnitProvenance>::new();
@@ -35,8 +35,9 @@ fn test_dynamic_group_and_count_1() {
       &DynamicDataflow::project(
         DynamicDataflow::dynamic_relation(&color),
         (Expr::access(1), Expr::access(0)).into(),
+        &rt,
       ),
-      &mut rt,
+      &rt,
     )
   }
 
@@ -49,13 +50,13 @@ fn test_dynamic_group_and_count_1() {
   while color_count.changed(&ctx) || first_time {
     color_count.insert_dataflow_recent(
       &ctx,
-      &DynamicAggregationDataflow::implicit(
-        AggregateOp::Count.into(),
+      &DynamicDataflow::new(DynamicAggregationImplicitGroupDataflow::new(
+        AggregateOp::count().into(),
         DynamicDataflow::dynamic_collection(&completed_rev_color, first_time),
         &ctx,
-      )
-      .into(),
-      &mut rt,
+        &rt,
+      )),
+      &rt,
     );
     first_time = false;
   }
@@ -69,7 +70,7 @@ fn test_dynamic_group_and_count_1() {
 #[test]
 fn test_dynamic_group_count_max_1() {
   let mut ctx = unit::UnitProvenance;
-  let mut rt = RuntimeEnvironment::default();
+  let rt = RuntimeEnvironment::default();
 
   // Relations
   let mut color = DynamicRelation::<unit::UnitProvenance>::new();
@@ -95,8 +96,9 @@ fn test_dynamic_group_count_max_1() {
       &DynamicDataflow::project(
         DynamicDataflow::dynamic_relation(&color),
         Expr::Tuple(vec![Expr::Access(1.into()), Expr::Access(0.into())]),
+        &rt,
       ),
-      &mut rt,
+      &rt,
     )
   }
 
@@ -109,13 +111,13 @@ fn test_dynamic_group_count_max_1() {
   while color_count.changed(&ctx) || iter_1_first_time {
     color_count.insert_dataflow_recent(
       &ctx,
-      &DynamicAggregationDataflow::implicit(
-        AggregateOp::Count.into(),
+      &DynamicDataflow::new(DynamicAggregationImplicitGroupDataflow::new(
+        AggregateOp::count().into(),
         DynamicDataflow::dynamic_collection(&completed_rev_color, iter_1_first_time),
         &ctx,
-      )
-      .into(),
-      &mut rt,
+        &rt,
+      )),
+      &rt,
     );
     iter_1_first_time = false;
   }
@@ -129,13 +131,13 @@ fn test_dynamic_group_count_max_1() {
   while max_count_color.changed(&ctx) || iter_2_first_time {
     max_count_color.insert_dataflow_recent(
       &ctx,
-      &DynamicAggregationDataflow::single(
+      &DynamicDataflow::new(DynamicAggregationSingleGroupDataflow::new(
         AggregateOp::Argmax.into(),
         DynamicDataflow::dynamic_collection(&completed_color_count, iter_2_first_time),
         &ctx,
-      )
-      .into(),
-      &mut rt,
+        &rt,
+      )),
+      &rt,
     );
     iter_2_first_time = false;
   }

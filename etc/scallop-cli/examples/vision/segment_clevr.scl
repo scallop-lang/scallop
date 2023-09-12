@@ -1,0 +1,10 @@
+rel img_dir = {"etc/scallop-cli/res/testing/images/clevr_example_1.jpg"}
+
+@segment_anything(["bbox-x", "bbox-y", "bbox-w", "bbox-h"], iou_threshold=0.95, area_threshold=300)
+type image_segment(bound img: Tensor, id: u32, x: u32, y: u32, w: u32, h: u32)
+
+rel image($load_image(img_dir)) = img_dir(img_dir)
+
+rel segment(id, x, y, w, h) = image(img) and image_segment(img, id, x, y, w, h)
+
+query segment

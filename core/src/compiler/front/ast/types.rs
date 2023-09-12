@@ -1,12 +1,12 @@
-use serde::*;
+use serde::ser::{Serialize, Serializer, SerializeStruct};
 
 use crate::common::value_type::*;
 
 use super::*;
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, AstNode)]
 #[doc(hidden)]
-pub enum TypeNode {
+pub enum _Type {
   I8,
   I16,
   I32,
@@ -33,7 +33,20 @@ pub enum TypeNode {
   Named(String),
 }
 
-impl std::fmt::Display for TypeNode {
+impl Serialize for _Type {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+  where
+      S: Serializer,
+  {
+    // 3 is the number of fields in the struct.
+    let mut state = serializer.serialize_struct("_Type", 2)?;
+    state.serialize_field("__kind__", "type")?;
+    state.serialize_field("type", &format!("{}", self))?;
+    state.end()
+  }
+}
+
+impl std::fmt::Display for _Type {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
       Self::I8 => f.write_str("i8"),
@@ -64,68 +77,47 @@ impl std::fmt::Display for TypeNode {
   }
 }
 
-impl std::str::FromStr for TypeNode {
+impl std::str::FromStr for Type {
   // There will be no error
   type Err = ();
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     match s {
-      "i8" => Ok(Self::I8),
-      "i16" => Ok(Self::I16),
-      "i32" => Ok(Self::I32),
-      "i64" => Ok(Self::I64),
-      "i128" => Ok(Self::I128),
-      "isize" => Ok(Self::ISize),
-      "u8" => Ok(Self::U8),
-      "u16" => Ok(Self::U16),
-      "u32" => Ok(Self::U32),
-      "u64" => Ok(Self::U64),
-      "u128" => Ok(Self::U128),
-      "usize" => Ok(Self::USize),
-      "f32" => Ok(Self::F32),
-      "f64" => Ok(Self::F64),
-      "bool" => Ok(Self::Bool),
-      "char" => Ok(Self::Char),
-      "&str" => Ok(Self::Str),
-      "String" => Ok(Self::String),
-      "Symbol" => Ok(Self::Symbol),
-      "DateTime" => Ok(Self::DateTime),
-      "Duration" => Ok(Self::Duration),
-      "Entity" => Ok(Self::Entity),
-      "Tensor" => Ok(Self::Tensor),
-      s => Ok(Self::Named(s.to_string())),
+      "i8" => Ok(Self::i8()),
+      "i16" => Ok(Self::i16()),
+      "i32" => Ok(Self::i32()),
+      "i64" => Ok(Self::i64()),
+      "i128" => Ok(Self::i128()),
+      "isize" => Ok(Self::isize()),
+      "u8" => Ok(Self::u8()),
+      "u16" => Ok(Self::u16()),
+      "u32" => Ok(Self::u32()),
+      "u64" => Ok(Self::u64()),
+      "u128" => Ok(Self::u128()),
+      "usize" => Ok(Self::usize()),
+      "f32" => Ok(Self::f32()),
+      "f64" => Ok(Self::f64()),
+      "bool" => Ok(Self::bool()),
+      "char" => Ok(Self::char()),
+      "&str" => Ok(Self::str()),
+      "String" => Ok(Self::string()),
+      "Symbol" => Ok(Self::symbol()),
+      "DateTime" => Ok(Self::datetime()),
+      "Duration" => Ok(Self::duration()),
+      "Entity" => Ok(Self::entity()),
+      "Tensor" => Ok(Self::tensor()),
+      s => Ok(Self::named(s.to_string())),
     }
   }
 }
 
-pub type Type = AstNode<TypeNode>;
-
 impl Type {
-  /// Create a new `i8` type AST node
-  pub fn i8() -> Self {
-    Self::default(TypeNode::I8)
-  }
-
-  /// Create a new `u64` type AST node
-  pub fn u64() -> Self {
-    Self::default(TypeNode::U64)
-  }
-
-  /// Create a new `usize` type AST node
-  pub fn usize() -> Self {
-    Self::default(TypeNode::USize)
-  }
-
-  /// Create a new `entity` type AST node
-  pub fn entity() -> Self {
-    Self::default(TypeNode::Entity)
-  }
-
   /// Get the name of the type if the type node contains a custom named type
   pub fn get_name(&self) -> Option<&str> {
-    match &self.node {
-      TypeNode::Named(n) => Some(&n),
-      _ => None,
+    if let Some(n) = self.as_named() {
+      Some(n)
+    } else {
+      None
     }
   }
 
@@ -134,31 +126,31 @@ impl Type {
   /// Returns `Ok` if the node itself is a base type;
   /// `Err` if the node is a `Named` type and not normalized to base type
   pub fn to_value_type(&self) -> Result<ValueType, String> {
-    match &self.node {
-      TypeNode::I8 => Ok(ValueType::I8),
-      TypeNode::I16 => Ok(ValueType::I16),
-      TypeNode::I32 => Ok(ValueType::I32),
-      TypeNode::I64 => Ok(ValueType::I64),
-      TypeNode::I128 => Ok(ValueType::I128),
-      TypeNode::ISize => Ok(ValueType::ISize),
-      TypeNode::U8 => Ok(ValueType::U8),
-      TypeNode::U16 => Ok(ValueType::U16),
-      TypeNode::U32 => Ok(ValueType::U32),
-      TypeNode::U64 => Ok(ValueType::U64),
-      TypeNode::U128 => Ok(ValueType::U128),
-      TypeNode::USize => Ok(ValueType::USize),
-      TypeNode::F32 => Ok(ValueType::F32),
-      TypeNode::F64 => Ok(ValueType::F64),
-      TypeNode::Char => Ok(ValueType::Char),
-      TypeNode::Bool => Ok(ValueType::Bool),
-      TypeNode::Str => Ok(ValueType::Str),
-      TypeNode::String => Ok(ValueType::String),
-      TypeNode::Symbol => Ok(ValueType::Symbol),
-      TypeNode::DateTime => Ok(ValueType::DateTime),
-      TypeNode::Duration => Ok(ValueType::Duration),
-      TypeNode::Entity => Ok(ValueType::Entity),
-      TypeNode::Tensor => Ok(ValueType::Tensor),
-      TypeNode::Named(s) => Err(s.to_string()),
+    match self.internal() {
+      _Type::I8 => Ok(ValueType::I8),
+      _Type::I16 => Ok(ValueType::I16),
+      _Type::I32 => Ok(ValueType::I32),
+      _Type::I64 => Ok(ValueType::I64),
+      _Type::I128 => Ok(ValueType::I128),
+      _Type::ISize => Ok(ValueType::ISize),
+      _Type::U8 => Ok(ValueType::U8),
+      _Type::U16 => Ok(ValueType::U16),
+      _Type::U32 => Ok(ValueType::U32),
+      _Type::U64 => Ok(ValueType::U64),
+      _Type::U128 => Ok(ValueType::U128),
+      _Type::USize => Ok(ValueType::USize),
+      _Type::F32 => Ok(ValueType::F32),
+      _Type::F64 => Ok(ValueType::F64),
+      _Type::Char => Ok(ValueType::Char),
+      _Type::Bool => Ok(ValueType::Bool),
+      _Type::Str => Ok(ValueType::Str),
+      _Type::String => Ok(ValueType::String),
+      _Type::Symbol => Ok(ValueType::Symbol),
+      _Type::DateTime => Ok(ValueType::DateTime),
+      _Type::Duration => Ok(ValueType::Duration),
+      _Type::Entity => Ok(ValueType::Entity),
+      _Type::Tensor => Ok(ValueType::Tensor),
+      _Type::Named(s) => Err(s.to_string()),
     }
   }
 }
@@ -169,9 +161,6 @@ impl From<Identifier> for Type {
       .name()
       .parse()
       .expect("[Internal Error] Casting `Identifier` to `TypeNode` should not fail");
-    Self {
-      loc: value.loc,
-      node: type_node,
-    }
+    Self::named_with_loc(type_node, value.location().clone())
   }
 }

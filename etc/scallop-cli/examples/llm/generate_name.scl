@@ -1,6 +1,12 @@
-@gpt_chat_complete(prompt="A typical {lang} name is {n}", pattern="bf")
-type generate_name(lang: String, n: String)
+@gpt(
+  header="Please fill in the following blanks:",
+  prompt="A typical {{lang}} name is {{name}}",
+  examples=[("Spanish", "Jose"), ("Indian", "Shiva")],
+  model="gpt-3.5-turbo",
+  // debug=true,
+)
+type generate_name(bound lang: String, n: String)
 
-rel languages = {"english", "chinese", "japanese", "french", "germany"}
+rel languages = {"english", "chinese", "japanese", "french", "german"}
 
 rel sampled_name(l, n) = languages(l) and generate_name(l, n)

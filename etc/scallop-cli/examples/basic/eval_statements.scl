@@ -1,0 +1,60 @@
+@py_eval type $py_eval_number(s: String) -> f32
+
+type Expr = Var(String) | Const(f32) | Add(Expr, Expr) | Eval(String)
+
+type Context = Cons(String, f32, Context) | Nil()
+const EMPTY_CTX = Nil()
+
+type find_value(bound ctx: Context, bound var: String, n: f32)
+rel find_value(ctx, v, n) = case ctx is Cons(v, n, _)
+rel find_value(ctx, v, n) = case ctx is Cons(vp, _, cont) and vp != v and find_value(cont, v, n)
+
+type process_eval_string(bound ctx: Context, bound eval_str: String, output_str: String)
+rel process_eval_string(ctx, e, e) = case ctx is Nil()
+rel process_eval_string(ctx, e1, $string_replace(e2, $format("{{}}", v), n as String)) = case ctx is Cons(v, n, cont) and process_eval_string(cont, e1, e2)
+
+type eval(bound e: Expr, bound ctx: Context, n: f32)
+rel eval(e, ctx, n) = case e is Const(n)
+rel eval(e, ctx, n) = case e is Var(v) and find_value(ctx, v, n)
+rel eval(e, ctx, x + y) = case e is Add(e1, e2) and eval(e1, ctx, x) and eval(e2, ctx, y)
+rel eval(e, ctx, $py_eval_number(eval_str)) = case e is Eval(s) and process_eval_string(ctx, s, eval_str)
+
+type to_string(bound e: Expr, s: String)
+rel to_string(e, $format("{}", n)) = case e is Const(n)
+rel to_string(e, $format("{}", v)) = case e is Var(v)
+rel to_string(e, $format("{} + {}", s1, s2)) = case e is Add(e1, e2) and to_string(e1, s1) and to_string(e2, s2)
+rel to_string(e, $format("eval({})", s)) = case e is Eval(s)
+
+type ctx_to_string_helper(bound ctx: Context, s: String)
+rel ctx_to_string_helper(ctx, "") = case ctx is Nil()
+rel ctx_to_string_helper(ctx, $format("{} |-> {}", v, n)) = case ctx is Cons(v, n, Nil())
+rel ctx_to_string_helper(ctx, $format("{} |-> {}, {}", v, n, cs)) = case ctx is Cons(v, n, ctx1) and case ctx1 is Cons(_, _, _) and ctx_to_string_helper(ctx1, cs)
+
+type ctx_to_string(bound ctx: Context, s: String)
+rel ctx_to_string(ctx, $format("[{}]", cs)) = ctx_to_string_helper(ctx, cs)
+
+type eval_step(id: i32, ctx: Context)
+rel eval_step(0, new Cons(v, n, EMPTY_CTX)) = step(0, v, e) and eval(e, EMPTY_CTX, n)
+rel eval_step(prev_id + 1, new Cons(v, n, prev_ctx)) = step(prev_id + 1, v, e) and eval_step(prev_id, prev_ctx) and eval(e, prev_ctx, n)
+
+rel final_step(ctx) = num_steps(id) and eval_step(id - 1, ctx)
+rel result(n) = final_step(ctx) and return(v) and find_value(ctx, v, n)
+
+rel step_context(id, s) = eval_step(id, ctx) and ctx_to_string(ctx, s)
+rel step_str(id, v, s) = step(id, v, e) and to_string(e, s)
+
+// ======================== EXAMPLE ========================
+
+const E1 = Eval("1")
+const E2 = Eval("{x} * 3 - 5")
+const E3 = Eval("{x} if {y} > 0 else {x} + 1")
+
+rel step = {(0, "x", E1), (1, "y", E2), (2, "z", E3)}
+
+rel num_steps(3)
+
+rel return("z")
+
+query step_context
+query step_str
+query result

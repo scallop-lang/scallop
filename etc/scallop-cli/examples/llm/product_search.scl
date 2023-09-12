@@ -1,0 +1,72 @@
+rel product = {
+  (1, "BiFanuo 2 in 1 Folding Treadmill, Smart Walking Running Machine with Bluetooth Audio Speakers, Installation-Free，Under Desk Treadmill for Home/Office Gym Cardio Fitness（Red）"),
+  (2, "Egofit Walker Pro Smallest Under Desk Electric Walking Treadmill for Home, Small & Compact Treadmill to Fit Desk Perfectly and Home & Office with APP & Remote Contro"),
+  (3, "ANCHEER Treadmill,Folding Treadmill for Home Workout,Electric Walking Under Desk Treadmill with APP Control, Portable Exercise Walking Jogging Running Machine (Silver)"),
+  (4, "Soiiw Walking Pad Treadmill Electric Under Desk Smart Slim Fitness Jogging Training Cardio Workout with LED Display & Wireless Remote Control for Home Office"),
+  (5, "HOTSYSTEM 2 in 1 Installation-Free Folding Treadmill, 2.5HP Portable Under Desk Treadmill with Bluetooth, LED, Remote Control Smart Treadmill for Home Office Cardio Exercise"),
+  (6, "Goplus 2 in 1 Folding Treadmill, 2.25HP Under Desk Electric Superfit Treadmill, Installation-Free with APP Control, Remote Control, Bluetooth Speaker and LED Display, Jogging Walking for Home/Office"),
+  (7, "Goplus 2 in 1 Folding Treadmill, 2.25HP Superfit Under Desk Electric Treadmill, Installation-Free with Blue Tooth Speaker, Remote Control, APP Control and LED Display, Walking Jogging for Home Office"),
+  (8, "RHYTHM FUN Treadmill 2-in-1 Folding Treadmill Under Desk Walking Treadmill with Foldable Handrail Wide Tread Belt Super Slim Mini Quiet Home Treadmill with Smart Remote Control and Workout App（Sliver）"),
+  (9, "NordicTrack T Series Treadmill + 30-Day iFIT Membership"),
+  (10, "Goplus 2 in 1 Folding Treadmill with Dual Display, 2.25HP Superfit Under Desk Electric Pad Treadmill, Installation-Free, Blue Tooth Speaker, Remote Control, Walking Jogging Machine for Home/Office Use"),
+  (11, "Goplus Under Desk Treadmill, with Touchable LED Display and Wireless Remote Control, Built-in 3 Workout Modes and 12 Programs, Walking Jogging Machine, Superfit Electric Treadmill for Home Office"),
+  (12, "WalkingPad A1 Pro Smart Walk Folding Treadmill Slim Foldable Exercise Fitness Equipment Under Desk Running Walking Pad Outdoor Indoor Gym"),
+  (13, "SUNNY HEALTH & FITNESS ASUNA Space Saving Treadmill, Motorized with Speakers for AUX Audio Connection - 8730G"),
+  (14, "UMAY Under Desk Treadmill with Foldable Wheels, Portable Walking Pad Flat Slim Treadmill with Free Sports App & Remote Control, Jogging Running Machine for Home/Office"),
+  (15, "Sunny Health & Fitness SF-T1407M Foldable Manual Walking Treadmill, Gray"),
+  (16, "GOYOUTH 2 in 1 Under Desk Electric Treadmill Motorized Exercise Machine with Wireless Speaker, Remote Control and LED Display, Walking Jogging Machine for Home/Office Use"),
+}
+
+rel gt_relevance = {
+ (1, "E"),
+ (2, "I"),
+ (3, "E"),
+ (4, "S"),
+ (5, "S"),
+ (6, "I"),
+ (7, "S"),
+ (8, "S"),
+ (9, "S"),
+ (10, "E"),
+ (11, "S"),
+ (12, "E"),
+ (13, "E"),
+ (14, "S"),
+ (15, "E"),
+ (16, "E"),
+}
+
+rel question = {"#1 small corded treadmill without remote control"}
+
+@gpt_encoder type $embed_text(String) -> Tensor
+
+// ========= BASELINE =========
+
+// rel relevance(id) = id := top<1>(id: question(q) and product(id, p) and soft_eq<Tensor>($embed_text(q), $embed_text(p)))
+// query relevance
+
+// ========= OURS =========
+
+@gpt(
+  prompt="Given a query {{q}}, it is asking for {{pos}} but not {{neg}}",
+  examples=[
+    ("zipper tape without pulls", "zipper tape", "pulls"),
+    ("!awnmower tires without rims", "lawnowner tires", "rims"),
+    ("$1 items for men", "$1 items for men", "EMPTY")
+  ],
+  model="gpt-3.5-turbo",
+)
+type extract_pos_neg(bound q: String, pos: String, neg: String)
+
+rel pos_attr(p) = question(q) and extract_pos_neg(q, p, _)
+rel neg_attr(n) = question(q) and extract_pos_neg(q, _, n) and n != "EMPTY"
+
+rel match_pos(pid) = product(pid, ptitle) and pos_attr(p) and soft_eq<Tensor>($embed_text(p), $embed_text(ptitle))
+rel match_neg(pid) = product(pid, _) and not neg_attr(_)
+rel match_neg(pid) = product(pid, ptitle) and neg_attr(n) and soft_neq<Tensor>($embed_text(n), $embed_text(ptitle))
+
+rel match(pid) = match_pos(pid) and match_neg(pid)
+query match
+
+rel check_top_5(pid, gt) = pid := top<5>(pid: match(pid)) and gt_relevance(pid, gt)
+query check_top_5

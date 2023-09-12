@@ -1,8 +1,13 @@
-@gpt_complete(prompt="The mountain {x}'s height is {y} meters", pattern="bf")
-type mountain_height(x: String, y: String)
+@gpt(
+  prompt="the mountain {{mountain_name}}'s height is {{height}} meters",
+  examples=[("Kangchenjunga", 8586)],
+  model="gpt-4",
+  debug=true,
+)
+type mountain_height(bound mountain_name: String, height: i32)
 
 rel mountains = {"Mount Everest", "K2"}
 
-rel result(x, y) = mountains(x), mountain_height(x, y)
+rel result(name, height) = mountains(name) and mountain_height(name, height)
 
 query result

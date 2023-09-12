@@ -82,7 +82,7 @@ impl OutputFilesAnalysis {
   }
 
   pub fn process_attributes(&mut self, rela: String, attrs: &Attributes) {
-    if let Some(attr) = attrs.iter().find(|a| a.name() == "file") {
+    if let Some(attr) = attrs.find("file") {
       match self.process_attribute(attr) {
         Ok(output_file) => {
           self.output_files.insert(rela, output_file);
@@ -95,9 +95,9 @@ impl OutputFilesAnalysis {
   }
 }
 
-impl NodeVisitor for OutputFilesAnalysis {
-  fn visit_query_decl(&mut self, qd: &QueryDecl) {
-    self.process_attributes(qd.query().create_relation_name(), qd.attributes());
+impl NodeVisitor<QueryDecl> for OutputFilesAnalysis {
+  fn visit(&mut self, qd: &QueryDecl) {
+    self.process_attributes(qd.query().create_relation_name(), qd.attrs());
   }
 }
 
@@ -105,26 +105,26 @@ impl NodeVisitor for OutputFilesAnalysis {
 pub enum OutputFilesError {
   InvalidNumAttrArgument {
     actual_num_args: usize,
-    attr_loc: AstNodeLocation,
+    attr_loc: NodeLocation,
   },
   InvalidArgument {
-    attr_arg_loc: AstNodeLocation,
+    attr_arg_loc: NodeLocation,
   },
   NoExtension {
-    attr_arg_loc: AstNodeLocation,
+    attr_arg_loc: NodeLocation,
   },
   UnknownExtension {
     ext: String,
-    attr_arg_loc: AstNodeLocation,
+    attr_arg_loc: NodeLocation,
   },
   DeliminatorNotString {
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   DeliminatorNotSingleCharacter {
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   DeliminatorNotASCII {
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
 }
 

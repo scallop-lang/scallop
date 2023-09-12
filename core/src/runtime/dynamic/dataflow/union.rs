@@ -1,18 +1,17 @@
 use super::*;
-use crate::runtime::env::*;
 
 #[derive(Clone)]
 pub struct DynamicUnionDataflow<'a, Prov: Provenance> {
-  pub d1: Box<DynamicDataflow<'a, Prov>>,
-  pub d2: Box<DynamicDataflow<'a, Prov>>,
+  pub d1: DynamicDataflow<'a, Prov>,
+  pub d2: DynamicDataflow<'a, Prov>,
 }
 
-impl<'a, Prov: Provenance> DynamicUnionDataflow<'a, Prov> {
-  pub fn iter_stable(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::chain(vec![self.d1.iter_stable(runtime), self.d2.iter_stable(runtime)])
+impl<'a, Prov: Provenance> Dataflow<'a, Prov> for DynamicUnionDataflow<'a, Prov> {
+  fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
+    DynamicBatches::chain(vec![self.d1.iter_stable(), self.d2.iter_stable()])
   }
 
-  pub fn iter_recent(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::chain(vec![self.d1.iter_recent(runtime), self.d2.iter_recent(runtime)])
+  fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
+    DynamicBatches::chain(vec![self.d1.iter_recent(), self.d2.iter_recent()])
   }
 }

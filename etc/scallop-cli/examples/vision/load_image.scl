@@ -1,0 +1,8 @@
+rel image_file = {"etc/scallop-cli/res/images/clevr_example_1.jpg"}
+
+@hidden
+rel image($load_image(dir)) = image_file(dir)
+
+rel image_dim($dim(img)) = image(img)
+
+rel image_shape(i, s) = image(img) and tensor_shape(img, i, s)

@@ -1,6 +1,6 @@
 use std::collections::*;
 
-use crate::compiler::ram::*;
+use crate::compiler::ram;
 use crate::runtime::env::*;
 use crate::runtime::monitor::*;
 use crate::runtime::provenance::*;
@@ -13,7 +13,7 @@ pub struct DynamicIteration<'a, Prov: Provenance> {
   pub input_dynamic_collections: HashMap<String, &'a DynamicCollection<Prov>>,
   pub dynamic_relations: HashMap<String, DynamicRelation<Prov>>,
   pub output_relations: Vec<String>,
-  pub updates: Vec<Update>,
+  pub updates: Vec<ram::Update>,
 }
 
 impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
@@ -49,6 +49,10 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     self.dynamic_relations.contains_key(name) || self.input_dynamic_collections.contains_key(name)
   }
 
+  pub fn has_dynamic_relation(&self, name: &str) -> bool {
+    self.dynamic_relations.contains_key(name)
+  }
+
   pub fn get_dynamic_relation<'c>(&'c mut self, name: &str) -> Option<&'c DynamicRelation<Prov>> {
     self.dynamic_relations.get(name).map(|r| r)
   }
@@ -57,14 +61,14 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     self.dynamic_relations.get(name).map(|r| r).unwrap()
   }
 
-  pub fn add_update_dataflow(&mut self, target: &str, dataflow: Dataflow) {
-    self.add_update(Update {
+  pub fn add_update_dataflow(&mut self, target: &str, dataflow: ram::Dataflow) {
+    self.add_update(ram::Update {
       target: target.to_string(),
       dataflow,
     });
   }
 
-  pub fn add_update(&mut self, update: Update) {
+  pub fn add_update(&mut self, update: ram::Update) {
     self.updates.push(update)
   }
 
@@ -100,10 +104,11 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
   }
 
   fn drain_dynamic_entities(&mut self, ctx: &Prov, runtime: &RuntimeEnvironment) {
-    for (relation, tuples) in runtime.drain_new_entities() {
-      let update = Update {
+    let drained_entity_facts = runtime.drain_new_entities(|r| self.has_dynamic_relation(r));
+    for (relation, tuples) in drained_entity_facts {
+      let update = ram::Update {
         target: relation,
-        dataflow: Dataflow::UntaggedVec(tuples),
+        dataflow: ram::Dataflow::UntaggedVec(tuples),
       };
       let dyn_update = self.build_dynamic_update(runtime, ctx, &update);
       dyn_update
@@ -236,9 +241,9 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
 
   fn build_dynamic_update(
     &'a self,
-    env: &RuntimeEnvironment,
+    env: &'a RuntimeEnvironment,
     ctx: &'a Prov,
-    update: &'a Update,
+    update: &'a ram::Update,
   ) -> DynamicUpdate<'a, Prov> {
     DynamicUpdate {
       target: self.unsafe_get_dynamic_relation(&update.target),
@@ -248,106 +253,126 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
 
   fn build_dynamic_dataflow(
     &'a self,
-    env: &RuntimeEnvironment,
+    env: &'a RuntimeEnvironment,
     ctx: &'a Prov,
-    dataflow: &'a Dataflow,
+    dataflow: &'a ram::Dataflow,
   ) -> DynamicDataflow<'a, Prov> {
     match dataflow {
-      Dataflow::Unit(t) => {
+      ram::Dataflow::Unit(t) => {
         if self.is_first_iteration() {
           DynamicDataflow::recent_unit(ctx, t.clone())
         } else {
           DynamicDataflow::stable_unit(ctx, t.clone())
         }
       }
-      Dataflow::UntaggedVec(v) => {
-        let internal_tuple = v.iter().map(|t| env.internalize_tuple(t)).collect();
+      ram::Dataflow::UntaggedVec(v) => {
+        let internal_tuple = v
+          .iter()
+          .map(|t| {
+            env
+              .internalize_tuple(t)
+              .expect("[Internal Error] Cannot internalize tuple")
+          })
+          .collect();
         DynamicDataflow::untagged_vec(ctx, internal_tuple)
       }
-      Dataflow::Relation(c) => {
+      ram::Dataflow::Relation(c) => {
         if self.input_dynamic_collections.contains_key(c) {
           self.build_dynamic_collection(c)
         } else {
-          self.unsafe_get_dynamic_relation(c).into()
+          DynamicDataflow::dynamic_relation(self.unsafe_get_dynamic_relation(c))
         }
       }
-      Dataflow::ForeignPredicateGround(p, a) => {
-        let internal_values = a.iter().map(|v| env.internalize_value(v)).collect();
-        DynamicDataflow::foreign_predicate_ground(p.clone(), internal_values, self.is_first_iteration(), ctx)
+      ram::Dataflow::ForeignPredicateGround(p, a) => {
+        let internal_values = a
+          .iter()
+          .map(|v| {
+            env
+              .internalize_value(v)
+              .expect("[Internal Error] Cannot internalize value")
+          })
+          .collect();
+        DynamicDataflow::foreign_predicate_ground(p.clone(), internal_values, self.is_first_iteration(), ctx, env)
       }
-      Dataflow::ForeignPredicateConstraint(d, p, a) => {
+      ram::Dataflow::ForeignPredicateConstraint(d, p, a) => {
         // NOTE: `a` contains accessors which do not need to be internalized
         self
           .build_dynamic_dataflow(env, ctx, d)
-          .foreign_predicate_constraint(p.clone(), a.clone(), ctx)
+          .foreign_predicate_constraint(p.clone(), a.clone(), ctx, env)
       }
-      Dataflow::ForeignPredicateJoin(d, p, a) => {
+      ram::Dataflow::ForeignPredicateJoin(d, p, a) => {
         // NOTE: `a` contains accessors which do not need to be internalized
         self
           .build_dynamic_dataflow(env, ctx, d)
-          .foreign_predicate_join(p.clone(), a.clone(), ctx)
+          .foreign_predicate_join(p.clone(), a.clone(), ctx, env)
       }
-      Dataflow::OverwriteOne(d) => self.build_dynamic_dataflow(env, ctx, d).overwrite_one(ctx),
-      Dataflow::Exclusion(d1, d2) => self
+      ram::Dataflow::OverwriteOne(d) => self.build_dynamic_dataflow(env, ctx, d).overwrite_one(ctx),
+      ram::Dataflow::Exclusion(d1, d2) => self
         .build_dynamic_dataflow(env, ctx, d1)
-        .dynamic_exclusion(self.build_dynamic_dataflow(env, ctx, d2), ctx),
-      Dataflow::Filter(d, e) => {
-        let internal_filter = env.internalize_expr(e);
-        self.build_dynamic_dataflow(env, ctx, d).filter(internal_filter)
+        .dynamic_exclusion(self.build_dynamic_dataflow(env, ctx, d2), ctx, env),
+      ram::Dataflow::Filter(d, e) => {
+        let internal_filter = env
+          .internalize_expr(e)
+          .expect("[Internal Error] Cannot internalize expression");
+        self.build_dynamic_dataflow(env, ctx, d).filter(internal_filter, env)
       }
-      Dataflow::Find(d, k) => {
-        let internal_key = env.internalize_tuple(k);
+      ram::Dataflow::Find(d, k) => {
+        let internal_key = env
+          .internalize_tuple(k)
+          .expect("[Internal Error] Cannot internalize tuple");
         self.build_dynamic_dataflow(env, ctx, d).find(internal_key)
       }
-      Dataflow::Project(d, e) => {
-        let internal_expr = env.internalize_expr(e);
-        self.build_dynamic_dataflow(env, ctx, d).project(internal_expr)
+      ram::Dataflow::Project(d, e) => {
+        let internal_expr = env
+          .internalize_expr(e)
+          .expect("[Internal Error] Cannot internalize expression");
+        self.build_dynamic_dataflow(env, ctx, d).project(internal_expr, env)
       }
-      Dataflow::Intersect(d1, d2) => {
+      ram::Dataflow::Intersect(d1, d2) => {
         let r1 = self.build_dynamic_dataflow(env, ctx, d1);
         let r2 = self.build_dynamic_dataflow(env, ctx, d2);
         r1.intersect(r2, ctx)
       }
-      Dataflow::Join(d1, d2) => {
+      ram::Dataflow::Join(d1, d2) => {
         let r1 = self.build_dynamic_dataflow(env, ctx, d1);
         let r2 = self.build_dynamic_dataflow(env, ctx, d2);
         r1.join(r2, ctx)
       }
-      Dataflow::Product(d1, d2) => {
+      ram::Dataflow::Product(d1, d2) => {
         let r1 = self.build_dynamic_dataflow(env, ctx, d1);
         let r2 = self.build_dynamic_dataflow(env, ctx, d2);
         r1.product(r2, ctx)
       }
-      Dataflow::Union(d1, d2) => {
+      ram::Dataflow::Union(d1, d2) => {
         let r1 = self.build_dynamic_dataflow(env, ctx, d1);
         let r2 = self.build_dynamic_dataflow(env, ctx, d2);
         r1.union(r2)
       }
-      Dataflow::Difference(d1, d2) => {
+      ram::Dataflow::Difference(d1, d2) => {
         let r1 = self.build_dynamic_dataflow(env, ctx, d1);
         let r2 = self.build_dynamic_dataflow(env, ctx, d2);
         r1.difference(r2, ctx)
       }
-      Dataflow::Antijoin(d1, d2) => {
+      ram::Dataflow::Antijoin(d1, d2) => {
         let r1 = self.build_dynamic_dataflow(env, ctx, d1);
         let r2 = self.build_dynamic_dataflow(env, ctx, d2);
         r1.antijoin(r2, ctx)
       }
-      Dataflow::Reduce(a) => {
+      ram::Dataflow::Reduce(a) => {
         let op = a.op.clone().into();
         match &a.group_by {
-          ReduceGroupByType::None => {
+          ram::ReduceGroupByType::None => {
             let c = self.build_dynamic_collection(&a.predicate);
-            DynamicAggregationDataflow::single(op, c, ctx).into()
+            DynamicDataflow::new(DynamicAggregationSingleGroupDataflow::new(op, c, ctx, env))
           }
-          ReduceGroupByType::Implicit => {
+          ram::ReduceGroupByType::Implicit => {
             let c = self.build_dynamic_collection(&a.predicate);
-            DynamicAggregationDataflow::implicit(op, c, ctx).into()
+            DynamicDataflow::new(DynamicAggregationImplicitGroupDataflow::new(op, c, ctx, env))
           }
-          ReduceGroupByType::Join(other) => {
+          ram::ReduceGroupByType::Join(other) => {
             let c = self.build_dynamic_collection(&a.predicate);
             let g = self.build_dynamic_collection(&other);
-            DynamicAggregationDataflow::join(op, g, c, ctx).into()
+            DynamicDataflow::new(DynamicAggregationJoinGroupDataflow::new(op, g, c, ctx, env))
           }
         }
       }

@@ -95,9 +95,9 @@ fn string_split_1() {
       rel pattern1 = {" "}
       rel pattern2 = {"ab"}
       rel pattern3 = {"abcde"}
-      rel result1(out) = string(s), pattern1(p), string_split(s, p, out)
-      rel result2(out) = string(s), pattern2(p), string_split(s, p, out)
-      rel result3(out) = string(s), pattern3(p), string_split(s, p, out)
+      rel result1(o) = string(s), pattern1(p), string_split(s, p, o)
+      rel result2(o) = string(s), pattern2(p), string_split(s, p, o)
+      rel result3(o) = string(s), pattern3(p), string_split(s, p, o)
     "#,
     vec![
       (
@@ -156,5 +156,42 @@ fn datetime_ymd_1() {
       rel result(y, m, d) = datetime(dt), datetime_ymd(dt, y, m, d)
     "#,
     ("result", vec![(2023i32, 4u32, 17u32)]),
+  );
+}
+
+#[test]
+fn range_syntax_sugar_1() {
+  expect_interpret_multi_result(
+    r#"
+      rel result_1(x) = x in 0..5
+      rel result_2(x) = x in 3..=6
+    "#,
+    vec![
+      ("result_1", vec![(0i32,), (1,), (2,), (3,), (4,)].into()),
+      ("result_2", vec![(3i32,), (4,), (5,), (6,)].into()),
+    ],
+  );
+}
+
+#[test]
+fn range_syntax_sugar_2() {
+  expect_interpret_result(
+    r#"
+      rel grid(x, y) = x in 2..5 and y in 5..=7
+    "#,
+    (
+      "grid",
+      vec![
+        (2i32, 5i32),
+        (2, 6),
+        (2, 7),
+        (3, 5),
+        (3, 6),
+        (3, 7),
+        (4, 5),
+        (4, 6),
+        (4, 7),
+      ],
+    ),
   );
 }

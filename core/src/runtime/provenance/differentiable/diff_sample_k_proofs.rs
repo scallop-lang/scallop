@@ -1,7 +1,7 @@
 use rand::prelude::*;
 use rand::rngs::StdRng;
 
-use crate::common::tensors::*;
+use crate::common::foreign_tensor::*;
 use crate::utils::PointerFamily;
 
 use super::*;

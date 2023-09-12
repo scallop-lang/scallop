@@ -1,0 +1,55 @@
+// Input; an image directory
+rel img_dir = {
+  "etc/scallop-cli/res/testing/images/face_example_1.jpg",
+}
+
+rel image($load_image(img_dir)) = img_dir(img_dir)
+
+// Use face detection model to extract faces from the image
+@face_detection(["cropped-image"], dump_image=true)
+type face(bound img: Tensor, id: u32, face_img: Tensor)
+
+rel face_image(id, face_img) = image(img), face(img, id, face_img)
+
+// Count the faces
+rel face_count(n) = n := count(id: face_image(id, _))
+
+// Classify the faces
+@clip([
+    "Auguste Piccard",
+    "Émile Henriot",
+    "Paul Ehrenfest",
+    "Édouard Herzen",
+    "Théophile de Donder",
+    "Erwin Schrödinger",
+    "JE Verschaffelt",
+    "Wolfgang Pauli",
+    "Werner Heisenberg",
+    "Ralph Fowler",
+    "Léon Brillouin",
+    "Peter Debye",
+    "Martin Knudsen",
+    "William Lawrence Bragg",
+    "Hendrik Anthony Kramers",
+    "Paul Dirac",
+    "Arthur Compton",
+    "Louis de Broglie",
+    "Max Born",
+    "Niels Bohr",
+    "Irving Langmuir",
+    "Max Planck",
+    "Marie Curie",
+    "Hendrik Lorentz",
+    "Albert Einstein",
+    "Paul Langevin",
+    "Charles-Eugène Guye",
+    "CTR Wilson",
+    "Owen Richardson",
+], prompt="the face of {{}}")
+type face_name(bound face: Tensor, name: String)
+
+//rel identity(id, name) = image(img), face(img, id, face_img), face_name(face_img, name)
+rel identity(id, name) = name := top<1>(name: face_image(id, img), face_name(img, name))
+
+query face_count
+query identity

@@ -1,0 +1,12 @@
+@segment_anything(["mask"], prompt_bb=true, dump_image=true)
+type image_segment(bound img: Tensor, bbx: u32, bby: u32, bbw: u32, bbh: u32, id: u32, mask: Tensor)
+
+rel img_dir = {"etc/scallop-cli/res/testing/images/clevr_example_1.jpg"}
+
+rel bb = {(700, 320, 300, 300)}
+
+rel image($load_image(img_dir)) = img_dir(img_dir)
+
+rel segment(mask) = image(img) and bb(x, y, w, h) and image_segment(img, x, y, w, h, id, mask)
+
+query segment

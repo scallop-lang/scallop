@@ -1,0 +1,19 @@
+[project]
+name = "scallop-clip"
+version = "0.0.1"
+dependencies = [
+  "clip @ git+https://github.com/openai/CLIP.git",
+  "torch",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.entry-points."scallop.plugin.setup_arg_parser"]
+clip = "scallop_clip:setup_arg_parser"
+
+[project.entry-points."scallop.plugin.configure"]
+clip = "scallop_clip:configure"
+
+[project.entry-points."scallop.plugin.load_into_context"]
+clip = "scallop_clip:load_into_context"

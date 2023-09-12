@@ -1,5 +1,5 @@
 use crate::common::input_tag::*;
-use crate::common::tensors::*;
+use crate::common::foreign_tensor::*;
 
 use super::*;
 
@@ -32,6 +32,7 @@ impl<T: FromTensor> StaticInputTag for InputDiffProb<T> {
     match t {
       DynamicInputTag::None => None,
       DynamicInputTag::Bool(b) => Some(Self(if *b { 1.0 } else { 0.0 }, None)),
+      DynamicInputTag::Natural(n) => Some(Self(if *n > 0 { 1.0 } else { 0.0 }, None)),
       DynamicInputTag::Exclusive(_) => None,
       DynamicInputTag::Float(f) => Some(Self(f.clone(), None)),
       DynamicInputTag::ExclusiveFloat(f, _) => Some(Self(f.clone(), None)),

@@ -55,10 +55,9 @@ rel find_type(env, var, ty) = case e is Cons(var, ty, _)
 rel find_type(env, var, ty) = case e is Cons(vp, _, tl) and vp != var and find_type(tl, var, ty)
 
 // The type (`ty`) of an expression (`expr`) under an environment (`env`)
-type type_of(env: Env, expr: Expr, ty: Type)
+type type_of(bound env: Env, bound expr: Expr, ty: Type)
 
 // Typing rules
-@demand("bbf")
 rel type_of(env, e, BOOL) = case e is Boolean(_)
 rel type_of(env, e, INT) = case e is Number(_)
 rel type_of(env, e, ty) = case e is Variable(x) and find_type(env, x, ty)
@@ -72,7 +71,7 @@ rel type_of(env, e, ty_i) = to_infer_let_cons(env, e, sub_env, i) and type_of(su
 rel type_of(env, e, ty) = case e is Ite(c, t, e) and type_of(env, c, BOOL) and type_of(env, t, ty) and type_of(env, e, ty)
 
 // Helpers
-@demand("bbff")
+type to_infer_let_cons(bound env: Env, bound e: Expr, new_env: Env, i: Expr)
 rel to_infer_let_cons(env, e, new Cons(x, ty_b, env), i) = case e is Let(x, b, i) and type_of(env, b, ty_b)
 
 // The result if the type of the input program

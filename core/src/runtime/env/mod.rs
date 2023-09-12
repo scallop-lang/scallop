@@ -1,12 +1,12 @@
+mod dynamic_entity_storage;
 mod environment;
-mod new_entities;
 mod options;
 mod random;
 mod symbol_registry;
 mod tensor_registry;
 
+pub use dynamic_entity_storage::*;
 pub use environment::*;
-pub use new_entities::*;
 pub use options::*;
 pub use random::*;
 pub use symbol_registry::*;

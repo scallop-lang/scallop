@@ -1,0 +1,17 @@
+@gpt_encoder
+type $embed_text(String) -> Tensor
+
+rel question = {
+  "Were Scott Derrickson and Ed Wood of the same nationality?"
+}
+
+rel context = {
+  (0, "Scott Derrickson (born July 16, 1966) is an American director, screenwriter and producer. He lives in Los Angeles, California. He is best known for directing horror films such as \"Sinister\", \"The Exorcism of Emily Rose\", and \"Deliver Us From Evil\", as well as the 2016 Marvel Cinematic Universe installment, \"Doctor Strange.\""),
+  (1, "Thomas Alva Edison (February 11, 1847 - October 18, 1931) was an American inventor and businessman. He developed many devices in fields such as electric power generation, mass communication, sound recording, and motion pictures."),
+  (2, "Edward Davis Wood Jr. (October 10, 1924-2013 December 10, 1978) was an American filmmaker, actor, writer, producer, and director."),
+}
+
+rel relevant(id) = id := top<2>(id: question(q) and context(id, c) and soft_eq<Tensor>($embed_text(q), $embed_text(c)))
+rel relevant_context($string_concat(c1, "\n", c2)) = relevant(id1) and relevant(id2) and id1 < id2 and context(id1, c1) and context(id2, c2)
+
+query relevant_context

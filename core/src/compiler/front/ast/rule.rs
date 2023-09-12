@@ -1,111 +1,68 @@
-use serde::*;
-
 use super::*;
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct RuleNode {
+pub struct _Rule {
   pub head: RuleHead,
   pub body: Formula,
 }
 
-impl RuleNode {
-  pub fn new(head: RuleHead, body: Formula) -> Self {
-    Self { head, body }
-  }
-}
-
-pub type Rule = AstNode<RuleNode>;
-
-impl Rule {
-  pub fn head(&self) -> &RuleHead {
-    &self.node.head
-  }
-
-  pub fn body(&self) -> &Formula {
-    &self.node.body
-  }
-}
-
 impl Into<Vec<Item>> for Rule {
   fn into(self) -> Vec<Item> {
-    vec![Item::RelationDecl(
-      RelationDeclNode::Rule(
-        RuleDeclNode {
-          attrs: Attributes::new(),
-          tag: Tag::default_none(),
-          rule: self,
-        }
-        .into(),
-      )
-      .into(),
-    )]
+    vec![
+      Item::RelationDecl(
+        RelationDecl::Rule(
+          RuleDecl::new(
+            Attributes::new(),
+            Tag::none(),
+            self,
+          ),
+        ),
+      ),
+    ]
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub enum RuleHeadNode {
-  Atom(Atom),
-  Conjunction(Vec<Atom>),
-  Disjunction(Vec<Atom>),
+pub struct _ConjunctiveRuleHead {
+  pub atoms: Vec<Atom>,
 }
 
-pub type RuleHead = AstNode<RuleHeadNode>;
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+#[doc(hidden)]
+pub struct _DisjunctiveRuleHead {
+  pub atoms: Vec<Atom>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+#[doc(hidden)]
+pub enum RuleHead {
+  Atom(Atom),
+  Conjunction(ConjunctiveRuleHead),
+  Disjunction(DisjunctiveRuleHead),
+}
 
 impl RuleHead {
-  pub fn is_atomic(&self) -> bool {
-    match &self.node {
-      RuleHeadNode::Atom(_) => true,
-      RuleHeadNode::Conjunction(_) => false,
-      RuleHeadNode::Disjunction(_) => false,
-    }
-  }
-
-  pub fn is_disjunction(&self) -> bool {
-    match &self.node {
-      RuleHeadNode::Atom(_) => false,
-      RuleHeadNode::Conjunction(_) => false,
-      RuleHeadNode::Disjunction(_) => true,
-    }
-  }
-
-  pub fn is_conjunction(&self) -> bool {
-    match &self.node {
-      RuleHeadNode::Atom(_) => false,
-      RuleHeadNode::Conjunction(_) => true,
-      RuleHeadNode::Disjunction(_) => false,
-    }
-  }
-
-  pub fn atom(&self) -> Option<&Atom> {
-    match &self.node {
-      RuleHeadNode::Atom(atom) => Some(atom),
-      RuleHeadNode::Conjunction(_) => None,
-      RuleHeadNode::Disjunction(_) => None,
-    }
-  }
-
   pub fn iter_predicates(&self) -> Vec<String> {
-    match &self.node {
-      RuleHeadNode::Atom(atom) => vec![atom.predicate()],
-      RuleHeadNode::Conjunction(atoms) => atoms.iter().map(|atom| atom.predicate()).collect(),
-      RuleHeadNode::Disjunction(atoms) => atoms.iter().map(|atom| atom.predicate()).collect(),
+    match self {
+      RuleHead::Atom(atom) => vec![atom.predicate().name().clone()],
+      RuleHead::Conjunction(conj) => conj.iter_atoms().map(|atom| atom.predicate().name()).cloned().collect(),
+      RuleHead::Disjunction(disj) => disj.iter_atoms().map(|atom| atom.predicate().name()).cloned().collect(),
     }
   }
 
-  pub fn iter_arguments(&self) -> Vec<&Expr> {
-    match &self.node {
-      RuleHeadNode::Atom(atom) => atom.iter_arguments().collect(),
-      RuleHeadNode::Conjunction(atoms) => atoms.iter().flat_map(|atom| atom.iter_arguments()).collect(),
-      RuleHeadNode::Disjunction(atoms) => atoms.iter().flat_map(|atom| atom.iter_arguments()).collect(),
+  pub fn iter_args(&self) -> Vec<&Expr> {
+    match self {
+      RuleHead::Atom(atom) => atom.iter_args().collect(),
+      RuleHead::Conjunction(conj) => conj.iter_atoms().flat_map(|atom| atom.iter_args()).collect(),
+      RuleHead::Disjunction(disj) => disj.iter_atoms().flat_map(|atom| atom.iter_args()).collect(),
     }
   }
 }
 
 impl From<Atom> for RuleHead {
   fn from(atom: Atom) -> Self {
-    let loc = atom.location().clone_without_id();
-    Self::new(loc, RuleHeadNode::Atom(atom))
+    Self::Atom(atom)
   }
 }

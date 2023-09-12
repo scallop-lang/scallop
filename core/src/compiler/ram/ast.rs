@@ -1,5 +1,6 @@
 use std::collections::*;
 
+use crate::common::adt_variant_registry::ADTVariantRegistry;
 use crate::common::aggregate_op::AggregateOp;
 use crate::common::expr::*;
 use crate::common::foreign_function::*;
@@ -16,6 +17,7 @@ pub struct Program {
   pub strata: Vec<Stratum>,
   pub function_registry: ForeignFunctionRegistry,
   pub predicate_registry: ForeignPredicateRegistry,
+  pub adt_variant_registry: ADTVariantRegistry,
   pub relation_to_stratum: HashMap<String, usize>,
 }
 
@@ -25,6 +27,7 @@ impl Program {
       strata: Vec::new(),
       function_registry: ForeignFunctionRegistry::new(),
       predicate_registry: ForeignPredicateRegistry::new(),
+      adt_variant_registry: ADTVariantRegistry::new(),
       relation_to_stratum: HashMap::new(),
     }
   }

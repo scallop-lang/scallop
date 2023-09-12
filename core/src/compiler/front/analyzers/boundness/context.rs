@@ -3,7 +3,6 @@ use std::collections::*;
 
 use super::*;
 use crate::compiler::front::ast::*;
-use crate::compiler::front::visitor::*;
 
 #[derive(Debug, Clone)]
 pub struct RuleContext {
@@ -56,9 +55,9 @@ pub struct DisjunctionContext {
 impl DisjunctionContext {
   pub fn from_formula(formula: &Formula) -> Self {
     let conjuncts: Vec<ConjunctionContext> = match formula {
-      Formula::Disjunction(d) => d.args().map(|a| Self::from_formula(a).conjuncts).flatten().collect(),
+      Formula::Disjunction(d) => d.iter_args().map(|a| Self::from_formula(a).conjuncts).flatten().collect(),
       Formula::Conjunction(c) => {
-        let ctxs = c.args().map(|a| Self::from_formula(a).conjuncts);
+        let ctxs = c.iter_args().map(|a| Self::from_formula(a).conjuncts);
         let cp = ctxs.multi_cartesian_product();
         cp.map(ConjunctionContext::join).collect()
       }
@@ -76,6 +75,9 @@ impl DisjunctionContext {
       Formula::Reduce(r) => vec![ConjunctionContext::from_reduce(r)],
       Formula::ForallExistsReduce(_) => {
         panic!("Unexpected `forall/exists` visited during boundness analysis; forall/exists should be rewritten by previous transformations")
+      }
+      Formula::Range(_) => {
+        panic!("Should not happen")
       }
     };
     Self { conjuncts }
@@ -170,12 +172,12 @@ impl ConjunctionContext {
 
     // Then check the positive
     for formula in &self.pos_atoms {
-      local_ctx.walk_formula(formula);
+      formula.walk(&mut local_ctx);
     }
 
     // Walk the bounded expressions
     for expr in bounded_exprs {
-      local_ctx.walk_expr(expr);
+      expr.walk(&mut local_ctx);
       local_ctx.expr_boundness.insert(expr.location().clone(), true);
     }
 
@@ -199,7 +201,7 @@ pub struct AggregationContext {
   pub joined_body: Box<RuleContext>,
   pub joined_body_formula: Formula,
   pub group_by: Option<(Box<RuleContext>, Vec<Variable>, Formula)>,
-  pub aggregate_op: ReduceOperatorNode,
+  pub aggregate_op: _ReduceOp,
 }
 
 impl AggregationContext {
@@ -230,30 +232,30 @@ impl AggregationContext {
 
     // Get a joined body formula for both body part and group_by part
     let joined_body_formula = if let Some((_, group_by_formula)) = reduce.group_by() {
-      Formula::conjunction(vec![reduce.body().clone(), group_by_formula.clone()])
+      Formula::conjunction(Conjunction::new(vec![reduce.body().clone(), *group_by_formula.clone()]))
     } else {
       reduce.body().clone()
     };
     let joined_body = RuleContext::from_qualified(reduce.bindings(), reduce.args(), &joined_body_formula);
 
     // Get the group_by context
-    let group_by = reduce.group_by().map(|(bindings, formula)| {
-      let ctx = RuleContext::from_qualified(bindings, &vec![], formula);
+    let group_by = reduce.group_by().as_ref().map(|(bindings, formula)| {
+      let ctx = RuleContext::from_qualified(&bindings, &vec![], &formula);
       let vars = bindings.iter().map(|b| b.to_variable()).collect::<Vec<_>>();
-      (Box::new(ctx), vars, formula.clone())
+      (Box::new(ctx), vars, *formula.clone())
     });
 
     // Construct self
     Self {
-      result_vars: reduce.left_variables().cloned().collect(),
-      binding_vars: reduce.binding_names().map(|n| n.to_string()).collect(),
+      result_vars: reduce.iter_left_variables().cloned().collect(),
+      binding_vars: reduce.iter_binding_names().map(|n| n.to_string()).collect(),
       arg_vars: reduce.args().clone(),
       body: Box::new(body),
       body_formula,
       joined_body: Box::new(joined_body),
       joined_body_formula,
       group_by,
-      aggregate_op: reduce.operator().node.clone(),
+      aggregate_op: reduce.operator().internal().clone(),
     }
   }
 
@@ -280,7 +282,7 @@ impl AggregationContext {
 
     // Check if the arguments are bounded
     for arg_var in &self.arg_vars {
-      if !bounded.contains(arg_var.name()) {
+      if !bounded.contains(arg_var.variable_name()) {
         let err = BoundnessAnalysisError::ReduceArgUnbound {
           loc: arg_var.location().clone(),
         };
@@ -297,16 +299,16 @@ impl AggregationContext {
 }
 
 fn collect_vars_in_head(head: &RuleHead) -> Vec<(String, Loc)> {
-  match &head.node {
-    RuleHeadNode::Atom(atom) => collect_vars_in_atom(atom),
-    RuleHeadNode::Conjunction(c) => c.iter().flat_map(collect_vars_in_atom).collect(),
-    RuleHeadNode::Disjunction(d) => d.iter().flat_map(collect_vars_in_atom).collect(),
+  match head {
+    RuleHead::Atom(atom) => collect_vars_in_atom(atom),
+    RuleHead::Conjunction(c) => c.iter_atoms().flat_map(collect_vars_in_atom).collect(),
+    RuleHead::Disjunction(d) => d.iter_atoms().flat_map(collect_vars_in_atom).collect(),
   }
 }
 
 fn collect_vars_in_atom(atom: &Atom) -> Vec<(String, Loc)> {
   atom
-    .iter_arguments()
+    .iter_args()
     .flat_map(|arg| {
       arg
         .collect_used_variables()

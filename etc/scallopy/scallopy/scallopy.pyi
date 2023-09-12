@@ -1,7 +1,7 @@
 from typing import Dict, List, Union, Tuple, Optional, Any
 
 from .provenance import ScallopProvenance
-from .io import CSVFileOptions
+from .input_output import CSVFileOptions
 
 
 def torch_tensor_enabled() -> bool:
@@ -34,6 +34,8 @@ class InternalScallopContext:
 
   def compile(self): ...
 
+  def enable_tensor_registry(self): ...
+
   def set_k(self, k: int): ...
 
   def set_early_discard(self, early_discard: bool = True): ...
@@ -65,14 +67,16 @@ class InternalScallopContext:
 
   def check_tuples(self, relation: str, elems: List[Tuple]) -> bool: ...
 
+  def add_program(self, program: str) -> None: ...
+
+  def add_item(self, program: str) -> List[str]: ...
+
   def add_rule(
     self,
     rule: str,
     tag: Optional[Any] = None,
     demand: Optional[str] = None,
   ) -> None: ...
-
-  def add_entity(self, relation: str, entity_tuple: Tuple[str]) -> None: ...
 
   def compile_entity(self, relation: str, entity_tuple: Tuple[str]) -> Dict[str, List[Tuple]]: ...
 
@@ -95,6 +99,8 @@ class InternalScallopContext:
   def num_relations(self, include_hidden: bool = False) -> int: ...
 
   def relations(self, include_hidden: bool = False) -> List[str]: ...
+
+  def relation_field_names(self, relation: str) -> List[Optional[str]]: ...
 
 
 class InternalScallopCollection:

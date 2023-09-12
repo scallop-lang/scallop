@@ -86,6 +86,10 @@ pub trait Provenance: Clone + 'static {
     vec![DynamicElement::new(batch.len(), self.one())]
   }
 
+  fn dynamic_discrete_count(&self, batch: DynamicElements<Self>) -> DynamicElements<Self> {
+    vec![DynamicElement::new(batch.len(), self.one())]
+  }
+
   fn dynamic_sum(&self, ty: &ValueType, batch: DynamicElements<Self>) -> DynamicElements<Self> {
     let s = ty.sum(batch.iter_tuples());
     vec![DynamicElement::new(s, self.one())]

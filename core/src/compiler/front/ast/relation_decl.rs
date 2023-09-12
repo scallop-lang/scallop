@@ -1,219 +1,129 @@
-use serde::*;
-
 use super::*;
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct ConstantTupleNode {
+pub struct _ConstantTuple {
   pub elems: Vec<ConstantOrVariable>,
 }
 
-pub type ConstantTuple = AstNode<ConstantTupleNode>;
-
 impl ConstantTuple {
   pub fn arity(&self) -> usize {
-    self.node.elems.len()
+    self.elems().len()
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct ConstantSetTupleNode {
+pub struct _ConstantSetTuple {
   pub tag: Tag,
   pub tuple: ConstantTuple,
 }
 
-pub type ConstantSetTuple = AstNode<ConstantSetTupleNode>;
-
 impl ConstantSetTuple {
-  pub fn tag(&self) -> &Tag {
-    &self.node.tag
-  }
-
   pub fn arity(&self) -> usize {
-    self.node.tuple.arity()
+    self.tuple().arity()
   }
 
   pub fn iter_constants(&self) -> impl Iterator<Item = &ConstantOrVariable> {
-    self.node.tuple.node.elems.iter()
+    self.tuple().elems().iter()
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct ConstantSetNode {
+pub struct _ConstantSet {
   pub tuples: Vec<ConstantSetTuple>,
   pub is_disjunction: bool,
 }
 
-pub type ConstantSet = AstNode<ConstantSetNode>;
-
-impl ConstantSet {
-  pub fn num_tuples(&self) -> usize {
-    self.node.tuples.len()
-  }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct ConstantSetDeclNode {
+pub struct _ConstantSetDecl {
   pub attrs: Attributes,
   pub name: Identifier,
   pub set: ConstantSet,
 }
 
-pub type ConstantSetDecl = AstNode<ConstantSetDeclNode>;
-
 impl ConstantSetDecl {
-  pub fn attributes(&self) -> &Attributes {
-    &self.node.attrs
-  }
-
-  pub fn attributes_mut(&mut self) -> &mut Attributes {
-    &mut self.node.attrs
-  }
-
-  pub fn predicate(&self) -> &String {
-    &self.node.name.node.name
+  pub fn predicate_name(&self) -> &String {
+    self.name().name()
   }
 
   pub fn is_disjunction(&self) -> bool {
-    self.node.set.node.is_disjunction
-  }
-
-  pub fn num_tuples(&self) -> usize {
-    self.node.set.num_tuples()
-  }
-
-  pub fn iter_tuples(&self) -> impl Iterator<Item = &ConstantSetTuple> {
-    self.node.set.node.tuples.iter()
+    self.set().is_disjunction().clone()
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct FactDeclNode {
+pub struct _FactDecl {
   pub attrs: Attributes,
   pub tag: Tag,
   pub atom: Atom,
 }
 
-pub type FactDecl = AstNode<FactDeclNode>;
-
 impl FactDecl {
-  pub fn attributes(&self) -> &Attributes {
-    &self.node.attrs
-  }
-
-  pub fn attributes_mut(&mut self) -> &mut Attributes {
-    &mut self.node.attrs
-  }
-
-  pub fn predicate(&self) -> String {
-    self.node.atom.predicate()
+  pub fn predicate_name(&self) -> &String {
+    self.atom().predicate().name()
   }
 
   pub fn arity(&self) -> usize {
-    self.node.atom.arity()
+    self.atom().arity()
   }
 
-  pub fn iter_arguments(&self) -> impl Iterator<Item = &Expr> {
-    self.node.atom.iter_arguments()
+  pub fn iter_args(&self) -> impl Iterator<Item = &Expr> {
+    self.atom().iter_args()
   }
 
   pub fn iter_constants(&self) -> impl Iterator<Item = &Constant> {
-    self.iter_arguments().map(|expr| match expr {
-      Expr::Constant(c) => c,
-      _ => panic!("[Internal Error] Fact argument not constant"),
-    })
-  }
-
-  pub fn atom(&self) -> &Atom {
-    &self.node.atom
+    self.iter_args().filter_map(|expr| expr.as_constant())
   }
 
   pub fn has_tag(&self) -> bool {
-    self.node.tag.is_some()
-  }
-
-  pub fn tag(&self) -> &Tag {
-    &self.node.tag
+    self.tag().is_some()
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct RuleDeclNode {
+pub struct _RuleDecl {
   pub attrs: Attributes,
   pub tag: Tag,
   pub rule: Rule,
 }
 
-impl RuleDeclNode {
-  pub fn new(attrs: Attributes, tag: Tag, rule: Rule) -> Self {
-    Self { attrs, tag, rule }
-  }
-}
-
-pub type RuleDecl = AstNode<RuleDeclNode>;
-
 impl RuleDecl {
-  pub fn attributes(&self) -> &Attributes {
-    &self.node.attrs
-  }
-
-  pub fn attributes_mut(&mut self) -> &mut Attributes {
-    &mut self.node.attrs
-  }
-
-  pub fn rule(&self) -> &Rule {
-    &self.node.rule
-  }
-
-  pub fn tag(&self) -> &Tag {
-    &self.node.tag
-  }
-
   pub fn rule_tag_predicate(&self) -> String {
-    if let Some(head_atom) = self.rule().head().atom() {
-      format!("rt#{}#{}", head_atom.predicate(), self.id())
+    if let Some(head_atom) = self.rule().head().as_atom() {
+      format!("rt#{}#{}", head_atom.predicate(), self.location_id().expect("location id has not been tagged yet"))
     } else {
       unimplemented!("Rule head is not an atom")
     }
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub enum RelationDeclNode {
+pub enum RelationDecl {
   Set(ConstantSetDecl),
   Fact(FactDecl),
   Rule(RuleDecl),
 }
 
-pub type RelationDecl = AstNode<RelationDeclNode>;
-
 impl RelationDecl {
-  pub fn attributes(&self) -> &Attributes {
-    match &self.node {
-      RelationDeclNode::Set(s) => s.attributes(),
-      RelationDeclNode::Fact(f) => f.attributes(),
-      RelationDeclNode::Rule(r) => r.attributes(),
+  pub fn attrs(&self) -> &Attributes {
+    match self {
+      RelationDecl::Set(s) => s.attrs(),
+      RelationDecl::Fact(f) => f.attrs(),
+      RelationDecl::Rule(r) => r.attrs(),
     }
   }
 
-  pub fn attributes_mut(&mut self) -> &mut Attributes {
-    match &mut self.node {
-      RelationDeclNode::Set(s) => s.attributes_mut(),
-      RelationDeclNode::Fact(f) => f.attributes_mut(),
-      RelationDeclNode::Rule(r) => r.attributes_mut(),
-    }
-  }
-
-  pub fn rule(&self) -> Option<&Rule> {
-    match &self.node {
-      RelationDeclNode::Rule(r) => Some(&r.node.rule),
-      _ => None,
+  pub fn attrs_mut(&mut self) -> &mut Attributes {
+    match self {
+      RelationDecl::Set(s) => s.attrs_mut(),
+      RelationDecl::Fact(f) => f.attrs_mut(),
+      RelationDecl::Rule(r) => r.attrs_mut(),
     }
   }
 }

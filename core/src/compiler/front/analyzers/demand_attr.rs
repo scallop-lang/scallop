@@ -5,7 +5,7 @@ use super::type_inference;
 
 #[derive(Clone, Debug)]
 pub struct DemandAttributeAnalysis {
-  pub demand_attrs: HashMap<String, (String, AstNodeLocation)>,
+  pub demand_attrs: HashMap<String, (String, NodeLocation)>,
   pub disjunctive_predicates: HashSet<String>,
   pub errors: Vec<DemandAttributeError>,
 }
@@ -25,19 +25,22 @@ impl DemandAttributeAnalysis {
 
   pub fn check_arity(&mut self, type_inference: &type_inference::TypeInference) {
     for (pred, (pattern, loc)) in &self.demand_attrs {
-      let (tys, _) = type_inference.inferred_relation_types.get(pred).unwrap();
-      if pattern.len() != tys.len() {
-        self.errors.push(DemandAttributeError::ArityMismatch {
-          pattern: pattern.clone(),
-          expected: tys.len(),
-          actual: pattern.len(),
-          loc: loc.clone(),
-        });
+      if let Some((tys, _)) = type_inference.inferred_relation_types.get(pred) {
+        if pattern.len() != tys.len() {
+          self.errors.push(DemandAttributeError::ArityMismatch {
+            pattern: pattern.clone(),
+            expected: tys.len(),
+            actual: pattern.len(),
+            loc: loc.clone(),
+          });
+        }
+      } else {
+        // This means that there is an error from type inference; we do not handle it now
       }
     }
   }
 
-  pub fn set_disjunctive(&mut self, pred: &String, loc: &AstNodeLocation) {
+  pub fn set_disjunctive(&mut self, pred: &String, loc: &NodeLocation) {
     if self.demand_attrs.contains_key(pred) {
       self
         .errors
@@ -62,11 +65,11 @@ impl DemandAttributeAnalysis {
     }
 
     // Check the pattern
-    if attr.name() == "demand" {
+    if attr.name().name().as_str() == "demand" {
       if attr.num_pos_args() == 1 {
         let value = attr.pos_arg(0).unwrap();
-        match value.as_constant().map(|v| &v.node) {
-          Some(ConstantNode::String(s)) => {
+        match value.as_constant() {
+          Some(Constant::String(s)) => {
             let string_content = s.string();
             if is_valid_demand_pattern(string_content) {
               if let Some((p, l)) = self.demand_attrs.get(pred) {
@@ -112,14 +115,16 @@ impl DemandAttributeAnalysis {
   }
 }
 
-impl NodeVisitor for DemandAttributeAnalysis {
-  fn visit_relation_type_decl(&mut self, rela_type_decl: &ast::RelationTypeDecl) {
-    for rela_type in rela_type_decl.relation_types() {
-      self.process_attributes(rela_type.predicate(), rela_type_decl.attributes());
+impl NodeVisitor<RelationTypeDecl> for DemandAttributeAnalysis {
+  fn visit(&mut self, rela_type_decl: &RelationTypeDecl) {
+    for rela_type in rela_type_decl.rel_types() {
+      self.process_attributes(rela_type.predicate_name(), rela_type_decl.attrs());
     }
   }
+}
 
-  fn visit_rule_decl(&mut self, rule_decl: &ast::RuleDecl) {
+impl NodeVisitor<RuleDecl> for DemandAttributeAnalysis {
+  fn visit(&mut self, rule_decl: &RuleDecl) {
     if rule_decl.rule().head().is_disjunction() {
       for predicate in rule_decl.rule().head().iter_predicates() {
         self.set_disjunctive(&predicate, rule_decl.rule().head().location());
@@ -128,8 +133,8 @@ impl NodeVisitor for DemandAttributeAnalysis {
     }
 
     // Otherwise, we add the demand attribute
-    if let Some(atom) = rule_decl.rule().head().atom() {
-      self.process_attributes(&atom.predicate(), rule_decl.attributes());
+    if let Some(atom) = rule_decl.rule().head().as_atom() {
+      self.process_attributes(atom.predicate().name(), rule_decl.attrs());
     }
   }
 }
@@ -143,28 +148,28 @@ pub enum DemandAttributeError {
   InvalidNumArgs {
     pred: String,
     actual_num_args: usize,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   InvalidArgumentType {
     found: String,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   ConflictingPattern {
-    first_loc: AstNodeLocation,
-    second_loc: AstNodeLocation,
+    first_loc: NodeLocation,
+    second_loc: NodeLocation,
   },
   ArityMismatch {
     pattern: String,
     expected: usize,
     actual: usize,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   InvalidPattern {
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   DisjunctivePredicateWithDemandAttribute {
     pred: String,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
 }
 

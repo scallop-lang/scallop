@@ -3,35 +3,34 @@ use crate::common::expr::Expr;
 
 #[derive(Clone)]
 pub struct DynamicFilterDataflow<'a, Prov: Provenance> {
-  pub source: Box<DynamicDataflow<'a, Prov>>,
+  pub source: DynamicDataflow<'a, Prov>,
   pub filter: Expr,
+  pub runtime: &'a RuntimeEnvironment,
 }
 
-impl<'a, Prov: Provenance> DynamicFilterDataflow<'a, Prov> {
-  pub fn iter_stable(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::filter(runtime, self.source.iter_stable(runtime), self.filter.clone())
+impl<'a, Prov: Provenance> Dataflow<'a, Prov> for DynamicFilterDataflow<'a, Prov> {
+  fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
+    DynamicBatches::new(DynamicFilterBatches { runtime: self.runtime, source: self.source.iter_stable(), filter: self.filter.clone() })
   }
 
-  pub fn iter_recent(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::filter(runtime, self.source.iter_recent(runtime), self.filter.clone())
+  fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
+    DynamicBatches::new(DynamicFilterBatches { runtime: self.runtime, source: self.source.iter_recent(), filter: self.filter.clone() })
   }
 }
 
 #[derive(Clone)]
 pub struct DynamicFilterBatches<'a, Prov: Provenance> {
   pub runtime: &'a RuntimeEnvironment,
-  pub source: Box<DynamicBatches<'a, Prov>>,
+  pub source: DynamicBatches<'a, Prov>,
   pub filter: Expr,
 }
 
-impl<'a, Prov: Provenance> Iterator for DynamicFilterBatches<'a, Prov> {
-  type Item = DynamicBatch<'a, Prov>;
-
-  fn next(&mut self) -> Option<Self::Item> {
-    self.source.next().map(|b| {
-      DynamicBatch::Filter(DynamicFilterBatch {
+impl<'a, Prov: Provenance> Batches<'a, Prov> for DynamicFilterBatches<'a, Prov> {
+  fn next_batch(&mut self) -> Option<DynamicBatch<'a, Prov>> {
+    self.source.next_batch().map(|b| {
+      DynamicBatch::new(DynamicFilterBatch {
         runtime: self.runtime,
-        source: Box::new(b),
+        source: b,
         filter: self.filter.clone(),
       })
     })
@@ -41,15 +40,13 @@ impl<'a, Prov: Provenance> Iterator for DynamicFilterBatches<'a, Prov> {
 #[derive(Clone)]
 pub struct DynamicFilterBatch<'a, Prov: Provenance> {
   pub runtime: &'a RuntimeEnvironment,
-  pub source: Box<DynamicBatch<'a, Prov>>,
+  pub source: DynamicBatch<'a, Prov>,
   pub filter: Expr,
 }
 
-impl<'a, Prov: Provenance> Iterator for DynamicFilterBatch<'a, Prov> {
-  type Item = DynamicElement<Prov>;
-
-  fn next(&mut self) -> Option<Self::Item> {
-    for elem in self.source.by_ref() {
+impl<'a, Prov: Provenance> Batch<'a, Prov> for DynamicFilterBatch<'a, Prov> {
+  fn next_elem(&mut self) -> Option<DynamicElement<Prov>> {
+    while let Some(elem) = self.source.next_elem() {
       if let Some(tup) = self.runtime.eval(&self.filter, &elem.tuple) {
         if tup.as_bool() {
           return Some(elem);

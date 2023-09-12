@@ -20,6 +20,7 @@ mod soft_neq;
 mod string_chars;
 mod string_find;
 mod string_split;
+mod tensor_shape;
 
 pub use datetime_ymd::*;
 pub use float_eq::*;
@@ -32,3 +33,4 @@ pub use soft_neq::*;
 pub use string_chars::*;
 pub use string_find::*;
 pub use string_split::*;
+pub use tensor_shape::*;

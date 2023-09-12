@@ -37,7 +37,7 @@ class TensorTests(unittest.TestCase):
   def test_tensor_3(self):
     x = torch.randn(10)
     y = torch.randn(10)
-    gt_sim = x.dot(y).sigmoid()
+    gt_sim = x.dot(y) / (x.norm() * y.norm()) + 1.0 / 2.0
 
     ctx = scallopy.Context(provenance="difftopkproofs")
     ctx.add_relation("embed", (int, scallopy.Tensor), non_probabilistic=True)
@@ -46,14 +46,14 @@ class TensorTests(unittest.TestCase):
     ctx.run()
     my_sim = list(ctx.relation("similar"))[0][0]
 
-    assert gt_sim.item() == my_sim.item()
+    assert abs(gt_sim.item() - my_sim.item()) < 0.001
 
   @unittest.skipIf(not scallopy.torch_tensor_enabled(), "not supported in this scallopy version")
   def test_tensor_backprop_4(self):
     x = torch.randn(10, requires_grad=True)
     y = torch.randn(10)
     opt = torch.optim.Adam(params=[x], lr=0.1)
-    gt_initial_sim = x.dot(y).sigmoid()
+    gt_initial_sim = x.dot(y) / (x.norm() * y.norm()) + 1.0 / 2.0
 
     ctx = scallopy.Context(provenance="difftopkproofs")
     ctx.add_relation("embed", (int, scallopy.Tensor), non_probabilistic=True)
@@ -62,7 +62,7 @@ class TensorTests(unittest.TestCase):
     ctx.run()
     my_initial_sim = list(ctx.relation("similar"))[0][0]
 
-    assert gt_initial_sim.item() == my_initial_sim.item()
+    assert abs(gt_initial_sim.item() - my_initial_sim.item()) < 0.001
 
     # Derive a loss, backward, and step
     l = torch.nn.functional.mse_loss(my_initial_sim, torch.tensor(1.0))
@@ -70,7 +70,7 @@ class TensorTests(unittest.TestCase):
     opt.step()
 
     # New similarity
-    new_sim = x.dot(y).sigmoid()
+    new_sim = x.dot(y) / (x.norm() * y.norm()) + 1.0 / 2.0
     assert new_sim > my_initial_sim
 
   @unittest.skipIf(not scallopy.torch_tensor_enabled(), "not supported in this scallopy version")

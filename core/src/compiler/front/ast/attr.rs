@@ -1,164 +1,174 @@
 use std::iter::FromIterator;
 
-use serde::*;
-
 use super::*;
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub enum AttributeValueNode {
-  Constant(Constant),
-  List(Vec<AttributeValue>),
-  Tuple(Vec<AttributeValue>),
+pub struct _AttributeValueList {
+  pub values: Vec<AttributeValue>,
 }
 
-/// The value of an attribute; it could be a list or a constant
-pub type AttributeValue = AstNode<AttributeValueNode>;
+impl AttributeValueList {
+  pub fn iter(&self) -> impl Iterator<Item = &AttributeValue> {
+    self.values().iter()
+  }
+
+  pub fn is_empty(&self) -> bool {
+    self.values().is_empty()
+  }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+#[doc(hidden)]
+pub struct _AttributeValueTuple {
+  pub values: Vec<AttributeValue>,
+}
+
+impl AttributeValueTuple {
+  pub fn iter(&self) -> impl Iterator<Item = &AttributeValue> {
+    self.values().iter()
+  }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+pub enum AttributeValue {
+  Constant(Constant),
+  List(AttributeValueList),
+  Tuple(AttributeValueTuple),
+}
 
 impl AttributeValue {
-  pub fn constant(c: Constant) -> Self {
-    Self::default(AttributeValueNode::Constant(c))
+  pub fn integer(i: i64) -> Self {
+    Self::constant(Constant::integer(IntLiteral::new(i)))
   }
 
-  pub fn is_constant(&self) -> bool {
-    match &self.node {
-      AttributeValueNode::Constant(_) => true,
-      _ => false,
-    }
+  pub fn float(f: f64) -> Self {
+    Self::constant(Constant::float(FloatLiteral::new(f)))
   }
 
-  pub fn is_list(&self) -> bool {
-    match &self.node {
-      AttributeValueNode::List(_) => true,
-      _ => false,
-    }
+  pub fn boolean(b: bool) -> Self {
+    Self::constant(Constant::boolean(BoolLiteral::new(b)))
   }
 
-  pub fn is_tuple(&self) -> bool {
-    match &self.node {
-      AttributeValueNode::Tuple(_) => true,
-      _ => false,
-    }
+  pub fn character(c: char) -> Self {
+    Self::constant(Constant::char(CharLiteral::new(c.into())))
   }
 
-  pub fn as_constant(&self) -> Option<&Constant> {
-    match &self.node {
-      AttributeValueNode::Constant(c) => Some(c),
-      _ => None,
-    }
+  pub fn string(s: String) -> Self {
+    Self::constant(Constant::string(StringLiteral::new(s)))
   }
 
-  pub fn as_bool(&self) -> Option<&bool> {
-    self.as_constant().and_then(Constant::as_bool)
+  pub fn as_integer(&self) -> Option<i64> {
+    self.as_constant().and_then(|c| c.as_integer()).map(|b| b.int().clone())
   }
 
-  pub fn as_integer(&self) -> Option<&i64> {
-    self.as_constant().and_then(Constant::as_integer)
+  pub fn as_float(&self) -> Option<f64> {
+    self.as_constant().and_then(|c| c.as_float()).map(|b| b.float().clone())
   }
 
-  pub fn as_string(&self) -> Option<&String> {
-    self.as_constant().and_then(Constant::as_string)
+  pub fn as_boolean(&self) -> Option<bool> {
+    self.as_constant().and_then(|c| c.as_boolean()).map(|b| b.value().clone())
   }
 
-  pub fn as_list(&self) -> Option<&Vec<AttributeValue>> {
-    match &self.node {
-      AttributeValueNode::List(l) => Some(l),
-      _ => None,
-    }
-  }
-}
-
-impl From<Constant> for AttributeValue {
-  fn from(c: Constant) -> Self {
-    Self::new(c.location().clone_without_id(), AttributeValueNode::Constant(c))
+  pub fn as_string(&self) -> Option<String> {
+    self.as_constant().and_then(|c| c.as_string()).map(|b| b.string().clone())
   }
 }
 
 impl FromIterator<AttributeValue> for AttributeValue {
   fn from_iter<T: IntoIterator<Item = AttributeValue>>(iter: T) -> Self {
-    Self::default(AttributeValueNode::List(iter.into_iter().collect()))
+    AttributeValue::list(AttributeValueList::new(iter.into_iter().collect()))
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
-#[doc(hidden)]
-pub struct AttributeNode {
-  pub name: Identifier,
-  pub pos_args: Vec<AttributeValue>,
-  pub kw_args: Vec<(Identifier, AttributeValue)>,
+impl Into<AttributeArg> for AttributeValue {
+  fn into(self) -> AttributeArg {
+    AttributeArg::Pos(self)
+  }
 }
 
-/// An attribute of the form `@attr(args...)`
-pub type Attribute = AstNode<AttributeNode>;
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+#[doc(hidden)]
+pub struct _AttributeKwArg {
+  pub name: Identifier,
+  pub value: AttributeValue,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+#[doc(hidden)]
+pub enum AttributeArg {
+  Pos(AttributeValue),
+  Kw(AttributeKwArg),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+#[doc(hidden)]
+pub struct _Attribute {
+  pub name: Identifier,
+  pub args: Vec<AttributeArg>,
+}
 
 impl Attribute {
-  pub fn default_with_name(n: String) -> Self {
-    AttributeNode {
-      name: Identifier::default_with_name(n),
-      pos_args: Vec::new(),
-      kw_args: Vec::new(),
-    }
-    .into()
-  }
-
-  pub fn name(&self) -> &String {
-    &self.node.name.node.name
+  pub fn attr_name(&self) -> &String {
+    self.name().name()
   }
 
   pub fn num_pos_args(&self) -> usize {
-    self.node.pos_args.len()
+    self.iter_args().filter(|a| AttributeArg::is_pos(a)).fold(0, |acc, _| acc + 1)
+  }
+
+  pub fn iter_pos_args(&self) -> impl Iterator<Item = &AttributeValue> {
+    self.iter_args().filter_map(|a| AttributeArg::as_pos(a))
   }
 
   pub fn pos_arg(&self, i: usize) -> Option<&AttributeValue> {
-    self.node.pos_args.get(i)
+    self.iter_pos_args().nth(i)
   }
 
   pub fn pos_arg_to_bool(&self, i: usize) -> Option<&bool> {
     self
-      .node
-      .pos_args
-      .get(i)
+      .pos_arg(i)
       .and_then(AttributeValue::as_constant)
-      .and_then(Constant::as_bool)
+      .and_then(Constant::as_boolean)
+      .map(BoolLiteral::value)
   }
 
   pub fn pos_arg_to_integer(&self, i: usize) -> Option<&i64> {
     self
-      .node
-      .pos_args
-      .get(i)
+      .pos_arg(i)
       .and_then(AttributeValue::as_constant)
       .and_then(Constant::as_integer)
+      .map(IntLiteral::int)
   }
 
   pub fn pos_arg_to_string(&self, i: usize) -> Option<&String> {
     self
-      .node
-      .pos_args
-      .get(i)
+      .pos_arg(i)
       .and_then(AttributeValue::as_constant)
       .and_then(Constant::as_string)
+      .map(StringLiteral::string)
   }
 
   pub fn pos_arg_to_list(&self, i: usize) -> Option<&Vec<AttributeValue>> {
-    self.node.pos_args.get(i).and_then(AttributeValue::as_list)
-  }
-
-  pub fn iter_pos_args(&self) -> impl Iterator<Item = &AttributeValue> {
-    self.node.pos_args.iter()
+    self
+      .pos_arg(i)
+      .and_then(AttributeValue::as_list)
+      .map(AttributeValueList::values)
   }
 
   pub fn num_kw_args(&self) -> usize {
-    self.node.kw_args.len()
+    self.iter_args().filter(|a| AttributeArg::is_kw(a)).fold(0, |acc, _| acc + 1)
+  }
+
+  pub fn iter_kw_args(&self) -> impl Iterator<Item = &AttributeKwArg> {
+    self.iter_args().filter_map(|a| AttributeArg::as_kw(a))
   }
 
   pub fn kw_arg(&self, kw: &str) -> Option<&AttributeValue> {
-    for (name, arg) in &self.node.kw_args {
-      if name.name() == kw {
-        return Some(arg);
-      }
-    }
-    None
+    self
+      .iter_kw_args()
+      .find(|kw_arg| kw_arg.name().name() == kw)
+      .map(|kw_arg| kw_arg.value())
   }
 }
 
@@ -172,7 +182,7 @@ pub trait AttributesTrait {
 impl AttributesTrait for Attributes {
   fn find(&self, name: &str) -> Option<&Attribute> {
     for attr in self {
-      if attr.name() == name {
+      if attr.attr_name() == name {
         return Some(attr);
       }
     }

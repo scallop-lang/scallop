@@ -7,4 +7,3 @@ edition = "2018"
 [dependencies]
 petgraph = "0.6"
 itertools = "0.10"
-rsat = { path = "../rsat" }

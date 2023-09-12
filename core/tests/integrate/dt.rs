@@ -14,10 +14,36 @@ fn dt_fib_1() {
 }
 
 #[test]
+fn dt_fib_1_2() {
+  expect_interpret_result(
+    r#"
+      type fib(bound i32, i32)
+      rel fib = {(0, 1), (1, 1)}
+      rel fib(x, a + b) = fib(x - 1, a), fib(x - 2, b), x > 1
+      query fib(10, y)
+    "#,
+    ("fib(10, y)", vec![(10i32, 89i32)]),
+  );
+}
+
+#[test]
 fn dt_range_1() {
   expect_interpret_result(
     r#"
       @demand("bbf")
+      rel range(a, b, i) = a == i
+      rel range(a, b, i) = range(a, b, i - 1), i < b
+      query range(1, 4, x)
+    "#,
+    ("range(1, 4, x)", vec![(1i32, 4i32, 1i32), (1, 4, 2), (1, 4, 3)]),
+  );
+}
+
+#[test]
+fn dt_range_1_2() {
+  expect_interpret_result(
+    r#"
+      type range(bound a: i32, bound b: i32, free i: i32)
       rel range(a, b, i) = a == i
       rel range(a, b, i) = range(a, b, i - 1), i < b
       query range(1, 4, x)

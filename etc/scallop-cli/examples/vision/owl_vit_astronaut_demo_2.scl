@@ -1,0 +1,21 @@
+rel image_dir = {"etc/scallop-cli/res/testing/images/astronaut_example.png"}
+
+@owl_vit(
+  output_fields=["class", "cropped-image", "bbox-center-x", "bbox-center-y"],
+  dump_image=true,
+)
+type search_image(
+  bound img: Tensor,
+  bound objects: String,
+  id: u32,
+  found_object: String,
+  cropped_image: Tensor,
+  bbox_x: u32,
+  bbox_y: u32
+)
+
+rel image($load_image(path)) = image_dir(path)
+
+type found(id: u32, obj: String, x: u32, y: u32)
+rel found(id, object, x, y) = image(img) and search_image(img, "human face;rocket;nasa badge;star-spangled banner", id, object, _, x, y)
+query found

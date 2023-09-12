@@ -101,8 +101,8 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
       .into_iter()
       .map(|(info, tuple)| DynamicElement::new(tuple.into(), ctx.tagging_optional_fn(info)))
       .collect::<Vec<_>>();
-    let dataflow = DynamicDataflow::Vec(&elements);
-    self.insert_dataflow_recent(ctx, &dataflow, &RuntimeEnvironment::default());
+
+    self.to_add.borrow_mut().push(DynamicCollection::from_vec(elements, ctx));
   }
 
   pub fn insert_tagged_with_monitor<Tup, M>(&self, ctx: &Prov, data: Vec<(Option<InputTagOf<Prov>>, Tup)>, m: &M)
@@ -119,8 +119,8 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
         DynamicElement::new(tuple, tag)
       })
       .collect::<Vec<_>>();
-    let dataflow = DynamicDataflow::Vec(&elements);
-    self.insert_dataflow_recent(ctx, &dataflow, &RuntimeEnvironment::default());
+
+    self.to_add.borrow_mut().push(DynamicCollection::from_vec(elements, ctx));
   }
 
   pub fn num_stable(&self) -> usize {
@@ -221,10 +221,10 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     !self.recent.borrow().is_empty()
   }
 
-  pub fn insert_dataflow_recent<'a>(&self, ctx: &Prov, d: &DynamicDataflow<'a, Prov>, runtime: &'a RuntimeEnvironment) {
-    for batch in d.iter_recent(runtime) {
+  pub fn insert_dataflow_recent<'a>(&'a self, ctx: &'a Prov, d: &DynamicDataflow<'a, Prov>, runtime: &'a RuntimeEnvironment) {
+    for batch in d.iter_recent() {
       let data = if runtime.early_discard {
-        batch.filter(|e| !ctx.discard(&e.tag)).collect::<Vec<_>>()
+        batch.filter(move |e| !ctx.discard(&e.tag)).collect::<Vec<_>>()
       } else {
         batch.collect::<Vec<_>>()
       };
@@ -232,10 +232,10 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     }
   }
 
-  pub fn insert_dataflow_stable<'a>(&self, ctx: &Prov, d: &DynamicDataflow<'a, Prov>, runtime: &'a RuntimeEnvironment) {
-    for batch in d.iter_stable(runtime) {
+  pub fn insert_dataflow_stable<'a>(&'a self, ctx: &'a Prov, d: &DynamicDataflow<'a, Prov>, runtime: &'a RuntimeEnvironment) {
+    for batch in d.iter_stable() {
       let data = if runtime.early_discard {
-        batch.filter(|e| !ctx.discard(&e.tag)).collect::<Vec<_>>()
+        batch.filter(move |e| !ctx.discard(&e.tag)).collect::<Vec<_>>()
       } else {
         batch.collect::<Vec<_>>()
       };

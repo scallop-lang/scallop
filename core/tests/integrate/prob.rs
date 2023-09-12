@@ -45,3 +45,18 @@ fn test_min_max_with_recursion() {
     min_max_prob::MinMaxProbProvenance::cmp,
   )
 }
+
+#[test]
+fn test_discrete_count() {
+  let ctx = min_max_prob::MinMaxProbProvenance::default();
+  expect_interpret_result_with_tag(
+    r#"
+      rel obj = {0.9::0, 0.5::1, 0.1::2}
+      rel hard_count(n) = n := count!(id: obj(id))
+      query hard_count
+    "#,
+    ctx,
+    ("hard_count", vec![(1.0, (3usize,))]),
+    min_max_prob::MinMaxProbProvenance::cmp,
+  )
+}

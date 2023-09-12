@@ -261,7 +261,7 @@ fn generate_binding_error_code() -> TokenStream {
 
     impl std::convert::From<BindingError> for PyErr {
       fn from(err: BindingError) -> Self {
-        let err_str = format!("Scallop Error: {}", err.0);
+        let err_str = format!("{}", err.0);
         let py_err_str: Py<PyAny> = Python::with_gil(|py| err_str.to_object(py));
         PyException::new_err(py_err_str)
       }

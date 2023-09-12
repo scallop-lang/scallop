@@ -2,107 +2,61 @@ use crate::common::tuple::Tuple;
 use crate::runtime::dynamic::*;
 use crate::runtime::provenance::*;
 
-use super::super::*;
+pub trait Batch<'a, Prov: Provenance>: 'a + dyn_clone::DynClone {
+  /// Get the next element in the batch
+  fn next_elem(&mut self) -> Option<DynamicElement<Prov>>;
 
-#[derive(Clone)]
-pub enum DynamicBatch<'a, Prov: Provenance> {
-  Vec(std::slice::Iter<'a, DynamicElement<Prov>>),
-  UntaggedVec(&'a Prov, std::vec::IntoIter<Tuple>),
-  SourceVec(std::vec::IntoIter<DynamicElement<Prov>>),
-  DynamicRelationStable(DynamicRelationStableBatch<'a, Prov>),
-  DynamicRelationRecent(DynamicRelationRecentBatch<'a, Prov>),
-  OverwriteOne(DynamicOverwriteOneBatch<'a, Prov>),
-  Project(DynamicProjectBatch<'a, Prov>),
-  Filter(DynamicFilterBatch<'a, Prov>),
-  Find(DynamicFindBatch<'a, Prov>),
-  Intersect(DynamicIntersectBatch<'a, Prov>),
-  Join(DynamicJoinBatch<'a, Prov>),
-  Product(DynamicProductBatch<'a, Prov>),
-  Difference(DynamicDifferenceBatch<'a, Prov>),
-  Antijoin(DynamicAntijoinBatch<'a, Prov>),
-  ForeignPredicateConstraint(ForeignPredicateConstraintBatch<'a, Prov>),
-  ForeignPredicateJoin(ForeignPredicateJoinBatch<'a, Prov>),
-  Exclusion(DynamicExclusionBatch<'a, Prov>),
+  /// Step the batch iterator for `u` steps
+  fn step(&mut self, u: usize) {
+    for _ in 0..u {
+      self.next_elem();
+    }
+  }
+
+  /// Search the elements until (before) the `until` tuple is reached;
+  /// Should only have effect when the input is sorted.
+  #[allow(unused)]
+  fn search_until(&mut self, until: &Tuple) -> Option<DynamicElement<Prov>> {
+    self.next_elem()
+  }
+
+  /// Search the elements (using the first part `[0]` of the tuple) until (before) the `until` tuple is reached;
+  /// Should only have effect when the input is sorted.
+  #[allow(unused)]
+  fn search_elem_0_until(&mut self, until: &Tuple) -> Option<DynamicElement<Prov>> {
+    self.next_elem()
+  }
+}
+
+pub struct DynamicBatch<'a, Prov: Provenance>(Box<dyn Batch<'a, Prov>>);
+
+impl<'a, Prov: Provenance> Clone for DynamicBatch<'a, Prov> {
+  fn clone(&self) -> Self {
+    Self(dyn_clone::clone_box(&*self.0))
+  }
+}
+
+impl<'a, Prov: Provenance> Batch<'a, Prov> for DynamicBatch<'a, Prov> {
+  fn next_elem(&mut self) -> Option<DynamicElement<Prov>> {
+    self.0.next_elem()
+  }
+
+  fn step(&mut self, u: usize) {
+    self.0.step(u)
+  }
+
+  fn search_until(&mut self, until: &Tuple) -> Option<DynamicElement<Prov>> {
+    self.0.search_until(until)
+  }
 }
 
 impl<'a, Prov: Provenance> DynamicBatch<'a, Prov> {
-  pub fn vec(v: &'a Vec<DynamicElement<Prov>>) -> Self {
-    Self::Vec(v.iter())
+  pub fn new<B: Batch<'a, Prov>>(b: B) -> Self {
+    Self(Box::new(b))
   }
 
-  pub fn untagged_vec(ctx: &'a Prov, v: std::vec::IntoIter<Tuple>) -> Self {
-    Self::UntaggedVec(ctx, v)
-  }
-
-  pub fn source_vec(v: Vec<DynamicElement<Prov>>) -> Self {
-    Self::SourceVec(v.into_iter())
-  }
-
-  pub fn step(&mut self, u: usize) {
-    match self {
-      Self::DynamicRelationStable(s) => s.elem_id += u,
-      Self::DynamicRelationRecent(r) => r.elem_id += u,
-      _ => {
-        for _ in 0..u {
-          self.next();
-        }
-      }
-    }
-  }
-
-  pub fn search_ahead<F>(&mut self, cmp: F) -> Option<DynamicElement<Prov>>
-  where
-    F: FnMut(&Tuple) -> bool,
-  {
-    fn search_ahead_variable_helper_1<Prov, F>(
-      collection: &DynamicCollection<Prov>,
-      elem_id: &mut usize,
-      mut cmp: F,
-    ) -> bool
-    where
-      Prov: Provenance,
-      F: FnMut(&Tuple) -> bool,
-    {
-      assert!(*elem_id > 0);
-      let mut curr = *elem_id - 1;
-      if curr < collection.len() && cmp(&collection[curr].tuple) {
-        let mut step = 1;
-        while curr + step < collection.len() && cmp(&collection[curr + step].tuple) {
-          curr += step;
-          step <<= 1;
-        }
-        step >>= 1;
-        while step > 0 {
-          if curr + step < collection.len() && cmp(&collection[curr + step].tuple) {
-            curr += step;
-          }
-          step >>= 1;
-        }
-        *elem_id = curr + 1;
-        true
-      } else {
-        false
-      }
-    }
-
-    match self {
-      Self::DynamicRelationStable(s) => {
-        let col = &s.collections[s.rela_id];
-        if search_ahead_variable_helper_1(col, &mut s.elem_id, cmp) {
-          self.next()
-        } else {
-          None
-        }
-      }
-      Self::DynamicRelationRecent(r) => {
-        if search_ahead_variable_helper_1(&r.collection, &mut r.elem_id, cmp) {
-          self.next()
-        } else {
-          None
-        }
-      }
-      _ => self.next(),
-    }
+  pub fn filter<F: Fn(&DynamicElement<Prov>) -> bool + Clone + 'a>(self, f: F) -> Self {
+    Self(Box::new(FilterBatch { child: self, filter_fn: f }))
   }
 }
 
@@ -110,24 +64,70 @@ impl<'a, Prov: Provenance> Iterator for DynamicBatch<'a, Prov> {
   type Item = DynamicElement<Prov>;
 
   fn next(&mut self) -> Option<Self::Item> {
-    match self {
-      Self::Vec(iter) => iter.next().map(Clone::clone),
-      Self::UntaggedVec(ctx, iter) => iter.next().map(|t| DynamicElement::new(t, ctx.one())),
-      Self::SourceVec(iter) => iter.next(),
-      Self::DynamicRelationStable(b) => b.next(),
-      Self::DynamicRelationRecent(b) => b.next(),
-      Self::OverwriteOne(o) => o.next(),
-      Self::Project(p) => p.next(),
-      Self::Filter(f) => f.next(),
-      Self::Find(f) => f.next(),
-      Self::Intersect(i) => i.next(),
-      Self::Join(j) => j.next(),
-      Self::Product(p) => p.next(),
-      Self::Difference(d) => d.next(),
-      Self::Antijoin(a) => a.next(),
-      Self::ForeignPredicateConstraint(b) => b.next(),
-      Self::ForeignPredicateJoin(b) => b.next(),
-      Self::Exclusion(e) => e.next(),
+    self.next_elem()
+  }
+}
+
+#[derive(Clone)]
+pub struct RefElementsBatch<'a, Prov: Provenance> {
+  iter: std::slice::Iter<'a, DynamicElement<Prov>>,
+}
+
+impl<'a, Prov: Provenance> RefElementsBatch<'a, Prov> {
+  pub fn new(elements: &'a DynamicElements<Prov>) -> Self {
+    Self {
+      iter: elements.iter(),
     }
+  }
+}
+
+impl<'a, Prov: Provenance> Batch<'a, Prov> for RefElementsBatch<'a, Prov> {
+  fn next_elem(&mut self) -> Option<DynamicElement<Prov>> {
+    self.iter.next().cloned()
+  }
+}
+
+#[derive(Clone)]
+pub struct ElementsBatch<Prov: Provenance> {
+  iter: std::vec::IntoIter<DynamicElement<Prov>>,
+}
+
+impl<Prov: Provenance> ElementsBatch<Prov> {
+  pub fn new(elems: DynamicElements<Prov>) -> Self {
+    Self {
+      iter: elems.into_iter(),
+    }
+  }
+}
+
+impl<'a, Prov: Provenance> Batch<'a, Prov> for ElementsBatch<Prov> {
+  fn next_elem(&mut self) -> Option<DynamicElement<Prov>> {
+    self.iter.next()
+  }
+}
+
+#[derive(Clone)]
+pub struct FilterBatch<'a, Prov: Provenance, F: Fn(&DynamicElement<Prov>) -> bool + Clone + 'a> {
+  child: DynamicBatch<'a, Prov>,
+  filter_fn: F,
+}
+
+impl<'a, Prov: Provenance, F: Fn(&DynamicElement<Prov>) -> bool + Clone> FilterBatch<'a, Prov, F> {
+  pub fn new<B: Batch<'a, Prov>>(child: B, filter_fn: F) -> Self {
+    Self {
+      child: DynamicBatch::new(child),
+      filter_fn,
+    }
+  }
+}
+
+impl<'a, Prov: Provenance, F: Fn(&DynamicElement<Prov>) -> bool + Clone> Batch<'a, Prov> for FilterBatch<'a, Prov, F> {
+  fn next_elem(&mut self) -> Option<DynamicElement<Prov>> {
+    while let Some(e) = self.child.next_elem() {
+      if (self.filter_fn)(&e) {
+        return Some(e);
+      }
+    }
+    None
   }
 }

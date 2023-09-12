@@ -50,7 +50,7 @@ It introduces language features such as relational programming, negation and agg
 Reading through all of these you should be well-versed in Scallop's core functionality and you will be able to use Scallop as a Datalog engine.
 
 ``` scl
-@demand("bf")
+type fib(bound x: i32, y: i32)
 rel fib = {(0, 1), (1, 1)}
 rel fib(x, y1 + y2) = fib(x - 1, y1) and fib(x - 2, y2) and x > 1
 query fib(10, y)

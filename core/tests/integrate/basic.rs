@@ -1314,7 +1314,7 @@ fn escape_emoji_unicode() {
 }
 
 #[test]
-fn escape_multiline_string() {
+fn multiline_string_1() {
   expect_interpret_result(
     r#"
       rel str = {"""This
@@ -1328,7 +1328,7 @@ string"""}
 }
 
 #[test]
-fn escape_indented_multiline_string() {
+fn indented_multiline_string() {
   expect_interpret_result(
     r#"
       rel str = {"""This
@@ -1342,7 +1342,23 @@ fn escape_indented_multiline_string() {
 }
 
 #[test]
-fn escape_mix_multiline_string_before() {
+fn escape_unindented_multiline_string_2() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""
+This
+is
+a
+multiline
+string
+      """}
+    "#,
+    ("str", vec![("\nThis\nis\na\nmultiline\nstring\n      ".to_string(),)]),
+  );
+}
+
+#[test]
+fn mix_multiline_string_before() {
   expect_interpret_result(
     r#"
       rel str = {"""This
@@ -1351,12 +1367,18 @@ a
 multiline
 string""", "A regular string"}
     "#,
-    ("str", vec![("This\nis\na\nmultiline\nstring".to_string(),), ("A regular string".to_string(),)]),
+    (
+      "str",
+      vec![
+        ("This\nis\na\nmultiline\nstring".to_string(),),
+        ("A regular string".to_string(),),
+      ],
+    ),
   );
 }
 
 #[test]
-fn escape_mix_multiline_string_after() {
+fn mix_multiline_string_after() {
   expect_interpret_result(
     r#"
       rel str = {"First string", """This
@@ -1365,12 +1387,18 @@ a
 multiline
 string"""}
     "#,
-    ("str", vec![("First string".to_string(),), ("This\nis\na\nmultiline\nstring".to_string(),)]),
+    (
+      "str",
+      vec![
+        ("First string".to_string(),),
+        ("This\nis\na\nmultiline\nstring".to_string(),),
+      ],
+    ),
   );
 }
 
 #[test]
-fn escape_multiple_multiline_string() {
+fn multiple_multiline_string() {
   expect_interpret_result(
     r#"
       rel str = {"""This
@@ -1383,24 +1411,51 @@ second
 multiline
 string"""}
     "#,
-    ("str", vec![("This\nis\na\nmultiline\nstring".to_string(),), ("A\nsecond\nmultiline\nstring".to_string(),)]),
+    (
+      "str",
+      vec![
+        ("This\nis\na\nmultiline\nstring".to_string(),),
+        ("A\nsecond\nmultiline\nstring".to_string(),),
+      ],
+    ),
   );
 }
 
 #[test]
-fn escape_multiline_string_with_regular_string() {
+fn multiline_string_with_regular_string() {
   expect_interpret_result(
     r#"
       rel str = {"""Here is a multiline string with quote:
 "This is a test"
 By John Doe"""}
     "#,
-    ("str", vec![("Here is a multiline string with quote:\n\"This is a test\"\nBy John Doe".to_string(),)]),
+    (
+      "str",
+      vec![("Here is a multiline string with quote:\n\"This is a test\"\nBy John Doe".to_string(),)],
+    ),
   );
 }
 
 #[test]
-fn escape_multiline_string_with_multiple_regular_string() {
+fn multiline_string_with_regular_string_2() {
+  expect_interpret_result(
+    r#"
+      rel str = {"""Here is a multiline string with quote:
+"This is a test"
+By John Doe""", """something else"""}
+    "#,
+    (
+      "str",
+      vec![
+        ("Here is a multiline string with quote:\n\"This is a test\"\nBy John Doe".to_string(),),
+        ("something else".to_string(),),
+      ],
+    ),
+  );
+}
+
+#[test]
+fn multiline_string_with_multiple_regular_string() {
   expect_interpret_result(
     r#"
       rel str = {"""Here is a multiline string with quote:
@@ -1409,36 +1464,45 @@ By
 "Anonymous"
 """}
     "#,
-    ("str", vec![("Here is a multiline string with quote:\n\"This is a test\"\nBy\n\"Anonymous\"\n".to_string(),)]),
+    (
+      "str",
+      vec![("Here is a multiline string with quote:\n\"This is a test\"\nBy\n\"Anonymous\"\n".to_string(),)],
+    ),
   );
 }
 
 #[test]
-fn escape_multiline_string_with_escaped_double_quote_string() {
+fn multiline_string_with_escaped_double_quote_string() {
   expect_interpret_result(
     r#"
       rel str = {"""Here is a multiline string with quote:
 \"\"This is a test\"\"
 By Jane Doe"""}
     "#,
-    ("str", vec![("Here is a multiline string with quote:\n\"\"This is a test\"\"\nBy Jane Doe".to_string(),)]),
+    (
+      "str",
+      vec![("Here is a multiline string with quote:\n\"\"This is a test\"\"\nBy Jane Doe".to_string(),)],
+    ),
   );
 }
 
 #[test]
-fn escape_multiline_string_with_double_quote_string() {
+fn multiline_string_with_double_quote_string() {
   expect_interpret_result(
     r#"
-      rel str = {"""Here is a multiline string with quote:
+      rel str = {"""Here is a multiline string with double quote:
 ""This is a test""
 By Jane Doe"""}
     "#,
-    ("str", vec![("Here is a multiline string with quote:\nThis is a test\nBy Jane Doe".to_string(),)]),
+    (
+      "str",
+      vec![("Here is a multiline string with double quote:\n\"\"This is a test\"\"\nBy Jane Doe".to_string(),)],
+    ),
   );
 }
 
 #[test]
-fn escape_multiline_string_with_triple_quote() {
+fn multiline_string_with_triple_quote() {
   expect_interpret_result(
     r#"
       rel str = {"""This is not the end
@@ -1450,7 +1514,7 @@ But this is"""}
 }
 
 #[test]
-fn escape_multiline_string_as_single_line() {
+fn multiline_string_as_single_line() {
   expect_interpret_result(
     r#"
       rel str = {"""This is only one line"""}
@@ -1460,7 +1524,7 @@ fn escape_multiline_string_as_single_line() {
 }
 
 #[test]
-fn escape_multiline_string_single_newline_char() {
+fn multiline_string_single_newline_char() {
   expect_interpret_result(
     r#"
       rel str = {"""Hello
@@ -1472,7 +1536,7 @@ World"""}
 }
 
 #[test]
-fn escape_multiline_string_multiple_newline_char() {
+fn multiline_string_multiple_newline_char() {
   expect_interpret_result(
     r#"
       rel str = {"""Hello
@@ -1484,7 +1548,7 @@ World"""}
 }
 
 #[test]
-fn escape_multiline_string_newline_char_end() {
+fn multiline_string_newline_char_end() {
   expect_interpret_result(
     r#"
       rel str = {"""Scallop
@@ -1495,7 +1559,7 @@ fn escape_multiline_string_newline_char_end() {
 }
 
 #[test]
-fn escape_multiline_string_newline_char_beginning() {
+fn multiline_string_newline_char_beginning() {
   expect_interpret_result(
     r#"
       rel str = {"""\n
@@ -1506,7 +1570,7 @@ Scallop"""}
 }
 
 #[test]
-fn escape_multiline_string_tab_char() {
+fn multiline_string_tab_char() {
   expect_interpret_result(
     r#"
       rel str = {"""Hello
@@ -1517,7 +1581,7 @@ fn escape_multiline_string_tab_char() {
 }
 
 #[test]
-fn escape_multiline_string_null_char() {
+fn multiline_string_null_char() {
   expect_interpret_result(
     r#"
       rel str = {"""Null
@@ -1528,7 +1592,7 @@ fn escape_multiline_string_null_char() {
 }
 
 #[test]
-fn escape_multiline_string_single_quote() {
+fn multiline_string_single_quote() {
   expect_interpret_result(
     r#"
       rel str = {"""Here is a quote:
@@ -1539,7 +1603,7 @@ fn escape_multiline_string_single_quote() {
 }
 
 #[test]
-fn escape_multiline_string_double_quote() {
+fn multiline_string_double_quote() {
   expect_interpret_result(
     r#"
       rel str = {"""Here is a quote:
@@ -1550,7 +1614,7 @@ fn escape_multiline_string_double_quote() {
 }
 
 #[test]
-fn escape_multiline_string_backslash() {
+fn multiline_string_backslash() {
   expect_interpret_result(
     r#"
       rel str = {"""Back
@@ -1561,7 +1625,7 @@ fn escape_multiline_string_backslash() {
 }
 
 #[test]
-fn escape_multiline_string_carriage_return() {
+fn multiline_string_carriage_return() {
   expect_interpret_result(
     r#"
       rel str = {"""Carriage
@@ -1572,7 +1636,7 @@ Return\r"""}
 }
 
 #[test]
-fn escape_multiline_string_emoji_unicode() {
+fn multiline_string_emoji_unicode() {
   expect_interpret_result(
     r#"
       rel str = {"""Thumbs up:

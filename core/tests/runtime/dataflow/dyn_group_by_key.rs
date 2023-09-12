@@ -45,7 +45,7 @@ where
     strata_2.add_input_dynamic_collection("_colors_key", &result_1["_colors_key"]);
     strata_2.add_update_dataflow(
       "color_count",
-      Dataflow::reduce(AggregateOp::Count, "_color_rev", ReduceGroupByType::join("_colors_key"))
+      Dataflow::reduce(AggregateOp::count(), "_color_rev", ReduceGroupByType::join("_colors_key"))
         .project((Expr::access(0), Expr::access(2))),
     );
     strata_2.add_output_relation("color_count");

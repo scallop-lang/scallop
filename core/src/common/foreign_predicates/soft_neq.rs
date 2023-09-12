@@ -1,8 +1,8 @@
-//! The soft equality predicate
+//! The soft inequality predicate
 
 use super::*;
 
-/// Soft EQ foreign predicate
+/// Soft NEQ foreign predicate
 ///
 /// ``` scl
 /// extern pred soft_neq<T: Number>(lhs: T, rhs: T)

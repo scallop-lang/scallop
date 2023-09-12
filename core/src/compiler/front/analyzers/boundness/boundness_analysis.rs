@@ -38,10 +38,10 @@ impl BoundnessAnalysis {
       if !*inferred {
         // Make sure the demand attribute is affecting boundness analysis,
         // through some of the head expressions being bounded
-        let bounded_exprs = if let Some(head_atom) = rule.head().atom() {
-          if let Some((pattern, _)) = demand_attrs.get(&head_atom.predicate()) {
+        let bounded_exprs = if let Some(head_atom) = rule.head().as_atom() {
+          if let Some((pattern, _)) = demand_attrs.get(head_atom.predicate().name()) {
             head_atom
-              .iter_arguments()
+              .iter_args()
               .zip(pattern.chars())
               .filter_map(|(a, b)| if b == 'b' { Some(a.clone()) } else { None })
               .collect()
@@ -67,8 +67,8 @@ impl BoundnessAnalysis {
   }
 }
 
-impl NodeVisitor for BoundnessAnalysis {
-  fn visit_rule(&mut self, rule: &Rule) {
+impl NodeVisitor<Rule> for BoundnessAnalysis {
+  fn visit(&mut self, rule: &Rule) {
     let ctx = RuleContext::from_rule(rule);
     self
       .rule_contexts

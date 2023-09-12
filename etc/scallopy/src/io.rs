@@ -1,6 +1,5 @@
 use pyo3::prelude::*;
-use scallop_core::integrate::Attribute;
-use std::collections::*;
+use scallop_core::integrate::*;
 
 #[derive(FromPyObject)]
 pub struct CSVFileOptions {
@@ -27,24 +26,20 @@ impl CSVFileOptions {
 
 impl Into<Attribute> for CSVFileOptions {
   fn into(self) -> Attribute {
-    let mut kw_args = HashMap::new();
+    let mut args = vec![AttributeArgument::string(self.path.into())];
     if let Some(d) = self.deliminator {
-      kw_args.insert("deliminator".to_string(), d.into());
+      args.push(AttributeArgument::named_string("deliminator", d));
     }
-    kw_args.insert("has_header".to_string(), self.has_header.into());
-    kw_args.insert("has_probability".to_string(), self.has_probability.into());
+    args.push(AttributeArgument::named_bool("has_header", self.has_header));
+    args.push(AttributeArgument::named_bool("has_probability", self.has_probability));
     if let Some(keys) = self.keys {
-      kw_args.insert("keys".to_string(), keys.into());
+      args.push(AttributeArgument::named_list("keys", keys.iter().cloned().map(AttributeValue::string).collect()));
     }
     if let Some(fields) = self.fields {
-      kw_args.insert("fields".to_string(), fields.into());
+      args.push(AttributeArgument::named_list("fields", fields.iter().cloned().map(AttributeValue::string).collect()));
     }
 
     // Get attribute
-    Attribute {
-      name: "file".to_string(),
-      positional_arguments: vec![self.path.into()],
-      keyword_arguments: kw_args,
-    }
+    Attribute { name: "file".to_string(), args }
   }
 }

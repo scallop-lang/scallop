@@ -7,7 +7,7 @@ use scallop_core::testing::*;
 #[test]
 fn test_dynamic_intersect_1() {
   let mut ctx = unit::UnitProvenance;
-  let mut rt = RuntimeEnvironment::new_std();
+  let rt = RuntimeEnvironment::new_std();
 
   // Relations
   let mut source_1 = DynamicRelation::<unit::UnitProvenance>::new();
@@ -22,8 +22,8 @@ fn test_dynamic_intersect_1() {
   while source_1.changed(&ctx) || source_2.changed(&ctx) || target.changed(&ctx) {
     target.insert_dataflow_recent(
       &ctx,
-      &DynamicDataflow::from(&source_1).intersect(DynamicDataflow::from(&source_2), &ctx),
-      &mut rt,
+      &DynamicDataflow::dynamic_relation(&source_1).intersect(DynamicDataflow::dynamic_relation(&source_2), &ctx),
+      &rt,
     )
   }
 

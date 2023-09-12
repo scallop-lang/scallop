@@ -1,7 +1,7 @@
-use scallop_core::testing::*;
-use scallop_core::compiler::front::FrontContext;
 use scallop_core::compiler::front::ast;
 use scallop_core::compiler::front::attribute::*;
+use scallop_core::compiler::front::FrontContext;
+use scallop_core::testing::*;
 
 mod attr_1 {
   use super::*;
@@ -16,12 +16,16 @@ mod attr_1 {
 
     fn apply(&self, _: &ast::Item, attr: &ast::Attribute) -> Result<AttributeAction, AttributeError> {
       if attr.num_pos_args() != 3 {
-        Err(AttributeError::new_custom("foo attribute requires 3 arguments".to_string()))
+        Err(AttributeError::new_custom(
+          "foo attribute requires 3 arguments".to_string(),
+        ))
       } else {
         if attr.pos_arg(0).and_then(|arg| Some(arg.is_tuple())) == Some(true) {
           Ok(AttributeAction::Nothing)
         } else {
-          Err(AttributeError::new_custom("foo attribute requires a tuple as the first argument".to_string()))
+          Err(AttributeError::new_custom(
+            "foo attribute requires a tuple as the first argument".to_string(),
+          ))
         }
       }
     }
@@ -45,7 +49,9 @@ mod attr_1 {
       type my_relation(a: i32, b: i32)
       "#,
       |ctx: &mut FrontContext| {
-        ctx.register_attribute_processor(Foo).expect("Cannot register attribute");
+        ctx
+          .register_attribute_processor(Foo)
+          .expect("Cannot register attribute");
       },
       |s| s.contains("foo attribute requires 3 arguments"),
     );
@@ -59,7 +65,9 @@ mod attr_1 {
       type my_relation(a: i32, b: i32)
       "#,
       |ctx: &mut FrontContext| {
-        ctx.register_attribute_processor(Foo).expect("Cannot register attribute");
+        ctx
+          .register_attribute_processor(Foo)
+          .expect("Cannot register attribute");
       },
       |s| s.contains("foo attribute requires a tuple as the first argument"),
     );

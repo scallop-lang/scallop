@@ -1,0 +1,53 @@
+@gpt_extract_info(
+  header="Please extract step-by-step program with Pythonic expressions.",
+  prompts=[
+    "let us extract the steps as a JSON list",
+  ],
+  examples=[
+    (
+      ["Tom can catch 70 fish per week. How many days does he need to catch 100 fish?"],
+      [[(0, "speed", "70 / 7"), (1, "time_needed", "100 / {speed}")]]
+    )
+  ],
+  model="gpt-4",
+  //debug=true,
+)
+type extract_steps(bound question: String, step_id: i32, var: String, expr: String)
+
+type question(q: String)
+
+rel step(step_id, var, expr) = question(q) and extract_steps(q, step_id, var, expr)
+
+rel question = {
+  "Natalia sold clips to 48 of her friends in April, and then she sold half as many clips in May. How many clips did Natalia sell altogether in April and May?",
+}
+
+@py_eval type $py_eval_number(s: String) -> f32
+
+type Context = Cons(String, f32, Context) | Nil()
+
+const EMPTY_CTX = Nil()
+
+rel last_step(n) = n := max(n: step(n, _, _))
+rel return_variable(v) = last_step(n) and step(n, v, _)
+
+type find_value(bound ctx: Context, bound var: String, n: f32)
+rel find_value(ctx, v, n) = case ctx is Cons(v, n, _)
+rel find_value(ctx, v, n) = case ctx is Cons(vp, _, cont) and vp != v and find_value(cont, v, n)
+
+type process_eval_string(bound ctx: Context, bound eval_str: String, output_str: String)
+rel process_eval_string(ctx, e, e) = case ctx is Nil()
+rel process_eval_string(ctx, e1, $string_replace(e2, $format("{{}}", v), n as String)) = case ctx is Cons(v, n, cont) and process_eval_string(cont, e1, e2)
+
+type eval(bound s: String, bound ctx: Context, n: f32)
+rel eval(s, ctx, $py_eval_number(eval_str)) = process_eval_string(ctx, s, eval_str)
+
+type eval_step(id: i32, ctx: Context)
+rel eval_step(0, new Cons(v, n, EMPTY_CTX)) = step(0, v, e) and eval(e, EMPTY_CTX, n)
+rel eval_step(prev_id + 1, new Cons(v, n, prev_ctx)) = step(prev_id + 1, v, e) and eval_step(prev_id, prev_ctx) and eval(e, prev_ctx, n)
+
+rel final_step_ctx(ctx) = last_step(id) and eval_step(id, ctx)
+rel result(n) = final_step_ctx(ctx) and return_variable(v) and find_value(ctx, v, n)
+
+query step
+query result

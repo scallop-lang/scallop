@@ -151,11 +151,11 @@ impl<Prov: Provenance> ExtensionalRelation<Prov> {
     // First internalize program facts, only if there is program facts
     if !self.program_facts.is_empty() {
       // Iterate (not drain) the program facts
-      elems.extend(self.program_facts.iter().map(|(tag, tup)| {
-        let int_tup = env.internalize_tuple(tup);
+      elems.extend(self.program_facts.iter().filter_map(|(tag, tup)| {
+        let int_tup = env.internalize_tuple(tup)?;
         let maybe_input_tag = StaticInputTag::from_dynamic_input_tag(&tag);
         let tag = ctx.tagging_optional_fn(maybe_input_tag);
-        DynamicElement::new(int_tup, tag)
+        Some(DynamicElement::new(int_tup, tag))
       }));
 
       // Set the internalization to `true`
@@ -163,18 +163,18 @@ impl<Prov: Provenance> ExtensionalRelation<Prov> {
     }
 
     // First internalize dynamic input facts
-    elems.extend(self.dynamic_input.drain(..).map(|(tag, tup)| {
-      let int_tup = env.internalize_tuple(&tup);
+    elems.extend(self.dynamic_input.drain(..).filter_map(|(tag, tup)| {
+      let int_tup = env.internalize_tuple(&tup)?;
       let maybe_input_tag = StaticInputTag::from_dynamic_input_tag(&tag);
       let tag = ctx.tagging_optional_fn(maybe_input_tag);
-      DynamicElement::new(int_tup, tag)
+      Some(DynamicElement::new(int_tup, tag))
     }));
 
     // Then internalize static input facts
-    elems.extend(self.static_input.drain(..).map(|(tag, tup)| {
-      let int_tup = env.internalize_tuple(&tup);
+    elems.extend(self.static_input.drain(..).filter_map(|(tag, tup)| {
+      let int_tup = env.internalize_tuple(&tup)?;
       let tag = ctx.tagging_optional_fn(tag);
-      DynamicElement::new(int_tup, tag)
+      Some(DynamicElement::new(int_tup, tag))
     }));
 
     // Add existed facts
@@ -191,15 +191,15 @@ impl<Prov: Provenance> ExtensionalRelation<Prov> {
     // First internalize program facts, only if there is program facts
     if !self.program_facts.is_empty() {
       // Iterate (not drain) the program facts
-      elems.extend(self.program_facts.iter().map(|(tag, tup)| {
-        let int_tup = env.internalize_tuple(tup);
+      elems.extend(self.program_facts.iter().filter_map(|(tag, tup)| {
+        let int_tup = env.internalize_tuple(tup)?;
         let maybe_input_tag = StaticInputTag::from_dynamic_input_tag(&tag);
         let tag = ctx.tagging_optional_fn(maybe_input_tag.clone());
 
         // !SPECIAL MONITORING!
         m.observe_tagging(&int_tup, &maybe_input_tag, &tag);
 
-        DynamicElement::new(int_tup, tag)
+        Some(DynamicElement::new(int_tup, tag))
       }));
 
       // Set the internalization to `true`
@@ -207,26 +207,26 @@ impl<Prov: Provenance> ExtensionalRelation<Prov> {
     }
 
     // First internalize dynamic input facts
-    elems.extend(self.dynamic_input.drain(..).map(|(tag, tup)| {
-      let int_tup = env.internalize_tuple(&tup);
+    elems.extend(self.dynamic_input.drain(..).filter_map(|(tag, tup)| {
+      let int_tup = env.internalize_tuple(&tup)?;
       let maybe_input_tag = StaticInputTag::from_dynamic_input_tag(&tag);
       let tag = ctx.tagging_optional_fn(maybe_input_tag.clone());
 
       // !SPECIAL MONITORING!
       m.observe_tagging(&tup, &maybe_input_tag, &tag);
 
-      DynamicElement::new(int_tup, tag)
+      Some(DynamicElement::new(int_tup, tag))
     }));
 
     // Then internalize static input facts
-    elems.extend(self.static_input.drain(..).map(|(input_tag, tup)| {
-      let int_tup = env.internalize_tuple(&tup);
+    elems.extend(self.static_input.drain(..).filter_map(|(input_tag, tup)| {
+      let int_tup = env.internalize_tuple(&tup)?;
       let tag = ctx.tagging_optional_fn(input_tag.clone());
 
       // !SPECIAL MONITORING!
       m.observe_tagging(&tup, &input_tag, &tag);
 
-      DynamicElement::new(int_tup, tag)
+      Some(DynamicElement::new(int_tup, tag))
     }));
 
     // Add existed facts

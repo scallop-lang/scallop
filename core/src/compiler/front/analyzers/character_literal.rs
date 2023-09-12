@@ -2,7 +2,6 @@ use super::super::ast::*;
 use super::super::error::*;
 use super::super::source::*;
 use super::super::utils::*;
-use super::super::visitor::*;
 
 #[derive(Debug, Clone)]
 pub struct CharacterLiteralAnalysis {
@@ -15,9 +14,9 @@ impl CharacterLiteralAnalysis {
   }
 }
 
-impl NodeVisitor for CharacterLiteralAnalysis {
-  fn visit_constant_char(&mut self, c: &ConstantChar) {
-    let s = c.character_string();
+impl NodeVisitor<CharLiteral> for CharacterLiteralAnalysis {
+  fn visit(&mut self, c: &CharLiteral) {
+    let s = c.character();
     let loc = c.location().clone();
     if s.len() == 1 {
       // OK

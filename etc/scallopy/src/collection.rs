@@ -208,20 +208,20 @@ pub struct CollectionIterator {
 #[pymethods]
 impl CollectionIterator {
   fn __next__(mut slf: PyRefMut<Self>) -> IterNextOutput<Py<PyAny>, &'static str> {
-    if slf.current_index < slf.collection.len() {
+    while slf.current_index < slf.collection.len() {
       let i = slf.current_index;
       slf.current_index += 1;
       if slf.collection.has_empty_tag() {
-        let tuple = to_python_tuple(slf.collection.ith_tuple(i), &slf.env);
-        IterNextOutput::Yield(tuple)
+        if let Some(tuple) = to_python_tuple(slf.collection.ith_tuple(i), &slf.env) {
+          return IterNextOutput::Yield(tuple)
+        }
       } else {
         let tuple = to_python_tuple(slf.collection.ith_tuple(i), &slf.env);
         let tag = slf.collection.ith_tag(i);
         let elem = Python::with_gil(|py| (tag, tuple).to_object(py));
-        IterNextOutput::Yield(elem)
+        return IterNextOutput::Yield(elem)
       }
-    } else {
-      IterNextOutput::Return("Ended")
     }
+    IterNextOutput::Return("Ended")
   }
 }

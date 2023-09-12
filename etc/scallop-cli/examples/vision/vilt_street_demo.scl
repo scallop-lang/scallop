@@ -1,0 +1,21 @@
+rel image_dir = {
+  "etc/scallop-cli/res/testing/images/pedestrian_example_1.jpg",
+  "etc/scallop-cli/res/testing/images/pedestrian_example_2.jpg",
+  "etc/scallop-cli/res/testing/images/crosswalk_example_1.jpg",
+  "etc/scallop-cli/res/testing/images/crosswalk_example_2.jpg"
+}
+
+@vilt(question="How many people are there?", top=3)
+type num_people(bound img: Tensor, answer: String)
+
+@vilt(top=2)
+type vqa(bound img: Tensor, question: String, answer: String)
+
+rel num_ppl(path, answer) = image_dir(path) and num_people($load_image(path), answer)
+query num_ppl
+
+rel has_people(path, answer) = image_dir(path) and vqa($load_image(path),"Are there people crossing the road?" , answer)
+query has_people
+
+rel has_cars(path, answer) = image_dir(path) and vqa($load_image(path), "Are there any cars?", answer)
+query has_cars

@@ -54,7 +54,7 @@ impl Analysis {
       &mut self.invalid_constant,
       &mut self.invalid_wildcard,
     );
-    analyzers.walk_items(items);
+    items.walk(&mut analyzers);
   }
 
   pub fn process_items(&mut self, items: &Vec<Item>) {
@@ -70,7 +70,7 @@ impl Analysis {
       &mut self.demand_attr_analysis,
       &mut self.boundness_analysis,
     );
-    analyzers.walk_items(items);
+    items.walk(&mut analyzers);
   }
 
   pub fn post_analysis(&mut self) {

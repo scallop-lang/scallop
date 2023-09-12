@@ -14,35 +14,41 @@ impl HiddenRelationAnalysis {
     }
   }
 
-  pub fn contains(&self, rela: &String) -> bool {
+  pub fn contains(&self, rela: &str) -> bool {
     self.hidden_relations.contains(rela)
   }
 
   pub fn process_attributes(&mut self, pred: &str, attrs: &Attributes) {
-    if attrs.iter().find(|a| a.name() == "hidden").is_some() {
+    if attrs.find("hidden").is_some() {
       self.hidden_relations.insert(pred.to_string());
     }
   }
 }
 
-impl NodeVisitor for HiddenRelationAnalysis {
-  fn visit_relation_type_decl(&mut self, rela_type_decl: &ast::RelationTypeDecl) {
-    for rela_type in rela_type_decl.relation_types() {
-      self.process_attributes(rela_type.predicate(), rela_type_decl.attributes());
+impl NodeVisitor<RelationTypeDecl> for HiddenRelationAnalysis {
+  fn visit(&mut self, rela_type_decl: &RelationTypeDecl) {
+    for rela_type in rela_type_decl.rel_types() {
+      self.process_attributes(rela_type.predicate_name(), rela_type_decl.attrs());
     }
   }
+}
 
-  fn visit_constant_set_decl(&mut self, decl: &ast::ConstantSetDecl) {
-    self.process_attributes(&decl.predicate(), decl.attributes())
+impl NodeVisitor<ConstantSetDecl> for HiddenRelationAnalysis {
+  fn visit(&mut self, decl: &ConstantSetDecl) {
+    self.process_attributes(decl.predicate_name(), decl.attrs())
   }
+}
 
-  fn visit_fact_decl(&mut self, decl: &ast::FactDecl) {
-    self.process_attributes(&decl.predicate(), decl.attributes())
+impl NodeVisitor<FactDecl> for HiddenRelationAnalysis {
+  fn visit(&mut self, decl: &FactDecl) {
+    self.process_attributes(decl.predicate_name(), decl.attrs())
   }
+}
 
-  fn visit_rule_decl(&mut self, rule_decl: &RuleDecl) {
+impl NodeVisitor<RuleDecl> for HiddenRelationAnalysis {
+  fn visit(&mut self, rule_decl: &RuleDecl) {
     for predicate in rule_decl.rule().head().iter_predicates() {
-      self.process_attributes(&predicate, rule_decl.attributes())
+      self.process_attributes(&predicate, rule_decl.attrs())
     }
   }
 }

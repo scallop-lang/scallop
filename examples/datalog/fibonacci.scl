@@ -1,4 +1,4 @@
-@demand("bf")
+type fib(bound x: i32, y: i32)
 rel fib(x, a + b) = fib(x - 1, a), fib(x - 2, b), x > 1
 rel fib = {(0, 1), (1, 1)}
 query fib(10, y)

@@ -1,0 +1,25 @@
+[project]
+name = "scallop-sam"
+version = "0.0.1"
+dependencies = [
+  "numpy",
+  "torch",
+  "opencv-python",
+  "segment-anything @ git+https://github.com/facebookresearch/segment-anything.git",
+  "pycocotools",
+  "matplotlib",
+  "onnxruntime",
+  "onnx",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.entry-points."scallop.plugin.setup_arg_parser"]
+sam = "scallop_sam:setup_arg_parser"
+
+[project.entry-points."scallop.plugin.configure"]
+sam = "scallop_sam:configure"
+
+[project.entry-points."scallop.plugin.load_into_context"]
+sam = "scallop_sam:load_into_context"

@@ -1,0 +1,53 @@
+@gpt_extract_info(
+  header="""
+Please extract step-by-step program using the following domain-specific language:
+type Expr = Const(f32) | Var(String) | Add(Expr, Expr) | Sub(Expr, Expr) | Mul(Expr, Expr) | Div(Expr, Expr)
+""",
+  prompts=[
+    "let us first extract the steps as a JSON list, including a step for the final goal",
+    "what is the final goal represented as a JSON dict?"
+  ],
+  examples=[
+    (
+      ["Tom can catch 70 fish per week. How many days does he need to catch 100 fish?"],
+      [
+        [("speed", "Div(70, 7)"), ("time_needed", """Div(100, Var("speed"))""")],
+        [("time_needed")]
+      ]
+    )
+  ],
+  model="gpt-4",
+  //debug=true,
+)
+type extract_steps(bound question: String, var: String, expr: Entity),
+     extract_goal(bound question: String, var: String)
+
+type Expr = Const(f32) | Var(String) | Add(Expr, Expr) | Sub(Expr, Expr) | Mul(Expr, Expr) | Div(Expr, Expr)
+
+rel to_string(e, $format("{}", n)) = case e is Const(n)
+rel to_string(e, $format("{}", v)) = case e is Var(v)
+rel to_string(e, $format("({} + {})", l, r)) = case e is Add(e1, e2) and to_string(e1, l) and to_string(e2, r)
+rel to_string(e, $format("({} - {})", l, r)) = case e is Sub(e1, e2) and to_string(e1, l) and to_string(e2, r)
+rel to_string(e, $format("({} * {})", l, r)) = case e is Mul(e1, e2) and to_string(e1, l) and to_string(e2, r)
+rel to_string(e, $format("({} / {})", l, r)) = case e is Div(e1, e2) and to_string(e1, l) and to_string(e2, r)
+
+rel question = {
+  "Natalia sold clips to 48 of her friends in April, and then she sold half as many clips in May. How many clips did Natalia sell altogether in April and May?"
+}
+
+rel step(var, expr) = question(q) and extract_steps(q, var, expr)
+rel goal(var) = question(q) and extract_goal(q, var)
+
+rel eval(e, n) = case e is Const(n)
+rel eval(e, r) = case e is Var(v) and var_result(v, r)
+rel eval(e, a + b) = case e is Add(e1, e2) and eval(e1, a) and eval(e2, b)
+rel eval(e, a - b) = case e is Sub(e1, e2) and eval(e1, a) and eval(e2, b)
+rel eval(e, a * b) = case e is Mul(e1, e2) and eval(e1, a) and eval(e2, b)
+rel eval(e, a / b) = case e is Div(e1, e2) and eval(e1, a) and eval(e2, b)
+
+rel var_result(v, r) = step(v, e) and eval(e, r)
+
+rel result(r) = goal(v) and var_result(v, r)
+
+query step
+query result

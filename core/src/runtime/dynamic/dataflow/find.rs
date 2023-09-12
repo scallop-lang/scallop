@@ -3,34 +3,32 @@ use crate::common::tuple::Tuple;
 
 #[derive(Clone)]
 pub struct DynamicFindDataflow<'a, Prov: Provenance> {
-  pub source: Box<DynamicDataflow<'a, Prov>>,
+  pub source: DynamicDataflow<'a, Prov>,
   pub key: Tuple,
 }
 
-impl<'a, Prov: Provenance> DynamicFindDataflow<'a, Prov> {
-  pub fn iter_stable(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::find(self.source.iter_stable(runtime), self.key.clone())
+impl<'a, Prov: Provenance> Dataflow<'a, Prov> for DynamicFindDataflow<'a, Prov> {
+  fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
+    DynamicBatches::new(DynamicFindBatches { source: self.source.iter_stable(), key: self.key.clone() })
   }
 
-  pub fn iter_recent(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::find(self.source.iter_recent(runtime), self.key.clone())
+  fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
+    DynamicBatches::new(DynamicFindBatches { source: self.source.iter_recent(), key: self.key.clone() })
   }
 }
 
 #[derive(Clone)]
 pub struct DynamicFindBatches<'a, Prov: Provenance> {
-  pub source: Box<DynamicBatches<'a, Prov>>,
+  pub source: DynamicBatches<'a, Prov>,
   pub key: Tuple,
 }
 
-impl<'a, Prov: Provenance> Iterator for DynamicFindBatches<'a, Prov> {
-  type Item = DynamicBatch<'a, Prov>;
-
-  fn next(&mut self) -> Option<Self::Item> {
-    self.source.next().map(|mut b| {
-      let curr_elem = b.next();
-      DynamicBatch::Find(DynamicFindBatch {
-        source: Box::new(b),
+impl<'a, Prov: Provenance> Batches<'a, Prov> for DynamicFindBatches<'a, Prov> {
+  fn next_batch(&mut self) -> Option<DynamicBatch<'a, Prov>> {
+    self.source.next_batch().map(|mut b| {
+      let curr_elem = b.next_elem();
+      DynamicBatch::new(DynamicFindBatch {
+        source: b,
         curr_elem,
         key: self.key.clone(),
       })
@@ -40,26 +38,23 @@ impl<'a, Prov: Provenance> Iterator for DynamicFindBatches<'a, Prov> {
 
 #[derive(Clone)]
 pub struct DynamicFindBatch<'a, Prov: Provenance> {
-  pub source: Box<DynamicBatch<'a, Prov>>,
+  pub source: DynamicBatch<'a, Prov>,
   pub curr_elem: Option<DynamicElement<Prov>>,
   pub key: Tuple,
 }
 
-impl<'a, Prov: Provenance> Iterator for DynamicFindBatch<'a, Prov> {
-  type Item = DynamicElement<Prov>;
-
-  fn next(&mut self) -> Option<Self::Item> {
+impl<'a, Prov: Provenance> Batch<'a, Prov> for DynamicFindBatch<'a, Prov> {
+  fn next_elem(&mut self) -> Option<DynamicElement<Prov>> {
     use std::cmp::Ordering;
     let key = self.key.clone();
     loop {
       match &self.curr_elem {
         Some(elem) => {
-          let fst = elem.tuple[0].cmp(&key);
-          match fst {
-            Ordering::Less => self.curr_elem = self.source.search_ahead(|x| x[0] < key),
+          match elem.tuple[0].cmp(&key) {
+            Ordering::Less => self.curr_elem = self.source.search_elem_0_until(&key),
             Ordering::Equal => {
               let result = elem.clone();
-              self.curr_elem = self.source.next();
+              self.curr_elem = self.source.next_elem();
               return Some(result);
             }
             Ordering::Greater => return None,

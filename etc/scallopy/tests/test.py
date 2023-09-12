@@ -7,7 +7,9 @@ from dbio import *
 from entity import *
 from failure import *
 from forward import *
+from foreign_attribute import *
 from foreign_function import *
+from foreign_predicate import *
 from input_mapping import *
 from tensors import *
 

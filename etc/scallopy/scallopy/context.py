@@ -3,23 +3,24 @@ from typing import *
 from copy import deepcopy
 
 # Try import torch; if not there, delegate to something else
-from .torch_importer import *
+from . import torch_importer
 
 # Import internals
 from .scallopy import InternalScallopContext
 from .collection import ScallopCollection
 from .provenance import ScallopProvenance, DiffAddMultProb2Semiring, DiffNandMultProb2Semiring, DiffMaxMultProb2Semiring
-from .io import CSVFileOptions
+from .input_output import CSVFileOptions
 from .input_mapping import InputMapping
 from .function import ForeignFunction
 from .predicate import ForeignPredicate
 from .attribute import ForeignAttributeProcessor
 from .history import HistoryAction, record_history
 from .sample_type import SAMPLE_TYPE_TOP_K
+from .stdlib import STDLIB
 from .utils import Counter, _map_entity_tuple_to_str_tuple
 
 # Main context
-class ScallopContext(Context):
+class ScallopContext:
   """
   A Scallop execution context that fosters all compilation and execution.
 
@@ -61,14 +62,15 @@ class ScallopContext(Context):
     k: int = 3,
     train_k: Optional[int] = None,
     test_k: Optional[int] = None,
-    fork_from: Optional[ScallopContext] = None
+    fork_from: Optional[ScallopContext] = None,
+    no_stdlib: bool = False,
   ):
     super(ScallopContext, self).__init__()
 
     # Check if we are creating a forked context or not
     if fork_from is None:
       # Validify provenance; differentiable needs PyTorch
-      if "diff" in provenance and not has_pytorch:
+      if "diff" in provenance and not torch_importer.has_pytorch:
         raise Exception("Attempting to use differentiable provenance but with no PyTorch imported")
 
       # Prepare Python based provenance
@@ -100,6 +102,11 @@ class ScallopContext(Context):
       self._test_k = test_k
       self._history_actions: List[HistoryAction] = []
       self._internal = InternalScallopContext(provenance=provenance, custom_provenance=custom_provenance, k=k)
+
+      # Load stdlib
+      self._internal.enable_tensor_registry() # Always enable tensor registry for now
+      if not no_stdlib:
+        self.load_stdlib()
     else:
       # Fork from an existing context
       self.provenance = deepcopy(fork_from.provenance)
@@ -177,6 +184,24 @@ class ScallopContext(Context):
       # Return
       return new_ctx
 
+  def set_debug_front(self, debug_front: bool = True):
+    """
+    Debug Front
+    """
+    self._internal.set_debug_front(debug_front)
+
+  def set_debug_back(self, debug_back: bool = True):
+    """
+    Debug Back
+    """
+    self._internal.set_debug_back(debug_back)
+
+  def set_debug_ram(self, debug_ram: bool = True):
+    """
+    Debug RAM
+    """
+    self._internal.set_debug_ram(debug_ram)
+
   def set_early_discard(self, early_discard: bool = True):
     """
     Configure the current context to perform early discard (or not)
@@ -233,6 +258,21 @@ class ScallopContext(Context):
     self._internal.add_program(program)
 
   @record_history
+  def add_item(self, item: str) -> List[str]:
+    """
+    Add an item and get the mentioned query relations
+    """
+    return self._internal.add_item(item)
+
+  def load_stdlib(self):
+    for ff in STDLIB["functions"]:
+      self._internal.register_foreign_function(ff)
+    for fp in STDLIB["predicates"]:
+      self._internal.register_foreign_predicate(fp)
+    for fa in STDLIB["attributes"]:
+      self._internal.register_foreign_attribute(fa)
+
+  @record_history
   def register_foreign_function(self, foreign_function: ForeignFunction):
     if type(foreign_function) == ForeignFunction:
       self._internal.register_foreign_function(foreign_function)
@@ -283,7 +323,7 @@ class ScallopContext(Context):
     from .forward import InternalScallopForwardFunction
 
     # Check PyTorch support
-    if not has_pytorch:
+    if not torch_importer.has_pytorch:
       raise Exception("`forward_function` cannot be called when there is no PyTorch")
 
     # Needs to be a differentiable context
@@ -293,9 +333,9 @@ class ScallopContext(Context):
     # Forward function
     return InternalScallopForwardFunction(self, output, output_mapping, output_mappings, dispatch, debug_provenance, retain_graph, jit, jit_name, recompile)
 
-  def _refresh_training_eval_state(self):
+  def _refresh_training_eval_state(self, training):
     if self._train_k is not None or self._test_k is not None:
-      if self.training: # Coming from nn.Module and `torch.train()` or `torch.eval()`
+      if training: # Coming from nn.Module and `torch.train()` or `torch.eval()`
         if self._train_k is not None:
           self._internal.set_k(self._train_k)
         else:
@@ -496,24 +536,6 @@ class ScallopContext(Context):
     self._internal.add_rule(rule, tag=tag, demand=demand)
 
   @record_history
-  def add_entity(self, relation: str, entity: Union[str, Tuple]):
-    """
-    Add an entity to the context.
-
-    ``` python
-    ctx.add_program("type Expr = Const(i32) | Add(Expr, Expr)")
-    ctx.add_rule("eval(e, y) = case e is Const(y)")
-    ctx.add_rule("eval(e, y1 + y2) = case e is Add(e1, e2) and eval(e1, y1) and eval(e2, y2)")
-    ctx.add_rule("result(y) = root(e) and eval(e, y)")
-    ctx.add_entity("root", "Add(Const(5), Add(Const(3), Const(4)))")
-    ctx.run()
-    print(ctx.relation("result")) # [(12,)], where 12 is derived from 5 + (3 + 4)
-    ```
-    """
-    entity = _map_entity_tuple_to_str_tuple(entity)
-    self._internal.add_entity(relation, entity)
-
-  @record_history
   def compile(self):
     self._internal.compile()
 
@@ -523,6 +545,12 @@ class ScallopContext(Context):
     inside this context.
     """
     self._internal.dump_front_ir()
+
+  def get_front_ir(self):
+    """
+    Get the Scallop front internal representation of the program in a `str` format
+    """
+    return self._internal.get_front_ir()
 
   def relation(self, relation: str, debug: bool = False) -> ScallopCollection:
     """
@@ -564,6 +592,23 @@ class ScallopContext(Context):
     relations (such as sub-formula, permutation, etc) in the list.
     """
     return self._internal.relations(include_hidden=include_hidden)
+
+  def relation_field_names(self, relation: str) -> List[Optional[str]]:
+    """
+    Get the field names of the relation, if it is declared.
+    Given the following Scallop program
+
+    ``` scl
+    type edge(from: i32, to: i32)
+    ```
+
+    We could get the field names as follows
+
+    ``` py
+    ctx.relation_field_names("edge") // ["from", "to"]
+    ```
+    """
+    return self._internal.relation_field_names(relation)
 
   def set_non_probabilistic(self, relation: Union[str, List[str]], non_probabilistic: bool = True):
     """
@@ -642,6 +687,17 @@ class ScallopContext(Context):
       return True
     else:
       return False
+
+  def is_probabilistic(self) -> bool:
+    PROVENANCE_SUPPORTING_PROBABILITY = set([
+      "probproofs",
+      "topkproofs",
+      "samplekproofs",
+      "topbottomkclauses",
+      "minmaxprob",
+      "addmultprob",
+    ])
+    return self.provenance in PROVENANCE_SUPPORTING_PROBABILITY
 
   def supports_disjunctions(self) -> bool:
     PROVENANCE_SUPPORTING_DISJUNCTIONS = set([

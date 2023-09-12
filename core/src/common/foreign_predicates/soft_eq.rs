@@ -1,7 +1,5 @@
 //! The soft equality predicate
 
-use crate::runtime::env::*;
-
 use super::*;
 
 /// Soft EQ foreign predicate
@@ -54,38 +52,6 @@ impl SoftNumberEq {
       vec![]
     }
   }
-
-  #[cfg(feature = "torch-tensor")]
-  fn soft_eq_tensor_wrapper(
-    &self,
-    env: &RuntimeEnvironment,
-    lhs: &Value,
-    rhs: &Value,
-  ) -> Vec<(DynamicInputTag, Vec<Value>)> {
-    use crate::common::tensors::*;
-
-    match (lhs, rhs) {
-      (Value::TensorValue(tv1), Value::TensorValue(tv2)) => {
-        let t1 = env.tensor_registry.eval(tv1).tensor;
-        let t2 = env.tensor_registry.eval(tv2).tensor;
-        let r = t1.dot(&t2).sigmoid();
-        let tag = DynamicInputTag::Tensor(Tensor::new(r));
-        vec![(tag, vec![])]
-      }
-      _ => panic!("Input are not tensors"),
-    }
-  }
-
-  #[allow(unused)]
-  #[cfg(not(feature = "torch-tensor"))]
-  fn soft_eq_tensor_wrapper(
-    &self,
-    env: &RuntimeEnvironment,
-    lhs: &Value,
-    rhs: &Value,
-  ) -> Vec<(DynamicInputTag, Vec<Value>)> {
-    vec![]
-  }
 }
 
 impl ForeignPredicate for SoftNumberEq {
@@ -110,7 +76,7 @@ impl ForeignPredicate for SoftNumberEq {
     2
   }
 
-  fn evaluate_with_env(&self, env: &RuntimeEnvironment, bounded: &[Value]) -> Vec<(DynamicInputTag, Vec<Value>)> {
+  fn evaluate(&self, bounded: &[Value]) -> Vec<(DynamicInputTag, Vec<Value>)> {
     assert_eq!(bounded.len(), 2);
     let lhs = &bounded[0];
     let rhs = &bounded[1];
@@ -123,7 +89,6 @@ impl ForeignPredicate for SoftNumberEq {
       ValueType::U32 => self.soft_eq_wrapper::<u32>(lhs, rhs),
       ValueType::F32 => self.soft_eq_wrapper::<f32>(lhs, rhs),
       ValueType::F64 => self.soft_eq_wrapper::<f64>(lhs, rhs),
-      ValueType::Tensor => self.soft_eq_tensor_wrapper(env, lhs, rhs),
       _ => vec![],
     }
   }

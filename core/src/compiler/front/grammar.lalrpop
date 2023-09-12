@@ -2,7 +2,6 @@ use std::str::FromStr;
 
 use super::ast::*;
 use crate::common::input_tag::DynamicInputTag;
-use crate::utils;
 
 grammar;
 
@@ -25,7 +24,10 @@ match {
   "<:",
   "::",
   "$",
+  "->",
   "@",
+  "..",
+  "..=",
 
   // Formula Operators
   "/\\", // /\
@@ -55,6 +57,8 @@ match {
   "?",
 
   // Operators Keyword
+  "bound",
+  "free",
   "and",
   "or",
   "not",
@@ -65,6 +69,7 @@ match {
   "else",
   "exists",
   "forall",
+  "in",
   "case",
   "is",
   "new",
@@ -114,7 +119,8 @@ match {
   r"([a-zA-Z][a-zA-Z_0-9]*)\s*<\s*([a-zA-Z][a-zA-Z_0-9]*)(\s*,\s*([a-zA-Z][a-zA-Z_0-9]*))*\s*>" => specialized_name,
   r"-?[0-9]+" => int,
   r"-?[0-9]+(\.[0-9]+)(e-?[0-9]+)?" => float,
-  r#""""((?:[^"])*)"""|"""((?:[\s\S]|\\.)*)"""|"((?:[^"\\]|\\.)*)""# => string,
+  r#""((?:[^"\\]|\\.)*)""# => single_quote_string,
+  r#""""(?:[^"\\]|\\.|"[^"]|""[^"])*""""# => triple_quote_string,
   r#"s"[^"]*""# => symbol_string,
   r#"t"[^"]*""# => date_time_string,
   r#"d"[^"]*""# => duration_string,
@@ -130,249 +136,189 @@ match {
 /// ========= Attributes ========= ///
 /// ============================== ///
 
-AttributeValueNode: AttributeValueNode = {
-  <c: Constant> => AttributeValueNode::Constant(c),
-  "[" <vs: Separated<AttributeValue, ",">> "]" => AttributeValueNode::List(vs),
-  "(" <ts: Separated<AttributeValue, ",">> ")" => AttributeValueNode::Tuple(ts),
+AttributeValueTuple = Spanned<_AttributeValueTuple>;
+_AttributeValueTuple: _AttributeValueTuple = {
+  "(" <vs: Separated<AttributeValue, ",">> ")" => _AttributeValueTuple::new(vs),
 }
 
-AttributeValue = Spanned<AttributeValueNode>;
-
-AttributeArg: Result<AttributeValue, (Identifier, AttributeValue)> = {
-  <c: AttributeValue> => Ok(c),
-  <n: Identifier> "=" <c: AttributeValue> => Err((n, c)),
+AttributeValueList = Spanned<_AttributeValueList>;
+_AttributeValueList: _AttributeValueList = {
+  "[" <vs: Separated<AttributeValue, ",">> "]" => _AttributeValueList::new(vs),
 }
 
-AttributeNode: AttributeNode = {
-  "@" <name: Identifier> => AttributeNode {
-    name,
-    pos_args: vec![],
-    kw_args: vec![],
-  },
-  "@" <name: Identifier> "(" <args: Separated<AttributeArg, ",">> ")" => {
-    AttributeNode {
-      name,
-      pos_args: args.iter().filter_map(|a| match a {
-        Ok(c) => Some(c.clone()),
-        _ => None,
-      }).collect(),
-      kw_args: args.iter().filter_map(|a| match a {
-        Err(a) => Some(a.clone()),
-        _ => None,
-      }).collect(),
-    }
-  }
+AttributeValue: AttributeValue = {
+  Constant => AttributeValue::Constant(<>),
+  AttributeValueTuple => AttributeValue::Tuple(<>),
+  AttributeValueList => AttributeValue::List(<>),
 }
 
-Attribute = Spanned<AttributeNode>;
+AttributeKwArg = Spanned<_AttributeKwArg>;
+_AttributeKwArg: _AttributeKwArg = {
+  <i: Identifier> "=" <c: AttributeValue> => _AttributeKwArg::new(i, c),
+}
 
-Attributes = <Attribute*>;
+AttributeArg: AttributeArg = {
+  AttributeValue => AttributeArg::Pos(<>),
+  AttributeKwArg => AttributeArg::Kw(<>),
+}
+
+Attribute = Spanned<_Attribute>;
+_Attribute: _Attribute = {
+  "@" <name: Identifier> => _Attribute::new(name, vec![]),
+  "@" <name: Identifier> "(" <args: Separated<AttributeArg, ",">> ")" => _Attribute::new(name, args),
+}
+
+Attributes = Attribute*;
 
 /// ==================================== ///
 /// ========= Type Declaration ========= ///
 /// ==================================== ///
 
-TypeNode: TypeNode = {
-  "i8" => TypeNode::I8,
-  "i16" => TypeNode::I16,
-  "i32" => TypeNode::I32,
-  "i64" => TypeNode::I64,
-  "i128" => TypeNode::I128,
-  "isize" => TypeNode::ISize,
-  "u8" => TypeNode::U8,
-  "u16" => TypeNode::U16,
-  "u32" => TypeNode::U32,
-  "u64" => TypeNode::U64,
-  "u128" => TypeNode::U128,
-  "usize" => TypeNode::USize,
-  "f32" => TypeNode::F32,
-  "f64" => TypeNode::F64,
-  "char" => TypeNode::Char,
-  "bool" => TypeNode::Bool,
-  "&str" => TypeNode::Str,
-  "String" => TypeNode::String,
-  "Symbol" => TypeNode::Symbol,
-  "DateTime" => TypeNode::DateTime,
-  "Duration" => TypeNode::Duration,
-  "Entity" => TypeNode::Entity,
-  "Tensor" => TypeNode::Tensor,
-  <n: Name> => TypeNode::Named(n),
+Type = Spanned<_Type>;
+_Type: _Type = {
+  "i8" => _Type::I8,
+  "i16" => _Type::I16,
+  "i32" => _Type::I32,
+  "i64" => _Type::I64,
+  "i128" => _Type::I128,
+  "isize" => _Type::ISize,
+  "u8" => _Type::U8,
+  "u16" => _Type::U16,
+  "u32" => _Type::U32,
+  "u64" => _Type::U64,
+  "u128" => _Type::U128,
+  "usize" => _Type::USize,
+  "f32" => _Type::F32,
+  "f64" => _Type::F64,
+  "char" => _Type::Char,
+  "bool" => _Type::Bool,
+  "&str" => _Type::Str,
+  "String" => _Type::String,
+  "Symbol" => _Type::Symbol,
+  "DateTime" => _Type::DateTime,
+  "Duration" => _Type::Duration,
+  "Entity" => _Type::Entity,
+  "Tensor" => _Type::Tensor,
+  <n: Name> => _Type::Named(n),
 }
 
-Type = Spanned<TypeNode>;
-
-SubtypeDeclNode: SubtypeDeclNode = {
+SubtypeDecl = Spanned<_SubtypeDecl>;
+_SubtypeDecl: _SubtypeDecl = {
   <attrs: Attributes> "type" <n: Identifier> "<:" <t: Type> => {
-    SubtypeDeclNode {
-      attrs,
-      name: n,
-      subtype_of: t,
-    }
+    _SubtypeDecl::new(attrs, n, t)
   }
 }
 
-SubtypeDecl = Spanned<SubtypeDeclNode>;
-
-AliasTypeDeclNode: AliasTypeDeclNode = {
+AliasTypeDecl = Spanned<_AliasTypeDecl>;
+_AliasTypeDecl: _AliasTypeDecl = {
   <attrs: Attributes> "type" <n: Identifier> "=" <t: Type> => {
-    AliasTypeDeclNode {
-      attrs,
-      name: n,
-      alias_of: t,
-    }
+    _AliasTypeDecl::new(attrs, n, t)
   }
 }
 
-AliasTypeDecl = Spanned<AliasTypeDeclNode>;
+ArgTypeBindingAdornment = Spanned<_ArgTypeBindingAdornment>;
+_ArgTypeBindingAdornment: _ArgTypeBindingAdornment = {
+  "bound" => _ArgTypeBindingAdornment::Bound,
+  "free" => _ArgTypeBindingAdornment::Free,
+}
 
-ArgTypeBindingNode: ArgTypeBindingNode = {
-  <n: Identifier> ":" <t: Type> => {
-    ArgTypeBindingNode { name: Some(n), ty: t }
+ArgTypeBinding = Spanned<_ArgTypeBinding>;
+_ArgTypeBinding: _ArgTypeBinding = {
+  <adornment: ArgTypeBindingAdornment?> <n: Identifier> ":" <t: Type> => {
+    _ArgTypeBinding::new(adornment, Some(n), t)
   },
-  <t: Type> => {
-    ArgTypeBindingNode { name: None, ty: t }
+  <adornment: ArgTypeBindingAdornment?> <t: Type> => {
+    _ArgTypeBinding::new(adornment, None, t)
   }
 }
 
-ArgTypeBinding = Spanned<ArgTypeBindingNode>;
-
-RelationTypeNode: RelationTypeNode = {
+pub RelationType = Spanned<_RelationType>;
+_RelationType: _RelationType = {
   <n: Identifier> "(" <ts: Separated<ArgTypeBinding, ",">> ")" => {
-    RelationTypeNode {
-      name: n,
-      arg_types: ts,
-    }
+    _RelationType::new(n, ts)
   },
 }
 
-pub RelationType = Spanned<RelationTypeNode>;
-
-RelationTypeDeclNode: RelationTypeDeclNode = {
+RelationTypeDecl = Spanned<_RelationTypeDecl>;
+_RelationTypeDecl: _RelationTypeDecl = {
   <attrs: Attributes> "type" <rts: AtLeastOneSeparated<RelationType, ",">> => {
-    RelationTypeDeclNode {
-      attrs,
-      rel_types: rts,
-    }
+    _RelationTypeDecl::new(attrs, rts)
   },
 }
 
-RelationTypeDecl = Spanned<RelationTypeDeclNode>;
-
-EnumTypeDeclNode: EnumTypeDeclNode = {
+EnumTypeDecl = Spanned<_EnumTypeDecl>;
+_EnumTypeDecl: _EnumTypeDecl = {
   <attrs: Attributes> "type" <n: Identifier> "=" <ms: AtLeastTwoSeparatedStrict<EnumTypeMember, "|">> => {
-    EnumTypeDeclNode {
-      attrs,
-      name: n,
-      members: ms,
-    }
+    _EnumTypeDecl::new(attrs, n, ms)
   }
 }
 
-EnumTypeDecl = Spanned<EnumTypeDeclNode>;
-
-EnumTypeMemberNode: EnumTypeMemberNode = {
-  <n: Identifier> => {
-    EnumTypeMemberNode {
-      name: n,
-      assigned_num: None,
-    }
-  },
-  <n: Identifier> "=" <c: Constant> => {
-    EnumTypeMemberNode {
-      name: n,
-      assigned_num: Some(c),
-    }
-  }
+EnumTypeMember = Spanned<_EnumTypeMember>;
+_EnumTypeMember: _EnumTypeMember = {
+  <n: Identifier> => _EnumTypeMember::new(n, None),
+  <n: Identifier> "=" <c: Constant> => _EnumTypeMember::new(n, Some(c)),
 }
-
-EnumTypeMember = Spanned<EnumTypeMemberNode>;
 
 ADTSeparator = "|";
 
-AlgebraicDataTypeDeclNode: AlgebraicDataTypeDeclNode = {
+AlgebraicDataTypeDecl = Spanned<_AlgebraicDataTypeDecl>;
+_AlgebraicDataTypeDecl: _AlgebraicDataTypeDecl = {
   <attrs: Attributes> "type" <name: Identifier> "=" ADTSeparator? <vs: AtLeastTwoSeparatedStrict<AlgebraicDataTypeVariant, ADTSeparator>> => {
-    AlgebraicDataTypeDeclNode {
-      attrs,
-      name,
-      variants: vs,
-    }
+    _AlgebraicDataTypeDecl::new(attrs, name, vs)
   }
 }
 
-AlgebraicDataTypeDecl = Spanned<AlgebraicDataTypeDeclNode>;
-
-AlgebraicDataTypeVariantNode: AlgebraicDataTypeVariantNode = {
+AlgebraicDataTypeVariant = Spanned<_AlgebraicDataTypeVariant>;
+_AlgebraicDataTypeVariant: _AlgebraicDataTypeVariant = {
   <constructor: Identifier> "(" <args: Separated<Type, ",">> ")" => {
-    AlgebraicDataTypeVariantNode {
-      constructor,
-      args,
-    }
+    _AlgebraicDataTypeVariant::new(constructor, args)
   }
 }
 
-AlgebraicDataTypeVariant = Spanned<AlgebraicDataTypeVariantNode>;
-
-TypeDeclNode: TypeDeclNode = {
-  <s: SubtypeDecl> => TypeDeclNode::Subtype(s),
-  <a: AliasTypeDecl> => TypeDeclNode::Alias(a),
-  <r: RelationTypeDecl> => TypeDeclNode::Relation(r),
-  <e: EnumTypeDecl> => TypeDeclNode::Enum(e),
-  <a: AlgebraicDataTypeDecl> => TypeDeclNode::Algebraic(a),
+FunctionTypeDecl = Spanned<_FunctionTypeDecl>;
+_FunctionTypeDecl: _FunctionTypeDecl = {
+  <attrs: Attributes> "type" "$" <n: Identifier> "(" <args: Separated<ArgTypeBinding, ",">> ")" "->" <ret_ty: Type> => {
+    _FunctionTypeDecl::new(attrs, n, args, ret_ty)
+  }
 }
 
-TypeDecl = Spanned<TypeDeclNode>;
+TypeDecl: TypeDecl = {
+  SubtypeDecl => TypeDecl::Subtype(<>),
+  AliasTypeDecl => TypeDecl::Alias(<>),
+  RelationTypeDecl => TypeDecl::Relation(<>),
+  EnumTypeDecl => TypeDecl::Enumerate(<>),
+  AlgebraicDataTypeDecl => TypeDecl::Algebraic(<>),
+  FunctionTypeDecl => TypeDecl::Function(<>),
+}
 
 /// ======================================== ///
 /// ========= Constant Declaration ========= ///
 /// ======================================== ///
 
-EntityNode: EntityNode = {
-  <e: Expr> => EntityNode::Expr(e),
-  <o: Object> => EntityNode::Object(o),
+pub Entity: Entity = {
+  Expr => Entity::Expr(<>),
+  Object => Entity::Object(<>),
 }
 
-pub Entity = Spanned<EntityNode>;
-
-ObjectNode: ObjectNode = {
+Object = Spanned<_Object>;
+_Object: _Object = {
   <functor: Identifier> "(" <args: Separated<Entity, ",">> ")" => {
-    ObjectNode {
-      functor,
-      args,
-    }
+    _Object::new(functor, args)
   }
 }
 
-Object = Spanned<ObjectNode>;
-
-ConstAssignmentNode: ConstAssignmentNode = {
-  <n: Identifier> ":" <t: Type> "=" <e: Entity> => {
-    ConstAssignmentNode {
-      name: n,
-      ty: Some(t),
-      value: e,
-    }
-  },
-  <n: Identifier> "=" <e: Entity> => {
-    ConstAssignmentNode {
-      name: n,
-      ty: None,
-      value: e,
-    }
-  }
+ConstAssignment = Spanned<_ConstAssignment>;
+_ConstAssignment: _ConstAssignment = {
+  <n: Identifier> ":" <t: Type> "=" <e: Entity> => _ConstAssignment::new(n, Some(t), e),
+  <n: Identifier> "=" <e: Entity> => _ConstAssignment::new(n, None, e),
 }
 
-ConstAssignment = Spanned<ConstAssignmentNode>;
-
-ConstDeclNode: ConstDeclNode = {
+ConstDecl = Spanned<_ConstDecl>;
+_ConstDecl: _ConstDecl = {
   <attrs: Attributes> "const" <assignments: AtLeastOneSeparatedStrict<ConstAssignment, ",">> => {
-    ConstDeclNode {
-      attrs,
-      assignments,
-    }
+    _ConstDecl::new(attrs, assignments)
   }
 }
-
-ConstDecl = Spanned<ConstDeclNode>;
 
 /// ======================================== ///
 /// ========= Relation Declaration ========= ///
@@ -385,111 +331,86 @@ RelationKeyword = {
   "relation",
 }
 
-RelationDeclNode: RelationDeclNode = {
-  <s: ConstantSetDecl> => RelationDeclNode::Set(s),
-  <f: FactDecl> => RelationDeclNode::Fact(f),
-  <r: RuleDecl> => RelationDeclNode::Rule(r),
+RelationDecl: RelationDecl = {
+  ConstantSetDecl => RelationDecl::Set(<>),
+  FactDecl => RelationDecl::Fact(<>),
+  RuleDecl => RelationDecl::Rule(<>),
 }
 
-RelationDecl: RelationDecl = Spanned<RelationDeclNode>;
-
-TagNode: TagNode = {
-  <f: Float> => TagNode(DynamicInputTag::Float(f)),
-  <b: Bool> => TagNode(DynamicInputTag::Bool(b)),
+Tag = Spanned<_Tag>;
+_Tag: _Tag = {
+  Float => _Tag::new(DynamicInputTag::Float(<>)),
+  Bool => _Tag::new(DynamicInputTag::Bool(<>)),
 }
 
-Tag: Tag = Spanned<TagNode>;
-
-ConstantNode: ConstantNode = {
-  <i: Int> => ConstantNode::Integer(i),
-  <f: Float> => ConstantNode::Float(f),
-  <b: Bool> => ConstantNode::Boolean(b),
-  <c: ConstantChar> => ConstantNode::Char(c),
-  <s: ConstantString> => ConstantNode::String(s),
-  <s: ConstantSymbol> => ConstantNode::Symbol(s),
-  <s: ConstantDateTime> => ConstantNode::DateTime(s),
-  <s: ConstantDuration> => ConstantNode::Duration(s),
+Constant: Constant = {
+  IntLiteral => Constant::Integer(<>),
+  FloatLiteral => Constant::Float(<>),
+  BoolLiteral => Constant::Boolean(<>),
+  CharLiteral => Constant::Char(<>),
+  StringLiteral => Constant::String(<>),
+  SymbolLiteral => Constant::Symbol(<>),
+  DateTimeLiteral => Constant::DateTime(<>),
+  DurationLiteral => Constant::Duration(<>),
 }
-
-Constant: Constant = Spanned<ConstantNode>;
 
 ConstantOrVariable: ConstantOrVariable = {
-  <c: Constant> => ConstantOrVariable::Constant(c),
-  <v: Variable> => ConstantOrVariable::Variable(v),
+  Constant => ConstantOrVariable::Constant(<>),
+  Variable => ConstantOrVariable::Variable(<>),
 }
 
-ConstantTupleNode: ConstantTupleNode = {
-  "(" <elems: Separated<ConstantOrVariable, ",">> ")" => ConstantTupleNode { elems },
-  <c: ConstantOrVariable> => ConstantTupleNode { elems: vec![c] },
+ConstantTuple = Spanned<_ConstantTuple>;
+_ConstantTuple: _ConstantTuple = {
+  "(" <elems: Separated<ConstantOrVariable, ",">> ")" => _ConstantTuple::new(elems),
+  ConstantOrVariable => _ConstantTuple::new(vec![<>]),
 }
 
-ConstantTuple: ConstantTuple = Spanned<ConstantTupleNode>;
-
-ConstantSetTupleNode: ConstantSetTupleNode = {
+ConstantSetTuple = Spanned<_ConstantSetTuple>;
+_ConstantSetTuple: _ConstantSetTuple = {
   <tag: Tag> "::" <tuple: ConstantTuple> => {
-    ConstantSetTupleNode { tag, tuple }
+    _ConstantSetTuple::new(tag, tuple)
   },
   <tuple: ConstantTuple> => {
-    ConstantSetTupleNode { tag: Tag::default_none(), tuple }
+    _ConstantSetTuple::new(Tag::none(), tuple)
   }
 }
 
-ConstantSetTuple: ConstantSetTuple = Spanned<ConstantSetTupleNode>;
-
-ConstantSetNode: ConstantSetNode = {
-  "{" <tuples: Separated<ConstantSetTuple, ",">> "}" => {
-    ConstantSetNode { tuples, is_disjunction: false }
-  },
-  "{" <tuples: AtLeastTwoSeparated<ConstantSetTuple, ";">> "}" => {
-    ConstantSetNode { tuples, is_disjunction: true }
-  }
+ConstantSet = Spanned<_ConstantSet>;
+_ConstantSet: _ConstantSet = {
+  "{" <tuples: Separated<ConstantSetTuple, ",">> "}" => _ConstantSet::new(tuples, false),
+  "{" <tuples: AtLeastTwoSeparated<ConstantSetTuple, ";">> "}" => _ConstantSet::new(tuples, true),
 }
 
-ConstantSet: ConstantSet = Spanned<ConstantSetNode>;
-
-ConstantSetDeclNode: ConstantSetDeclNode = {
+ConstantSetDecl = Spanned<_ConstantSetDecl>;
+_ConstantSetDecl: _ConstantSetDecl = {
   <attrs: Attributes> RelationKeyword <name: Identifier> DefineSymbol <set: ConstantSet> => {
-    ConstantSetDeclNode { attrs, name, set }
+    _ConstantSetDecl::new(attrs, name, set)
   }
 }
 
-ConstantSetDecl: ConstantSetDecl = Spanned<ConstantSetDeclNode>;
-
-FactDeclNode: FactDeclNode = {
-  <attrs: Attributes> RelationKeyword <tag: Tag> "::" <a: Atom> => {
-    FactDeclNode { attrs, tag, atom: a }
-  },
-  <attrs: Attributes> RelationKeyword <a: Atom> => {
-    FactDeclNode { attrs, tag: Tag::default_none(), atom: a }
-  }
+FactDecl = Spanned<_FactDecl>;
+_FactDecl: _FactDecl = {
+  <attrs: Attributes> RelationKeyword <tag: Tag> "::" <a: Atom> => _FactDecl::new(attrs, tag, a),
+  <attrs: Attributes> RelationKeyword <a: Atom> => _FactDecl::new(attrs, Tag::none(), a),
 }
 
-FactDecl = Spanned<FactDeclNode>;
+Wildcard = Spanned<_Wildcard>;
+_Wildcard: _Wildcard = "_" => _Wildcard::new();
 
-WildcardNode: WildcardNode = {
-  "_" => WildcardNode
-}
+Variable = Spanned<_Variable>;
+_Variable: _Variable = Identifier => _Variable::new(<>);
 
-Wildcard = Spanned<WildcardNode>;
-
-VariableNode: VariableNode = {
-  <name: Identifier> => VariableNode { name },
-}
-
-Variable = Spanned<VariableNode>;
-
-AtomNode: AtomNode = {
+Atom = Spanned<_Atom>;
+_Atom: _Atom = {
   <predicate: Identifier> "(" <args: Separated<Expr, ",">> ")" => {
-    AtomNode { predicate, type_args: vec![], args }
+    _Atom::new(predicate, vec![], args)
   },
   <n: SpecializedPredicate> "(" <args: Separated<Expr, ",">> ")" => {
     let (predicate, type_arg_ids) = n;
     let type_args = type_arg_ids.into_iter().map(Type::from).collect();
-    AtomNode { predicate, type_args, args }
+    _Atom::new(predicate, type_args, args)
   }
 }
-
-Atom = Spanned<AtomNode>;
 
 Formula = ConjDisjFormula;
 
@@ -498,122 +419,117 @@ ConjDisjFormula = {
   ImpliesFormula,
 }
 
-CommaConjunctionNode: ConjunctionNode = {
-  <args: AtLeastTwoSeparatedStrict<AnnotatedAtomFormula, ",">> => ConjunctionNode { args }
+CommaConjunction = Spanned<_CommaConjunction>;
+_CommaConjunction: _Conjunction = {
+  <args: AtLeastTwoSeparatedStrict<AnnotatedAtomFormula, ",">> => _Conjunction::new(args)
 }
 
-CommaConjunction = Spanned<CommaConjunctionNode>;
-
-CommaConjunctionFormula: Formula = {
-  <c: CommaConjunction> => Formula::Conjunction(c),
-}
+CommaConjunctionFormula: Formula = CommaConjunction => Formula::Conjunction(<>);
 
 ImpliesKeyword = { "=>", "implies" }
 
-ImpliesNode: ImpliesNode = {
+Implies = Spanned<_Implies>;
+_Implies: _Implies = {
   <left: DisjunctionFormula> ImpliesKeyword <right: DisjunctionFormula> => {
-    ImpliesNode {
-      left: Box::new(left),
-      right: Box::new(right),
-    }
+    _Implies::new(left, right)
   }
 }
 
-Implies = Spanned<ImpliesNode>;
-
 ImpliesFormula = {
-  <i: Implies> => Formula::Implies(i),
+  Implies => Formula::Implies(<>),
   DisjunctionFormula,
 }
 
 DisjunctionKeyword = { "\\/", "or" }
 
-DisjunctionNode: DisjunctionNode = {
+Disjunction = Spanned<_Disjunction>;
+_Disjunction: _Disjunction = {
   <args: AtLeastTwoSeparatedStrict<ConjunctionFormula, DisjunctionKeyword>> => {
-    DisjunctionNode { args }
+    _Disjunction::new(args)
   }
 }
 
-Disjunction = Spanned<DisjunctionNode>;
-
 DisjunctionFormula = {
-  <d: Disjunction> => Formula::Disjunction(d),
+  Disjunction => Formula::Disjunction(<>),
   ConjunctionFormula,
 }
 
 ConjunctionKeyword = { "/\\", "and" }
 
-ConjunctionNode: ConjunctionNode = {
+Conjunction = Spanned<_Conjunction>;
+_Conjunction: _Conjunction = {
   <args: AtLeastTwoSeparatedStrict<AnnotatedAtomFormula, ConjunctionKeyword>> => {
-    ConjunctionNode { args }
+    _Conjunction::new(args)
   }
 }
 
-Conjunction = Spanned<ConjunctionNode>;
-
 ConjunctionFormula: Formula = {
-  <c: Conjunction> => Formula::Conjunction(c),
+  Conjunction => Formula::Conjunction(<>),
   AnnotatedAtomFormula,
 }
 
 NegateKeyword = { "~", "not" }
 
-NegAtomNode: NegAtomNode = {
-  NegateKeyword <a: Atom> => NegAtomNode { atom: a },
+NegAtom = Spanned<_NegAtom>;
+_NegAtom: _NegAtom = {
+  NegateKeyword <a: Atom> => _NegAtom::new(a),
 }
 
-NegAtom = Spanned<NegAtomNode>;
-
 AnnotatedAtomFormula: Formula = {
-  <n: NegAtom> => Formula::NegAtom(n),
+  NegAtom => Formula::NegAtom(<>),
   UnitFormula,
 }
 
 ComplexFormula: Formula = {
   CommaConjunctionFormula,
-  <i: Implies> => Formula::Implies(i),
-  <d: Disjunction> => Formula::Disjunction(d),
-  <c: Conjunction> => Formula::Conjunction(c),
-  <n: NegAtom> => Formula::NegAtom(n),
+  Implies => Formula::Implies(<>),
+  Disjunction => Formula::Disjunction(<>),
+  Conjunction => Formula::Conjunction(<>),
+  NegAtom => Formula::NegAtom(<>),
 }
 
 VariableOrWildcard: VariableOrWildcard = {
-  <v: Variable> => VariableOrWildcard::Variable(v),
-  <w: Wildcard> => VariableOrWildcard::Wildcard(w),
+  Variable => VariableOrWildcard::Variable(<>),
+  Wildcard => VariableOrWildcard::Wildcard(<>),
 }
 
-ReduceOpNode: ReduceOperatorNode = {
-  "exists" => ReduceOperatorNode::Exists,
-  "forall" => ReduceOperatorNode::Forall,
+ReduceOp = Spanned<_ReduceOp>;
+_ReduceOp: _ReduceOp = {
+  "exists" => _ReduceOp::Exists,
+  "forall" => _ReduceOp::Forall,
   <n: Identifier> => {
-    match n.name() {
-      "count" => ReduceOperatorNode::Count,
-      "sum" => ReduceOperatorNode::Sum,
-      "prod" => ReduceOperatorNode::Prod,
-      "min" => ReduceOperatorNode::Min,
-      "max" => ReduceOperatorNode::Max,
-      "unique" => ReduceOperatorNode::Unique,
-      x => ReduceOperatorNode::Unknown(x.to_string()),
+    match n.name().as_str() {
+      "count" => _ReduceOp::Count(false),
+      "sum" => _ReduceOp::Sum,
+      "prod" => _ReduceOp::Prod,
+      "min" => _ReduceOp::Min,
+      "max" => _ReduceOp::Max,
+      "unique" => _ReduceOp::Unique,
+      x => _ReduceOp::Unknown(x.to_string()),
+    }
+  },
+  <n: Identifier> "!" => {
+    match n.name().as_str() {
+      "count" => _ReduceOp::Count(true),
+      x => _ReduceOp::Unknown(x.to_string()),
     }
   },
   <n: Identifier> "<" <k: Int> ">" => {
-    match n.name() {
+    match n.name().as_str() {
       "top" => if k > 0 {
-        ReduceOperatorNode::TopK(k as usize)
+        _ReduceOp::TopK(k as usize)
       } else {
-        ReduceOperatorNode::Unknown(format!("top<{}>", k))
+        _ReduceOp::Unknown(format!("top<{}>", k))
       },
       "categorical" => if k > 0 {
-        ReduceOperatorNode::CategoricalK(k as usize)
+        _ReduceOp::CategoricalK(k as usize)
       } else {
-        ReduceOperatorNode::Unknown(format!("categorical<{}>", k))
+        _ReduceOp::Unknown(format!("categorical<{}>", k))
       },
-      x => ReduceOperatorNode::Unknown(x.to_string()),
+      x => _ReduceOp::Unknown(x.to_string()),
     }
   }
 }
-
-ReduceOp = Spanned<ReduceOpNode>;
 
 ReduceArgsFull: Vec<Variable> = {
   "[" <args: Separated<Variable, ",">> "]" => args,
@@ -639,392 +555,281 @@ ReduceGroupBy: (Vec<VariableBinding>, Box<Formula>) = {
 
 ReduceAssignmentSymbol = { "=", ":=" }
 
-ReduceNode: ReduceNode = {
+Reduce = Spanned<_Reduce>;
+_Reduce: _Reduce = {
   <vs: ReduceLeft> ReduceAssignmentSymbol <op: ReduceOp> <args: ReduceArgs> "(" <f: Formula> <g: ReduceGroupBy?> ")" => {
-    ReduceNode {
-      left: vs,
-      operator: op,
-      args: args,
-      bindings: vec![],
-      body: Box::new(f),
-      group_by: g,
-    }
+    _Reduce::new(vs, op, args, vec![], f, g)
   },
   <vs: ReduceLeft> ReduceAssignmentSymbol <op: ReduceOp> <args: ReduceArgs> "(" <bs: AtLeastOneSeparatedStrict<VariableBinding, ",">> ":" <f: Formula> <g: ReduceGroupBy?> ")" => {
-    ReduceNode {
-      left: vs,
-      operator: op,
-      args: args,
-      bindings: bs,
-      body: Box::new(f),
-      group_by: g,
-    }
+    _Reduce::new(vs, op, args, bs, f, g)
   }
 }
 
-Reduce = Spanned<ReduceNode>;
-
-ForallExistsReduceOpNode: ReduceOperatorNode = {
-  "exists" => ReduceOperatorNode::Exists,
-  "forall" => ReduceOperatorNode::Forall,
+ForallExistsReduceOp = Spanned<_ForallExistsReduceOp>;
+_ForallExistsReduceOp: _ReduceOp = {
+  "exists" => _ReduceOp::Exists,
+  "forall" => _ReduceOp::Forall,
 }
 
-ForallExistsReduceOp = Spanned<ForallExistsReduceOpNode>;
-
-ForallExistsReduceNode: ForallExistsReduceNode = {
+ForallExistsReduce = Spanned<_ForallExistsReduce>;
+_ForallExistsReduce: _ForallExistsReduce = {
   <negate: NegateKeyword?> <op: ForallExistsReduceOp> "(" <f: Formula> <g: ReduceGroupBy?> ")" => {
-    ForallExistsReduceNode {
-      negate: negate.is_some(),
-      operator: op,
-      bindings: vec![],
-      body: Box::new(f),
-      group_by: g,
-    }
+    _ForallExistsReduce::new(negate.is_some(), op, vec![], f, g)
   },
   <negate: NegateKeyword?> <op: ForallExistsReduceOp> "(" <bs: AtLeastOneSeparatedStrict<VariableBinding, ",">> ":" <f: Formula> <g: ReduceGroupBy?> ")" => {
-    ForallExistsReduceNode {
-      negate: negate.is_some(),
-      operator: op,
-      bindings: bs,
-      body: Box::new(f),
-      group_by: g,
-    }
+    _ForallExistsReduce::new(negate.is_some(), op, bs, f, g)
   },
 }
 
-ForallExistsReduce = Spanned<ForallExistsReduceNode>;
+Range = Spanned<_Range>;
+_Range: _Range = {
+  <x: Variable> "in" <lo: UnitExpr> ".." <hi: UnitExpr> => _Range::new(x, lo, hi, false),
+  <x: Variable> "in" <lo: UnitExpr> "..=" <hi: UnitExpr> => _Range::new(x, lo, hi, true),
+}
 
 UnitFormula: Formula = {
   "(" <f: ComplexFormula> ")" => f,
-  <c: Constraint> => Formula::Constraint(c),
-  <a: Atom> => Formula::Atom(a),
-  <c: Case> => Formula::Case(c),
-  <r: Reduce> => Formula::Reduce(r),
-  <r: ForallExistsReduce> => Formula::ForallExistsReduce(r),
+  Constraint => Formula::Constraint(<>),
+  Atom => Formula::Atom(<>),
+  Case => Formula::Case(<>),
+  Reduce => Formula::Reduce(<>),
+  ForallExistsReduce => Formula::ForallExistsReduce(<>),
+  Range => Formula::Range(<>),
 }
 
-ConstraintNode: ConstraintNode = {
-  <c: Spanned<ComparisonBinaryExprNode>> => {
-    ConstraintNode { expr: Expr::Binary(c) }
-  },
-  <u: Spanned<UnaryExprNode>> => {
-    ConstraintNode { expr: Expr::Unary(u) }
-  }
+Constraint = Spanned<_Constraint>;
+_Constraint: _Constraint = {
+  Spanned<_ComparisonBinaryExpr> => _Constraint::new(Expr::Binary(<>)),
+  Spanned<_UnaryExpr> => _Constraint::new(Expr::Unary(<>)),
 }
 
-Constraint = Spanned<ConstraintNode>;
+Case = Spanned<_Case>;
+_Case: _Case = "case" <v: Variable> "is" <e: Entity> => _Case::new(v, e);
 
-CaseNode: CaseNode = {
-  "case" <v: Variable> "is" <e: Entity> => {
-    CaseNode {
-      variable: v,
-      entity: e,
-    }
-  }
+VariableBinding = Spanned<_VariableBinding>;
+_VariableBinding: _VariableBinding = {
+  <name: Identifier> => _VariableBinding::new(name, None),
+  "(" <name: Identifier> ":" <ty: Type> ")" => _VariableBinding::new(name, Some(ty)),
 }
-
-Case = Spanned<CaseNode>;
-
-VariableBindingNode: VariableBindingNode = {
-  <name: Identifier> => VariableBindingNode { name, ty: None },
-  "(" <name: Identifier> ":" <ty: Type> ")" => VariableBindingNode { name, ty: Some(ty) },
-}
-
-VariableBinding = Spanned<VariableBindingNode>;
 
 Expr: Expr = IfThenElseExpr;
 
-IfThenElseExprNode: IfThenElseExprNode = {
+IfThenElseExpr: Expr = {
+  Spanned<_IfThenElseExpr> => Expr::IfThenElse(<>),
+  AndOrExpr,
+}
+_IfThenElseExpr: _IfThenElseExpr = {
   "if" <cond: AndOrExpr> "then" <then_br: IfThenElseExpr> "else" <else_br: IfThenElseExpr> => {
-    IfThenElseExprNode {
-      cond: Box::new(cond),
-      then_br: Box::new(then_br),
-      else_br: Box::new(else_br),
-    }
+    _IfThenElseExpr::new(cond, then_br, else_br)
   },
   <cond: AndOrExpr> "?" <then_br: IfThenElseExpr> ":" <else_br: IfThenElseExpr> => {
-    IfThenElseExprNode {
-      cond: Box::new(cond),
-      then_br: Box::new(then_br),
-      else_br: Box::new(else_br),
-    }
+    _IfThenElseExpr::new(cond, then_br, else_br)
   }
 }
 
-IfThenElseExpr: Expr = {
-  <i: Spanned<IfThenElseExprNode>> => Expr::IfThenElse(i),
-  AndOrExpr,
+AndOrBinaryOp = Spanned<_AndOrBinaryOp>;
+_AndOrBinaryOp: _BinaryOp = {
+  "&&" => _BinaryOp::and(),
+  "||" => _BinaryOp::or(),
+  "^" => _BinaryOp::xor(),
 }
 
-AndOrBinaryOpNode: BinaryOpNode = {
-  "&&" => BinaryOpNode::And,
-  "||" => BinaryOpNode::Or,
-  "^" => BinaryOpNode::Xor,
-}
-
-AndOrBinaryOp = Spanned<AndOrBinaryOpNode>;
-
-AndOrBinaryExprNode: BinaryExprNode = {
+_AndOrBinaryExpr: _BinaryExpr = {
   <op1: AndOrExpr> <op: AndOrBinaryOp> <op2: ComparisonExpr> => {
-    BinaryExprNode {
-      op,
-      op1: Box::new(op1),
-      op2: Box::new(op2),
-    }
+    _BinaryExpr::new(op, op1, op2)
   }
 }
 
 AndOrExpr: Expr = {
-  <e: Spanned<AndOrBinaryExprNode>> => Expr::Binary(e),
+  Spanned<_AndOrBinaryExpr> => Expr::Binary(<>),
   ComparisonExpr,
 }
 
-ComparisonBinaryOpNode: BinaryOpNode = {
-  "==" => BinaryOpNode::Eq,
-  "!=" => BinaryOpNode::Neq,
-  "<" => BinaryOpNode::Lt,
-  "<=" => BinaryOpNode::Leq,
-  ">" => BinaryOpNode::Gt,
-  ">=" => BinaryOpNode::Geq,
+ComparisonBinaryOp = Spanned<_ComparisonBinaryOp>;
+_ComparisonBinaryOp: _BinaryOp = {
+  "==" => _BinaryOp::eq(),
+  "!=" => _BinaryOp::neq(),
+  "<" => _BinaryOp::lt(),
+  "<=" => _BinaryOp::leq(),
+  ">" => _BinaryOp::gt(),
+  ">=" => _BinaryOp::geq(),
 }
 
-ComparisonBinaryExprNode: BinaryExprNode = {
-  <op1: AddSubExpr> <op: Spanned<ComparisonBinaryOpNode>> <op2: AddSubExpr> => {
-    BinaryExprNode {
-      op,
-      op1: Box::new(op1),
-      op2: Box::new(op2),
-    }
+_ComparisonBinaryExpr: _BinaryExpr = {
+  <op1: AddSubExpr> <op: ComparisonBinaryOp> <op2: AddSubExpr> => {
+    _BinaryExpr::new(op, op1, op2)
   }
 }
 
 ComparisonExpr: Expr = {
-  <c: Spanned<ComparisonBinaryExprNode>> => Expr::Binary(c),
-  <m: AddSubExpr> => m,
+  Spanned<_ComparisonBinaryExpr> => Expr::Binary(<>),
+  AddSubExpr,
 }
 
-AddSubBinaryOpNode: BinaryOpNode = {
-  "+" => BinaryOpNode::Add,
-  "-" => BinaryOpNode::Sub,
-}
-
-AddSubBinaryExprNode: BinaryExprNode = {
-  <op1: AddSubExpr> <op: Spanned<AddSubBinaryOpNode>> <op2: MulDivModExpr> => {
-    BinaryExprNode {
-      op,
-      op1: Box::new(op1),
-      op2: Box::new(op2),
-    }
-  }
+AddSubBinaryOp = Spanned<_AddSubBinaryOp>;
+_AddSubBinaryOp: _BinaryOp = {
+  "+" => _BinaryOp::add(),
+  "-" => _BinaryOp::sub(),
 }
 
 AddSubExpr: Expr = {
-  <a: Spanned<AddSubBinaryExprNode>> => Expr::Binary(a),
-  <u: MulDivModExpr> => u,
+  <a: Spanned<_AddSubBinaryExpr>> => Expr::Binary(a),
+  MulDivModExpr,
+}
+_AddSubBinaryExpr: _BinaryExpr = {
+  <op1: AddSubExpr> <op: AddSubBinaryOp> <op2: MulDivModExpr> => {
+    _BinaryExpr::new(op, op1, op2)
+  }
 }
 
-MulDivModBinaryOpNode: BinaryOpNode = {
-  "*" => BinaryOpNode::Mul,
-  "/" => BinaryOpNode::Div,
-  "%" => BinaryOpNode::Mod,
+MulDivModBinaryOp = Spanned<_MulDivModBinaryOp>;
+_MulDivModBinaryOp: _BinaryOp = {
+  "*" => _BinaryOp::mul(),
+  "/" => _BinaryOp::div(),
+  "%" => _BinaryOp::modulo(),
 }
 
-MulDivModBinaryExprNode: BinaryExprNode = {
-  <op1: MulDivModExpr> <op: Spanned<MulDivModBinaryOpNode>> <op2: UnaryExpr> => {
-    BinaryExprNode {
-      op,
-      op1: Box::new(op1),
-      op2: Box::new(op2),
-    }
+_MulDivModBinaryExpr: _BinaryExpr = {
+  <op1: MulDivModExpr> <op: MulDivModBinaryOp> <op2: UnaryExpr> => {
+    _BinaryExpr::new(op, op1, op2)
   }
 }
 
 MulDivModExpr: Expr = {
-  <m: Spanned<MulDivModBinaryExprNode>> => Expr::Binary(m),
-  <a: UnaryExpr> => a,
+  Spanned<_MulDivModBinaryExpr> => Expr::Binary(<>),
+  UnaryExpr,
 }
 
-UnaryOpNode: UnaryOpNode = {
-  "+" => UnaryOpNode::Pos,
-  "-" => UnaryOpNode::Neg,
-  "!" => UnaryOpNode::Not,
+UnaryOp = Spanned<_UnaryOp>;
+_UnaryOp: _UnaryOp = {
+  "+" => _UnaryOp::Pos,
+  "-" => _UnaryOp::Neg,
+  "!" => _UnaryOp::Not,
 }
 
-UnaryOp = Spanned<UnaryOpNode>;
-
-TypeCastOpNode: UnaryOpNode = {
-  "as" <ty: Type> => UnaryOpNode::TypeCast(ty),
-}
-
-TypeCastOp = Spanned<TypeCastOpNode>;
-
-UnaryExprNode: UnaryExprNode = {
-  <op: UnaryOp> <op1: UnitExpr> => {
-    UnaryExprNode {
-      op,
-      op1: Box::new(op1),
-    }
-  },
-  <op1: UnitExpr> <op: TypeCastOp> => {
-    UnaryExprNode {
-      op,
-      op1: Box::new(op1),
-    }
-  }
+TypeCastOp = Spanned<_TypeCastOp>;
+_TypeCastOp: _UnaryOp = {
+  "as" <ty: Type> => _UnaryOp::TypeCast(ty),
 }
 
 UnaryExpr: Expr = {
-  <u: Spanned<UnaryExprNode>> => Expr::Unary(u),
-  <u: UnitExpr> => u,
+  Spanned<_UnaryExpr> => Expr::Unary(<>),
+  UnitExpr,
+}
+_UnaryExpr: _UnaryExpr = {
+  <op: UnaryOp> <op1: UnitExpr> => _UnaryExpr::new(op, op1),
+  <op1: UnitExpr> <op: TypeCastOp> => _UnaryExpr::new(op, op1),
 }
 
 ComplexExpr: Expr = {
-  <i: Spanned<IfThenElseExprNode>> => Expr::IfThenElse(i),
-  <a: Spanned<AndOrBinaryExprNode>> => Expr::Binary(a),
-  <c: Spanned<ComparisonBinaryExprNode>> => Expr::Binary(c),
-  <a: Spanned<AddSubBinaryExprNode>> => Expr::Binary(a),
-  <m: Spanned<MulDivModBinaryExprNode>> => Expr::Binary(m),
-  <u: Spanned<UnaryExprNode>> => Expr::Unary(u),
+  Spanned<_IfThenElseExpr> => Expr::IfThenElse(<>),
+  Spanned<_AndOrBinaryExpr> => Expr::Binary(<>),
+  Spanned<_ComparisonBinaryExpr> => Expr::Binary(<>),
+  Spanned<_AddSubBinaryExpr> => Expr::Binary(<>),
+  Spanned<_MulDivModBinaryExpr> => Expr::Binary(<>),
+  Spanned<_UnaryExpr> => Expr::Unary(<>),
 }
 
-FunctionIdentifierNode: FunctionIdentifierNode = {
-  <n: Identifier> => FunctionIdentifierNode { id: n },
+FunctionIdentifier = Spanned<_FunctionIdentifier>;
+_FunctionIdentifier: _FunctionIdentifier = {
+  <n: Identifier> => _FunctionIdentifier::new(n),
 }
 
-FunctionIdentifier = Spanned<FunctionIdentifierNode>;
-
-CallExprNode: CallExprNode = {
+CallExpr = Spanned<_CallExpr>;
+_CallExpr: _CallExpr = {
   "$" <f: FunctionIdentifier> "(" <args: Separated<Expr, ",">> ")" => {
-    CallExprNode::new(f, args)
+    _CallExpr::new(f, args)
   }
 }
 
-CallExpr = Spanned<CallExprNode>;
-
-NewExprNode: NewExprNode = {
+NewExpr = Spanned<_NewExpr>;
+_NewExpr: _NewExpr = {
   "new" <functor: Identifier> "(" <args: Separated<Expr, ",">> ")" => {
-    NewExprNode {
-      functor,
-      args,
-    }
+    _NewExpr::new(functor, args)
   }
 }
-
-NewExpr = Spanned<NewExprNode>;
 
 UnitExpr: Expr = {
   "(" <e: ComplexExpr> ")" => e,
-  <w: Wildcard> => Expr::Wildcard(w),
-  <c: Constant> => Expr::Constant(c),
-  <v: Variable> => Expr::Variable(v),
-  <c: CallExpr> => Expr::Call(c),
-  <n: NewExpr> => Expr::New(n),
+  Wildcard => Expr::Wildcard(<>),
+  Constant => Expr::Constant(<>),
+  Variable => Expr::Variable(<>),
+  CallExpr => Expr::Call(<>),
+  NewExpr => Expr::New(<>),
 }
 
-RuleHeadNode: RuleHeadNode = {
-  <a: Atom> => {
-    RuleHeadNode::Atom(a)
-  },
-  <atoms: AtLeastTwoSeparated<Atom, ConjunctionKeyword>> => {
-    RuleHeadNode::Conjunction(atoms)
-  },
-  "{" <atoms: AtLeastTwoSeparated<Atom, ",">> "}" => {
-    RuleHeadNode::Conjunction(atoms)
-  },
-  "{" <atoms: AtLeastTwoSeparated<Atom, ";">> "}" => {
-    RuleHeadNode::Disjunction(atoms)
-  },
+ConjunctiveRuleHead = Spanned<_ConjunctiveRuleHead>;
+_ConjunctiveRuleHead: _ConjunctiveRuleHead = {
+  AtLeastTwoSeparated<Atom, ConjunctionKeyword> => _ConjunctiveRuleHead::new(<>),
+  "{" <a: AtLeastTwoSeparated<Atom, ",">> "}" => _ConjunctiveRuleHead::new(a),
 }
 
-RuleHead = Spanned<RuleHeadNode>;
-
-RuleNode: RuleNode = {
-  <head: RuleHead> DefineSymbol <body: Formula> => {
-    RuleNode { head, body }
-  }
+DisjunctiveRuleHead = Spanned<_DisjunctiveRuleHead>;
+_DisjunctiveRuleHead: _DisjunctiveRuleHead = {
+  "{" <atoms: AtLeastTwoSeparated<Atom, ";">> "}" => _DisjunctiveRuleHead::new(atoms),
 }
 
-pub Rule = Spanned<RuleNode>;
+RuleHead: RuleHead = {
+  Atom => RuleHead::Atom(<>),
+  ConjunctiveRuleHead => RuleHead::Conjunction(<>),
+  DisjunctiveRuleHead => RuleHead::Disjunction(<>),
+}
 
-RuleDeclNode: RuleDeclNode = {
+pub Rule = Spanned<_Rule>;
+_Rule: _Rule = {
+  <head: RuleHead> DefineSymbol <body: Formula> => _Rule::new(head, body),
+}
+
+RuleDecl = Spanned<_RuleDecl>;
+_RuleDecl: _RuleDecl = {
   <a: Attributes> RelationKeyword <tag: Tag> "::" <r: Rule> => {
-    RuleDeclNode { attrs: a, tag, rule: r }
+    _RuleDecl::new(a, tag, r)
   },
   <a: Attributes> RelationKeyword <r: Rule> => {
-    RuleDeclNode { attrs: a, tag: Tag::default_none(), rule: r }
+    _RuleDecl::new(a, Tag::none(), r)
   },
 }
-
-RuleDecl = Spanned<RuleDeclNode>;
 
 /// ====================================== ///
 /// ========= Import Declaration ========= ///
 /// ====================================== ///
 
-ImportFileNode: ImportFileNode = {
-  <s: StringLiteral> => {
-    ImportFileNode {
-      file_path: s,
-    }
-  }
+ImportDecl = Spanned<_ImportDecl>;
+_ImportDecl: _ImportDecl = {
+  <a: Attributes> "import" <f: StringLiteral> => _ImportDecl::new(a, f),
 }
-
-ImportFile = Spanned<ImportFileNode>;
-
-ImportDeclNode: ImportDeclNode = {
-  <a: Attributes> "import" <f: ImportFile> => {
-    ImportDeclNode {
-      attrs: a,
-      import_file: f,
-    }
-  }
-}
-
-ImportDecl = Spanned<ImportDeclNode>;
 
 /// ===================================== ///
 /// ========= Query Declaration ========= ///
 /// ===================================== ///
 
-QueryNode: QueryNode = {
-  <name: Identifier> => {
-    QueryNode::Predicate(name)
-  },
-  <atom: Atom> => {
-    QueryNode::Atom(atom)
-  }
+pub Query: Query = {
+  Identifier => Query::Predicate(<>),
+  Atom => Query::Atom(<>),
 }
 
-pub Query = Spanned<QueryNode>;
+QueryKeyword = { "query" }
 
-QueryKeyword = {
-  "query",
-}
-
-QueryDeclNode: QueryDeclNode = {
+QueryDecl = Spanned<_QueryDecl>;
+_QueryDecl: _QueryDecl = {
   <a: Attributes> QueryKeyword <q: Query> => {
-    QueryDeclNode {
-      attrs: a,
-      query: q,
-    }
+    _QueryDecl::new(a, q)
   },
 }
-
-QueryDecl = Spanned<QueryDeclNode>;
 
 /// ==================================== ///
 /// ========= Item Declaration ========= ///
 /// ==================================== ///
 
 pub Item: Item = {
-  <i: ImportDecl> => Item::ImportDecl(i),
-  <t: TypeDecl> => Item::TypeDecl(t),
-  <c: ConstDecl> => Item::ConstDecl(c),
-  <r: RelationDecl> => Item::RelationDecl(r),
-  <q: QueryDecl> => Item::QueryDecl(q),
+  ImportDecl => Item::ImportDecl(<>),
+  TypeDecl => Item::TypeDecl(<>),
+  ConstDecl => Item::ConstDecl(<>),
+  RelationDecl => Item::RelationDecl(<>),
+  QueryDecl => Item::QueryDecl(<>),
 }
 
-pub Items: Items = <Item*>;
+pub Items: Items = Item*;
 
 /// ============================== ///
 /// ========= Primitives ========= ///
@@ -1037,7 +842,7 @@ pub SpecializedPredicate: (Identifier, Vec<Identifier>) = {
     // First get the name part
     let angle_id = s.find("<").unwrap(); // Split the string using `<`
     let name = s[0..angle_id].trim_end(); // The first part is the name
-    let name_id = Identifier::from_span(start, start + name.len(), IdentifierNode { name: name.to_string() }); // Generate the identifier for name
+    let name_id = Identifier::new_with_span(name.to_string(), start, start + name.len()); // Generate the identifier for name
 
     // Then get the args part
     let all_args_str = &s[angle_id + 1..];
@@ -1055,7 +860,7 @@ pub SpecializedPredicate: (Identifier, Vec<Identifier>) = {
         let local_arg_end = curr_begin + local_arg_str.trim_end().len();
         let global_arg_start = start + (angle_id + 1) + local_arg_start;
         let global_arg_end = start + (angle_id + 1) + local_arg_end;
-        Identifier::from_span(global_arg_start, global_arg_end, IdentifierNode { name: local_arg_str.trim().to_string() })
+        Identifier::new_with_span(local_arg_str.trim().to_string(), global_arg_start, global_arg_end)
       })
       .collect();
 
@@ -1064,102 +869,85 @@ pub SpecializedPredicate: (Identifier, Vec<Identifier>) = {
   }
 }
 
-IdentifierNode: IdentifierNode = <name: Name> => IdentifierNode { name };
-
-Identifier = Spanned<IdentifierNode>;
+Identifier = Spanned<_Identifier>;
+_Identifier: _Identifier = <name: Name> => _Identifier::new(name);
 
 Int: i64 = int => i64::from_str(<>).unwrap();
+IntLiteral = Spanned<_IntLiteral>;
+_IntLiteral: _IntLiteral = Int => _IntLiteral::new(<>);
 
 Float: f64 = float => f64::from_str(<>).unwrap();
+FloatLiteral = Spanned<_FloatLiteral>;
+_FloatLiteral: _FloatLiteral = Float => _FloatLiteral::new(<>);
 
-StringLiteral: String = {
-  <s: string> => {
-    s[1..s.len() - 1].replace("\"\"", "")
-                     .replace("\\t", "\t")
-                     .replace("\\r", "\r")
-                     .replace("\\n", "\n")
-                     .replace("\\0", "\0")
-                     .replace("\\\"", "\"")
-                     .replace("\\\'", "\'")
-                     .replace("\\\\", "\\")
-                     .into()
-  }
-}
-
-SymbolLiteral: String = {
-  <s: symbol_string> => {
-    s[2..s.len() - 1].into()
-  }
-}
-
-DateTimeLiteral: String = {
-  <s: date_time_string> => {
-    s[2..s.len() - 1].into()
-  }
-}
-
-DurationLiteral: String = {
-  <s: duration_string> => {
-    s[2..s.len() - 1].into()
-  }
-}
-
-CharLiteral: String = {
+CharLiteral = Spanned<_CharLiteral>;
+_CharLiteral: _CharLiteral = {
   <s: character> => {
-    s[1..s.len() - 1].replace("\\t", "\t").replace("\\n", "\n").replace("\\'", "'").replace("\\\\", "\\").into()
+    _CharLiteral::new(
+      s[1..s.len() - 1]
+        .replace("\\t", "\t")
+        .replace("\\n", "\n")
+        .replace("\\'", "'")
+        .replace("\\\\", "\\")
+        .into()
+    )
   }
 }
 
-Bool: bool = {
-  "true" => true,
-  "false" => false,
-}
+Bool: bool = { "true" => true, "false" => false }
+BoolLiteral = Spanned<_BoolLiteral>;
+_BoolLiteral: _BoolLiteral = Bool => _BoolLiteral::new(<>);
 
-ConstantCharNode: ConstantCharNode = {
-  <c: CharLiteral> => {
-    ConstantCharNode { character: c }
+StringLiteral = Spanned<_StringLiteral>;
+_StringLiteral: _StringLiteral = {
+  <s: single_quote_string> => {
+    _StringLiteral::new(
+      s[1..s.len() - 1]
+        .replace("\\t", "\t")
+        .replace("\\r", "\r")
+        .replace("\\n", "\n")
+        .replace("\\0", "\0")
+        .replace("\\\"", "\"")
+        .replace("\\\'", "\'")
+        .replace("\\\\", "\\")
+        .into()
+    )
+  },
+  <s: triple_quote_string> => {
+    _StringLiteral::new(
+      s[3..s.len() - 3]
+        .replace("\\t", "\t")
+        .replace("\\r", "\r")
+        .replace("\\n", "\n")
+        .replace("\\0", "\0")
+        .replace("\\\"", "\"")
+        .replace("\\\'", "\'")
+        .replace("\\\\", "\\")
+        .into()
+    )
   }
 }
 
-ConstantChar = Spanned<ConstantCharNode>;
-
-ConstantStringNode: ConstantStringNode = {
-  <s: StringLiteral> => {
-    ConstantStringNode { string: s }
+SymbolLiteral = Spanned<_SymbolLiteral>;
+_SymbolLiteral: _SymbolLiteral = {
+  <s: symbol_string> => {
+    _SymbolLiteral::new(s[2..s.len() - 1].into())
   }
 }
 
-ConstantString = Spanned<ConstantStringNode>;
-
-ConstantSymbolNode: ConstantSymbolNode = {
-  <s: SymbolLiteral> => {
-    ConstantSymbolNode { symbol: s }
+DateTimeLiteral = Spanned<_DateTimeLiteral>;
+_DateTimeLiteral: _DateTimeLiteral = {
+  <s: date_time_string> => {
+    _DateTimeLiteral::new(s[2..s.len() - 1].into())
   }
 }
 
-ConstantSymbol = Spanned<ConstantSymbolNode>;
-
-ConstantDateTimeNode: Result<ConstantDateTimeNode, String> = {
-  <s: DateTimeLiteral> => {
-    match utils::parse_date_time_string(&s) {
-      Some(v) => Ok(ConstantDateTimeNode { datetime: v }),
-      None => Err(format!("Cannot parse date time `{}`", s)),
-    }
+DurationLiteral = Spanned<_DurationLiteral>;
+_DurationLiteral: _DurationLiteral = {
+  <s: duration_string> => {
+    _DurationLiteral::new(s[2..s.len() - 1].into())
   }
 }
-
-ConstantDateTime = Spanned<ConstantDateTimeNode>;
-
-ConstantDurationNode: Result<ConstantDurationNode, String> = {
-  <s: DurationLiteral> => {
-    match utils::parse_duration_string(&s) {
-      Some(v) => Ok(ConstantDurationNode { duration: v }),
-      None => Err(format!("Cannot parse duration `{}`", s)),
-    }
-  }
-}
-
-ConstantDuration = Spanned<ConstantDurationNode>;
 
 /// =========================== ///
 /// ========= Helpers ========= ///
@@ -1191,6 +979,6 @@ AtLeastTwoSeparatedStrict<E, S>: Vec<E> = {
   <r1: E> <rs: (S <E>)+> => vec![vec![r1], rs].concat(),
 }
 
-Spanned<T>: AstNode<T> = {
-  <start: @L> <t: T> <end: @R> => AstNode::from_span(start, end, t)
+Spanned<T>: AstNodeWrapper<T> = {
+  <start: @L> <t: T> <end: @R> => t.with_span(start, end)
 }

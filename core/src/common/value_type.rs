@@ -59,6 +59,7 @@ impl ValueType {
       DateTime(_) => Self::DateTime,
       Duration(_) => Self::Duration,
       Entity(_) => Self::Entity,
+      EntityString(_) => Self::Entity,
       Tensor(_) => Self::Tensor,
       TensorValue(_) => Self::Tensor,
     }
@@ -527,7 +528,7 @@ impl FromType<chrono::DateTime<chrono::Utc>> for ValueType {
     Self::DateTime
   }
 }
-impl FromType<chrono::Duration> for ValueType {
+impl FromType<chronoutil::RelativeDuration> for ValueType {
   fn from_type() -> Self {
     Self::Duration
   }

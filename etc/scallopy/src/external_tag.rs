@@ -1,6 +1,8 @@
 use pyo3::prelude::*;
 
-use scallop_core::common::tensors::*;
+use scallop_core::common::foreign_tensor::*;
+
+use super::tensor::*;
 
 #[derive(Clone)]
 pub struct ExtTag {
@@ -8,21 +10,8 @@ pub struct ExtTag {
 }
 
 impl FromTensor for ExtTag {
-  #[allow(unused)]
-  #[cfg(not(feature = "torch-tensor"))]
-  fn from_tensor(tensor: Tensor) -> Option<Self> {
-    None
-  }
-
-  #[cfg(feature = "torch-tensor")]
-  fn from_tensor(tensor: Tensor) -> Option<Self> {
-    use super::torch::*;
-    Python::with_gil(|py| {
-      let py_tensor = PyTensor(tensor.tensor);
-      let py_obj: Py<PyAny> = py_tensor.into_py(py);
-      let ext_tag: ExtTag = py_obj.into();
-      Some(ext_tag)
-    })
+  fn from_tensor(tensor: DynamicExternalTensor) -> Option<Self> {
+    tensor.cast::<Tensor>().map(|t| t.to_py_value().into())
   }
 }
 

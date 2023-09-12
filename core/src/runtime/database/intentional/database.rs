@@ -87,11 +87,11 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalDatabase<Prov, Ptr> {
       IntentionalRelation {
         recovered: true,
         internal_facts: DynamicCollection::empty(),
-        recovered_facts: Ptr::new_rc(DynamicOutputCollection::from(edb_relation.internal.iter().map(
+        recovered_facts: Ptr::new_rc(DynamicOutputCollection::from(edb_relation.internal.iter().filter_map(
           |elem| {
             let tag = ctx.recover_fn(&elem.tag);
-            let tup = env.externalize_tuple(&elem.tuple);
-            (tag, tup)
+            let tup = env.externalize_tuple(&elem.tuple)?;
+            Some((tag, tup))
           },
         ))),
       },

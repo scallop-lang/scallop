@@ -9,6 +9,6 @@ pub fn collect_chosen_elements<'a, Prov: Provenance, E: Element<Prov>>(
     .iter()
     .enumerate()
     .filter(|(i, _)| chosen_ids.contains(i))
-    .map(|(_, e)| e.clone())
+    .map(|(_, e)| e)
     .collect::<Vec<_>>()
 }

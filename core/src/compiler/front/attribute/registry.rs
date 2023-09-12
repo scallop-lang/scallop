@@ -46,8 +46,8 @@ impl AttributeProcessorRegistry {
   pub fn analyze(&self, items: &Vec<ast::Item>) -> Result<PostProcessingContext, AttributeError> {
     let mut post_proc_ctx = PostProcessingContext::new();
     for (item_index, item) in items.iter().enumerate() {
-      for attr in item.attributes() {
-        if let Some(proc) = self.get_attribute_processor(attr.name()) {
+      for attr in item.attrs() {
+        if let Some(proc) = self.get_attribute_processor(attr.name().name()) {
           let action = proc.apply(item, attr)?;
           post_proc_ctx.add_action(action, item_index);
         }

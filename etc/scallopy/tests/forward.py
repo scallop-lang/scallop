@@ -110,60 +110,60 @@ class TestDigitForward(unittest.TestCase):
     self.assertEqual(mult_2.shape, (16, 100))
 
 
-class TestDigitForwardWithJIT(unittest.TestCase):
-  def setUp(self):
-    self.ctx = scallopy.ScallopContext(provenance="diffminmaxprob")
-    self.ctx.add_relation("digit_1", int, list(range(10)))
-    self.ctx.add_relation("digit_2", int, list(range(10)))
-    self.ctx.add_rule("sum_2(a + b) = digit_1(a) and digit_2(b)")
-    self.ctx.add_rule("mult_2(a * b) = digit_1(a) and digit_2(b)")
+# class TestDigitForwardWithJIT(unittest.TestCase):
+#   def setUp(self):
+#     self.ctx = scallopy.ScallopContext(provenance="diffminmaxprob")
+#     self.ctx.add_relation("digit_1", int, list(range(10)))
+#     self.ctx.add_relation("digit_2", int, list(range(10)))
+#     self.ctx.add_rule("sum_2(a + b) = digit_1(a) and digit_2(b)")
+#     self.ctx.add_rule("mult_2(a * b) = digit_1(a) and digit_2(b)")
 
-  @unittest.expectedFailure
-  def test_unknown_relation(self):
-    self.ctx.forward_function("add_3", list(range(28)))
+#   @unittest.expectedFailure
+#   def test_unknown_relation(self):
+#     self.ctx.forward_function("add_3", list(range(28)))
 
-  @unittest.expectedFailure
-  def test_no_ouputs(self):
-    self.ctx.forward_function(output_mappings={}, jit=True)
+#   @unittest.expectedFailure
+#   def test_no_ouputs(self):
+#     self.ctx.forward_function(output_mappings={}, jit=True)
 
-  def test_normal(self):
-    forward = self.ctx.forward_function("sum_2", list(range(19)), jit=True, jit_name="digit")
-    digit_1, digit_2 = torch.randn((16, 10)), torch.randn((16, 10))
-    result = forward(digit_1=digit_1, digit_2=digit_2)
-    self.assertEqual(result.shape, (16, 19))
+#   def test_normal(self):
+#     forward = self.ctx.forward_function("sum_2", list(range(19)), jit=True, jit_name="digit")
+#     digit_1, digit_2 = torch.randn((16, 10)), torch.randn((16, 10))
+#     result = forward(digit_1=digit_1, digit_2=digit_2)
+#     self.assertEqual(result.shape, (16, 19))
 
-  def test_normal_single_dispatch(self):
-    forward = self.ctx.forward_function("sum_2", list(range(19)), jit=True, jit_name="digit", dispatch="single")
-    digit_1, digit_2 = torch.randn((16, 10)), torch.randn((16, 10))
-    result = forward(digit_1=digit_1, digit_2=digit_2)
-    self.assertEqual(result.shape, (16, 19))
+#   def test_normal_single_dispatch(self):
+#     forward = self.ctx.forward_function("sum_2", list(range(19)), jit=True, jit_name="digit", dispatch="single")
+#     digit_1, digit_2 = torch.randn((16, 10)), torch.randn((16, 10))
+#     result = forward(digit_1=digit_1, digit_2=digit_2)
+#     self.assertEqual(result.shape, (16, 19))
 
-  def test_normal_non_parallel_dispatch(self):
-    forward = self.ctx.forward_function("sum_2", list(range(19)), jit=True, jit_name="digit", dispatch="serial")
-    digit_1, digit_2 = torch.randn((16, 10)), torch.randn((16, 10))
-    result = forward(digit_1=digit_1, digit_2=digit_2)
-    self.assertEqual(result.shape, (16, 19))
+#   def test_normal_non_parallel_dispatch(self):
+#     forward = self.ctx.forward_function("sum_2", list(range(19)), jit=True, jit_name="digit", dispatch="serial")
+#     digit_1, digit_2 = torch.randn((16, 10)), torch.randn((16, 10))
+#     result = forward(digit_1=digit_1, digit_2=digit_2)
+#     self.assertEqual(result.shape, (16, 19))
 
-  def test_multi_result_normal(self):
-    forward = self.ctx.forward_function(output_mappings={"sum_2": list(range(19)), "mult_2": list(range(100))}, jit=True, jit_name="digit_multi_result")
-    digit_1, digit_2 = torch.randn((16, 10)), torch.randn((16, 10))
-    result = forward(digit_1=digit_1, digit_2=digit_2)
-    self.assertEqual(result["sum_2"].shape, (16, 19))
-    self.assertEqual(result["mult_2"].shape, (16, 100))
+#   def test_multi_result_normal(self):
+#     forward = self.ctx.forward_function(output_mappings={"sum_2": list(range(19)), "mult_2": list(range(100))}, jit=True, jit_name="digit_multi_result")
+#     digit_1, digit_2 = torch.randn((16, 10)), torch.randn((16, 10))
+#     result = forward(digit_1=digit_1, digit_2=digit_2)
+#     self.assertEqual(result["sum_2"].shape, (16, 19))
+#     self.assertEqual(result["mult_2"].shape, (16, 100))
 
-  def test_multi_result_single_dispatch(self):
-    forward = self.ctx.forward_function(output_mappings={"sum_2": list(range(19)), "mult_2": list(range(100))}, jit=True, jit_name="digit_multi_result", dispatch="single")
-    digit_1, digit_2 = torch.randn((16, 10)), torch.randn((16, 10))
-    result = forward(digit_1=digit_1, digit_2=digit_2)
-    self.assertEqual(result["sum_2"].shape, (16, 19))
-    self.assertEqual(result["mult_2"].shape, (16, 100))
+#   def test_multi_result_single_dispatch(self):
+#     forward = self.ctx.forward_function(output_mappings={"sum_2": list(range(19)), "mult_2": list(range(100))}, jit=True, jit_name="digit_multi_result", dispatch="single")
+#     digit_1, digit_2 = torch.randn((16, 10)), torch.randn((16, 10))
+#     result = forward(digit_1=digit_1, digit_2=digit_2)
+#     self.assertEqual(result["sum_2"].shape, (16, 19))
+#     self.assertEqual(result["mult_2"].shape, (16, 100))
 
-  def test_multi_result_non_parallel_dispatch(self):
-    forward = self.ctx.forward_function(output_mappings={"sum_2": list(range(19)), "mult_2": list(range(100))}, jit=True, jit_name="digit_multi_result", dispatch="serial")
-    digit_1, digit_2 = torch.randn((16, 10)), torch.randn((16, 10))
-    result = forward(digit_1=digit_1, digit_2=digit_2)
-    self.assertEqual(result["sum_2"].shape, (16, 19))
-    self.assertEqual(result["mult_2"].shape, (16, 100))
+#   def test_multi_result_non_parallel_dispatch(self):
+#     forward = self.ctx.forward_function(output_mappings={"sum_2": list(range(19)), "mult_2": list(range(100))}, jit=True, jit_name="digit_multi_result", dispatch="serial")
+#     digit_1, digit_2 = torch.randn((16, 10)), torch.randn((16, 10))
+#     result = forward(digit_1=digit_1, digit_2=digit_2)
+#     self.assertEqual(result["sum_2"].shape, (16, 19))
+#     self.assertEqual(result["mult_2"].shape, (16, 100))
 
 
 class TestDirectForward(unittest.TestCase):

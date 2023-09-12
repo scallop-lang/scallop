@@ -10,11 +10,17 @@ install-sclc:
 install-sclrepl:
 	cargo install --path etc/sclrepl
 
-install-scallop-cli: install-scallopy
-	cd etc/scallop-cli; python setup.py install
+install-scallop-cli: install-scallopy-ext
+	make internal-install-scallop-cli
 
-develop-scallop-cli: develop-scallopy
-	cd etc/scallop-cli; python setup.py install
+develop-scallop-cli: develop-scallopy-ext
+	make internal-develop-scallop-cli
+
+install-scallopy-ext: install-scallopy
+	make internal-install-scallopy-ext
+
+develop-scallopy-ext: develop-scallopy
+	make internal-develop-scallopy-ext
 
 install-scallopy:
 	maturin build --release --manifest-path etc/scallopy/Cargo.toml --out target/wheels/current
@@ -24,43 +30,24 @@ install-scallopy:
 develop-scallopy:
 	cd etc/scallopy; maturin develop --release
 
-# ============================================
-# === Scallopy with Torch on normal Device ===
+# ====================================================================
+# === Internal installing scripts for scallop-cli and scallopy-ext ===
 
-install-scallopy-torch:
-	maturin build --release \
-		--features "torch-tensor" \
-		--manifest-path etc/scallopy/Cargo.toml \
-		--out target/wheels/current \
-		--config 'env.LIBTORCH_USE_PYTORCH = "1"'
-	find target/wheels/current -name "*.whl" -print | xargs pip install --force-reinstall
-	rm -rf target/wheels/current
+internal-install-scallop-cli:
+	cd etc/scallop-cli; python -m build
+	find etc/scallop-cli/dist -name "*.whl" -print | xargs pip install --force-reinstall
 
-develop-scallopy-torch:
-	cd etc/scallopy; maturin develop --release --features "torch-tensor" --config 'env.LIBTORCH_USE_PYTORCH = "1"'
+internal-develop-scallop-cli:
+	cd etc/scallop-cli; pip install --editable .
 
-# =================================================
-# === Scallopy with Torch on Apple M1/M2 Device ===
+internal-install-scallopy-ext:
+	cd etc/scallopy-ext; python -m build
+	find etc/scallopy-ext/dist -name "*.whl" -print | xargs pip install --force-reinstall
 
-install-scallopy-torch-apple:
-	python3 scripts/link_torch_lib.py
-	maturin build --release \
-		--features "torch-tensor" \
-		--manifest-path etc/scallopy/Cargo.toml \
-		--out target/wheels/current \
-		--config 'env.LIBTORCH = "$(shell pwd)/.tmp/torch"' \
-		--config 'env.DYLD_LIBRARY_PATH = "$(shell pwd)/.tmp/torch/lib"'
-	find target/wheels/current -name "*.whl" -print | xargs pip install --force-reinstall
-	rm -rf target/wheels/current
+internal-develop-scallopy-ext:
+	cd etc/scallopy-ext; pip install --editable .
 
-develop-scallopy-torch-apple:
-	python3 scripts/link_torch_lib.py
-	cd etc/scallopy; maturin develop --release \
-		--features "torch-tensor" \
-		--config 'env.LIBTORCH = "$(shell pwd)/.tmp/torch"' \
-		--config 'env.DYLD_LIBRARY_PATH = "$(shell pwd)/.tmp/torch/lib"'
-
-# =================================================
+# ==========================================
 # === Scallop WASM for Web Demo and Node ===
 
 wasm-demo:
@@ -88,7 +75,7 @@ clean:
 check:
 	cargo check --workspace
 
-check-plus:
+check-torch:
 	cargo check --workspace --features "torch-tensor"
 
 test:
@@ -96,14 +83,24 @@ test:
 	@make test-cargo
 	@echo "[Info] Performing scallopy test..."
 	@make test-scallopy
+	@echo "[Info] Performing scallopy-ext test..."
+	@make test-scallopy-ext
 
-test-all:
+test-torch:
 	@echo "[Info] Performing cargo test..."
 	@make test-cargo
+	@echo "[Info] Performing scallopy test..."
+	@make test-scallopy-torch
+	@echo "[Info] Performing scallopy-ext test..."
+	@make test-scallopy-ext-torch
+
+test-all: test
 	@echo "[Info] Performing cargo test [ignored]..."
 	@make test-cargo-ignored
-	@echo "[Info] Performing scallopy test..."
-	@make test-scallopy
+
+test-all-torch: test-torch
+	@echo "[Info] Performing cargo test [ignored]..."
+	@make test-cargo-ignored
 
 test-cargo:
 	cargo test --workspace
@@ -117,6 +114,12 @@ test-scallopy: develop-scallopy
 test-scallopy-torch: develop-scallopy-torch
 	python3 etc/scallopy/tests/test.py
 
+test-scallopy-ext: develop-scallopy-ext
+	python3 etc/scallopy-ext/tests/test.py
+
+test-scallopy-ext-torch: develop-scallopy-ext-torch
+	python3 etc/scallopy-ext/tests/test.py
+
 doc:
 	cargo doc
 
@@ -127,6 +130,9 @@ serve-doc:
 stop-serve-doc:
 	@echo "Stopping documentation server on port 8192..."
 	@lsof -t -i:8192 | xargs kill
+
+build-book:
+	mdbook build doc/
 
 serve-book:
 	mdbook serve -p 8193 doc/

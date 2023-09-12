@@ -3,8 +3,8 @@ use super::*;
 use crate::common::tuple::Tuple;
 
 pub struct DynamicJoinDataflow<'a, Prov: Provenance> {
-  pub d1: Box<DynamicDataflow<'a, Prov>>,
-  pub d2: Box<DynamicDataflow<'a, Prov>>,
+  pub d1: DynamicDataflow<'a, Prov>,
+  pub d2: DynamicDataflow<'a, Prov>,
   pub ctx: &'a Prov,
 }
 
@@ -18,30 +18,18 @@ impl<'a, Prov: Provenance> Clone for DynamicJoinDataflow<'a, Prov> {
   }
 }
 
-impl<'a, Prov: Provenance> DynamicJoinDataflow<'a, Prov> {
-  pub fn iter_stable(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
+impl<'a, Prov: Provenance> Dataflow<'a, Prov> for DynamicJoinDataflow<'a, Prov> {
+  fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     let op = JoinOp { ctx: self.ctx };
-    DynamicBatches::binary(self.d1.iter_stable(runtime), self.d2.iter_stable(runtime), op.into())
+    DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_stable(), op)
   }
 
-  pub fn iter_recent(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
+  fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     let op = JoinOp { ctx: self.ctx };
     DynamicBatches::chain(vec![
-      DynamicBatches::binary(
-        self.d1.iter_stable(runtime),
-        self.d2.iter_recent(runtime),
-        op.clone().into(),
-      ),
-      DynamicBatches::binary(
-        self.d1.iter_recent(runtime),
-        self.d2.iter_stable(runtime),
-        op.clone().into(),
-      ),
-      DynamicBatches::binary(
-        self.d1.iter_recent(runtime),
-        self.d2.iter_recent(runtime),
-        op.clone().into(),
-      ),
+      DynamicBatches::binary(self.d1.iter_stable(), self.d2.iter_recent(), op.clone()),
+      DynamicBatches::binary(self.d1.iter_recent(), self.d2.iter_stable(), op.clone()),
+      DynamicBatches::binary(self.d1.iter_recent(), self.d2.iter_recent(), op.clone()),
     ])
   }
 }
@@ -56,20 +44,14 @@ impl<'a, Prov: Provenance> Clone for JoinOp<'a, Prov> {
   }
 }
 
-impl<'a, Prov: Provenance> From<JoinOp<'a, Prov>> for BatchBinaryOp<'a, Prov> {
-  fn from(op: JoinOp<'a, Prov>) -> Self {
-    Self::Join(op)
-  }
-}
-
-impl<'a, Prov: Provenance> JoinOp<'a, Prov> {
-  pub fn apply(&self, mut i1: DynamicBatch<'a, Prov>, mut i2: DynamicBatch<'a, Prov>) -> DynamicBatch<'a, Prov> {
-    let i1_curr = i1.next();
-    let i2_curr = i2.next();
-    DynamicBatch::Join(DynamicJoinBatch {
-      i1: Box::new(i1),
+impl<'a, Prov: Provenance> BatchBinaryOp<'a, Prov> for JoinOp<'a, Prov> {
+  fn apply(&self, mut i1: DynamicBatch<'a, Prov>, mut i2: DynamicBatch<'a, Prov>) -> DynamicBatch<'a, Prov> {
+    let i1_curr = i1.next_elem();
+    let i2_curr = i2.next_elem();
+    DynamicBatch::new(DynamicJoinBatch {
+      i1: i1,
       i1_curr,
-      i2: Box::new(i2),
+      i2: i2,
       i2_curr,
       curr_iter: None,
       ctx: self.ctx,
@@ -78,9 +60,9 @@ impl<'a, Prov: Provenance> JoinOp<'a, Prov> {
 }
 
 pub struct DynamicJoinBatch<'a, Prov: Provenance> {
-  i1: Box<DynamicBatch<'a, Prov>>,
+  i1: DynamicBatch<'a, Prov>,
   i1_curr: Option<DynamicElement<Prov>>,
-  i2: Box<DynamicBatch<'a, Prov>>,
+  i2: DynamicBatch<'a, Prov>,
   i2_curr: Option<DynamicElement<Prov>>,
   curr_iter: Option<JoinProductIterator<Prov>>,
   ctx: &'a Prov,
@@ -99,10 +81,8 @@ impl<'a, Prov: Provenance> Clone for DynamicJoinBatch<'a, Prov> {
   }
 }
 
-impl<'a, Prov: Provenance> Iterator for DynamicJoinBatch<'a, Prov> {
-  type Item = DynamicElement<Prov>;
-
-  fn next(&mut self) -> Option<Self::Item> {
+impl<'a, Prov: Provenance> Batch<'a, Prov> for DynamicJoinBatch<'a, Prov> {
+  fn next_elem(&mut self) -> Option<DynamicElement<Prov>> {
     use std::cmp::Ordering;
     loop {
       if let Some(curr_prod_iter) = &mut self.curr_iter {
@@ -113,16 +93,16 @@ impl<'a, Prov: Provenance> Iterator for DynamicJoinBatch<'a, Prov> {
           return Some(result);
         } else {
           self.i1.step(curr_prod_iter.v1.len() - 1);
-          self.i1_curr = self.i1.next();
+          self.i1_curr = self.i1.next_elem();
           self.i2.step(curr_prod_iter.v2.len() - 1);
-          self.i2_curr = self.i2.next();
+          self.i2_curr = self.i2.next_elem();
           self.curr_iter = None;
         }
       }
 
       match (&self.i1_curr, &self.i2_curr) {
         (Some(i1_curr_elem), Some(i2_curr_elem)) => match i1_curr_elem.tuple[0].cmp(&i2_curr_elem.tuple[0]) {
-          Ordering::Less => self.i1_curr = self.i1.search_ahead(|i1_next| i1_next[0] < i2_curr_elem.tuple[0]),
+          Ordering::Less => self.i1_curr = self.i1.search_elem_0_until(&i2_curr_elem.tuple[0]),
           Ordering::Equal => {
             let key = &i1_curr_elem.tuple[0];
             let v1 = std::iter::once(i1_curr_elem.clone())
@@ -134,7 +114,7 @@ impl<'a, Prov: Provenance> Iterator for DynamicJoinBatch<'a, Prov> {
             let iter = JoinProductIterator::new(v1, v2);
             self.curr_iter = Some(iter);
           }
-          Ordering::Greater => self.i2_curr = self.i2.search_ahead(|i2_next| i2_next[0] < i1_curr_elem.tuple[0]),
+          Ordering::Greater => self.i2_curr = self.i2.search_elem_0_until(&i1_curr_elem.tuple[0]),
         },
         _ => break None,
       }

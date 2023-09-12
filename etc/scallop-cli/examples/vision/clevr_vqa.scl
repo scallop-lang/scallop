@@ -1,0 +1,69 @@
+// ==== Foundation Models ====
+
+@segment_anything(["cropped-image"], area_threshold=100, limit=10, expand_crop_region=20)
+type segment_image(bound img: Tensor, id: u32, cropped_img: Tensor)
+
+@clip(["cube", "cylinder", "sphere"], prompt="a {{}}")
+type classify_shape(bound img: Tensor, color: String)
+
+@clip(["red", "blue", "yellow", "green"], prompt="a {{}} object")
+type classify_color(bound img: Tensor, color: String)
+
+@gpt(
+  header="""
+Please convert a question into its programmatic form according to the following language
+
+Expr := Scene() | FilterShape(Expr, String) | FilterColor(Expr, String) | Count(Expr) | Exists(Expr)
+
+Please pick shapes among "cylinder", "cube", and "sphere";
+Colors are among "red", "blue", "yellow", and "green".
+  """,
+  prompt="""
+Question: {{s}}
+Query: {{e}}
+  """,
+  examples=[
+    ("How many red objects are there?", "Count(FilterColor(Scene(), \"red\"))"),
+    ("Is there a cube?", "Exists(FilterShape(Scene(), \"cube\"))"),
+  ],
+  model="gpt-3.5-turbo",
+)
+type parse_expr(bound s: String, e: Entity)
+
+// ==== Image Processing ====
+
+// Input
+@cmd_arg("--image-dir", default="etc/scallop-cli/res/testing/images/clevr_example_1.jpg")
+type image_directory(directory: String)
+
+// Load image
+@hidden rel image($load_image(img_dir)) = image_directory(img_dir)
+@hidden rel object_segment(obj_id, obj_img) = image(img) and segment_image(img, obj_id, obj_img)
+rel object(obj_id) = obj_id := top<10>(obj_id: object_segment(obj_id, obj_img))
+
+// Get all the object colors and shapes
+rel color(obj, c) = object_segment(obj, obj_img) and classify_color(obj_img, c)
+rel shape(obj, s) = object_segment(obj, obj_img) and classify_shape(obj_img, s)
+
+// ==== Semantic Parsing ====
+
+// Input
+@cmd_arg("--question", default="How many red spheres do we have?")
+type question(question: String)
+
+type Expr = Scene() | FilterShape(Expr, String) | FilterColor(Expr, String) | Count(Expr) | Exists(Expr)
+
+rel eval_obj(e, o) = case e is Scene() and object(o)
+rel eval_obj(e, o) = case e is FilterShape(e1, s) and eval_obj(e1, o) and shape(o, s)
+rel eval_obj(e, o) = case e is FilterColor(e1, c) and eval_obj(e1, o) and color(o, c)
+rel eval_num(e, n) = n := count(o: eval_obj(e1, o) where e: case e is Count(e1))
+rel eval_bool(e, b) = b := exists(o: eval_obj(e1, o) where e: case e is Exists(e1))
+rel eval_result(e, n as String) = case e is Count(_) and eval_num(e, n)
+rel eval_result(e, b as String) = case e is Exists(_) and eval_bool(e, b)
+
+rel parsed_expr(e) = question(q) and parse_expr(q, e)
+rel result(r) = parsed_expr(e) and eval_result(e, r)
+
+// ==== Get the result ====
+
+query result

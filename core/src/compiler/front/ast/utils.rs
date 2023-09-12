@@ -1,10 +1,10 @@
 use colored::*;
-use serde::*;
 
+use super::*;
 use super::super::*;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
-pub struct Location {
+pub struct CharLocation {
   pub row: usize,
   pub col: usize,
 }
@@ -32,14 +32,14 @@ impl Span<usize> {
 }
 
 #[derive(Clone, Default, PartialEq, Eq, PartialOrd, Ord, Serialize)]
-pub struct AstNodeLocation {
+pub struct NodeLocation {
   pub offset_span: Span<usize>,
-  pub loc_span: Option<Span<Location>>,
+  pub loc_span: Option<Span<CharLocation>>,
   pub id: Option<usize>,
   pub source_id: usize,
 }
 
-impl std::hash::Hash for AstNodeLocation {
+impl std::hash::Hash for NodeLocation {
   fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
     state.write_usize(self.source_id);
     state.write_usize(self.offset_span.start);
@@ -47,7 +47,7 @@ impl std::hash::Hash for AstNodeLocation {
   }
 }
 
-impl AstNodeLocation {
+impl NodeLocation {
   /// When cloning a location, we want to keep everything but not the id.
   pub fn clone_without_id(&self) -> Self {
     Self {
@@ -59,7 +59,7 @@ impl AstNodeLocation {
   }
 
   /// Create a location from a single offset span.
-  pub fn from_offset_span(start: usize, end: usize) -> Self {
+  pub fn from_span(start: usize, end: usize) -> Self {
     Self {
       offset_span: Span::new(start, end),
       loc_span: None,
@@ -157,7 +157,7 @@ fn highlight_str(prefix_len: usize, highlight_len: usize) -> String {
   format!("{}{}", prefix, main)
 }
 
-impl std::fmt::Debug for AstNodeLocation {
+impl std::fmt::Debug for NodeLocation {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match (&self.id, &self.loc_span) {
       (None, None) => {
@@ -184,95 +184,215 @@ impl std::fmt::Debug for AstNodeLocation {
   }
 }
 
-#[derive(Clone, PartialEq, Eq, Serialize, Hash)]
-#[doc(hidden)]
-pub struct AstNode<N> {
-  pub loc: AstNodeLocation,
-  pub node: N,
+/// An AST Node trait
+pub trait AstNode: Clone {
+  /// Obtain a location of the AstNode
+  fn location(&self) -> &NodeLocation;
+
+  /// Obtain a mutable location of the AstNode
+  fn location_mut(&mut self) -> &mut NodeLocation;
+
+  fn clone_with_loc(&self, loc: NodeLocation) -> Self;
 }
 
-impl<N: std::fmt::Debug> std::fmt::Debug for AstNode<N> {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.write_fmt(format_args!("{:?} @{:?}", self.node, self.loc))
-  }
+#[derive(Clone, Debug, PartialEq, Hash, Serialize)]
+pub struct AstNodeWrapper<T> {
+  pub _loc: NodeLocation,
+  pub _node: T,
 }
 
-impl<N> AstNode<N> {
-  pub fn new(loc: AstNodeLocation, node: N) -> Self {
-    Self { loc, node }
-  }
-
-  pub fn default(n: N) -> Self {
+impl<T: Clone> AstNodeWrapper<T> {
+  pub fn clone_without_location_id(&self) -> Self {
     Self {
-      loc: AstNodeLocation::default(),
-      node: n,
+      _loc: self._loc.clone_without_id(),
+      _node: self._node.clone(),
     }
   }
 
-  pub fn from_span(start: usize, end: usize, node: N) -> Self {
-    Self {
-      loc: AstNodeLocation::from_offset_span(start, end),
-      node,
-    }
+  pub fn location_id(&self) -> Option<usize> {
+    self._loc.id.clone()
   }
 
-  pub fn id(&self) -> usize {
-    self.loc.id.unwrap_or(0)
-  }
-
-  pub fn source_id(&self) -> usize {
-    self.loc.source_id
-  }
-
-  pub fn clone_with_new_location(&self) -> Self
-  where
-    N: Clone,
-  {
-    Self {
-      loc: AstNodeLocation::default(),
-      node: self.node.clone(),
-    }
-  }
-
-  pub fn clone_without_location_id(&self) -> Self
-  where
-    N: Clone,
-  {
-    Self {
-      loc: self.loc.clone_without_id(),
-      node: self.node.clone(),
-    }
-  }
-
-  pub fn with_span(mut self, loc: &AstNodeLocation) -> Self {
-    self.loc = loc.clone_without_id();
-    self
-  }
-
-  pub fn with_location(mut self, loc: AstNodeLocation) -> Self {
-    self.loc = loc;
-    self
+  pub fn location_source_id(&self) -> usize {
+    self._loc.source_id.clone()
   }
 }
 
-impl<N> From<N> for AstNode<N> {
-  fn from(n: N) -> Self {
-    Self::default(n)
+impl<T: Clone> AstNode for AstNodeWrapper<T> {
+  fn location(&self) -> &NodeLocation {
+    &self._loc
+  }
+
+  fn location_mut(&mut self) -> &mut NodeLocation {
+    &mut self._loc
+  }
+
+  fn clone_with_loc(&self, loc: NodeLocation) -> Self {
+    Self {
+      _loc: loc,
+      _node: self._node.clone(),
+    }
   }
 }
 
-pub trait WithLocation {
-  fn location(&self) -> &AstNodeLocation;
+pub trait NodeVisitor<N> {
+  fn visit(&mut self, node: &N);
 
-  fn location_mut(&mut self) -> &mut AstNodeLocation;
+  fn visit_mut(&mut self, node: &mut N);
 }
 
-impl<N> WithLocation for AstNode<N> {
-  fn location(&self) -> &AstNodeLocation {
-    &self.loc
+#[allow(unused)]
+impl<U, V> NodeVisitor<V> for U {
+  default fn visit(&mut self, node: &V) {}
+
+  default fn visit_mut(&mut self, node: &mut V) {}
+}
+
+macro_rules! impl_node_visitor_tuple {
+  ( $($id:ident,)* ) => {
+    impl<Node, $($id,)*> NodeVisitor<Node> for ($(&mut $id,)*) {
+      default fn visit(&mut self, node: &Node) {
+        paste::item! { let ($( [<$id:lower>],)*) = self; }
+        $( paste::item! { <$id as NodeVisitor<Node>>::visit([<$id:lower>], node); } )*
+      }
+      default fn visit_mut(&mut self, node: &mut Node) {
+        paste::item! { let ($( [<$id:lower>],)*) = self; }
+        $( paste::item! { <$id as NodeVisitor<Node>>::visit_mut([<$id:lower>], node); } )*
+      }
+    }
+  };
+}
+
+impl_node_visitor_tuple!(A,);
+impl_node_visitor_tuple!(A, B,);
+impl_node_visitor_tuple!(A, B, C,);
+impl_node_visitor_tuple!(A, B, C, D,);
+impl_node_visitor_tuple!(A, B, C, D, E,);
+impl_node_visitor_tuple!(A, B, C, D, E, F,);
+impl_node_visitor_tuple!(A, B, C, D, E, F, G,);
+impl_node_visitor_tuple!(A, B, C, D, E, F, G, H,);
+impl_node_visitor_tuple!(A, B, C, D, E, F, G, H, I,);
+impl_node_visitor_tuple!(A, B, C, D, E, F, G, H, I, J,);
+impl_node_visitor_tuple!(A, B, C, D, E, F, G, H, I, J, K,);
+impl_node_visitor_tuple!(A, B, C, D, E, F, G, H, I, J, K, L,);
+impl_node_visitor_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M,);
+impl_node_visitor_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N,);
+impl_node_visitor_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O,);
+impl_node_visitor_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P,);
+impl_node_visitor_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q,);
+impl_node_visitor_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R,);
+impl_node_visitor_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S,);
+impl_node_visitor_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T,);
+impl_node_visitor_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U,);
+impl_node_visitor_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V,);
+
+#[allow(unused)]
+pub trait AstWalker {
+  fn walk<V>(&self, v: &mut V);
+
+  fn walk_mut<V>(&mut self, v: &mut V);
+}
+
+macro_rules! derive_ast_walker {
+  ($ty:ty) => {
+    impl AstWalker for $ty {
+      fn walk<V>(&self, _: &mut V) {}
+
+      fn walk_mut<V>(&mut self, _: &mut V) {}
+    }
+  };
+}
+
+derive_ast_walker!(i8);
+derive_ast_walker!(i16);
+derive_ast_walker!(i32);
+derive_ast_walker!(i64);
+derive_ast_walker!(i128);
+derive_ast_walker!(isize);
+derive_ast_walker!(u8);
+derive_ast_walker!(u16);
+derive_ast_walker!(u32);
+derive_ast_walker!(u64);
+derive_ast_walker!(u128);
+derive_ast_walker!(usize);
+derive_ast_walker!(f32);
+derive_ast_walker!(f64);
+derive_ast_walker!(bool);
+derive_ast_walker!(char);
+derive_ast_walker!(String);
+derive_ast_walker!(crate::common::input_tag::DynamicInputTag);
+derive_ast_walker!(crate::common::binary_op::BinaryOp);
+
+impl<T> AstWalker for Vec<T> where T: AstWalker {
+  fn walk<V>(&self, v: &mut V) {
+    for child in self {
+      child.walk(v)
+    }
   }
 
-  fn location_mut(&mut self) -> &mut AstNodeLocation {
-    &mut self.loc
+  fn walk_mut<V>(&mut self, v: &mut V) {
+    for child in self {
+      child.walk_mut(v)
+    }
+  }
+}
+
+impl<T> AstWalker for Option<T> where T: AstWalker {
+  fn walk<V>(&self, v: &mut V) {
+    if let Some(n) = self {
+      n.walk(v)
+    }
+  }
+
+  fn walk_mut<V>(&mut self, v: &mut V) {
+    if let Some(n) = self {
+      n.walk_mut(v)
+    }
+  }
+}
+
+impl<T> AstWalker for Box<T> where T: AstWalker {
+  fn walk<V>(&self, v: &mut V) {
+    (&**self).walk(v)
+  }
+
+  fn walk_mut<V>(&mut self, v: &mut V) {
+    (&mut **self).walk_mut(v)
+  }
+}
+
+impl<A> AstWalker for (A,) where A: AstWalker {
+  fn walk<V>(&self, v: &mut V) {
+    self.0.walk(v);
+  }
+
+  fn walk_mut<V>(&mut self, v: &mut V) {
+    self.0.walk_mut(v);
+  }
+}
+
+impl<A, B> AstWalker for (A, B) where A: AstWalker, B: AstWalker {
+  fn walk<V>(&self, v: &mut V) {
+    self.0.walk(v);
+    self.1.walk(v);
+  }
+
+  fn walk_mut<V>(&mut self, v: &mut V) {
+    self.0.walk_mut(v);
+    self.1.walk_mut(v);
+  }
+}
+
+impl<A, B, C> AstWalker for (A, B, C) where A: AstWalker, B: AstWalker, C: AstWalker {
+  fn walk<V>(&self, v: &mut V) {
+    self.0.walk(v);
+    self.1.walk(v);
+    self.2.walk(v);
+  }
+
+  fn walk_mut<V>(&mut self, v: &mut V) {
+    self.0.walk_mut(v);
+    self.1.walk_mut(v);
+    self.2.walk_mut(v);
   }
 }

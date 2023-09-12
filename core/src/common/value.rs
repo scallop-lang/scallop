@@ -1,8 +1,10 @@
 use std::convert::*;
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
+use chronoutil::RelativeDuration;
 
-use super::tensors::*;
+use super::foreign_tensor::*;
+use super::duration::*;
 use super::value_type::*;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -30,7 +32,8 @@ pub enum Value {
   DateTime(DateTime<Utc>),
   Duration(Duration),
   Entity(u64),
-  Tensor(Tensor),
+  EntityString(String),
+  Tensor(DynamicExternalTensor),
   TensorValue(TensorValue),
 }
 
@@ -113,6 +116,7 @@ impl std::hash::Hash for Value {
         "entity".hash(state);
         e.hash(state);
       }
+      Self::EntityString(_) => panic!("[Internal Error] Hash should not happen for entity string"),
       Self::Tensor(_) => panic!("[Internal Error] Hash should not happen for tensor"),
       Self::TensorValue(v) => v.hash(state),
     }
@@ -145,6 +149,7 @@ impl std::fmt::Display for Value {
       Self::DateTime(i) => f.write_fmt(format_args!("t\"{}\"", i)),
       Self::Duration(i) => f.write_fmt(format_args!("d\"{}\"", i)),
       Self::Entity(e) => f.write_fmt(format_args!("entity({e:#x})")),
+      Self::EntityString(s) => f.write_fmt(format_args!("entity_string({s})")),
       Self::Tensor(t) => f.write_fmt(format_args!("{:?}", t)),
       Self::TensorValue(v) => f.write_fmt(format_args!("`{}`", v)),
     }
@@ -265,17 +270,11 @@ impl From<DateTime<Utc>> for Value {
   }
 }
 
-impl From<Duration> for Value {
-  fn from(d: Duration) -> Self {
-    Self::Duration(d)
+impl From<RelativeDuration> for Value {
+  fn from(d: RelativeDuration) -> Self {
+    Self::Duration(d.into())
   }
 }
-
-// impl From<Rc<String>> for Value {
-//   fn from(s: Rc<String>) -> Self {
-//     Self::RcString(s)
-//   }
-// }
 
 macro_rules! impl_try_into {
   ($into_ty:ty, $variant:ident) => {

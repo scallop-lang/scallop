@@ -138,3 +138,13 @@ fn bad_no_binding_agg_1() {
     |e| e.contains("binding variables of `count` aggregation cannot be empty"),
   )
 }
+
+#[test]
+fn issue_96() {
+  expect_front_compile_failure(
+    r#"
+    type semantic_parse(bound q: String, e: Expr)
+    "#,
+    |e| e.contains("unknown custom type `Expr`")
+  )
+}

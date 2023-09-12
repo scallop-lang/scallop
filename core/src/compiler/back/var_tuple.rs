@@ -148,7 +148,13 @@ impl VariableTuple {
   pub fn projection(&self, args: &Self) -> Expr {
     match args {
       Self::Tuple(ts) => Expr::Tuple(ts.iter().map(|e| self.projection(e)).collect::<Vec<_>>()),
-      Self::Value(v) => Expr::Access(self.accessor_of(v).unwrap()),
+      Self::Value(v) => match self.accessor_of(v) {
+        Some(acc) => Expr::Access(acc),
+        None => panic!(
+          "[Internal Error] cannot find argument `{:?}` from variable tuple `{:?}`",
+          v, self
+        ),
+      },
     }
   }
 

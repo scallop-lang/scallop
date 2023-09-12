@@ -1,4 +1,5 @@
 use chrono::*;
+use chronoutil::RelativeDuration;
 
 use scallop_core::testing::*;
 
@@ -45,14 +46,14 @@ fn date_2() {
 #[test]
 fn bad_date_1() {
   expect_front_compile_failure(r#"rel r = {t"ABCDEF"}"#, |e| {
-    e.contains("Cannot parse date time `ABCDEF`")
+    e.contains("Invalid DateTime literal `ABCDEF`")
   })
 }
 
 #[test]
 fn bad_duration_1() {
   expect_front_compile_failure(r#"rel r = {d"ABCDEF"}"#, |e| {
-    e.contains("Cannot parse duration `ABCDEF`")
+    e.contains("Invalid Duration literal `ABCDEF`")
   })
 }
 
@@ -87,7 +88,28 @@ fn duration_plus_duration_1() {
       rel p = {(d"3d", d"2d")}
       rel r(d1 + d2) = p(d1, d2)
     "#,
-    ("r", vec![(Duration::days(5),)]),
+    ("r", vec![(RelativeDuration::days(5),)]),
+  )
+}
+
+#[test]
+fn relative_month_compute_1() {
+  expect_interpret_result(
+    r#"
+      rel p = {(d"3mo", t"2019-02-01")}
+      rel r(d + t) = p(d, t)
+    "#,
+    ("r", vec![(Utc.with_ymd_and_hms(2019, 05, 01, 0, 0, 0).unwrap(),)]),
+  )
+}
+
+#[test]
+fn neg_duration_1() {
+  expect_interpret_result(
+    r#"
+      rel p = {(d"-3d", d"-5mo")}
+    "#,
+    ("p", vec![(RelativeDuration::days(-3), RelativeDuration::months(-5))]),
   )
 }
 

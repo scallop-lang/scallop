@@ -3,7 +3,7 @@ from functools import reduce
 import itertools
 from copy import deepcopy
 
-from .torch_importer import *
+from . import torch_importer
 from .utils import Counter
 
 class InputMapping:
@@ -92,7 +92,7 @@ class InputMapping:
   def all_indices(self) -> Iterator[Tuple]:
     return itertools.product(*[list(range(x)) for x in self.shape])
 
-  def process_tensor(self, tensor: Tensor, batched=False, mutual_exclusion_counter=None) -> List:
+  def process_tensor(self, tensor: torch_importer.Tensor, batched=False, mutual_exclusion_counter=None) -> List:
     """Process a tensor to produce a list of probabilistic symbols"""
 
     # Check the kind, if there is none
@@ -112,7 +112,7 @@ class InputMapping:
     else:
       raise Exception(f"Tensor shape mismatch: expected {self._shape}, got {tensor.shape}")
 
-  def _process_one_tensor(self, tensor: Tensor, mutual_exclusion_counter: Counter) -> List:
+  def _process_one_tensor(self, tensor: torch_importer.Tensor, mutual_exclusion_counter: Counter) -> List:
     inc, exc = InclusiveSet(), ExclusiveSet()
 
     # Do sampling

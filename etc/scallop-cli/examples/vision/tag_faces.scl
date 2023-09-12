@@ -1,0 +1,39 @@
+// Input; an image directory
+rel img_dir = {
+  "etc/scallop-cli/res/testing/images/face_example_3.jpg",
+}
+
+// Input; a face tagging prompt
+rel prompt = {
+  "the 7 main characters of Star Trek: The Next Generation"
+}
+
+rel image($load_image(img_dir)) = img_dir(img_dir)
+
+// Use face detection model to extract faces from the image
+@face_detection(["cropped-image", "bbox-x", "bbox-y", "bbox-w", "bbox-h"], enlarge_face_factor=1.2, dump_image=false)
+type face(bound img: Tensor, id: u32, face_img: Tensor, x: u32, y: u32, w: u32, h: u32)
+
+rel face_image(id, face_img) = image(img), face(img, id, face_img, _, _, _, _)
+rel face_bbox(id, x, y, w, h) = image(img), face(img, id, _, x, y, w, h)
+
+// Prompt GPT for tag names
+@gpt(prompt="Express {{prompt}} as a semicolon-delimited list: {{list}}", model="gpt-4")
+type list_gpt(bound prompt: String, list: String)
+
+rel names(list) = prompt(prompt), list_gpt(prompt, list)
+
+// Classify the faces
+@clip(prompt="the face of {{}}")
+type face_name(bound face: Tensor, bound list: String, name: String)
+
+rel identity(id, name) = name := top<1>(name: face_name(img, list, name), face_image(id, img), names(list))
+
+// Tag the faces
+rel tag_image(0, img) = image(img)
+rel tag_image(id + 1, $tag_image(img, x, y, w, h, name, "green", 10, 32)) = tag_image(id, img), identity(id, name), face_bbox(id, x, y, w, h)
+rel save_image($save_image(img)) = tag_image(n as u32, img), n := count!(id: identity(id, name))
+
+query identity
+query face_bbox
+query save_image

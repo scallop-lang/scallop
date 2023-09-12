@@ -7,7 +7,7 @@ use super::*;
 #[derive(Clone)]
 pub struct ForeignPredicateConstraintDataflow<'a, Prov: Provenance> {
   /// Sub-dataflow
-  pub dataflow: Box<DynamicDataflow<'a, Prov>>,
+  pub dataflow: DynamicDataflow<'a, Prov>,
 
   /// The foreign predicate
   pub foreign_predicate: String,
@@ -17,33 +17,36 @@ pub struct ForeignPredicateConstraintDataflow<'a, Prov: Provenance> {
 
   /// Provenance context
   pub ctx: &'a Prov,
+
+  /// Runtime environment
+  pub runtime: &'a RuntimeEnvironment
 }
 
-impl<'a, Prov: Provenance> ForeignPredicateConstraintDataflow<'a, Prov> {
-  pub fn iter_stable(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
-    let fp = runtime
+impl<'a, Prov: Provenance> Dataflow<'a, Prov> for ForeignPredicateConstraintDataflow<'a, Prov> {
+  fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
+    let fp = self.runtime
       .predicate_registry
       .get(&self.foreign_predicate)
       .expect("Foreign predicate not found");
-    DynamicBatches::ForeignPredicateConstraint(ForeignPredicateConstraintBatches {
-      batches: Box::new(self.dataflow.iter_stable(runtime)),
+    DynamicBatches::new(ForeignPredicateConstraintBatches {
+      batches: self.dataflow.iter_stable(),
       foreign_predicate: fp.clone(),
       args: self.args.clone(),
-      env: runtime,
+      env: self.runtime,
       ctx: self.ctx,
     })
   }
 
-  pub fn iter_recent(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
-    let fp = runtime
+  fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
+    let fp = self.runtime
       .predicate_registry
       .get(&self.foreign_predicate)
       .expect("Foreign predicate not found");
-    DynamicBatches::ForeignPredicateConstraint(ForeignPredicateConstraintBatches {
-      batches: Box::new(self.dataflow.iter_recent(runtime)),
+    DynamicBatches::new(ForeignPredicateConstraintBatches {
+      batches: self.dataflow.iter_recent(),
       foreign_predicate: fp.clone(),
       args: self.args.clone(),
-      env: runtime,
+      env: self.runtime,
       ctx: self.ctx,
     })
   }
@@ -51,20 +54,18 @@ impl<'a, Prov: Provenance> ForeignPredicateConstraintDataflow<'a, Prov> {
 
 #[derive(Clone)]
 pub struct ForeignPredicateConstraintBatches<'a, Prov: Provenance> {
-  pub batches: Box<DynamicBatches<'a, Prov>>,
+  pub batches: DynamicBatches<'a, Prov>,
   pub foreign_predicate: DynamicForeignPredicate,
   pub args: Vec<Expr>,
   pub env: &'a RuntimeEnvironment,
   pub ctx: &'a Prov,
 }
 
-impl<'a, Prov: Provenance> Iterator for ForeignPredicateConstraintBatches<'a, Prov> {
-  type Item = DynamicBatch<'a, Prov>;
-
-  fn next(&mut self) -> Option<Self::Item> {
-    self.batches.next().map(|batch| {
-      DynamicBatch::ForeignPredicateConstraint(ForeignPredicateConstraintBatch {
-        batch: Box::new(batch),
+impl<'a, Prov: Provenance> Batches<'a, Prov> for ForeignPredicateConstraintBatches<'a, Prov> {
+  fn next_batch(&mut self) -> Option<DynamicBatch<'a, Prov>> {
+    self.batches.next_batch().map(|batch| {
+      DynamicBatch::new(ForeignPredicateConstraintBatch {
+        batch: batch,
         foreign_predicate: self.foreign_predicate.clone(),
         args: self.args.clone(),
         env: self.env,
@@ -76,18 +77,16 @@ impl<'a, Prov: Provenance> Iterator for ForeignPredicateConstraintBatches<'a, Pr
 
 #[derive(Clone)]
 pub struct ForeignPredicateConstraintBatch<'a, Prov: Provenance> {
-  pub batch: Box<DynamicBatch<'a, Prov>>,
+  pub batch: DynamicBatch<'a, Prov>,
   pub foreign_predicate: DynamicForeignPredicate,
   pub args: Vec<Expr>,
   pub env: &'a RuntimeEnvironment,
   pub ctx: &'a Prov,
 }
 
-impl<'a, Prov: Provenance> Iterator for ForeignPredicateConstraintBatch<'a, Prov> {
-  type Item = DynamicElement<Prov>;
-
-  fn next(&mut self) -> Option<Self::Item> {
-    while let Some(elem) = self.batch.next() {
+impl<'a, Prov: Provenance> Batch<'a, Prov> for ForeignPredicateConstraintBatch<'a, Prov> {
+  fn next_elem(&mut self) -> Option<DynamicElement<Prov>> {
+    while let Some(elem) = self.batch.next_elem() {
       let Tagged { tuple, tag } = elem;
 
       // Try evaluate the arguments; if failed, continue to the next element in the batch

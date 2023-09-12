@@ -16,7 +16,6 @@ mod join;
 mod overwrite_one;
 mod product;
 mod project;
-mod static_relation;
 mod union;
 mod unit;
 mod untagged_vec;

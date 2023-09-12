@@ -120,6 +120,7 @@ pub enum ForeignFunctionError {
   UnusedGenericType { id: usize },
   UnboundedReturnGenericType { id: usize },
   UnboundedReturnTypeFamily { family: TypeFamily },
+  ConflictDefinition { name: String },
 }
 
 impl std::fmt::Display for ForeignFunctionError {
@@ -132,6 +133,9 @@ impl std::fmt::Display for ForeignFunctionError {
       }
       Self::UnboundedReturnTypeFamily { family } => {
         f.write_fmt(format_args!("Returning type family `{}` is disallowed", family))
+      }
+      Self::ConflictDefinition { name } => {
+        f.write_fmt(format_args!("Conflicting definition for foreign function `${}`", name))
       }
     }
   }
@@ -545,6 +549,7 @@ impl ForeignFunctionRegistry {
     registry.register(ffs::StringUpper).unwrap();
     registry.register(ffs::StringLower).unwrap();
     registry.register(ffs::StringIndexOf).unwrap();
+    registry.register(ffs::StringReplace).unwrap();
     registry.register(ffs::StringTrim).unwrap();
 
     // DateTime operations
@@ -553,10 +558,14 @@ impl ForeignFunctionRegistry {
     registry.register(ffs::DateTimeMonth0).unwrap();
     registry.register(ffs::DateTimeYear).unwrap();
 
+    // Entity
+    registry.register(ffs::ParseEntity).unwrap();
+
     // Hashing operation
     registry.register(ffs::Hash).unwrap();
 
     // Tensor operation
+    registry.register(ffs::Dim).unwrap();
     registry.register(ffs::Dot).unwrap();
 
     registry

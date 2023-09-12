@@ -1,0 +1,156 @@
+@gpt_extract_info(
+  header="""
+Please extract kinship relationships from passages.
+You should extract two kinds of information.
+1. The relations. It should be a JSON list of relationships where each relationship
+is a JSON object with `p1`, `p2`, and `rela` fields, denoting that `p1`'s `rela` is `p2`.
+Please pay extra attention to the directionality of the relation. For a pair of people,
+you should generate two relations, one between p1 and p2 and another between p2 and p1.
+2. The query. It should be a JSON object with `p1` and `p2` fields, between which is the
+relationship we want to derived.
+All the person names and their relationships should be in lowercase.
+
+Here is an example:
+
+Context:
+
+Jeffrey asked his brother William if he would come help him fix his car next weekend.
+Gabrielle was delighted to see her grandson, William, at her birthday party. Jeffrey is Gabrielle's?
+
+Kinship relations: [
+  {"p1": "jeffrey", "p2": "william", "rela": "brother"},
+  {"p1": "william", "p2": "jeffrey", "rela": "brother"},
+  {"p1": "gabrielle", "p2": "william", "rela": "grandson"},
+  {"p1": "william", "p2": "gabrielle", "rela": "grandmother"},
+]
+
+Query: {"p1": "gabrielle", "p2", "jeffrey"}
+
+Now, looking at the following context,
+
+{{ctx}}
+  """,
+  prompts=[
+    "Please extract the kinship relationships in a JSON list format (do not include the query just yet):",
+    "Good, please now extract the query in a JSON object (do not include the kinship relations):",
+  ],
+  model="gpt-3.5-turbo",
+  // debug=true,
+)
+type extract_relations(bound ctx: String, p1: String, p2: String, rela: String),
+     extract_question(bound ctx: String, p1: String, p2: String)
+
+rel composition = {
+  ("daughter", "daughter", "granddaughter"),
+  ("daughter", "sister", "daughter"),
+  ("daughter", "son", "grandson"),
+  ("daughter", "aunt", "sister"),
+  ("daughter", "father", "husband"),
+  ("daughter", "husband", "son-in-law"),
+  ("daughter", "brother", "son"),
+  ("daughter", "mother", "wife"),
+  ("daughter", "uncle", "brother"),
+  ("daughter", "grandfather", "father"),
+  ("daughter", "grandfather", "father-in-law"),
+  ("daughter", "grandmother", "mother"),
+  ("daughter", "grandmother", "mother-in-law"),
+  ("sister", "daughter", "niece"),
+  ("sister", "sister", "sister"),
+  ("sister", "son", "nephew"),
+  ("sister", "aunt", "aunt"),
+  ("sister", "father", "father"),
+  ("sister", "brother", "brother"),
+  ("sister", "mother", "mother"),
+  ("sister", "uncle", "uncle"),
+  ("sister", "grandfather", "grandfather"),
+  ("sister", "grandmother", "grandmother"),
+  ("son", "daughter", "granddaughter"),
+  ("son", "sister", "daughter"),
+  ("son", "son", "grandson"),
+  ("son", "aunt", "sister"),
+  ("son", "father", "husband"),
+  ("son", "brother", "son"),
+  ("son", "mother", "wife"),
+  ("son", "uncle", "brother"),
+  ("son", "grandfather", "father"),
+  ("son", "wife", "daughter-in-law"),
+  ("son", "grandmother", "mother"),
+  ("aunt", "sister", "aunt"),
+  ("aunt", "father", "grandfather"),
+  ("aunt", "brother", "uncle"),
+  ("aunt", "mother", "grandmother"),
+  ("father", "daughter", "sister"),
+  ("father", "sister", "aunt"),
+  ("father", "son", "brother"),
+  ("father", "father", "grandfather"),
+  ("father", "brother", "uncle"),
+  ("father", "mother", "grandmother"),
+  ("father", "wife", "mother"),
+  ("husband", "daughter", "daughter"),
+  ("husband", "son", "son"),
+  ("husband", "father", "father-in-law"),
+  ("husband", "granddaughter", "granddaughter"),
+  ("husband", "mother", "mother-in-law"),
+  ("husband", "grandson", "grandson"),
+  ("granddaughter", "sister", "granddaughter"),
+  ("granddaughter", "brother", "grandson"),
+  ("brother", "daughter", "niece"),
+  ("brother", "sister", "sister"),
+  ("brother", "son", "nephew"),
+  ("brother", "aunt", "aunt"),
+  ("brother", "father", "father"),
+  ("brother", "brother", "brother"),
+  ("brother", "mother", "mother"),
+  ("brother", "uncle", "uncle"),
+  ("brother", "grandfather", "grandfather"),
+  ("brother", "grandmother", "grandmother"),
+  ("nephew", "sister", "niece"),
+  ("nephew", "brother", "nephew"),
+  ("mother", "daughter", "sister"),
+  ("mother", "sister", "aunt"),
+  ("mother", "son", "brother"),
+  ("mother", "father", "grandfather"),
+  ("mother", "husband", "father"),
+  ("mother", "brother", "uncle"),
+  ("mother", "mother", "grandmother"),
+  ("mother", "father-in-law", "grandfather"),
+  ("mother", "mother-in-law", "grandmother"),
+  ("uncle", "sister", "aunt"),
+  ("uncle", "father", "grandfather"),
+  ("uncle", "brother", "uncle"),
+  ("uncle", "mother", "grandmother"),
+  ("grandfather", "wife", "grandmother"),
+  ("wife", "daughter", "daughter"),
+  ("wife", "son", "son"),
+  ("wife", "father", "father-in-law"),
+  ("wife", "granddaughter", "granddaughter"),
+  ("wife", "mother", "mother-in-law"),
+  ("wife", "grandson", "grandson"),
+  ("wife", "son-in-law", "son-in-law"),
+  ("wife", "father-in-law", "father"),
+  ("wife", "daughter-in-law", "daughter-in-law"),
+  ("wife", "mother-in-law", "mother"),
+  ("grandmother", "husband", "grandfather"),
+  ("grandson", "sister", "granddaughter"),
+  ("grandson", "brother", "grandson"),
+}
+
+rel kinship(p1, p2, rela) = context(ctx) and extract_relations(ctx, p1, p2, rela)
+rel question(p1, p2) = context(ctx) and extract_question(ctx, p1, p2)
+
+rel derived(p1, p2, rela) = kinship(p1, p2, rela)
+rel derived(p1, p3, r3) = derived(p1, p2, r1) and derived(p2, p3, r2) and composition(r1, r2, r3) and p1 != p3
+
+rel answer(r) = question(p1, p2) and derived(p1, p2, r)
+
+// ======= Context =======
+
+rel context = {
+  "Elliott felt lonely when his wife Marian was gone to see her mother Molly. \nElliott and his daughter Karen took a day off school to go to the zoo. \nMolly's relationship to Karen is?"
+}
+
+query kinship
+query derived
+query context
+query question
+query answer

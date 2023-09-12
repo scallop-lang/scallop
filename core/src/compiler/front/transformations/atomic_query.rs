@@ -15,72 +15,53 @@ impl TransformAtomicQuery {
       .to_add_rules
       .iter()
       .map(|rule| {
-        let rule_decl = RuleDeclNode {
-          attrs: vec![],
-          tag: Tag::default_none(),
-          rule: rule.clone(),
-        };
-        let rel_decl = RelationDeclNode::Rule(rule_decl.into());
-        let item = Item::RelationDecl(rel_decl.into());
+        let rule_decl = RuleDecl::new(vec![], Tag::none(), rule.clone());
+        let rel_decl = RelationDecl::Rule(rule_decl);
+        let item = Item::RelationDecl(rel_decl);
         item
       })
       .collect()
   }
 }
 
-impl NodeVisitorMut for TransformAtomicQuery {
-  fn visit_query(&mut self, query: &mut Query) {
-    match &query.node {
-      QueryNode::Atom(a) => {
+impl NodeVisitor<Query> for TransformAtomicQuery {
+  fn visit_mut(&mut self, query: &mut Query) {
+    match query {
+      Query::Atom(a) => {
         let query_name = format!("{}", a);
         let args = a
-          .iter_arguments()
+          .iter_args()
           .enumerate()
           .map(|(i, v)| {
             if v.is_variable() || v.is_constant() {
               v.clone()
             } else {
               let name = format!("qa#{}", i);
-              let id = IdentifierNode::new(name);
-              let var = VariableNode::new(id.into());
-              Expr::Variable(var.into())
+              Expr::Variable(Variable::new(Identifier::new(name)))
             }
           })
           .collect::<Vec<_>>();
-        let head_atom = AtomNode {
-          predicate: IdentifierNode::new(query_name.clone()).into(),
-          type_args: Vec::new(),
-          args: args.clone(),
-        };
-        let body_atom = AtomNode {
-          predicate: IdentifierNode::new(a.predicate().clone()).into(),
-          type_args: Vec::new(),
-          args: args.clone(),
-        };
+        let head_atom = Atom::new(Identifier::new(query_name.clone()), Vec::new(), args.clone());
+        let body_atom = Atom::new(Identifier::new(a.predicate().name().clone()), Vec::new(), args.clone());
         let eq_constraints = a
-          .iter_arguments()
+          .iter_args()
           .enumerate()
           .filter_map(|(i, arg)| {
             if arg.is_wildcard() || arg.is_variable() || arg.is_constant() {
               None
             } else {
-              let bin_expr = Expr::binary(BinaryOpNode::Eq.into(), args[i].clone(), arg.clone());
-              let constraint = Formula::Constraint(ConstraintNode { expr: bin_expr }.into());
+              let bin_expr = Expr::binary(BinaryExpr::new(BinaryOp::new_eq(), args[i].clone(), arg.clone()));
+              let constraint = Formula::Constraint(Constraint::new(bin_expr));
               Some(constraint)
             }
           })
           .collect();
-        let conj = ConjunctionNode {
-          args: vec![vec![Formula::Atom(body_atom.into())], eq_constraints].concat(),
-        };
-        let rule = RuleNode {
-          head: Atom::default(head_atom).into(),
-          body: Formula::Conjunction(conj.into()),
-        };
-        self.to_add_rules.push(rule.into());
+        let conj = Conjunction::new(vec![vec![Formula::Atom(body_atom.into())], eq_constraints].concat());
+        let rule = Rule::new(RuleHead::atom(head_atom), Formula::Conjunction(conj));
+        self.to_add_rules.push(rule);
 
         // Transform this query into a predicate query
-        query.node = QueryNode::Predicate(IdentifierNode::new(query_name).into());
+        *query = Query::Predicate(Identifier::new(query_name));
       }
       _ => {}
     }

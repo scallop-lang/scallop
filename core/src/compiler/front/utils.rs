@@ -1,3 +1,3 @@
 use crate::compiler::front::*;
 
-pub type Loc = AstNodeLocation;
+pub type Loc = NodeLocation;

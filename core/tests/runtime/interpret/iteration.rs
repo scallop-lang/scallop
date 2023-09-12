@@ -103,7 +103,7 @@ where
     strata_2.add_input_dynamic_collection("_color_rev", &result_1["_color_rev"]);
     strata_2.add_update_dataflow(
       "color_count",
-      Dataflow::reduce(AggregateOp::Count, "_color_rev", ReduceGroupByType::Implicit),
+      Dataflow::reduce(AggregateOp::count(), "_color_rev", ReduceGroupByType::Implicit),
     );
     strata_2.add_output_relation("color_count");
     strata_2.run(&ctx, &mut rt)

@@ -1,0 +1,9 @@
+@cmd_arg("-a", long="--a-digit", default=5)
+type digit_a(a: i32)
+
+@cmd_arg("-b", long="--b-digit")
+type digit_b(b: i32)
+
+rel summation(a + b) = digit_a(a) and digit_b(b)
+
+query summation

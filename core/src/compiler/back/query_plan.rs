@@ -520,6 +520,38 @@ impl<'a> QueryPlanContext<'a> {
     }
   }
 
+  fn try_apply(
+    &self,
+    mut fringe: Plan,
+    applied_assigns: &mut HashSet<usize>,
+    applied_constraints: &mut HashSet<usize>,
+    applied_foreign_predicates: &mut HashSet<usize>,
+  ) -> Plan {
+    // Note: We always apply constraint first and then assigns
+    let mut num_applied_assigns = applied_assigns.len();
+    let mut num_applied_constraints = applied_constraints.len();
+    let mut num_applied_fp = applied_foreign_predicates.len();
+    loop {
+      fringe = self.try_apply_non_new_assigns(applied_assigns, fringe);
+      fringe = self.try_apply_constraint(applied_constraints, fringe);
+      fringe = self.try_apply_foreign_predicate_atom(applied_foreign_predicates, fringe);
+
+      // Check if anything is applied
+      let does_apply_assign = applied_assigns.len() != num_applied_assigns;
+      let does_apply_constraint = applied_constraints.len() != num_applied_constraints;
+      let does_apply_fp = applied_foreign_predicates.len() != num_applied_fp;
+
+      // If so, we continue in a loop
+      if does_apply_assign || does_apply_constraint || does_apply_fp {
+        num_applied_assigns = applied_assigns.len();
+        num_applied_constraints = applied_constraints.len();
+        num_applied_fp = applied_foreign_predicates.len();
+      } else {
+        break fringe;
+      }
+    }
+  }
+
   fn is_ground_foreign_atom(&self, atom: &Atom) -> bool {
     let pred = self.foreign_predicate_registry.get(&atom.predicate).unwrap();
     atom.args.iter().take(pred.num_bounded()).all(|a| a.is_constant())
@@ -544,6 +576,12 @@ impl<'a> QueryPlanContext<'a> {
         if self.foreign_predicate_pos_atoms.is_empty() {
           // There is no reduce and there is no arc and there is no foreign predicate atom
           let node = Plan::unit();
+          let node = self.try_apply(
+            node,
+            &mut applied_assigns,
+            &mut applied_constraints,
+            &mut applied_foreign_predicates,
+          );
           (node, 0)
         } else {
           // Find the foreign predicate atom
@@ -556,8 +594,12 @@ impl<'a> QueryPlanContext<'a> {
             applied_foreign_predicates.insert(i); // Mark the atom as applied
             let (pred, _, free_arguments) = self.foreign_predicate_atom_info(atom);
             let plan = self.compute_foreign_predicate_ground_atom(atom, pred, &free_arguments);
-            let plan = self.try_apply_non_new_assigns(&mut applied_assigns, plan);
-            let plan = self.try_apply_constraint(&mut applied_constraints, plan);
+            let plan = self.try_apply(
+              plan,
+              &mut applied_assigns,
+              &mut applied_constraints,
+              &mut applied_foreign_predicates,
+            );
             (plan, 0)
           } else {
             panic!("[Internal Error] No foreign predicate atom is ground; should not happen");
@@ -642,29 +684,13 @@ impl<'a> QueryPlanContext<'a> {
         };
       }
 
-      // Note: We always apply constraint first and then assigns
-      let mut num_applied_assigns = applied_assigns.len();
-      let mut num_applied_constraints = applied_constraints.len();
-      let mut num_applied_fp = applied_foreign_predicates.len();
-      loop {
-        fringe = self.try_apply_non_new_assigns(&mut applied_assigns, fringe);
-        fringe = self.try_apply_constraint(&mut applied_constraints, fringe);
-        fringe = self.try_apply_foreign_predicate_atom(&mut applied_foreign_predicates, fringe);
-
-        // Check if anything is applied
-        let does_apply_assign = applied_assigns.len() != num_applied_assigns;
-        let does_apply_constraint = applied_constraints.len() != num_applied_constraints;
-        let does_apply_fp = applied_foreign_predicates.len() != num_applied_fp;
-
-        // If so, we continue in a loop
-        if does_apply_assign || does_apply_constraint || does_apply_fp {
-          num_applied_assigns = applied_assigns.len();
-          num_applied_constraints = applied_constraints.len();
-          num_applied_fp = applied_foreign_predicates.len();
-        } else {
-          break;
-        }
-      }
+      // Apply all the things
+      fringe = self.try_apply(
+        fringe,
+        &mut applied_assigns,
+        &mut applied_constraints,
+        &mut applied_foreign_predicates,
+      );
     }
 
     // ==== Stage 4: Apply negative atoms ====

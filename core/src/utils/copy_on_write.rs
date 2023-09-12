@@ -11,13 +11,14 @@ impl<T: Clone, P: PointerFamily> CopyOnWrite<T, P> {
     &*self.0
   }
 
-  pub fn modify<F>(&mut self, f: F)
+  pub fn modify<F, O>(&mut self, f: F) -> O
   where
-    F: FnOnce(&mut T),
+    F: FnOnce(&mut T) -> O,
   {
     let mut new_inner = (*self.0).clone();
-    f(&mut new_inner);
+    let result = f(&mut new_inner);
     *self = Self(P::new_rc(new_inner));
+    result
   }
 
   pub fn modify_without_copy<F: FnOnce(&mut T)>(&mut self, f: F) {

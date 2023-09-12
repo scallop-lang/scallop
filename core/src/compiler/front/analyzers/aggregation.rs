@@ -2,7 +2,6 @@ use super::super::ast::*;
 use super::super::error::*;
 use super::super::source::*;
 use super::super::utils::*;
-use super::super::visitor::*;
 
 #[derive(Debug, Clone)]
 pub struct AggregationAnalysis {
@@ -15,12 +14,12 @@ impl AggregationAnalysis {
   }
 }
 
-impl NodeVisitor for AggregationAnalysis {
-  fn visit_reduce(&mut self, reduce: &Reduce) {
+impl NodeVisitor<Reduce> for AggregationAnalysis {
+  fn visit(&mut self, reduce: &Reduce) {
     // Check max/min arg
-    match &reduce.operator().node {
-      ReduceOperatorNode::Max | ReduceOperatorNode::Min => {}
-      ReduceOperatorNode::Forall => {
+    match reduce.operator().internal() {
+      _ReduceOp::Max | _ReduceOp::Min => {}
+      _ReduceOp::Forall => {
         // Check the body of forall expression
         match reduce.body() {
           Formula::Implies(_) => {}
@@ -29,7 +28,7 @@ impl NodeVisitor for AggregationAnalysis {
           }),
         }
       }
-      ReduceOperatorNode::Unknown(a) => self.errors.push(AggregationAnalysisError::UnknownAggregator {
+      _ReduceOp::Unknown(a) => self.errors.push(AggregationAnalysisError::UnknownAggregator {
         agg: a.clone(),
         loc: reduce.location().clone(),
       }),
@@ -46,10 +45,10 @@ impl NodeVisitor for AggregationAnalysis {
 
     // Check the binding variables
     if reduce.bindings().is_empty() {
-      match &reduce.operator().node {
-        ReduceOperatorNode::Exists | ReduceOperatorNode::Forall | ReduceOperatorNode::Unknown(_) => {}
-        r => self.errors.push(AggregationAnalysisError::EmptyBinding {
-          agg: r.to_string(),
+      match reduce.operator().internal() {
+        _ReduceOp::Exists | _ReduceOp::Forall | _ReduceOp::Unknown(_) => {}
+        _ => self.errors.push(AggregationAnalysisError::EmptyBinding {
+          agg: reduce.operator().to_string(),
           loc: reduce.location().clone(),
         }),
       }
@@ -59,7 +58,7 @@ impl NodeVisitor for AggregationAnalysis {
 
 #[derive(Debug, Clone)]
 pub enum AggregationAnalysisError {
-  NonMinMaxAggregationHasArgument { op: ReduceOperator },
+  NonMinMaxAggregationHasArgument { op: ReduceOp },
   UnknownAggregator { agg: String, loc: Loc },
   ForallBodyNotImplies { loc: Loc },
   EmptyBinding { agg: String, loc: Loc },
@@ -75,7 +74,7 @@ impl FrontCompileErrorTrait for AggregationAnalysisError {
       Self::NonMinMaxAggregationHasArgument { op } => {
         format!(
           "{} aggregation cannot have arguments\n{}",
-          op,
+          op.to_string(),
           op.location().report(src)
         )
       }

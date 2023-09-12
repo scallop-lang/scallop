@@ -5,10 +5,11 @@ use crate::common::entity;
 use crate::common::expr::*;
 use crate::common::foreign_function::*;
 use crate::common::foreign_predicate::*;
-use crate::common::tensors;
+use crate::common::foreign_tensor;
 use crate::common::tuple::*;
 use crate::common::value::*;
 use crate::common::value_type::*;
+use crate::compiler::ram;
 use crate::utils::*;
 
 use super::*;
@@ -39,8 +40,8 @@ pub struct RuntimeEnvironment {
   /// Symbol registry
   pub symbol_registry: SymbolRegistry2,
 
-  /// New Entities
-  pub new_entities: NewEntitiesStorage2,
+  /// Dynamic entity storage
+  pub dynamic_entity_store: DynamicEntityStorage2,
 
   /// Tensor registry
   pub tensor_registry: TensorRegistry2,
@@ -63,7 +64,7 @@ impl RuntimeEnvironment {
       predicate_registry: ForeignPredicateRegistry::std(),
       exclusion_id_allocator: IdAllocator2::new(),
       symbol_registry: SymbolRegistry2::new(),
-      new_entities: NewEntitiesStorage2::new(),
+      dynamic_entity_store: DynamicEntityStorage2::new(),
       tensor_registry: TensorRegistry2::new(),
     }
   }
@@ -78,7 +79,7 @@ impl RuntimeEnvironment {
       predicate_registry: ForeignPredicateRegistry::std(),
       exclusion_id_allocator: IdAllocator2::new(),
       symbol_registry: SymbolRegistry2::new(),
-      new_entities: NewEntitiesStorage2::new(),
+      dynamic_entity_store: DynamicEntityStorage2::new(),
       tensor_registry: TensorRegistry2::new(),
     }
   }
@@ -93,7 +94,7 @@ impl RuntimeEnvironment {
       predicate_registry: fpr,
       exclusion_id_allocator: IdAllocator2::new(),
       symbol_registry: SymbolRegistry2::new(),
-      new_entities: NewEntitiesStorage2::new(),
+      dynamic_entity_store: DynamicEntityStorage2::new(),
       tensor_registry: TensorRegistry2::new(),
     }
   }
@@ -108,7 +109,7 @@ impl RuntimeEnvironment {
       predicate_registry: ForeignPredicateRegistry::std(),
       exclusion_id_allocator: IdAllocator2::new(),
       symbol_registry: SymbolRegistry2::new(),
-      new_entities: NewEntitiesStorage2::new(),
+      dynamic_entity_store: DynamicEntityStorage2::new(),
       tensor_registry: TensorRegistry2::new(),
     }
   }
@@ -123,7 +124,7 @@ impl RuntimeEnvironment {
       predicate_registry: ForeignPredicateRegistry::std(),
       exclusion_id_allocator: IdAllocator2::new(),
       symbol_registry: SymbolRegistry2::new(),
-      new_entities: NewEntitiesStorage2::new(),
+      dynamic_entity_store: DynamicEntityStorage2::new(),
       tensor_registry: TensorRegistry2::new(),
     }
   }
@@ -144,77 +145,96 @@ impl RuntimeEnvironment {
     self.exclusion_id_allocator.alloc()
   }
 
-  pub fn internalize_tuple(&self, tup: &Tuple) -> Tuple {
+  pub fn load_from_ram_program(&mut self, ram_program: &ram::Program) {
+    self.function_registry = ram_program.function_registry.clone();
+    self.predicate_registry = ram_program.predicate_registry.clone();
+    self
+      .dynamic_entity_store
+      .update_variant_registry(ram_program.adt_variant_registry.clone());
+  }
+
+  pub fn internalize_tuple(&self, tup: &Tuple) -> Option<Tuple> {
     match tup {
-      Tuple::Tuple(ts) => Tuple::Tuple(ts.iter().map(|t| self.internalize_tuple(t)).collect()),
-      Tuple::Value(v) => Tuple::Value(self.internalize_value(v)),
+      Tuple::Tuple(ts) => ts
+        .iter()
+        .map(|t| self.internalize_tuple(t))
+        .collect::<Option<_>>()
+        .map(Tuple::Tuple),
+      Tuple::Value(v) => self.internalize_value(v).map(Tuple::Value),
     }
   }
 
-  pub fn internalize_value(&self, val: &Value) -> Value {
+  pub fn internalize_value(&self, val: &Value) -> Option<Value> {
     match val {
       Value::SymbolString(s) => {
         let symbol_id = self.symbol_registry.register(s.clone());
-        Value::Symbol(symbol_id)
+        Some(Value::Symbol(symbol_id))
       }
       Value::Tensor(t) => {
         let tensor_symbol = self.tensor_registry.register(t.clone());
-        Value::TensorValue(tensor_symbol.into())
+        tensor_symbol.map(|s| Value::TensorValue(s.into()))
       }
-      other => other.clone(),
+      Value::EntityString(s) => self.dynamic_entity_store.compile_and_add_entity_string(s).ok(),
+      other => Some(other.clone()),
     }
   }
 
-  pub fn internalize_expr(&self, expr: &Expr) -> Expr {
+  pub fn internalize_expr(&self, expr: &Expr) -> Option<Expr> {
     match expr {
-      Expr::Access(a) => Expr::Access(a.clone()),
-      Expr::Tuple(t) => Expr::Tuple(t.iter().map(|e| self.internalize_expr(e)).collect()),
-      Expr::Binary(b) => Expr::binary(
+      Expr::Access(a) => Some(Expr::Access(a.clone())),
+      Expr::Tuple(t) => t
+        .iter()
+        .map(|e| self.internalize_expr(e))
+        .collect::<Option<_>>()
+        .map(Expr::Tuple),
+      Expr::Binary(b) => Some(Expr::binary(
         b.op.clone(),
-        self.internalize_expr(&b.op1),
-        self.internalize_expr(&b.op2),
-      ),
-      Expr::Unary(u) => Expr::unary(u.op.clone(), self.internalize_expr(&u.op1)),
-      Expr::Call(c) => Expr::call(
+        self.internalize_expr(&b.op1)?,
+        self.internalize_expr(&b.op2)?,
+      )),
+      Expr::Unary(u) => Some(Expr::unary(u.op.clone(), self.internalize_expr(&u.op1)?)),
+      Expr::Call(c) => Some(Expr::call(
         c.function.clone(),
-        c.args.iter().map(|e| self.internalize_expr(e)).collect(),
-      ),
-      Expr::Constant(c) => Expr::Constant(self.internalize_value(c)),
-      Expr::IfThenElse(ite) => Expr::ite(
-        self.internalize_expr(&ite.cond),
-        self.internalize_expr(&ite.then_br),
-        self.internalize_expr(&ite.else_br),
-      ),
-      Expr::New(n) => Expr::new(
+        c.args.iter().map(|e| self.internalize_expr(e)).collect::<Option<_>>()?,
+      )),
+      Expr::Constant(c) => self.internalize_value(c).map(Expr::Constant),
+      Expr::IfThenElse(ite) => Some(Expr::ite(
+        self.internalize_expr(&ite.cond)?,
+        self.internalize_expr(&ite.then_br)?,
+        self.internalize_expr(&ite.else_br)?,
+      )),
+      Expr::New(n) => Some(Expr::new(
         n.functor.clone(),
-        n.args.iter().map(|e| self.internalize_expr(e)).collect(),
-      ),
+        n.args.iter().map(|e| self.internalize_expr(e)).collect::<Option<_>>()?,
+      )),
     }
   }
 
-  pub fn externalize_tuple(&self, tup: &Tuple) -> Tuple {
+  pub fn externalize_tuple(&self, tup: &Tuple) -> Option<Tuple> {
     match tup {
-      Tuple::Tuple(ts) => Tuple::Tuple(ts.iter().map(|t| self.externalize_tuple(t)).collect()),
-      Tuple::Value(v) => Tuple::Value(self.externalize_value(v)),
+      Tuple::Tuple(ts) => {
+        Some(Tuple::Tuple(ts.iter().map(|t| self.externalize_tuple(t)).collect::<Option<Box<[_]>>>()?))
+      },
+      Tuple::Value(v) => self.externalize_value(v).map(Tuple::Value),
     }
   }
 
-  pub fn externalize_value(&self, val: &Value) -> Value {
+  pub fn externalize_value(&self, val: &Value) -> Option<Value> {
     match val {
       Value::Symbol(s) => {
         let symbol = self.symbol_registry.get_symbol(*s).expect("Cannot find symbol");
-        Value::SymbolString(symbol)
+        Some(Value::SymbolString(symbol))
       }
       Value::TensorValue(t) => {
         let tensor = self.tensor_registry.eval(t);
-        Value::Tensor(tensor)
+        tensor.map(Value::Tensor)
       }
-      other => other.clone(),
+      other => Some(other.clone()),
     }
   }
 
-  pub fn drain_new_entities(&self) -> HashMap<String, Vec<Tuple>> {
-    self.new_entities.drain_entities()
+  pub fn drain_new_entities<F: Fn(&str) -> bool>(&self, f: F) -> HashMap<String, Vec<Tuple>> {
+    self.dynamic_entity_store.drain_entities(f)
   }
 
   pub fn eval(&self, expr: &Expr, tuple: &Tuple) -> Option<Tuple> {
@@ -258,9 +278,9 @@ impl RuntimeEnvironment {
       (Add, Tuple::Value(F32(i1)), Tuple::Value(F32(i2))) => Tuple::Value(F32(i1 + i2)),
       (Add, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => Tuple::Value(F64(i1 + i2)),
       (Add, Tuple::Value(String(s1)), Tuple::Value(String(s2))) => Tuple::Value(String(format!("{}{}", s1, s2))),
-      (Add, Tuple::Value(DateTime(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(DateTime(i1 + i2)),
-      (Add, Tuple::Value(Duration(i1)), Tuple::Value(DateTime(i2))) => Tuple::Value(DateTime(i2 + i1)),
-      (Add, Tuple::Value(Duration(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(Duration(i1 + i2)),
+      (Add, Tuple::Value(DateTime(t1)), Tuple::Value(Duration(d2))) => Tuple::Value(DateTime(t1 + d2)),
+      (Add, Tuple::Value(Duration(d1)), Tuple::Value(DateTime(t2))) => Tuple::Value(DateTime(t2 + d1)),
+      (Add, Tuple::Value(Duration(d1)), Tuple::Value(Duration(d2))) => Tuple::Value(Duration(d1 + d2)),
       (Add, Tuple::Value(TensorValue(v1)), Tuple::Value(TensorValue(v2))) => {
         v1.add(v2).map(TensorValue).map(Tuple::Value)?
       }
@@ -288,7 +308,7 @@ impl RuntimeEnvironment {
       (Sub, Tuple::Value(F32(i1)), Tuple::Value(F32(i2))) => Tuple::Value(F32(i1 - i2)),
       (Sub, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => Tuple::Value(F64(i1 - i2)),
       (Sub, Tuple::Value(DateTime(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(DateTime(i1 - i2)),
-      (Sub, Tuple::Value(DateTime(i1)), Tuple::Value(DateTime(i2))) => Tuple::Value(Duration(i1 - i2)),
+      (Sub, Tuple::Value(DateTime(i1)), Tuple::Value(DateTime(i2))) => Tuple::Value(Duration((i1 - i2).into())),
       (Sub, Tuple::Value(Duration(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(Duration(i1 - i2)),
       (Sub, Tuple::Value(TensorValue(v1)), Tuple::Value(TensorValue(v2))) => {
         v1.sub(v2).map(TensorValue).map(Tuple::Value)?
@@ -296,7 +316,7 @@ impl RuntimeEnvironment {
       (Sub, Tuple::Value(TensorValue(v1)), Tuple::Value(F64(f2))) => {
         v1.sub(f2.into()).map(TensorValue).map(Tuple::Value)?
       }
-      (Sub, Tuple::Value(F64(f1)), Tuple::Value(TensorValue(v2))) => tensors::TensorValue::from(f1)
+      (Sub, Tuple::Value(F64(f1)), Tuple::Value(TensorValue(v2))) => foreign_tensor::TensorValue::from(f1)
         .sub(v2)
         .map(TensorValue)
         .map(Tuple::Value)?,
@@ -325,7 +345,7 @@ impl RuntimeEnvironment {
       (Mul, Tuple::Value(TensorValue(v1)), Tuple::Value(F64(f2))) => {
         v1.mul(f2.into()).map(TensorValue).map(Tuple::Value)?
       }
-      (Mul, Tuple::Value(F64(f1)), Tuple::Value(TensorValue(v2))) => tensors::TensorValue::from(f1)
+      (Mul, Tuple::Value(F64(f1)), Tuple::Value(TensorValue(v2))) => foreign_tensor::TensorValue::from(f1)
         .mul(v2)
         .map(TensorValue)
         .map(Tuple::Value)?,
@@ -670,9 +690,10 @@ impl RuntimeEnvironment {
 
       // Run the function
       let result = f.execute_with_env(self, args)?;
+      let internal_result = self.internalize_value(&result)?;
 
       // Turn result into tuple
-      Some(Tuple::Value(result))
+      Some(Tuple::Value(internal_result))
     })
   }
 
@@ -690,7 +711,9 @@ impl RuntimeEnvironment {
 
     // Combine them to form a tuple for later insertion to new entities list
     let tuple = Tuple::from_values(args.into_iter());
-    self.new_entities.add(&expr.functor, id.clone(), tuple);
+    self
+      .dynamic_entity_store
+      .add_entity_fact(&expr.functor, id.clone(), tuple);
 
     // Return the value
     Some(Tuple::Value(id))

@@ -2,7 +2,7 @@ use itertools::Itertools;
 
 use super::*;
 use crate::common::element::*;
-use crate::common::tensors::*;
+use crate::common::foreign_tensor::*;
 use crate::runtime::dynamic::*;
 use crate::runtime::statics::*;
 use crate::utils::PointerFamily;

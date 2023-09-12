@@ -1,3 +1,4 @@
+use scallop_core::common::value::Value;
 use scallop_core::integrate::*;
 use scallop_core::runtime::provenance::*;
 use scallop_core::testing::*;
@@ -98,7 +99,17 @@ fn adt_add_dynamic_entity_1() {
 
   // Dynamically add an entity to the context
   ctx
-    .add_entity("root", vec!["Add(Const(5), Add(Const(2), Const(3)))".to_string()])
+    .add_facts(
+      "root",
+      vec![(
+        None,
+        (Value::EntityString(
+          "Add(Const(5), Add(Const(2), Const(3)))".to_string(),
+        ),)
+          .into(),
+      )],
+      true,
+    )
     .expect("Cannot add entity");
 
   // Run the context
@@ -126,19 +137,27 @@ fn adt_add_dynamic_entity_2() {
       rel eval(e, y) = case e is Const(y)
       rel eval(e, y1 + y2) = case e is Add(e1, e2) and eval(e1, y1) and eval(e2, y2)
       rel result(id, y) = root(id, e) and eval(e, y)
-    "#,
+      "#,
     )
     .expect("Compile error");
 
   // Dynamically add an entity to the context
   ctx
-    .add_entity(
+    .add_facts(
       "root",
-      vec!["1".to_string(), "Add(Const(5), Add(Const(2), Const(3)))".to_string()],
+      vec![
+        (
+          None,
+          (
+            1,
+            Value::EntityString("Add(Const(5), Add(Const(2), Const(3)))".to_string()),
+          )
+            .into(),
+        ),
+        (None, (2, Value::EntityString("Const(3)".to_string())).into()),
+      ],
+      true,
     )
-    .expect("Cannot add entity");
-  ctx
-    .add_entity("root", vec!["2".to_string(), "Const(3)".to_string()])
     .expect("Cannot add entity");
 
   // Run the context

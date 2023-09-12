@@ -6,7 +6,7 @@ use crate::common::value_type::*;
 use super::*;
 
 /// Argument type of a function, which could be a generic type parameter or a type set (including base type)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum FunctionArgumentType {
   Generic(usize),
   TypeSet(TypeSet),
@@ -32,7 +32,7 @@ impl FunctionArgumentType {
 }
 
 /// Return type of a function, which need to be a generic type parameter or a base type (cannot be type set)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum FunctionReturnType {
   Generic(usize),
   BaseType(ValueType),
@@ -49,7 +49,7 @@ impl From<ForeignFunctionParameterType> for FunctionReturnType {
 }
 
 /// The function type
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct FunctionType {
   /// Generic type parameters
   pub generic_type_parameters: Vec<TypeSet>,
@@ -157,13 +157,24 @@ impl FunctionTypeRegistry {
     for (_, ff) in foreign_function_registry {
       let name = ff.name();
       let func_type = FunctionType::from(ff);
-      type_registry.add_function_type(name, func_type);
+      type_registry
+        .add_function_type(name, func_type)
+        .expect("Constructing function type registry from foreign function registry should always succeed");
     }
     type_registry
   }
 
-  pub fn add_function_type(&mut self, name: String, f: FunctionType) {
-    self.function_types.insert(name, f);
+  pub fn add_function_type(&mut self, name: String, f: FunctionType) -> Result<(), ForeignFunctionError> {
+    if let Some(existed_func_type) = self.function_types.get(&name) {
+      if &f == existed_func_type {
+        Ok(())
+      } else {
+        Err(ForeignFunctionError::ConflictDefinition { name })
+      }
+    } else {
+      self.function_types.insert(name, f);
+      Ok(())
+    }
   }
 
   pub fn get(&self, function_name: &str) -> Option<&FunctionType> {

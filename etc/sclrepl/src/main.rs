@@ -78,13 +78,15 @@ where
   // Compile context
   let options = compiler::CompileOptions::from(&cmd_args);
   let mut front_context = compiler::front::FrontContext::new();
-  let runtime_env = runtime::env::RuntimeEnvironment::default();
   let mut exec_context =
     runtime::dynamic::DynamicExecutionContext::<_, RcFamily>::new_with_options(runtime::dynamic::ExecutionOptions {
       incremental_maintain: true,
       retain_internal_when_recover: true,
       ..Default::default()
     });
+
+  // Create a runtime environment
+  let mut runtime_env = runtime::env::RuntimeEnvironment::default();
 
   // Main Loop
   let mut repl_id = 0;
@@ -158,6 +160,9 @@ where
             println!("======== RAM Program ========");
             println!("{}", ram);
           }
+
+          // Load runtime environment
+          runtime_env.load_from_ram_program(&ram);
 
           // Interpret the ram
           match exec_context.incremental_execute(ram, &runtime_env, &ctx) {

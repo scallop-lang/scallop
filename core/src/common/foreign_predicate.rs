@@ -90,6 +90,11 @@ impl BindingPattern {
     }
   }
 
+  /// Get the length of the binding pattern
+  pub fn len(&self) -> usize {
+    self.pattern.len()
+  }
+
   /// Check if all argument needs to be bounded
   pub fn is_bounded(&self) -> bool {
     self.pattern.iter().all(|p| p.is_bound())
@@ -167,6 +172,13 @@ pub trait ForeignPredicate: DynClone {
   /// Get a vector of the argument types
   fn argument_types(&self) -> Vec<ValueType> {
     (0..self.arity()).map(|i| self.argument_type(i)).collect()
+  }
+
+  /// Get a vector of free argument types
+  fn free_argument_types(&self) -> Vec<ValueType> {
+    (self.num_bounded()..self.arity())
+      .map(|i| self.argument_type(i))
+      .collect()
   }
 
   /// Get an identifier for this predicate
@@ -307,9 +319,6 @@ impl ForeignPredicateRegistry {
       reg.register(fps::SoftNumberLt::new(value_type.clone())).unwrap();
     }
 
-    // Register soft eq on tensors
-    reg.register(fps::SoftNumberEq::new(ValueType::Tensor)).unwrap();
-
     // String operations
     reg.register(fps::StringCharsBFF::new()).unwrap();
     reg.register(fps::StringFindBBFF::new()).unwrap();
@@ -317,6 +326,9 @@ impl ForeignPredicateRegistry {
 
     // DateTime
     reg.register(fps::DateTimeYMD::new()).unwrap();
+
+    // Tensor
+    reg.register(fps::TensorShape::new()).unwrap();
 
     reg
   }

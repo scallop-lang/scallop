@@ -1,8 +1,8 @@
 from typing import List, Tuple
 
-from .torch_importer import *
-
 from .scallopy import InternalScallopCollection
+
+from . import torch_importer
 
 class ScallopCollection:
   def __init__(
@@ -19,7 +19,7 @@ class ScallopCollection:
         if s == 1:
           yield (p, t)
         elif s == 0:
-          yield (torch.tensor(p), t)
+          yield (torch_importer.torch.tensor(p), t)
         else:
           yield (1 - p, t)
     elif self.provenance == "diffaddmultprob" or \
@@ -37,12 +37,13 @@ class ScallopCollection:
       for t in self._internal:
         yield t
 
-def diff_proofs_prob(p: float, deriv: List[Tuple[int, float, Tensor]], input_tags: List[Tensor]):
+
+def diff_proofs_prob(p: float, deriv: List[Tuple[int, float, torch_importer.Tensor]], input_tags: List[torch_importer.Tensor]):
   def hook(grad):
     for (tag_id, weight) in deriv:
       source_tensor = input_tags[tag_id]
       if source_tensor.requires_grad:
         source_tensor.backward(weight * grad, retain_graph=True)
-  v = torch.tensor(p, requires_grad=True)
+  v = torch_importer.torch.tensor(p, requires_grad=True)
   v.register_hook(hook)
   return v

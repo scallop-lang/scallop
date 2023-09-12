@@ -2,7 +2,7 @@ use itertools::Itertools;
 
 use super::*;
 use crate::common::element::*;
-use crate::common::tensors::*;
+use crate::common::foreign_tensor::*;
 use crate::common::value_type::*;
 use crate::runtime::dynamic::*;
 use crate::runtime::statics::*;
@@ -71,7 +71,7 @@ impl<T: FromTensor, P: PointerFamily> DiffMinMaxProbProvenance<T, P> {
       .iter()
       .enumerate()
       .filter(|(i, _)| chosen_ids.contains(i))
-      .map(|(_, e)| e.clone())
+      .map(|(_, e)| e)
       .collect::<Vec<_>>()
   }
 

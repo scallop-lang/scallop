@@ -2,7 +2,6 @@ from typing import *
 
 import scallopy
 from scallopy import foreign_predicate, Generator
-from scallopy.types import *
 
 
 @foreign_predicate

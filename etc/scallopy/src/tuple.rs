@@ -2,53 +2,56 @@ use pyo3::exceptions::*;
 use pyo3::prelude::*;
 use pyo3::types::*;
 
-use scallop_core::common::tensors::*;
+use scallop_core::common::foreign_tensor::*;
 use scallop_core::common::tuple::Tuple;
 use scallop_core::common::tuple_type::TupleType;
 use scallop_core::common::value::Value;
 use scallop_core::common::value_type::ValueType;
 use scallop_core::utils;
 
+use super::error::*;
 use super::runtime::*;
+use super::tensor::*;
 
-pub fn to_python_tuple(tup: &Tuple, env: &PythonRuntimeEnvironment) -> Py<PyAny> {
+pub fn to_python_tuple(tup: &Tuple, env: &PythonRuntimeEnvironment) -> Option<Py<PyAny>> {
   match tup {
     Tuple::Tuple(t) => Python::with_gil(|py| {
-      let values = t.iter().map(|t| to_python_tuple(t, env)).collect::<Vec<_>>();
-      PyTuple::new(py, values).into()
+      let values = t.iter().map(|t| to_python_tuple(t, env)).collect::<Option<Vec<_>>>()?;
+      Some(PyTuple::new(py, values).into())
     }),
     Tuple::Value(v) => to_python_value(v, env),
   }
 }
 
-pub fn to_python_value(val: &Value, env: &PythonRuntimeEnvironment) -> Py<PyAny> {
+pub fn to_python_value(val: &Value, env: &PythonRuntimeEnvironment) -> Option<Py<PyAny>> {
   use Value::*;
   Python::with_gil(|py| match val {
-    I8(i) => i.to_object(py),
-    I16(i) => i.to_object(py),
-    I32(i) => i.to_object(py),
-    I64(i) => i.to_object(py),
-    I128(i) => i.to_object(py),
-    ISize(i) => i.to_object(py),
-    U8(i) => i.to_object(py),
-    U16(i) => i.to_object(py),
-    U32(i) => i.to_object(py),
-    U64(i) => i.to_object(py),
-    U128(i) => i.to_object(py),
-    USize(i) => i.to_object(py),
-    F32(f) => f.to_object(py),
-    F64(f) => f.to_object(py),
-    Char(c) => c.to_object(py),
-    Bool(b) => b.to_object(py),
-    Str(s) => s.to_object(py),
-    String(s) => s.to_object(py),
-    Symbol(s) => env.symbol_registry.get_symbol(*s).to_object(py),
-    SymbolString(s) => s.to_object(py),
-    DateTime(d) => d.to_string().to_object(py),
-    Duration(d) => d.to_string().to_object(py),
-    Entity(e) => e.to_object(py),
-    Tensor(t) => tensor_to_py_object(t.clone(), py),
-    TensorValue(v) => tensor_to_py_object(env.tensor_registry.eval(v), py),
+    I8(i) => Some(i.to_object(py)),
+    I16(i) => Some(i.to_object(py)),
+    I32(i) => Some(i.to_object(py)),
+    I64(i) => Some(i.to_object(py)),
+    I128(i) => Some(i.to_object(py)),
+    ISize(i) => Some(i.to_object(py)),
+    U8(i) => Some(i.to_object(py)),
+    U16(i) => Some(i.to_object(py)),
+    U32(i) => Some(i.to_object(py)),
+    U64(i) => Some(i.to_object(py)),
+    U128(i) => Some(i.to_object(py)),
+    USize(i) => Some(i.to_object(py)),
+    F32(f) => Some(f.to_object(py)),
+    F64(f) => Some(f.to_object(py)),
+    Char(c) => Some(c.to_object(py)),
+    Bool(b) => Some(b.to_object(py)),
+    Str(s) => Some(s.to_object(py)),
+    String(s) => Some(s.to_object(py)),
+    Symbol(s) => Some(env.symbol_registry.get_symbol(*s).to_object(py)),
+    SymbolString(s) => Some(s.to_object(py)),
+    DateTime(d) => Some(d.to_string().to_object(py)),
+    Duration(d) => Some(d.to_string().to_object(py)),
+    Entity(e) => Some(e.to_object(py)),
+    EntityString(_) => panic!("[Internal Error] Entity string could not be turned to python value"),
+    Tensor(t) => tensor_to_py_object(t.clone()),
+    TensorValue(v) => tensor_to_py_object(env.tensor_registry.eval(v)?),
   })
 }
 
@@ -100,46 +103,29 @@ pub fn from_python_value(v: &PyAny, ty: &ValueType, env: &PythonRuntimeEnvironme
       Ok(Value::Symbol(id))
     }
     ValueType::DateTime => {
-      let dt = utils::parse_date_time_string(v.extract()?).ok_or(PyTypeError::new_err("Cannot parse into DateTime"))?;
+      let string = v.extract()?;
+      let dt = utils::parse_date_time_string(string).ok_or(PyTypeError::new_err(format!("Cannot parse into DateTime: {}", string)))?;
       Ok(Value::DateTime(dt))
     }
     ValueType::Duration => {
-      let dt = utils::parse_duration_string(v.extract()?).ok_or(PyTypeError::new_err("Cannot parse into Duration"))?;
+      let string = v.extract()?;
+      let dt = utils::parse_duration_string(string).ok_or(PyTypeError::new_err(format!("Cannot parse into Duration: {}", string)))?;
       Ok(Value::Duration(dt))
     }
-    ValueType::Entity => Ok(Value::Entity(v.extract()?)),
+    ValueType::Entity => {
+      let entity_string: String = v.extract()?;
+      Ok(Value::EntityString(entity_string))
+    }
     ValueType::Tensor => tensor_from_py_object(v, env),
   }
 }
 
-#[cfg(feature = "torch-tensor")]
 fn tensor_from_py_object(pyobj: &PyAny, env: &PythonRuntimeEnvironment) -> PyResult<Value> {
-  use super::torch::PyTensor;
-  let py_tensor: PyTensor = pyobj.extract()?;
-  let scl_tensor: Tensor = Tensor::new(py_tensor.0);
-  let symbol: TensorSymbol = env.tensor_registry.register(scl_tensor);
+  let py_tensor = Tensor::from_py_value(pyobj);
+  let symbol = env.tensor_registry.register(DynamicExternalTensor::new(py_tensor)).ok_or(BindingError::CannotRegisterTensor)?;
   Ok(Value::TensorValue(symbol.into()))
 }
 
-#[cfg(not(feature = "torch-tensor"))]
-#[allow(unused)]
-fn tensor_from_py_object(pyobj: &PyAny, env: &PythonRuntimeEnvironment) -> PyResult<Value> {
-  panic!(
-    "This `scallopy` version is not compiled with tensor support; consider adding `torch-tensor` flag when compiling"
-  )
-}
-
-#[cfg(feature = "torch-tensor")]
-fn tensor_to_py_object(tensor: Tensor, py: Python<'_>) -> PyObject {
-  use super::torch::PyTensor;
-  let py_tensor = PyTensor(tensor.tensor);
-  py_tensor.into_py(py)
-}
-
-#[cfg(not(feature = "torch-tensor"))]
-#[allow(unused)]
-fn tensor_to_py_object(tensor: Tensor, py: Python<'_>) -> PyObject {
-  panic!(
-    "This `scallopy` version is not compiled with tensor support; consider adding `torch-tensor` flag when compiling"
-  )
+fn tensor_to_py_object(tensor: DynamicExternalTensor) -> Option<PyObject> {
+  tensor.cast::<Tensor>().map(|t| t.to_py_value())
 }

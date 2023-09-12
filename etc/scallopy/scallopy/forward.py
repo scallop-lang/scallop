@@ -5,13 +5,14 @@ import sys
 import zipfile
 import shutil
 
-from .torch_importer import Context, Tensor, torch
 from .sample_type import *
 from .context import ScallopContext
 from .provenance import ScallopProvenance
 from .utils import _mapping_tuple, _map_entity_tuple_to_str_tuple
 
-class ScallopForwardFunction(Context):
+from . import torch_importer
+
+class ScallopForwardFunction(torch_importer.Module):
   def __init__(
     self,
     file: Optional[str] = None,
@@ -104,7 +105,7 @@ class ScallopForwardFunction(Context):
     return self.forward_fn(*pos_args, **kw_args)
 
 
-class InternalScallopForwardFunction(Context):
+class InternalScallopForwardFunction(torch_importer.Module):
   FORWARD_FN_COUNTER = 1
 
   """
@@ -262,10 +263,9 @@ class InternalScallopForwardFunction(Context):
   def __call__(
     self,
     disjunctions: Dict[str, List[List[List[int]]]] = {},
-    entities: Dict[str, List[List[str]]] = {},
     output_relations: Optional[List[Union[str, List[str]]]] = None,
-    **input_facts: Dict[str, Union[Tensor, List]],
-  ) -> Union[Tensor, Tuple[List[Tuple], Tensor]]:
+    **input_facts: Dict[str, Union[torch_importer.Tensor, List]],
+  ) -> Union[torch_importer.Tensor, Tuple[List[Tuple], torch_importer.Tensor]]:
     """
     Invoke the forward function with the given facts
 
@@ -281,14 +281,13 @@ class InternalScallopForwardFunction(Context):
     else:
       return self._call_with_dynamic_ctx(
         disjunctions=disjunctions,
-        entities=entities,
         output_relations=output_relations,
         input_facts=input_facts)
 
   def _call_with_static_ctx(
     self,
     disjunctions: Dict,
-    input_facts: Dict[str, Union[Tensor, List]],
+    input_facts: Dict[str, Union[torch_importer.Tensor, List]],
   ):
     # First make sure all facts share the same batch size
     batch_size = self._compute_and_check_batch_size(input_facts)
@@ -323,20 +322,15 @@ class InternalScallopForwardFunction(Context):
   def _call_with_dynamic_ctx(
     self,
     disjunctions: Optional[Dict],
-    entities: Optional[Dict[str, List[List[str]]]],
     output_relations: Optional[List[Union[str, List[str]]]],
-    input_facts: Dict[str, Union[Tensor, List]],
+    input_facts: Dict[str, Union[torch_importer.Tensor, List]],
   ):
-    self.ctx._refresh_training_eval_state() # Set train/eval
+    self.ctx._refresh_training_eval_state(self.training) # Set train/eval
     self.ctx._internal.set_non_incremental()
     self.ctx._internal.compile() # Compile into back IR
 
     # First make sure that all facts share the same batch size
-    batch_size = self._compute_and_check_batch_size(input_facts, entities)
-
-    # Get all the entity facts
-    for (entity_relation, entity_facts) in self._compute_entity_facts(batch_size, entities).items():
-      input_facts[entity_relation] = entity_facts
+    batch_size = self._compute_and_check_batch_size(input_facts)
 
     # Process the input into a unified form
     all_inputs = self._process_all_input_facts(batch_size, input_facts, disjunctions)
@@ -370,7 +364,7 @@ class InternalScallopForwardFunction(Context):
     # Process the output
     return self._process_output(batch_size, input_tags, output_results)
 
-  def _compute_and_check_batch_size(self, inputs: Dict[str, Union[Tensor, List]], entities: Dict[str, List[List[str]]] = {}) -> int:
+  def _compute_and_check_batch_size(self, inputs: Dict[str, Union[torch_importer.Tensor, List]]) -> int:
     """
     Given the inputs, check if the batch size is consistent over all relations.
     If so, return the batch size.
@@ -382,28 +376,10 @@ class InternalScallopForwardFunction(Context):
         batch_size = len(rela_facts)
       elif batch_size != len(rela_facts):
         raise Exception(f"Inconsistency in batch size: expected {batch_size}, found {len(rela_facts)} for relation `{rela}`")
-    for (rela, rela_entities) in entities.items():
-      if batch_size is None:
-        batch_size = len(rela_entities)
-      elif batch_size != len(rela_entities):
-        raise Exception(f"Inconsistency in entity batch size: expected {batch_size}, found {len(rela_facts)} for relation `{rela}`")
     if batch_size is None:
       raise Exception("There is no input to the forward function")
     else:
       return batch_size
-
-  def _compute_entity_facts(self, batch_size, entities):
-    all_entity_facts = {}
-    for (relation, batch_of_entities) in entities.items():
-      for (i, entities) in enumerate(batch_of_entities):
-        for entity in entities:
-          entity = _map_entity_tuple_to_str_tuple(entity)
-          entity_raw_facts = self.ctx._internal.compile_entity(relation, entity)
-          for (obj_relation, obj_facts) in entity_raw_facts.items():
-            if obj_relation not in all_entity_facts:
-              all_entity_facts[obj_relation] = [[] for _ in range(batch_size)]
-            all_entity_facts[obj_relation][i] += [(None, fact) for fact in obj_facts]
-    return all_entity_facts
 
   def _process_all_input_facts(self, batch_size, all_input_facts, all_disjunctions):
     """
@@ -453,7 +429,7 @@ class InternalScallopForwardFunction(Context):
         facts = self.ctx._process_disjunctive_elements(facts, remapped_disjs)
 
       # If the facts are provided as Tensor
-      elif ty == Tensor:
+      elif ty == torch_importer.torch.Tensor:
         if rela not in self.ctx._input_mappings:
           raise Exception(f"scallopy.forward receives vectorized Tensor input. However there is no `input_mapping` provided for relation `{rela}`")
 
@@ -608,7 +584,7 @@ class InternalScallopForwardFunction(Context):
       # Check if there is no output result
       if len(possible_outputs) == 0:
         # Return empty tensor
-        return ([], torch.zeros(batch_size, 0, requires_grad=self.training))
+        return ([], torch_importer.torch.zeros(batch_size, 0, requires_grad=self.training))
       else:
         # Integrate the outputs based on all the output results
         v = self._batched_prob(post_output_results)
@@ -622,7 +598,7 @@ class InternalScallopForwardFunction(Context):
   def _batched_prob(
     self,
     tasks: List[List[Any]],
-  ) -> Tensor:
+  ) -> torch_importer.Tensor:
     # Provenance diffminmaxprob
     if self.ctx.provenance == "diffminmaxprob":
       tensor_results = []
@@ -634,13 +610,13 @@ class InternalScallopForwardFunction(Context):
             if s == 1:
               task_tensor_results.append(p)
             elif s == 0:
-              task_tensor_results.append(self._torch_tensor_apply(torch.tensor(p, requires_grad=True)))
+              task_tensor_results.append(self._torch_tensor_apply(torch_importer.torch.tensor(p, requires_grad=True)))
             else:
               task_tensor_results.append(1 - p)
           else:
-            task_tensor_results.append(self._torch_tensor_apply(torch.tensor(0.0, requires_grad=True)))
-        tensor_results.append(torch.stack(task_tensor_results))
-      return torch.stack(tensor_results)
+            task_tensor_results.append(self._torch_tensor_apply(torch_importer.torch.tensor(0.0, requires_grad=True)))
+        tensor_results.append(torch_importer.torch.stack(task_tensor_results))
+      return torch_importer.torch.stack(tensor_results)
 
     # Provenance diff addmultprob / proofs
     # -- the provenances that returns a full derivatives array associated with the probability
@@ -657,11 +633,11 @@ class InternalScallopForwardFunction(Context):
         for task_tup_result in task_results:
           if task_tup_result is not None:
             (p, _) = task_tup_result
-            task_tensor_results.append(torch.tensor(p, requires_grad=True))
+            task_tensor_results.append(torch_importer.torch.tensor(p, requires_grad=True))
           else:
-            task_tensor_results.append(torch.tensor(0.0, requires_grad=True))
-        tensor_results.append(torch.stack(task_tensor_results))
-      return self._torch_tensor_apply(torch.stack(tensor_results))
+            task_tensor_results.append(torch_importer.torch.tensor(0.0, requires_grad=True))
+        tensor_results.append(torch_importer.torch.stack(task_tensor_results))
+      return self._torch_tensor_apply(torch_importer.torch.stack(tensor_results))
 
     # If we have a custom provenance, use its collate function
     elif self.ctx.provenance == "custom":
@@ -716,11 +692,11 @@ class InternalScallopForwardFunction(Context):
 
     # mat_i: Input matrix
     def pad_input(l):
-      return l + [self._torch_tensor_apply(torch.tensor(0.0))] * (num_inputs - len(l)) if len(l) < num_inputs else l
-    mat_i = torch.stack([torch.stack(pad_input(l)) for l in input_tags])
+      return l + [self._torch_tensor_apply(torch_importer.torch.tensor(0.0))] * (num_inputs - len(l)) if len(l) < num_inputs else l
+    mat_i = torch_importer.torch.stack([torch_importer.torch.stack(pad_input(l)) for l in input_tags])
 
     # mat_w: Weight matrix
-    mat_w = self._torch_tensor_apply((torch.zeros(batch_size, num_outputs, num_inputs)))
+    mat_w = self._torch_tensor_apply((torch_importer.torch.zeros(batch_size, num_outputs, num_inputs)))
     for (batch_id, task_result) in enumerate(output_batch): # batch_size
       for (output_id, output_tag) in enumerate(task_result): # output_size
         if output_tag is not None:
@@ -732,7 +708,7 @@ class InternalScallopForwardFunction(Context):
     retain_graph = self.retain_graph
     def hook(grad):
       if mat_i.requires_grad:
-        mat_f = torch.einsum("ikj,ik->ij", mat_w, grad)
+        mat_f = torch_importer.torch.einsum("ikj,ik->ij", mat_w, grad)
         mat_i.backward(mat_f, retain_graph=retain_graph)
 
     return hook

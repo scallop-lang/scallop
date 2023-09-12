@@ -1,0 +1,14 @@
+// Input; an image directory
+rel img_dir = {
+  "etc/scallop-cli/res/testing/images/dog_example_1.jpg",
+  "etc/scallop-cli/res/testing/images/cat_example_1.png"
+}
+
+// Initialize a classifier that can distinguish if an image is a cat or a dog
+@clip(["cat", "dog"], prompt="a photo of a {{}}")
+type cat_or_dog(bound img: Tensor, cat_or_dog: String)
+
+// Try to classify the image
+type classified(img_dir: String, class: String)
+rel classified(img_dir, class) = img_dir(img_dir) and cat_or_dog($load_image(img_dir), class)
+query classified

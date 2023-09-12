@@ -22,16 +22,12 @@ petgraph = "0.6"
 csv = "1.1"
 sprs = "0.11"
 chrono = { version = "0.4", features = ["serde"] }
+chronoutil = { git = "https://github.com/Liby99/chronoutil.git" }
 dateparser = "0.1.6"
-parse_duration = "2.1.1"
 dyn-clone = "1.0.10"
 lazy_static = "1.4"
 serde = { version = "1.0", features = ["derive"] }
+parse_relative_duration = { path = "../lib/parse_relative_duration" }
 rand = { version = "0.8", features = ["std_rng", "small_rng", "alloc"] }
+astnode-derive = { path = "../lib/astnode-derive" }
 sdd = { path = "../lib/sdd" }
-
-# Optional ones
-tch = { version = "0.13.0", optional = true }
-
-[features]
-torch-tensor = ["dep:tch"]

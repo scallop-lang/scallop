@@ -1,5 +1,5 @@
 use crate::common::input_tag::*;
-use crate::common::tensors::*;
+use crate::common::foreign_tensor::*;
 
 use super::*;
 

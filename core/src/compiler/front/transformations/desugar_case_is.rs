@@ -10,21 +10,25 @@ impl DesugarCaseIs {
   }
 
   pub fn transform_case_is_to_formula(&self, case: &Case) -> Formula {
-    match &case.entity().node {
-      EntityNode::Expr(e) => {
+    match &case.entity() {
+      Entity::Expr(e) => {
         // If the entity is directly an expression, the formula is a constraint
         Formula::Constraint(
-          Constraint::default_with_expr(Expr::binary(
-            BinaryOp::default_eq(),
-            Expr::Variable(case.variable().clone()),
-            e.clone(),
-          ))
-          .with_span(&case.loc),
+          Constraint::new_with_loc(
+            Expr::binary(
+              BinaryExpr::new(
+                BinaryOp::new_eq(),
+                Expr::Variable(case.variable().clone()),
+                e.clone(),
+              ),
+            ),
+            case.location().clone()
+          ),
         )
       }
-      EntityNode::Object(o) => {
+      Entity::Object(o) => {
         // If the entity is an object, the formula is a conjunction of atoms
-        let parent_id = case.id();
+        let parent_id = case.location_id().expect("Case location id is not populated prior to desugar case is transformation");
         let variable = case.variable().clone();
         let mut variable_counter = IdAllocator::new();
         let mut formulas = vec![];
@@ -33,7 +37,7 @@ impl DesugarCaseIs {
         self.transform_object_to_formula_helper(variable, o, parent_id, &mut variable_counter, &mut formulas);
 
         // Return the conjunction of formulas
-        Formula::conjunction(formulas)
+        Formula::conjunction(Conjunction::new(formulas))
       }
     }
   }
@@ -51,14 +55,14 @@ impl DesugarCaseIs {
 
     // Obtain the second-to-last arguments in the atom
     let sub_args = object.iter_args().map(|arg| {
-      match &arg.node {
-        EntityNode::Expr(e) => e.clone(),
-        EntityNode::Object(o) => {
+      match &arg {
+        Entity::Expr(e) => e.clone(),
+        Entity::Object(o) => {
           // Obtain a variable id
           let variable_id = variable_counter.alloc();
 
           // Create a variable from the variable id
-          let current_variable = Variable::default_with_name(format!("adt#var#{parent_id}#{variable_id}"));
+          let current_variable = Variable::new(Identifier::new(format!("adt#var#{parent_id}#{variable_id}")));
 
           // Recurse on the object
           self.transform_object_to_formula_helper(current_variable.clone(), o, parent_id, variable_counter, formulas);
@@ -73,22 +77,17 @@ impl DesugarCaseIs {
     let args = std::iter::once(Expr::Variable(variable)).chain(sub_args).collect();
 
     // Add a formula to the formulas
-    let formula = Formula::Atom(
-      AtomNode {
-        predicate,
-        type_args: vec![],
-        args,
-      }
-      .into(),
-    );
+    let formula = Formula::Atom(Atom::new(predicate, vec![], args));
     formulas.push(formula);
   }
 }
 
-impl NodeVisitorMut for DesugarCaseIs {
-  fn visit_formula(&mut self, formula: &mut Formula) {
+impl NodeVisitor<Formula> for DesugarCaseIs {
+  fn visit_mut(&mut self, formula: &mut Formula) {
     match formula {
-      Formula::Case(c) => *formula = self.transform_case_is_to_formula(c),
+      Formula::Case(c) => {
+        *formula = self.transform_case_is_to_formula(c)
+      },
       _ => {}
     }
   }

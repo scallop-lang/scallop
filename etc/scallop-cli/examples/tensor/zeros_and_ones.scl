@@ -1,0 +1,4 @@
+type t(bound i32, free Tensor)
+rel t(0, $zeros(3))
+rel t(i + 1, x + $ones(3)) = t(i, x)
+query t(5, y)

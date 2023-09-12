@@ -86,7 +86,8 @@
 				{ "include": "#enum_type_decl" },
 				{ "include": "#alias_type_decl" },
 				{ "include": "#sub_type_decl" },
-				{ "include": "#relation_type_decl" }
+				{ "include": "#relation_type_decl" },
+				{ "include": "#function_type_decl" }
 			]
 		},
 		"adt_type_decl": {
@@ -195,8 +196,18 @@
 			"patterns": [
 				{ "include": "#comment" },
 				{ "include": "#relation_type_binding" },
+				{ "include": "#bound_free" },
 				{ "include": "#type" }
-			]
+			],
+			"comment": "A relation type declaration"
+		},
+		"bound_free": {
+			"match": "\\b(bound|free)\\b",
+			"captures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				}
+			}
 		},
 		"relation_type_binding": {
 			"match": "([a-zA-Z][a-zA-Z0-9_]*)\\s*:\\s*([a-zA-Z][a-zA-Z0-9_]*)",
@@ -207,7 +218,32 @@
 				"2": {
 					"name": "storage.type.scallop"
 				}
-			}
+			},
+			"comment": "The argument binding inside of a relation type declaration"
+		},
+		"function_type_decl": {
+			"begin": "(type)\\s+(\\$([a-zA-Z][a-zA-Z0-9_]*))\\s*\\(",
+			"end": "\\)\\s*(->)\\s*([a-zA-Z][a-zA-Z0-9_]*)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				},
+				"2": {
+					"name": "entity.name.tag.scallop"
+				}
+			},
+			"endCaptures": {
+				"1": {
+					"name": "keyword.operator.scallop"
+				},
+				"2": {
+					"name": "storage.type.scallop"
+				}
+			},
+			"patterns": [
+				{ "include": "#relation_type_binding" },
+				{ "include": "#type" }
+			]
 		},
 		"type": {
 			"patterns": [
@@ -405,13 +441,13 @@
 					"name": "keyword.other.scallop"
 				},
 				"6": {
-					"name": "keyword.operator.scallop"
+					"name": "punctuation.brackets.angle.scallop"
 				},
 				"7": {
 					"name": "constant.numeric.scallop"
 				},
 				"8": {
-					"name": "keyword.operator.scallop"
+					"name": "punctuation.brackets.angle.scallop"
 				},
 				"9": {
 					"name": "variable.parameter.scallop"
@@ -443,7 +479,7 @@
 					"name": "keyword.other.scallop"
 				},
 				"6": {
-					"name": "keyword.operator.scallop"
+					"name": "punctuation.brackets.angle.scallop"
 				},
 				"7": {
 					"name": "variable.parameter.scallop"
@@ -452,7 +488,7 @@
 					"name": "variable.parameter.scallop"
 				},
 				"10": {
-					"name": "keyword.operator.scallop"
+					"name": "punctuation.brackets.angle.scallop"
 				},
 				"11": {
 					"name": "variable.parameter.scallop"
@@ -551,6 +587,7 @@
 				}
 			},
 			"patterns": [
+				{ "include": "#bound_free" },
 				{ "include": "#comment" },
 				{ "include": "#relation_type_binding" },
 				{ "include": "#basic_type" },
@@ -645,7 +682,7 @@
 			"name": "keyword.operator.scallop"
 		},
 		"formula_operator_keywords": {
-			"match": "\\b(and|or|not|implies|case|is|where)\\b",
+			"match": "\\b(and|or|not|implies|case|is|where|in)\\b",
 			"name": "keyword.control.scallop"
 		},
 		"expr_operator": {
@@ -656,7 +693,7 @@
 			]
 		},
 		"expr_operator_symbol": {
-			"match": "(&&|\\|\\||==|!=|!|\\+|-|/|\\*|%|<=|>=|<|>)",
+			"match": "(&&|\\|\\||==|!=|!|\\+|-|/|\\*|%|<=|>=|<|>|\\.\\.)",
 			"name": "keyword.operator.scallop"
 		},
 		"expr_operator_keywords": {
@@ -672,6 +709,7 @@
 				{ "include": "#integer" },
 				{ "include": "#float" },
 				{ "include": "#boolean" },
+				{ "include": "#multiline_string" },
 				{ "include": "#string" },
 				{ "include": "#char" },
 				{ "include": "#datetime" },
@@ -713,6 +751,17 @@
 			"name": "string.quoted.double.scallop",
 			"begin": "\"",
 			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.scallop",
+					"match": "\\\\."
+				}
+			]
+		},
+		"multiline_string": {
+			"name": "string.quoted.multi.scallop",
+			"begin": "\"\"\"",
+			"end": "\"\"\"",
 			"patterns": [
 				{
 					"name": "constant.character.escape.scallop",

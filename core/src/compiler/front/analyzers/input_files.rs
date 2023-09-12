@@ -56,8 +56,8 @@ impl InputFilesAnalysis {
 
   pub fn process_has_header(&self, attr_arg: Option<&AttributeValue>) -> Result<Option<bool>, InputFilesError> {
     match attr_arg {
-      Some(v) => match v.as_bool() {
-        Some(b) => Ok(Some(*b)),
+      Some(v) => match v.as_boolean() {
+        Some(b) => Ok(Some(b)),
         _ => Err(InputFilesError::HasHeaderNotBoolean {
           loc: v.location().clone(),
         }),
@@ -68,8 +68,8 @@ impl InputFilesAnalysis {
 
   pub fn process_has_probability(&self, attr_arg: Option<&AttributeValue>) -> Result<Option<bool>, InputFilesError> {
     match attr_arg {
-      Some(v) => match v.as_bool() {
-        Some(b) => Ok(Some(*b)),
+      Some(v) => match v.as_boolean() {
+        Some(b) => Ok(Some(b)),
         _ => Err(InputFilesError::HasProbabilityNotBoolean {
           loc: v.location().clone(),
         }),
@@ -80,14 +80,14 @@ impl InputFilesAnalysis {
 
   pub fn process_keys(&self, attr_arg: Option<&AttributeValue>) -> Result<Option<Vec<String>>, InputFilesError> {
     match attr_arg {
-      Some(v) => match &v.node {
-        AttributeValueNode::Constant(c) => match c.as_string() {
-          Some(s) => Ok(Some(vec![s.clone()])),
+      Some(v) => match v {
+        AttributeValue::Constant(c) => match c.as_string() {
+          Some(s) => Ok(Some(vec![s.string().clone()])),
           None => Err(InputFilesError::KeysNotString {
             loc: v.location().clone(),
           }),
         },
-        AttributeValueNode::List(l) => {
+        AttributeValue::List(l) => {
           // Make sure that the list is not empty
           if l.is_empty() {
             return Err(InputFilesError::KeysEmptyList {
@@ -97,7 +97,7 @@ impl InputFilesAnalysis {
 
           // Extract each element of the key
           let mut keys = Vec::new();
-          for arg in l {
+          for arg in l.iter() {
             match arg.as_string() {
               Some(s) => keys.push(s.clone()),
               None => {
@@ -109,11 +109,9 @@ impl InputFilesAnalysis {
           }
           Ok(Some(keys))
         }
-        AttributeValueNode::Tuple(_) => {
-          Err(InputFilesError::KeysNotString {
-            loc: v.location().clone(),
-          })
-        },
+        AttributeValue::Tuple(_) => Err(InputFilesError::KeysNotString {
+          loc: v.location().clone(),
+        }),
       },
       None => Ok(None),
     }
@@ -121,11 +119,11 @@ impl InputFilesAnalysis {
 
   fn process_fields(&self, attr_arg: Option<&AttributeValue>) -> Result<Option<Vec<String>>, InputFilesError> {
     match attr_arg {
-      Some(v) => match &v.node {
-        AttributeValueNode::List(l) => {
+      Some(v) => match v {
+        AttributeValue::List(l) => {
           // Extract each element of the key
           let mut keys = Vec::new();
-          for arg in l {
+          for arg in l.iter() {
             match arg.as_string() {
               Some(s) => keys.push(s.clone()),
               None => {
@@ -184,7 +182,7 @@ impl InputFilesAnalysis {
   }
 
   pub fn process_attrs(&mut self, pred: &str, attrs: &Attributes) {
-    if let Some(attr) = attrs.iter().find(|a| a.name() == "file") {
+    if let Some(attr) = attrs.find("file") {
       match self.process_attr(attr) {
         Ok(input_file) => {
           self.input_files.insert(pred.to_string(), input_file);
@@ -197,10 +195,10 @@ impl InputFilesAnalysis {
   }
 }
 
-impl NodeVisitor for InputFilesAnalysis {
-  fn visit_relation_type_decl(&mut self, rela_type_decl: &RelationTypeDecl) {
-    for rela_type in rela_type_decl.relation_types() {
-      self.process_attrs(rela_type.predicate(), rela_type_decl.attributes());
+impl NodeVisitor<RelationTypeDecl> for InputFilesAnalysis {
+  fn visit(&mut self, rela_type_decl: &RelationTypeDecl) {
+    for rela_type in rela_type_decl.rel_types() {
+      self.process_attrs(rela_type.predicate_name(), rela_type_decl.attrs());
     }
   }
 }
@@ -209,41 +207,41 @@ impl NodeVisitor for InputFilesAnalysis {
 pub enum InputFilesError {
   InvalidNumAttrArgument {
     actual_num_args: usize,
-    attr_loc: AstNodeLocation,
+    attr_loc: NodeLocation,
   },
   InvalidArgument {
-    attr_arg_loc: AstNodeLocation,
+    attr_arg_loc: NodeLocation,
   },
   NoExtension {
-    attr_arg_loc: AstNodeLocation,
+    attr_arg_loc: NodeLocation,
   },
   UnknownExtension {
     ext: String,
-    attr_arg_loc: AstNodeLocation,
+    attr_arg_loc: NodeLocation,
   },
   HasProbabilityNotBoolean {
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   HasHeaderNotBoolean {
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   DeliminatorNotString {
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   DeliminatorNotSingleCharacter {
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   DeliminatorNotASCII {
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   KeysEmptyList {
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   KeysNotString {
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   FieldsNotListOfString {
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
 }
 

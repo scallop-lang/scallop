@@ -1,8 +1,6 @@
-use serde::*;
-
 use super::*;
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 pub enum Item {
   ImportDecl(ImportDecl),
   TypeDecl(TypeDecl),
@@ -12,45 +10,30 @@ pub enum Item {
 }
 
 impl Item {
-  pub fn attributes(&self) -> &Attributes {
+  pub fn attrs(&self) -> &Attributes {
     match self {
-      Self::ImportDecl(i) => i.attributes(),
-      Self::TypeDecl(t) => t.attributes(),
-      Self::ConstDecl(c) => c.attributes(),
-      Self::RelationDecl(r) => r.attributes(),
-      Self::QueryDecl(q) => q.attributes(),
+      Self::ImportDecl(i) => i.attrs(),
+      Self::TypeDecl(t) => t.attrs(),
+      Self::ConstDecl(c) => c.attrs(),
+      Self::RelationDecl(r) => r.attrs(),
+      Self::QueryDecl(q) => q.attrs(),
     }
   }
 
-  pub fn attributes_mut(&mut self) -> &mut Attributes {
+  pub fn attrs_mut(&mut self) -> &mut Attributes {
     match self {
-      Self::ImportDecl(i) => i.attributes_mut(),
-      Self::TypeDecl(t) => t.attributes_mut(),
-      Self::ConstDecl(c) => c.attributes_mut(),
-      Self::RelationDecl(r) => r.attributes_mut(),
-      Self::QueryDecl(q) => q.attributes_mut(),
-    }
-  }
-}
-
-impl WithLocation for Item {
-  fn location(&self) -> &AstNodeLocation {
-    match self {
-      Self::ImportDecl(i) => i.location(),
-      Self::TypeDecl(t) => t.location(),
-      Self::ConstDecl(c) => c.location(),
-      Self::RelationDecl(r) => r.location(),
-      Self::QueryDecl(q) => q.location(),
+      Self::ImportDecl(i) => i.attrs_mut(),
+      Self::TypeDecl(t) => t.attrs_mut(),
+      Self::ConstDecl(c) => c.attrs_mut(),
+      Self::RelationDecl(r) => r.attrs_mut(),
+      Self::QueryDecl(q) => q.attrs_mut(),
     }
   }
 
-  fn location_mut(&mut self) -> &mut AstNodeLocation {
+  pub fn is_query(&self) -> bool {
     match self {
-      Self::ImportDecl(i) => i.location_mut(),
-      Self::TypeDecl(t) => t.location_mut(),
-      Self::ConstDecl(c) => c.location_mut(),
-      Self::RelationDecl(r) => r.location_mut(),
-      Self::QueryDecl(q) => q.location_mut(),
+      Self::QueryDecl(_) => true,
+      _ => false,
     }
   }
 }

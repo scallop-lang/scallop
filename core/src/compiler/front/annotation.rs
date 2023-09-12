@@ -15,16 +15,16 @@ impl NodeIdAnnotator {
   }
 
   pub fn annotate_items(&mut self, items: &mut Vec<Item>) {
-    self.walk_items(items);
+    items.walk(self);
   }
 
   pub fn annotate_item(&mut self, item: &mut Item) {
-    self.walk_item(item);
+    item.walk(self);
   }
 }
 
-impl NodeVisitorMut for NodeIdAnnotator {
-  fn visit_location(&mut self, loc: &mut AstNodeLocation) {
+impl NodeVisitor<NodeLocation> for NodeIdAnnotator {
+  fn visit_mut(&mut self, loc: &mut NodeLocation) {
     if loc.id.is_none() {
       loc.id = Some(self.id_allocator.alloc());
     }
@@ -42,8 +42,8 @@ impl SourceIdAnnotator {
   }
 }
 
-impl NodeVisitorMut for SourceIdAnnotator {
-  fn visit_location(&mut self, loc: &mut AstNodeLocation) {
+impl NodeVisitor<NodeLocation> for SourceIdAnnotator {
+  fn visit_mut(&mut self, loc: &mut NodeLocation) {
     loc.source_id = self.source_id;
   }
 }
@@ -60,22 +60,22 @@ impl LocationSpanAnnotator {
     }
   }
 
-  pub fn row_col_of_offset(&self, offset: &usize) -> Location {
+  pub fn row_col_of_offset(&self, offset: &usize) -> CharLocation {
     let num_rows = self.row_offset_length.len();
     for (i, (curr_offset, _)) in self.row_offset_length.iter().enumerate() {
       if curr_offset <= offset && (i == num_rows - 1 || offset < &self.row_offset_length[i + 1].0) {
-        return Location {
+        return CharLocation {
           row: i,
           col: offset - curr_offset,
         };
       }
     }
-    Location { row: 0, col: 0 }
+    CharLocation { row: 0, col: 0 }
   }
 }
 
-impl NodeVisitorMut for LocationSpanAnnotator {
-  fn visit_location(&mut self, loc: &mut AstNodeLocation) {
+impl NodeVisitor<NodeLocation> for LocationSpanAnnotator {
+  fn visit_mut(&mut self, loc: &mut NodeLocation) {
     let offset_start = &loc.offset_span.start;
     let offset_end = &loc.offset_span.end;
     let start = self.row_col_of_offset(offset_start);

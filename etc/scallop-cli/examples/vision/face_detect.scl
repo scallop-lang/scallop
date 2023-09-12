@@ -1,0 +1,23 @@
+// Input; an image directory
+rel img_dir = {
+  "etc/scallop-cli/res/testing/images/face_example_2.jpg",
+}
+
+rel image($load_image(img_dir)) = img_dir(img_dir)
+
+// Use face detection model to extract faces from the image
+@face_detection(["cropped-image"], dump_image=true)
+type face(bound img: Tensor, id: u32, face_img: Tensor)
+
+// Classify as Barack Obama or Joe Biden
+@clip(["Barack Obama", "Joe Biden"], prompt="the face of {{}}")
+type face_name(bound img: Tensor, name: String)
+
+rel face_image(id, face_img) = image(img), face(img, id, face_img)
+
+// Find most likely image
+rel identity_obama(id) = id := top<1>(id: face_image(id, img), face_name(img, "Barack Obama"))
+rel identity_biden(id) = id := top<1>(id: face_image(id, img), face_name(img, "Joe Biden"))
+
+query identity_obama
+query identity_biden

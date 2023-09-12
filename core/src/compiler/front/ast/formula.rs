@@ -1,9 +1,7 @@
-use serde::*;
-
 use super::*;
 
 /// A formula
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 pub enum Formula {
   Atom(Atom),
   NegAtom(NegAtom),
@@ -14,39 +12,23 @@ pub enum Formula {
   Constraint(Constraint),
   Reduce(Reduce),
   ForallExistsReduce(ForallExistsReduce),
+  Range(Range),
 }
 
 impl Formula {
-  pub fn conjunction(args: Vec<Self>) -> Self {
-    Self::Conjunction(ConjunctionNode { args }.into())
-  }
-
   pub fn negate(&self) -> Self {
     match self {
-      Self::Atom(a) => Self::NegAtom(NegAtom::new(a.location().clone(), NegAtomNode { atom: a.clone() })),
+      Self::Atom(a) => {
+        Self::NegAtom(NegAtom::new(a.clone()))
+      },
       Self::NegAtom(n) => Self::Atom(n.atom().clone()),
       Self::Case(_) => {
         // TODO
         panic!("Cannot have case inside negation")
       }
-      Self::Disjunction(d) => Self::Conjunction(Conjunction::new(
-        d.location().clone(),
-        ConjunctionNode {
-          args: d.args().map(|f| f.negate()).collect(),
-        },
-      )),
-      Self::Conjunction(c) => Self::Disjunction(Disjunction::new(
-        c.location().clone(),
-        DisjunctionNode {
-          args: c.args().map(|f| f.negate()).collect(),
-        },
-      )),
-      Self::Implies(i) => Self::Conjunction(Conjunction::new(
-        i.location().clone(),
-        ConjunctionNode {
-          args: vec![i.left().clone(), i.right().negate()],
-        },
-      )),
+      Self::Disjunction(d) => Self::conjunction(Conjunction::new(d.iter_args().map(|f| f.negate()).collect())),
+      Self::Conjunction(c) => Self::disjunction(Disjunction::new(c.iter_args().map(|f| f.negate()).collect())),
+      Self::Implies(i) => Self::conjunction(Conjunction::new(vec![i.left().clone(), i.right().negate()])),
       Self::Constraint(c) => Self::Constraint(c.negate()),
       Self::Reduce(_) => {
         // TODO
@@ -56,275 +38,151 @@ impl Formula {
         // TODO
         panic!("Cannot have aggregation inside negation")
       }
+      Self::Range(_) => {
+        panic!("Cannot have range inside negation")
+      }
     }
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+/// A single atom, e.g. `color(x, "blue")`
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct AtomNode {
+pub struct _Atom {
   pub predicate: Identifier,
   pub type_args: Vec<Type>,
   pub args: Vec<Expr>,
 }
 
-/// A single atom, e.g. `color(x, "blue")`
-pub type Atom = AstNode<AtomNode>;
-
 impl Atom {
-  pub fn predicate(&self) -> String {
-    if self.has_type_arg() {
+  pub fn formatted_predicate(&self) -> String {
+    if self.has_type_args() {
       let args = self
-        .iter_type_arguments()
+        .iter_type_args()
         .map(|a| format!("{}", a))
         .collect::<Vec<_>>()
         .join("#");
-      format!("{}#{}", self.node.predicate.name(), args)
+      format!("{}#{}", self.predicate().name(), args)
     } else {
-      self.node.predicate.name().to_string()
+      self.predicate().name().to_string()
     }
   }
 
-  pub fn predicate_identifier(&self) -> &Identifier {
-    &self.node.predicate
-  }
-
-  pub fn predicate_identifier_mut(&mut self) -> &mut Identifier {
-    &mut self.node.predicate
-  }
-
-  pub fn has_type_arg(&self) -> bool {
-    !self.node.type_args.is_empty()
-  }
-
-  pub fn num_type_args(&self) -> usize {
-    self.node.type_args.len()
-  }
-
-  pub fn iter_type_arguments(&self) -> impl Iterator<Item = &Type> {
-    self.node.type_args.iter()
-  }
-
-  pub fn iter_type_arguments_mut(&mut self) -> impl Iterator<Item = &mut Type> {
-    self.node.type_args.iter_mut()
-  }
-
   pub fn arity(&self) -> usize {
-    self.node.args.len()
+    self.num_args()
   }
-
-  pub fn iter_arguments(&self) -> impl Iterator<Item = &Expr> {
-    self.node.args.iter()
-  }
-
-  pub fn iter_arguments_mut(&mut self) -> impl Iterator<Item = &mut Expr> {
-    self.node.args.iter_mut()
-  }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
-#[doc(hidden)]
-pub struct NegAtomNode {
-  pub atom: Atom,
 }
 
 /// A negated atom, e.g. `not color(x, "blue")`
-pub type NegAtom = AstNode<NegAtomNode>;
-
-impl NegAtom {
-  pub fn atom(&self) -> &Atom {
-    &self.node.atom
-  }
-
-  pub fn predicate(&self) -> String {
-    self.atom().predicate()
-  }
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+#[doc(hidden)]
+pub struct _NegAtom {
+  pub atom: Atom,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+impl NegAtom {
+  pub fn predicate(&self) -> &Identifier {
+    self.atom().predicate()
+  }
+
+  // pub fn predicate_name(&self) -> &String {
+  //   self.atom().predicate_name()
+  // }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct CaseNode {
+pub struct _Case {
   pub variable: Variable,
   pub entity: Entity,
 }
 
-pub type Case = AstNode<CaseNode>;
-
 impl Case {
-  pub fn variable(&self) -> &Variable {
-    &self.node.variable
+  pub fn variable_name(&self) -> &String {
+    self.variable().name().name()
   }
-
-  pub fn variable_name(&self) -> &str {
-    self.variable().name()
-  }
-
-  pub fn entity(&self) -> &Entity {
-    &self.node.entity
-  }
-
-  pub fn entity_mut(&mut self) -> &mut Entity {
-    &mut self.node.entity
-  }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
-#[doc(hidden)]
-pub struct ConjunctionNode {
-  pub args: Vec<Formula>,
 }
 
 /// A conjunction (AND) formula, e.g. `color(x, "blue") and shape(x, "sphere")`
-pub type Conjunction = AstNode<ConjunctionNode>;
-
-impl Conjunction {
-  pub fn args(&self) -> impl Iterator<Item = &Formula> {
-    self.node.args.iter()
-  }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct DisjunctionNode {
+pub struct _Conjunction {
   pub args: Vec<Formula>,
 }
 
 /// A disjunction (OR) formula, e.g. `male(x) or female(x)`
-pub type Disjunction = AstNode<DisjunctionNode>;
-
-impl Disjunction {
-  pub fn args(&self) -> impl Iterator<Item = &Formula> {
-    self.node.args.iter()
-  }
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+#[doc(hidden)]
+pub struct _Disjunction {
+  pub args: Vec<Formula>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+/// An implies formula, e.g. `person(p) implies father(p, _)`
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct ImpliesNode {
+pub struct _Implies {
   pub left: Box<Formula>,
   pub right: Box<Formula>,
 }
 
-/// An implies formula, e.g. `person(p) implies father(p, _)`
-pub type Implies = AstNode<ImpliesNode>;
-
-impl Implies {
-  pub fn left(&self) -> &Formula {
-    &self.node.left
-  }
-
-  pub fn right(&self) -> &Formula {
-    &self.node.right
-  }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
+/// A constraint, e.g. `x == y`
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct ConstraintNode {
+pub struct _Constraint {
   pub expr: Expr,
 }
 
-impl ConstraintNode {
-  pub fn new(expr: Expr) -> Self {
-    Self { expr }
-  }
-}
-
-/// A constraint, e.g. `x == y`
-pub type Constraint = AstNode<ConstraintNode>;
-
 impl Constraint {
-  pub fn default_with_expr(expr: Expr) -> Self {
-    Self::default(ConstraintNode { expr })
-  }
-
-  pub fn expr(&self) -> &Expr {
-    &self.node.expr
-  }
-
   pub fn negate(&self) -> Self {
     unimplemented!("Negating a constraint has not been implemented")
   }
 }
 
 /// A variable or a wildcard, e.g. `x` or `_`
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 pub enum VariableOrWildcard {
   Variable(Variable),
   Wildcard(Wildcard),
 }
 
 impl VariableOrWildcard {
-  pub fn name(&self) -> Option<&str> {
+  pub fn name(&self) -> Option<&String> {
     match self {
-      Self::Variable(v) => Some(v.name()),
+      Self::Variable(v) => Some(v.name().name()),
       _ => None,
-    }
-  }
-
-  pub fn location(&self) -> &AstNodeLocation {
-    match self {
-      Self::Variable(v) => v.location(),
-      Self::Wildcard(w) => w.location(),
     }
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+/// An aggregation operation, e.g. `n = count(p: person(p))`
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct ReduceNode {
+pub struct _Reduce {
   pub left: Vec<VariableOrWildcard>,
-  pub operator: ReduceOperator,
+  pub operator: ReduceOp,
   pub args: Vec<Variable>,
   pub bindings: Vec<VariableBinding>,
   pub body: Box<Formula>,
   pub group_by: Option<(Vec<VariableBinding>, Box<Formula>)>,
 }
 
-/// An aggregation operation, e.g. `n = count(p: person(p))`
-pub type Reduce = AstNode<ReduceNode>;
-
 impl Reduce {
-  pub fn operator(&self) -> &ReduceOperator {
-    &self.node.operator
-  }
-
-  pub fn left(&self) -> &Vec<VariableOrWildcard> {
-    &self.node.left
-  }
-
-  pub fn left_variables(&self) -> impl Iterator<Item = &Variable> {
-    self.node.left.iter().filter_map(|i| match i {
+  pub fn iter_left_variables(&self) -> impl Iterator<Item = &Variable> {
+    self.left().iter().filter_map(|i| match i {
       VariableOrWildcard::Variable(v) => Some(v),
       _ => None,
     })
   }
 
-  pub fn args(&self) -> &Vec<Variable> {
-    &self.node.args
-  }
-
-  pub fn bindings(&self) -> &Vec<VariableBinding> {
-    &self.node.bindings
-  }
-
-  pub fn binding_names(&self) -> impl Iterator<Item = &str> {
-    self.node.bindings.iter().map(|b| b.name())
-  }
-
-  pub fn body(&self) -> &Formula {
-    &self.node.body
-  }
-
-  pub fn group_by(&self) -> Option<(&Vec<VariableBinding>, &Formula)> {
-    self.node.group_by.as_ref().map(|(b, f)| (b, &**f))
+  pub fn iter_binding_names(&self) -> impl Iterator<Item = &String> {
+    self.bindings().iter().map(|b| b.name().name())
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub enum ReduceOperatorNode {
-  Count,
+pub enum _ReduceOp {
+  Count(bool),
   Sum,
   Prod,
   Min,
@@ -337,10 +195,14 @@ pub enum ReduceOperatorNode {
   Unknown(String),
 }
 
-impl ReduceOperatorNode {
-  pub fn to_string(&self) -> String {
+impl ToString for _ReduceOp {
+  fn to_string(&self) -> String {
     match self {
-      Self::Count => "count".to_string(),
+      Self::Count(discrete) => if *discrete {
+        "count!".to_string()
+      } else {
+        "count".to_string()
+      },
       Self::Sum => "sum".to_string(),
       Self::Prod => "prod".to_string(),
       Self::Min => "min".to_string(),
@@ -355,89 +217,75 @@ impl ReduceOperatorNode {
   }
 }
 
-/// A reduce opeartor, e.g. `count`
-pub type ReduceOperator = AstNode<ReduceOperatorNode>;
-
-impl ReduceOperator {
-  pub fn is_forall(&self) -> bool {
-    match &self.node {
-      ReduceOperatorNode::Forall => true,
-      _ => false,
-    }
-  }
-
+impl ReduceOp {
   pub fn output_arity(&self) -> Option<usize> {
-    match &self.node {
-      ReduceOperatorNode::Count => Some(1),
-      ReduceOperatorNode::Sum => Some(1),
-      ReduceOperatorNode::Prod => Some(1),
-      ReduceOperatorNode::Min => Some(1),
-      ReduceOperatorNode::Max => Some(1),
-      ReduceOperatorNode::Exists => Some(1),
-      ReduceOperatorNode::Forall => Some(1),
-      ReduceOperatorNode::Unique => None,
-      ReduceOperatorNode::TopK(_) => None,
-      ReduceOperatorNode::CategoricalK(_) => None,
-      ReduceOperatorNode::Unknown(_) => None,
+    match self.internal() {
+      _ReduceOp::Count(_) => Some(1),
+      _ReduceOp::Sum => Some(1),
+      _ReduceOp::Prod => Some(1),
+      _ReduceOp::Min => Some(1),
+      _ReduceOp::Max => Some(1),
+      _ReduceOp::Exists => Some(1),
+      _ReduceOp::Forall => Some(1),
+      _ReduceOp::Unique => None,
+      _ReduceOp::TopK(_) => None,
+      _ReduceOp::CategoricalK(_) => None,
+      _ReduceOp::Unknown(_) => None,
     }
   }
 
   pub fn num_bindings(&self) -> Option<usize> {
-    match &self.node {
-      ReduceOperatorNode::Count => None,
-      ReduceOperatorNode::Sum => Some(1),
-      ReduceOperatorNode::Prod => Some(1),
-      ReduceOperatorNode::Min => Some(1),
-      ReduceOperatorNode::Max => Some(1),
-      ReduceOperatorNode::Exists => None,
-      ReduceOperatorNode::Forall => None,
-      ReduceOperatorNode::Unique => None,
-      ReduceOperatorNode::TopK(_) => None,
+    match self.internal() {
+      _ReduceOp::Count(_) => None,
+      _ReduceOp::Sum => Some(1),
+      _ReduceOp::Prod => Some(1),
+      _ReduceOp::Min => Some(1),
+      _ReduceOp::Max => Some(1),
+      _ReduceOp::Exists => None,
+      _ReduceOp::Forall => None,
+      _ReduceOp::Unique => None,
+      _ReduceOp::TopK(_) => None,
       _ => None,
     }
   }
+}
 
-  pub fn to_string(&self) -> String {
-    self.node.to_string()
+impl ToString for ReduceOp {
+  fn to_string(&self) -> String {
+    self.internal().to_string()
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+/// An syntax sugar for forall/exists operation, e.g. `forall(p: person(p) => father(p, _))`.
+/// In this case, the assigned variable is omitted for abbrevity.
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct ForallExistsReduceNode {
+pub struct _ForallExistsReduce {
   pub negate: bool,
-  pub operator: ReduceOperator,
+  pub operator: ReduceOp,
   pub bindings: Vec<VariableBinding>,
   pub body: Box<Formula>,
   pub group_by: Option<(Vec<VariableBinding>, Box<Formula>)>,
 }
 
-/// An syntax sugar for forall/exists operation, e.g. `forall(p: person(p) => father(p, _))`.
-/// In this case, the assigned variable is omitted for abbrevity.
-pub type ForallExistsReduce = AstNode<ForallExistsReduceNode>;
-
 impl ForallExistsReduce {
   pub fn is_negated(&self) -> bool {
-    self.node.negate
+    self.negate().clone()
   }
 
-  pub fn operator(&self) -> &ReduceOperator {
-    &self.node.operator
+  pub fn iter_binding_names(&self) -> impl Iterator<Item = &String> {
+    self.iter_bindings().map(|b| b.name().name())
   }
+}
 
-  pub fn bindings(&self) -> &Vec<VariableBinding> {
-    &self.node.bindings
-  }
-
-  pub fn binding_names(&self) -> impl Iterator<Item = &str> {
-    self.node.bindings.iter().map(|b| b.name())
-  }
-
-  pub fn body(&self) -> &Formula {
-    &self.node.body
-  }
-
-  pub fn group_by(&self) -> Option<(&Vec<VariableBinding>, &Formula)> {
-    self.node.group_by.as_ref().map(|(b, f)| (b, &**f))
-  }
+// Syntax sugar for range operation
+// `rel grid(x, y) = x in 0..10 and y in 3..=5`
+// is equivalent to
+// `rel grid(x, y) = range_i32(0, 10, x) and range_i32(3, 6, y)`
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+pub struct _Range {
+  pub left: Variable,
+  pub lower: Expr,
+  pub upper: Expr,
+  pub inclusive: bool,
 }

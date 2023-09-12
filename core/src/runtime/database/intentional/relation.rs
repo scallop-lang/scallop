@@ -83,17 +83,17 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalRelation<Prov, Ptr> {
       // Check if we need to drain the internal facts
       if drain {
         // Add internal facts to recovered facts, and remove the internal facts
-        Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.drain().map(|elem| {
-          let output_tup = env.externalize_tuple(&elem.tuple);
+        Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.drain().filter_map(|elem| {
+          let output_tup = env.externalize_tuple(&elem.tuple)?;
           let output_tag = ctx.recover_fn(&elem.tag);
-          (output_tag, output_tup)
+          Some((output_tag, output_tup))
         }));
       } else {
         // Add internal facts to recover facts, do not remove the internal facts
-        Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.iter().map(|elem| {
-          let output_tup = env.externalize_tuple(&elem.tuple);
+        Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.iter().filter_map(|elem| {
+          let output_tup = env.externalize_tuple(&elem.tuple)?;
           let output_tag = ctx.recover_fn(&elem.tag);
-          (output_tag, output_tup)
+          Some((output_tag, output_tup))
         }));
       }
 
@@ -107,19 +107,19 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalRelation<Prov, Ptr> {
     if !self.recovered && !self.internal_facts.is_empty() {
       if drain {
         // Add internal facts to recovered facts, and remove the internal facts
-        Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.drain().map(|elem| {
-          let output_tup = env.externalize_tuple(&elem.tuple);
+        Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.drain().filter_map(|elem| {
+          let output_tup = env.externalize_tuple(&elem.tuple)?;
           let output_tag = ctx.recover_fn(&elem.tag);
           m.observe_recover(&output_tup, &elem.tag, &output_tag);
-          (output_tag, output_tup)
+          Some((output_tag, output_tup))
         }));
       } else {
         // Add internal facts to recover facts, do not remove the internal facts
-        Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.iter().map(|elem| {
-          let output_tup = env.externalize_tuple(&elem.tuple);
+        Ptr::get_rc_mut(&mut self.recovered_facts).extend(self.internal_facts.iter().filter_map(|elem| {
+          let output_tup = env.externalize_tuple(&elem.tuple)?;
           let output_tag = ctx.recover_fn(&elem.tag);
           m.observe_recover(&output_tup, &elem.tag, &output_tag);
-          (output_tag, output_tup)
+          Some((output_tag, output_tup))
         }));
       }
 

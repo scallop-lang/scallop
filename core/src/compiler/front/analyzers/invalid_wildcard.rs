@@ -20,23 +20,29 @@ impl InvalidWildcardAnalyzer {
   }
 }
 
-impl NodeVisitor for InvalidWildcardAnalyzer {
-  fn visit_rule(&mut self, rule: &Rule) {
-    for arg in rule.head().iter_arguments() {
+impl NodeVisitor<Rule> for InvalidWildcardAnalyzer {
+  fn visit(&mut self, rule: &Rule) {
+    for arg in rule.head().iter_args() {
       self.check_expr(arg, "head of rule");
     }
   }
+}
 
-  fn visit_binary_expr(&mut self, binary_expr: &BinaryExpr) {
+impl NodeVisitor<BinaryExpr> for InvalidWildcardAnalyzer {
+  fn visit(&mut self, binary_expr: &BinaryExpr) {
     self.check_expr(binary_expr.op1(), "binary expression");
     self.check_expr(binary_expr.op2(), "binary expression");
   }
+}
 
-  fn visit_unary_expr(&mut self, unary_expr: &UnaryExpr) {
+impl NodeVisitor<UnaryExpr> for InvalidWildcardAnalyzer {
+  fn visit(&mut self, unary_expr: &UnaryExpr) {
     self.check_expr(unary_expr.op1(), "unary expression");
   }
+}
 
-  fn visit_if_then_else_expr(&mut self, if_then_else_expr: &IfThenElseExpr) {
+impl NodeVisitor<IfThenElseExpr> for InvalidWildcardAnalyzer {
+  fn visit(&mut self, if_then_else_expr: &IfThenElseExpr) {
     self.check_expr(if_then_else_expr.cond(), "if-then-else expression");
     self.check_expr(if_then_else_expr.then_br(), "if-then-else expression");
     self.check_expr(if_then_else_expr.else_br(), "if-then-else expression");
@@ -46,7 +52,7 @@ impl NodeVisitor for InvalidWildcardAnalyzer {
 #[derive(Clone, Debug)]
 pub enum InvalidWildcardError {
   InvalidWildcard {
-    wildcard_loc: AstNodeLocation,
+    wildcard_loc: NodeLocation,
     position: &'static str,
   },
 }

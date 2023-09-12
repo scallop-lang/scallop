@@ -8,7 +8,7 @@ use scallop_core::testing::*;
 #[test]
 fn test_dyn_project_1() {
   let mut ctx = unit::UnitProvenance;
-  let mut rt = RuntimeEnvironment::new_std();
+  let rt = RuntimeEnvironment::new_std();
 
   // Relations
   let mut source = DynamicRelation::<unit::UnitProvenance>::new();
@@ -24,8 +24,9 @@ fn test_dyn_project_1() {
       &DynamicDataflow::project(
         DynamicDataflow::dynamic_relation(&source),
         (Expr::access(0), Expr::access(1) + Expr::constant(1i8)).into(),
+        &rt,
       ),
-      &mut rt,
+      &rt,
     )
   }
 

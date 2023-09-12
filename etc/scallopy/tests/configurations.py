@@ -21,3 +21,14 @@ class ConfigurationTests(unittest.TestCase):
     ctx.add_rule("path(a, c) = edge(a, c) or path(a, b) and edge(b, c)")
     ctx.run()
     assert list(ctx.relation("path")) == [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]
+
+  def test_hidden_relation_1(self):
+    ctx = scallopy.ScallopContext()
+    ctx.add_program(
+      """
+      @hidden
+      type a(i32, i32)
+      type b(i32, i32, i32)
+      """
+    )
+    self.assertEqual(ctx.relations(), ["b"])

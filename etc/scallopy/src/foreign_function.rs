@@ -15,12 +15,24 @@ use super::tuple::*;
 #[derive(Clone)]
 pub struct PythonForeignFunction {
   ff: PyObject,
+  suppress_warning: bool,
 }
 
 impl PythonForeignFunction {
   /// Create a new PythonForeignFunction
   pub fn new(ff: PyObject) -> Self {
-    Self { ff }
+    let suppress_warning = Python::with_gil(|py| {
+      ff
+        .getattr(py, "suppress_warning")
+        .expect("Cannot get foreign function generic type parameters")
+        .extract(py)
+        .expect("`suppress_warning` cannot be extracted into boolean")
+    });
+
+    Self {
+      ff,
+      suppress_warning,
+    }
   }
 }
 
@@ -181,14 +193,16 @@ impl ForeignFunction for PythonForeignFunction {
         .expect("Cannot extract function");
 
       // Construct the arguments
-      let args: Vec<Py<PyAny>> = args.iter().map(|a| to_python_value(a, &env.into())).collect();
+      let args: Vec<Py<PyAny>> = args.iter().filter_map(|a| to_python_value(a, &env.into())).collect();
       let args_tuple = PyTuple::new(py, args);
 
       // Invoke the function
       let maybe_result = match func.call1(py, args_tuple) {
         Ok(result) => Some(result),
         Err(err) => {
-          eprintln!("{}", err);
+          if !self.suppress_warning {
+            eprintln!("[Foreign Function Error] {}", err);
+          }
           None
         }
       };
@@ -259,6 +273,9 @@ fn py_param_type_to_ff_param_type(obj: PyObject, py: Python<'_>) -> ForeignFunct
         "bool" => ForeignFunctionParameterType::BaseType(ValueType::Bool),
         "char" => ForeignFunctionParameterType::BaseType(ValueType::Char),
         "String" => ForeignFunctionParameterType::BaseType(ValueType::String),
+        "DateTime" => ForeignFunctionParameterType::BaseType(ValueType::DateTime),
+        "Duration" => ForeignFunctionParameterType::BaseType(ValueType::Duration),
+        "Tensor" => ForeignFunctionParameterType::BaseType(ValueType::Tensor),
         _ => panic!("Unknown base type {}", type_str),
       }
     }

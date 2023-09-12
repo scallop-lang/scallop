@@ -1,0 +1,16 @@
+[package]
+name = "parse_relative_duration"
+version = "0.1.0"
+authors = ["generalpoxter <jasonhl@seas.upenn.edu>", "zeta12ti <zeta12ti@protonmail.com>"]
+description = "Parses a relative duration from a string."
+readme = "README.md"
+keywords = ["duration", "date", "string", "parse"]
+categories = ["command-line-interface", "parsing"]
+license = "MIT"
+
+[dependencies]
+regex = "1"
+lazy_static = "1"
+num = "0.2"
+chronoutil = { git = "https://github.com/Liby99/chronoutil.git" }
+chrono = "0.4.26"

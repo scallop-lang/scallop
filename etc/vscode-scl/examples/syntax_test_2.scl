@@ -34,6 +34,14 @@ type relation2(i32, i32, String)
 @demand("bf")
 type fib(x: i32, y: i32)
 
+// Adornment
+type fib(bound x: i32, free y: i32)
+type fib(
+  bound x: i32,
+  free y: i32,
+)
+type fib(bound i32, i32)
+
 // Multiple attributes; attribute without argument; attribute
 @hidden
 @my_attr("pos_arg_1", 3, kw_arg_name=5)
@@ -42,6 +50,12 @@ type my_table(i32, i32, i32)
 
 // Multiple relation types
 type edge(i32, i32), path(a: i32, b: i32)
+
+// Multiple relation types with bound and free patterns
+type edge(bound i32, free i32), path(bound a: i32, free b: i32)
+
+// Function types
+type $some_func(x: usize, y: usize) -> usize
 
 // Simple constant definition
 const MY_CONST = 3
@@ -92,6 +106,12 @@ rel to_string(x, a as String) = case x is Const(a)
 @demand("bbf")
 rel max(a, b, if a > b then a else b)
 
+// Rules with multiline
+@gpt("""
+This is a prompt {{x}} and {{y}}
+""")
+type my_query(bound x: String, free y: String)
+
 // Rules with new entity inside
 rel expr_to_string(e, $format("({} {} {})", op1_str, op_str, op2_str)) =
   case e is Binary(op, op1, op2) and
@@ -116,6 +136,9 @@ rel { assign(x, true); assign(x, false) } = var(x)
 
 // Relations with generic arguments
 rel grid(x, y) = range<i32>(0, 5, x) and range<i32>(0, 5, y)
+
+// Rules with range operator
+rel grid(x, y) = x in 0..5 and y in 0..x + 1
 
 // Query a relation
 query relation

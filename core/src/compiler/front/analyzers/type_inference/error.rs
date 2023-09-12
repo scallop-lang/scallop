@@ -10,77 +10,77 @@ pub enum TypeInferenceError {
   },
   DuplicateTypeDecl {
     type_name: String,
-    source_decl_loc: AstNodeLocation,
-    duplicate_decl_loc: AstNodeLocation,
+    source_decl_loc: NodeLocation,
+    duplicate_decl_loc: NodeLocation,
   },
   DuplicateRelationTypeDecl {
     predicate: String,
-    source_decl_loc: AstNodeLocation,
-    duplicate_decl_loc: AstNodeLocation,
+    source_decl_loc: NodeLocation,
+    duplicate_decl_loc: NodeLocation,
   },
   UnknownADTVariant {
     predicate: String,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   InvalidSubtype {
-    source_type: TypeNode,
-    source_type_loc: AstNodeLocation,
+    source_type: String,
+    source_type_loc: NodeLocation,
   },
   UnknownCustomType {
     type_name: String,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   UnknownQueryRelationType {
     predicate: String,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   UnknownFunctionType {
     function_name: String,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   UnknownVariable {
     variable: String,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   ArityMismatch {
     predicate: String,
     expected: usize,
     actual: usize,
-    source_loc: AstNodeLocation,
-    mismatch_loc: AstNodeLocation,
+    source_loc: NodeLocation,
+    mismatch_loc: NodeLocation,
   },
   FunctionArityMismatch {
     function: String,
     actual: usize,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   ADTVariantArityMismatch {
     variant: String,
     expected: usize,
     actual: usize,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   EntityTupleArityMismatch {
     predicate: String,
     expected: usize,
     actual: usize,
-    source_loc: AstNodeLocation,
+    source_loc: NodeLocation,
   },
   InvalidArgIndex {
     predicate: String,
     index: usize,
-    source_loc: AstNodeLocation,
-    access_loc: AstNodeLocation,
+    source_loc: NodeLocation,
+    access_loc: NodeLocation,
   },
   InvalidForeignPredicateArgIndex {
     predicate: String,
     index: usize,
-    access_loc: AstNodeLocation,
+    access_loc: NodeLocation,
   },
   ConstantSetArityMismatch {
     predicate: String,
-    decl_loc: AstNodeLocation,
-    mismatch_tuple_loc: AstNodeLocation,
+    decl_loc: NodeLocation,
+    mismatch_tuple_loc: NodeLocation,
   },
   ConstantTypeMismatch {
     expected: ValueType,
@@ -88,70 +88,70 @@ pub enum TypeInferenceError {
   },
   BadEnumValueKind {
     found: &'static str,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   NegativeEnumValue {
     found: i64,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   CannotUnifyTypes {
     t1: TypeSet,
     t2: TypeSet,
-    loc: Option<AstNodeLocation>,
+    loc: Option<NodeLocation>,
   },
   CannotUnifyForeignPredicateArgument {
     pred: String,
     i: usize,
     expected_ty: TypeSet,
     actual_ty: TypeSet,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   NoMatchingTripletRule {
     op1_ty: TypeSet,
     op2_ty: TypeSet,
     e_ty: TypeSet,
-    location: AstNodeLocation,
+    location: NodeLocation,
   },
   CannotUnifyVariables {
     v1: String,
     t1: TypeSet,
     v2: String,
     t2: TypeSet,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   CannotTypeCast {
     t1: TypeSet,
     t2: ValueType,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   ConstraintNotBoolean {
     ty: TypeSet,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   InvalidReduceOutput {
     op: String,
     expected: usize,
     found: usize,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   InvalidReduceBindingVar {
     op: String,
     expected: usize,
     found: usize,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   InvalidUniqueNumParams {
     num_output_vars: usize,
     num_binding_vars: usize,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   CannotRedefineForeignPredicate {
     pred: String,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   CannotQueryForeignPredicate {
     pred: String,
-    loc: AstNodeLocation,
+    loc: NodeLocation,
   },
   Internal {
     error_string: String,
@@ -159,7 +159,7 @@ pub enum TypeInferenceError {
 }
 
 impl TypeInferenceError {
-  pub fn annotate_location(&mut self, new_location: &AstNodeLocation) {
+  pub fn annotate_location(&mut self, new_location: &NodeLocation) {
     match self {
       Self::CannotUnifyTypes { loc, .. } => {
         *loc = Some(new_location.clone());
@@ -276,7 +276,7 @@ impl FrontCompileErrorTrait for TypeInferenceError {
         access_loc,
       } => {
         format!(
-          "invalid `{}`-th argument for relation `{}`. The relation type is inferred here:\n{}\nerroneous access happens here:\n{}",
+          "Unexpected {}-th argument for relation `{}`. The relation type is inferred here:\n{}\nerroneous access happens here:\n{}",
           index, predicate, source_loc.report(src), access_loc.report(src)
         )
       }
@@ -286,7 +286,7 @@ impl FrontCompileErrorTrait for TypeInferenceError {
         access_loc,
       } => {
         format!(
-          "Invalid `{}`-th argument for foreign predicate `{}`:\n{}",
+          "Unexpected {}-th argument for foreign predicate `{}`:\n{}",
           index,
           predicate,
           access_loc.report(src)

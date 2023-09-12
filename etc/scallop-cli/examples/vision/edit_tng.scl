@@ -1,0 +1,23 @@
+rel img_dir = {"etc/scallop-cli/res/testing/images/face_example_3.jpg"}
+
+rel image($load_image(img_dir)) = img_dir(img_dir)
+
+// Obtain segmentation masks
+@segment_anything(["mask", "masked-cropped-image"], iou_threshold=0.95, area_threshold=300)
+type image_segment(bound img: Tensor, id: u32, mask: Tensor, mc_image: Tensor)
+
+rel segment(id, mask, mc_img) = image(img) and image_segment(img, id, mask, mc_img)
+
+// Classify segments as Picard
+@clip(["Jean-Luc Picard", "someone else"], prompt="The face of {{}}")
+type face_name(bound face: Tensor, name: String)
+
+// Select best Picard match
+rel picard(mask) = mask := top<1>(mask: segment(id, mask, img), face_name(img, "Jean-Luc Picard"))
+
+// Apply image editing
+rel picard_bg_blur($save_image($bg_blur(img, mask))) = image(img), picard(mask)
+rel picard_color_pop($save_image($color_pop(img, mask))) = image(img), picard(mask)
+
+query picard_bg_blur
+query picard_color_pop

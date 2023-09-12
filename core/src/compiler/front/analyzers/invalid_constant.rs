@@ -11,35 +11,37 @@ impl InvalidConstantAnalyzer {
   }
 }
 
-impl NodeVisitor for InvalidConstantAnalyzer {
-  fn visit_constant_datetime(&mut self, constant: &ConstantDateTime) {
-    match &constant.node {
-      Err(message) => {
+impl NodeVisitor<DateTimeLiteral> for InvalidConstantAnalyzer {
+  fn visit(&mut self, datetime: &DateTimeLiteral) {
+    match crate::utils::parse_date_time_string(datetime.datetime()) {
+      Some(_) => {},
+      None => {
         self.errors.push(InvalidConstantError::InvalidConstant {
-          loc: constant.location().clone(),
-          message: message.clone(),
+          loc: datetime.location().clone(),
+          message: format!("Invalid DateTime literal `{}`", datetime.datetime()),
         });
       }
-      _ => {}
     }
   }
+}
 
-  fn visit_constant_duration(&mut self, constant: &ConstantDuration) {
-    match &constant.node {
-      Err(message) => {
+impl NodeVisitor<DurationLiteral> for InvalidConstantAnalyzer {
+  fn visit(&mut self, duration: &DurationLiteral) {
+    match crate::utils::parse_duration_string(duration.duration()) {
+      Some(_) => {},
+      None => {
         self.errors.push(InvalidConstantError::InvalidConstant {
-          loc: constant.location().clone(),
-          message: message.clone(),
+          loc: duration.location().clone(),
+          message: format!("Invalid Duration literal `{}`", duration.duration()),
         });
       }
-      _ => {}
     }
   }
 }
 
 #[derive(Clone, Debug)]
 pub enum InvalidConstantError {
-  InvalidConstant { loc: AstNodeLocation, message: String },
+  InvalidConstant { loc: NodeLocation, message: String },
 }
 
 impl FrontCompileErrorTrait for InvalidConstantError {

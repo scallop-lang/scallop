@@ -1,8 +1,6 @@
-use serde::*;
-
 use super::*;
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 pub enum Expr {
   Constant(Constant),
   Variable(Variable),
@@ -15,90 +13,10 @@ pub enum Expr {
 }
 
 impl Expr {
-  /// Create a unary expression
-  pub fn unary(op: UnaryOp, expr: Expr) -> Self {
-    Self::Unary(UnaryExpr::default(UnaryExprNode {
-      op,
-      op1: Box::new(expr),
-    }))
-  }
-
-  /// Create a binary expression
-  pub fn binary(op: BinaryOp, op1: Expr, op2: Expr) -> Self {
-    Self::Binary(BinaryExpr::default(BinaryExprNode {
-      op,
-      op1: Box::new(op1),
-      op2: Box::new(op2),
-    }))
-  }
-
-  /// Create a constant boolean expression
-  pub fn boolean(b: bool) -> Self {
-    Self::Constant(ConstantNode::Boolean(b).into())
-  }
-
-  /// Create an expression which is a constant of boolean true value
-  pub fn boolean_true() -> Self {
-    Self::Constant(ConstantNode::Boolean(true).into())
-  }
-
-  /// Create an expression which is a constant of boolean false value
-  pub fn boolean_false() -> Self {
-    Self::Constant(ConstantNode::Boolean(false).into())
-  }
-
-  pub fn location(&self) -> &AstNodeLocation {
-    match self {
-      Self::Constant(c) => c.location(),
-      Self::Variable(v) => v.location(),
-      Self::Wildcard(w) => w.location(),
-      Self::Binary(b) => b.location(),
-      Self::Unary(u) => u.location(),
-      Self::IfThenElse(i) => i.location(),
-      Self::Call(c) => c.location(),
-      Self::New(n) => n.location(),
-    }
-  }
-
-  pub fn is_constant(&self) -> bool {
-    match self {
-      Self::Constant(_) => true,
-      _ => false,
-    }
-  }
-
-  pub fn is_variable(&self) -> bool {
-    match self {
-      Self::Variable(_) => true,
-      _ => false,
-    }
-  }
-
-  pub fn is_wildcard(&self) -> bool {
-    match self {
-      Self::Wildcard(_) => true,
-      _ => false,
-    }
-  }
-
   pub fn is_complex_expr(&self) -> bool {
     match self {
       Self::Binary(_) | Self::Unary(_) => true,
       _ => false,
-    }
-  }
-
-  pub fn get_constant(&self) -> Option<&Constant> {
-    match self {
-      Self::Constant(c) => Some(c),
-      _ => None,
-    }
-  }
-
-  pub fn get_variable(&self) -> Option<&Variable> {
-    match self {
-      Self::Variable(v) => Some(v),
-      _ => None,
     }
   }
 
@@ -154,7 +72,7 @@ impl Expr {
     }
   }
 
-  pub fn get_first_variable_location(&self) -> Option<&AstNodeLocation> {
+  pub fn get_first_variable_location(&self) -> Option<&NodeLocation> {
     match self {
       Expr::Constant(_) => None,
       Expr::Variable(v) => Some(v.location()),
@@ -185,7 +103,7 @@ impl Expr {
     }
   }
 
-  pub fn get_first_non_constant_location<F>(&self, is_constant: &F) -> Option<&AstNodeLocation>
+  pub fn get_first_non_constant_location<F>(&self, is_constant: &F) -> Option<&NodeLocation>
   where
     F: Fn(&Variable) -> bool,
   {
@@ -203,290 +121,221 @@ impl Expr {
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct VariableNode {
+pub struct _Variable {
   pub name: Identifier,
 }
 
-impl VariableNode {
-  pub fn new(name: Identifier) -> Self {
-    Self { name }
-  }
-}
-
-pub type Variable = AstNode<VariableNode>;
-
 impl Variable {
-  pub fn default_with_name(name: String) -> Self {
-    Self::default(VariableNode::new(Identifier::default(IdentifierNode::new(name))))
-  }
-
-  pub fn name(&self) -> &str {
-    self.node.name.name()
+  pub fn variable_name(&self) -> &String {
+    self.name().name()
   }
 }
 
 impl std::fmt::Display for Variable {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.write_str(self.name())
+    f.write_str(self.variable_name())
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct VariableBindingNode {
+pub struct _VariableBinding {
   pub name: Identifier,
   pub ty: Option<Type>,
 }
 
-pub type VariableBinding = AstNode<VariableBindingNode>;
-
 impl VariableBinding {
-  pub fn name(&self) -> &str {
-    self.node.name.name()
+  pub fn variable_name(&self) -> &String {
+    self.name().name()
   }
 
   pub fn to_variable(&self) -> Variable {
-    Variable {
-      loc: self.loc.clone(),
-      node: VariableNode::new(self.node.name.clone()),
-    }
+    Variable::new_with_loc(self.name().clone(), self.location().clone())
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct WildcardNode;
+pub struct _Wildcard;
 
-pub type Wildcard = AstNode<WildcardNode>;
-
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub type BinaryOpNode = crate::common::binary_op::BinaryOp;
+pub struct _BinaryOp {
+  pub op: crate::common::binary_op::BinaryOp,
+}
 
-pub type BinaryOp = AstNode<BinaryOpNode>;
+impl _BinaryOp {
+  pub fn add() -> Self {
+    Self::new(crate::common::binary_op::BinaryOp::Add)
+  }
+
+  pub fn sub() -> Self {
+    Self::new(crate::common::binary_op::BinaryOp::Sub)
+  }
+
+  pub fn mul() -> Self {
+    Self::new(crate::common::binary_op::BinaryOp::Mul)
+  }
+
+  pub fn div() -> Self {
+    Self::new(crate::common::binary_op::BinaryOp::Div)
+  }
+
+  pub fn modulo() -> Self {
+    Self::new(crate::common::binary_op::BinaryOp::Mod)
+  }
+
+  pub fn and() -> Self {
+    Self::new(crate::common::binary_op::BinaryOp::And)
+  }
+
+  pub fn or() -> Self {
+    Self::new(crate::common::binary_op::BinaryOp::Or)
+  }
+
+  pub fn xor() -> Self {
+    Self::new(crate::common::binary_op::BinaryOp::Xor)
+  }
+
+  pub fn eq() -> Self {
+    Self::new(crate::common::binary_op::BinaryOp::Eq)
+  }
+
+  pub fn neq() -> Self {
+    Self::new(crate::common::binary_op::BinaryOp::Neq)
+  }
+
+  pub fn lt() -> Self {
+    Self::new(crate::common::binary_op::BinaryOp::Lt)
+  }
+
+  pub fn leq() -> Self {
+    Self::new(crate::common::binary_op::BinaryOp::Leq)
+  }
+
+  pub fn gt() -> Self {
+    Self::new(crate::common::binary_op::BinaryOp::Gt)
+  }
+
+  pub fn geq() -> Self {
+    Self::new(crate::common::binary_op::BinaryOp::Geq)
+  }
+}
 
 impl BinaryOp {
-  pub fn default_eq() -> Self {
-    Self::default(crate::common::binary_op::BinaryOp::Eq)
+  pub fn new_add() -> Self {
+    Self::new(crate::common::binary_op::BinaryOp::Add)
+  }
+
+  pub fn new_eq() -> Self {
+    Self::new(crate::common::binary_op::BinaryOp::Eq)
   }
 
   pub fn is_arith(&self) -> bool {
-    self.node.is_arith()
+    self.op().is_arith()
   }
 
   pub fn is_add_sub(&self) -> bool {
-    self.node.is_add_sub()
+    self.op().is_add_sub()
   }
 
   pub fn is_logical(&self) -> bool {
-    self.node.is_logical()
+    self.op().is_logical()
   }
 
   pub fn is_eq_neq(&self) -> bool {
-    self.node.is_eq_neq()
+    self.op().is_eq_neq()
   }
 
   pub fn is_eq(&self) -> bool {
-    self.node.is_eq()
+    self.op().is_eq()
   }
 
   pub fn is_numeric_cmp(&self) -> bool {
-    self.node.is_numeric_cmp()
+    self.op().is_numeric_cmp()
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct BinaryExprNode {
+pub struct _BinaryExpr {
   pub op: BinaryOp,
   pub op1: Box<Expr>,
   pub op2: Box<Expr>,
 }
 
-pub type BinaryExpr = AstNode<BinaryExprNode>;
-
-impl BinaryExpr {
-  pub fn op(&self) -> &BinaryOp {
-    &self.node.op
-  }
-
-  pub fn op1(&self) -> &Expr {
-    &self.node.op1
-  }
-
-  pub fn op2(&self) -> &Expr {
-    &self.node.op2
-  }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub enum UnaryOpNode {
+pub enum _UnaryOp {
   Neg,
   Pos,
   Not,
   TypeCast(Type),
 }
 
-pub type UnaryOp = AstNode<UnaryOpNode>;
-
-impl UnaryOp {
-  pub fn default_not() -> Self {
-    Self::default(UnaryOpNode::Not)
-  }
-
-  pub fn is_pos_neg(&self) -> bool {
-    match &self.node {
-      UnaryOpNode::Pos | UnaryOpNode::Neg => true,
-      _ => false,
-    }
-  }
-
-  pub fn is_not(&self) -> bool {
-    match &self.node {
-      UnaryOpNode::Not => true,
-      _ => false,
-    }
-  }
-
-  pub fn cast_to_type(&self) -> Option<&Type> {
-    match &self.node {
-      UnaryOpNode::TypeCast(t) => Some(t),
-      _ => None,
+impl std::fmt::Display for _UnaryOp {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Self::Neg => f.write_str("-"),
+      Self::Pos => f.write_str("+"),
+      Self::Not => f.write_str("!"),
+      Self::TypeCast(ty) => f.write_fmt(format_args!("as {}", ty)),
     }
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+impl UnaryOp {
+  pub fn is_pos_neg(&self) -> bool {
+    self.is_pos() || self.is_neg()
+  }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct UnaryExprNode {
+pub struct _UnaryExpr {
   pub op: UnaryOp,
   pub op1: Box<Expr>,
 }
 
-pub type UnaryExpr = AstNode<UnaryExprNode>;
-
-impl UnaryExpr {
-  pub fn op(&self) -> &UnaryOp {
-    &self.node.op
-  }
-
-  pub fn op1(&self) -> &Expr {
-    &self.node.op1
-  }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct IfThenElseExprNode {
+pub struct _IfThenElseExpr {
   pub cond: Box<Expr>,
   pub then_br: Box<Expr>,
   pub else_br: Box<Expr>,
 }
 
-pub type IfThenElseExpr = AstNode<IfThenElseExprNode>;
-
-impl IfThenElseExpr {
-  pub fn cond(&self) -> &Expr {
-    &self.node.cond
-  }
-
-  pub fn then_br(&self) -> &Expr {
-    &self.node.then_br
-  }
-
-  pub fn else_br(&self) -> &Expr {
-    &self.node.else_br
-  }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct CallExprNode {
+pub struct _CallExpr {
   pub function_identifier: FunctionIdentifier,
   pub args: Vec<Expr>,
 }
 
-impl CallExprNode {
-  pub fn new(function_identifier: FunctionIdentifier, args: Vec<Expr>) -> Self {
-    Self {
-      function_identifier,
-      args,
-    }
-  }
-}
-
-pub type CallExpr = AstNode<CallExprNode>;
-
-impl CallExpr {
-  pub fn num_args(&self) -> usize {
-    self.node.args.len()
-  }
-
-  pub fn iter_args(&self) -> impl Iterator<Item = &Expr> {
-    self.node.args.iter()
-  }
-
-  pub fn iter_args_mut(&mut self) -> impl Iterator<Item = &mut Expr> {
-    self.node.args.iter_mut()
-  }
-
-  pub fn function_identifier(&self) -> &FunctionIdentifier {
-    &self.node.function_identifier
-  }
-
-  pub fn function_identifier_mut(&mut self) -> &mut FunctionIdentifier {
-    &mut self.node.function_identifier
-  }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
+/// The identifier of a function, i.e. `$abs`
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct FunctionIdentifierNode {
+pub struct _FunctionIdentifier {
   pub id: Identifier,
 }
 
-/// The identifier of a function, i.e. `$abs`
-pub type FunctionIdentifier = AstNode<FunctionIdentifierNode>;
-
 impl FunctionIdentifier {
   pub fn name(&self) -> &str {
-    self.node.id.name()
+    self.id().name()
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct NewExprNode {
+pub struct _NewExpr {
   pub functor: Identifier,
   pub args: Vec<Expr>,
 }
 
-pub type NewExpr = AstNode<NewExprNode>;
-
 impl NewExpr {
-  pub fn num_args(&self) -> usize {
-    self.node.args.len()
-  }
-
-  pub fn iter_args(&self) -> impl Iterator<Item = &Expr> {
-    self.node.args.iter()
-  }
-
-  pub fn iter_args_mut(&mut self) -> impl Iterator<Item = &mut Expr> {
-    self.node.args.iter_mut()
-  }
-
-  pub fn functor_identifier(&self) -> &Identifier {
-    &self.node.functor
-  }
-
-  pub fn functor_identifier_mut(&mut self) -> &mut Identifier {
-    &mut self.node.functor
-  }
-
   pub fn functor_name(&self) -> &str {
-    self.node.functor.name()
+    self.functor().name()
   }
 }

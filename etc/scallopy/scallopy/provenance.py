@@ -139,8 +139,7 @@ class DiffAddMultProb2Semiring(ScallopProvenance):
     """
     For a logical `OR` of probabilities `a` and `b`, the resulting tag is `clamp(a + b, 1.0)`
     """
-    import torch
-    return torch.clamp(a + b, max=0.9999)
+    return torch_importer.torch.clamp(a + b, max=0.9999)
 
   def mult(self, a, b):
     """
@@ -152,8 +151,11 @@ class DiffAddMultProb2Semiring(ScallopProvenance):
     """
     Collate a batch of outputs
     """
-    import torch
-    return torch.stack([torch.stack([p if p else torch.tensor(self.zero()) for p in outputs]) for outputs in batch])
+    return torch_importer.torch.stack([
+      torch_importer.torch.stack([
+        p if p else torch_importer.torch.tensor(self.zero()) for p in outputs
+      ]) for outputs in batch
+    ])
 
 
 class DiffNandMultProb2Semiring(ScallopProvenance):
@@ -200,8 +202,7 @@ class DiffNandMultProb2Semiring(ScallopProvenance):
     """
     Collate a batch of outputs
     """
-    import torch
-    return torch.stack([torch.stack([p if p else torch.tensor(self.zero()) for p in outputs]) for outputs in batch])
+    return torch_importer.torch.stack([torch_importer.torch.stack([p if p else torch_importer.torch.tensor(self.zero()) for p in outputs]) for outputs in batch])
 
 
 class DiffMaxMultProb2Semiring(ScallopProvenance):

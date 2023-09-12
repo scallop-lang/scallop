@@ -3,6 +3,6 @@ rel questions = {
   (2, "are cats larger than dogs?"),
 }
 
-rel answer(id, $gpt_complete(x)) = questions(id, x)
+rel answer(id, $gpt(x)) = questions(id, x)
 
 query answer

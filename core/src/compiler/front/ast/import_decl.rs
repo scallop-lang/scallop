@@ -1,34 +1,14 @@
-use serde::*;
-
 use super::*;
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub struct ImportFileNode {
-  pub file_path: String,
-}
-
-pub type ImportFile = AstNode<ImportFileNode>;
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
-#[doc(hidden)]
-pub struct ImportDeclNode {
+pub struct _ImportDecl {
   pub attrs: Attributes,
-  pub import_file: ImportFile,
+  pub import_file: StringLiteral,
 }
-
-pub type ImportDecl = AstNode<ImportDeclNode>;
 
 impl ImportDecl {
-  pub fn attributes(&self) -> &Attributes {
-    &self.node.attrs
-  }
-
-  pub fn attributes_mut(&mut self) -> &mut Attributes {
-    &mut self.node.attrs
-  }
-
-  pub fn input_file(&self) -> &String {
-    &self.node.import_file.node.file_path
+  pub fn import_file_path(&self) -> &String {
+    &self.import_file().string()
   }
 }

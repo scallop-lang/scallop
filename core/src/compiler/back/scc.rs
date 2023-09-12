@@ -244,17 +244,32 @@ impl Program {
 
     // Then add all the dependencies by going through rules
     for rule in &self.rules {
-      // Collect the head and functor predicates occurred in the rule
+      // Collect the head predicate
       let head_predicate = rule.head_predicate();
-      let functor_predicates = rule.collect_new_expr_functors().collect::<Vec<_>>();
 
-      // Functor predicates also depend on head
+      // Collect all the related functor predicates
+      let does_create_dyn_ent = rule.needs_dynamically_parse_entity(&self.function_registry, &self.predicate_registry);
+      let functor_predicates: Vec<_> = if does_create_dyn_ent {
+        // If needs dynamically parse entity, then all entities could be mentioned
+        // therefore we pull all the adt variants from the registry
+        self
+          .adt_variant_registry
+          .iter()
+          .map(|(_, v)| &v.relation_name)
+          .collect()
+      } else {
+        // Otherwise, we just collect all the `new` expression functors occurred
+        // in the rule itself
+        rule.collect_new_expr_functors().collect()
+      };
+
+      // Functor predicates depends on head
       for functor_predicate in &functor_predicates {
         graph.add_dependency(functor_predicate, head_predicate, E::Positive);
         graph.add_dependency(head_predicate, functor_predicate, E::Positive);
       }
 
-      // A recording dependency
+      // A recording dependency helper function
       let mut record_dependency = |pred, edge_type: E| {
         graph.add_dependency(head_predicate, pred, edge_type.clone());
         for functor_predicate in &functor_predicates {

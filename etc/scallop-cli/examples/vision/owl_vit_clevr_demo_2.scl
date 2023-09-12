@@ -1,0 +1,27 @@
+rel image_dir = {
+  // "etc/scallop-cli/res/testing/images/clevr_example_1.jpg",
+  "etc/scallop-cli/res/testing/images/clevr_example_2.png",
+}
+
+rel num_objs = {5}
+
+@owl_vit(
+  output_fields=["class", "cropped-image"],
+  input_obj_count=true,
+  score_threshold=0.01,
+  score_multiplier=1,
+  expand_crop_region=10,
+  dump_image=true
+)
+type find_shapes(
+  bound img: Tensor,
+  bound objects: String,
+  bound obj_count: u32,
+  id: u32,
+  class: String,
+  cropped_image: Tensor,
+)
+
+rel image($load_image(path)) = image_dir(path)
+rel found(id, object) = image(img) and num_objs(num_obj) and find_shapes(img, "cube;sphere;cylinder", num_obj, id, object, cropped_img)
+query found

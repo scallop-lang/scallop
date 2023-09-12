@@ -1,5 +1,5 @@
 use crate::common::input_tag::*;
-use crate::common::tensors::*;
+use crate::common::foreign_tensor::*;
 
 use super::*;
 
@@ -46,6 +46,12 @@ impl ConvertFromInputTag<f64> for f64 {
 impl ConvertFromInputTag<InputExclusiveProb> for f64 {
   fn from_input_tag(t: InputExclusiveProb) -> Option<Self> {
     Some(t.prob)
+  }
+}
+
+impl ConvertFromInputTag<DynamicExternalTensor> for f64 {
+  fn from_input_tag(t: DynamicExternalTensor) -> Option<Self> {
+    Some(t.get_f64())
   }
 }
 

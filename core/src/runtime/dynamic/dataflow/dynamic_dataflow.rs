@@ -5,47 +5,54 @@ use crate::common::value::*;
 
 use super::*;
 
-#[derive(Clone)]
-pub enum DynamicDataflow<'a, Prov: Provenance> {
-  StableUnit(DynamicStableUnitDataflow<'a, Prov>),
-  RecentUnit(DynamicRecentUnitDataflow<'a, Prov>),
-  Vec(&'a DynamicElements<Prov>),
-  UntaggedVec(DynamicUntaggedVec<'a, Prov>),
-  DynamicStableCollection(DynamicStableCollectionDataflow<'a, Prov>),
-  DynamicRecentCollection(DynamicRecentCollectionDataflow<'a, Prov>),
-  DynamicExclusion(DynamicExclusionDataflow<'a, Prov>),
-  DynamicRelation(DynamicRelationDataflow<'a, Prov>),
-  OverwriteOne(DynamicOverwriteOneDataflow<'a, Prov>),
-  Project(DynamicProjectDataflow<'a, Prov>),
-  Filter(DynamicFilterDataflow<'a, Prov>),
-  Find(DynamicFindDataflow<'a, Prov>),
-  Intersect(DynamicIntersectDataflow<'a, Prov>),
-  Join(DynamicJoinDataflow<'a, Prov>),
-  Product(DynamicProductDataflow<'a, Prov>),
-  Union(DynamicUnionDataflow<'a, Prov>),
-  Difference(DynamicDifferenceDataflow<'a, Prov>),
-  Antijoin(DynamicAntijoinDataflow<'a, Prov>),
-  Aggregate(DynamicAggregationDataflow<'a, Prov>),
-  ForeignPredicateGround(ForeignPredicateGroundDataflow<'a, Prov>),
-  ForeignPredicateConstraint(ForeignPredicateConstraintDataflow<'a, Prov>),
-  ForeignPredicateJoin(ForeignPredicateJoinDataflow<'a, Prov>),
+#[allow(unused)]
+pub trait Dataflow<'a, Prov: Provenance>: 'a + dyn_clone::DynClone {
+  fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
+    DynamicBatches::empty()
+  }
+
+  fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
+    DynamicBatches::empty()
+  }
+}
+
+pub struct DynamicDataflow<'a, Prov: Provenance>(Box<dyn Dataflow<'a, Prov>>);
+
+impl<'a, Prov: Provenance> Clone for DynamicDataflow<'a, Prov> {
+  fn clone(&self) -> Self {
+    Self(dyn_clone::clone_box(&*self.0))
+  }
+}
+
+impl<'a, Prov: Provenance> Dataflow<'a, Prov> for DynamicDataflow<'a, Prov> {
+  fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
+    self.0.iter_recent()
+  }
+
+  fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
+    self.0.iter_stable()
+  }
 }
 
 impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
+  pub fn new<D: Dataflow<'a, Prov>>(d: D) -> Self {
+    Self(Box::new(d))
+  }
+
   pub fn vec(vec: &'a DynamicElements<Prov>) -> Self {
-    Self::Vec(vec)
+    Self::new(RefElementsDataflow(vec))
   }
 
   pub fn untagged_vec(ctx: &'a Prov, vec: Vec<Tuple>) -> Self {
-    Self::UntaggedVec(DynamicUntaggedVec::new(ctx, vec))
+    Self::new(DynamicUntaggedVec::new(ctx, vec))
   }
 
   pub fn recent_unit(ctx: &'a Prov, tuple_type: TupleType) -> Self {
-    Self::RecentUnit(DynamicRecentUnitDataflow::new(ctx, tuple_type))
+    Self::new(DynamicRecentUnitDataflow::new(ctx, tuple_type))
   }
 
   pub fn stable_unit(ctx: &'a Prov, tuple_type: TupleType) -> Self {
-    Self::StableUnit(DynamicStableUnitDataflow::new(ctx, tuple_type))
+    Self::new(DynamicStableUnitDataflow::new(ctx, tuple_type))
   }
 
   pub fn dynamic_collection(col: &'a DynamicCollection<Prov>, recent: bool) -> Self {
@@ -57,206 +64,97 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
   }
 
   pub fn dynamic_stable_collection(col: &'a DynamicCollection<Prov>) -> Self {
-    Self::DynamicStableCollection(DynamicStableCollectionDataflow(col))
+    Self::new(DynamicStableCollectionDataflow(col))
   }
 
   pub fn dynamic_recent_collection(col: &'a DynamicCollection<Prov>) -> Self {
-    Self::DynamicRecentCollection(DynamicRecentCollectionDataflow(col))
+    Self::new(DynamicRecentCollectionDataflow(col))
   }
 
   pub fn dynamic_relation(rela: &'a DynamicRelation<Prov>) -> Self {
-    Self::DynamicRelation(DynamicRelationDataflow(rela))
+    Self::new(DynamicRelationDataflow(rela))
   }
 
   pub fn overwrite_one(self, ctx: &'a Prov) -> Self {
-    Self::OverwriteOne(DynamicOverwriteOneDataflow {
-      source: Box::new(self),
-      ctx,
-    })
+    Self::new(DynamicOverwriteOneDataflow { source: self, ctx })
   }
 
-  pub fn project(self, expression: Expr) -> Self {
-    Self::Project(DynamicProjectDataflow {
-      source: Box::new(self),
-      expression,
-    })
+  pub fn project(self, expression: Expr, runtime: &'a RuntimeEnvironment) -> Self {
+    Self::new(DynamicProjectDataflow { source: self, expression, runtime })
   }
 
-  pub fn filter(self, filter: Expr) -> Self {
-    Self::Filter(DynamicFilterDataflow {
-      source: Box::new(self),
-      filter,
-    })
+  pub fn filter(self, filter: Expr, runtime: &'a RuntimeEnvironment) -> Self {
+    Self::new(DynamicFilterDataflow { source: self, filter, runtime })
   }
 
   pub fn find(self, key: Tuple) -> Self {
-    Self::Find(DynamicFindDataflow {
-      source: Box::new(self),
-      key,
-    })
+    Self::new(DynamicFindDataflow { source: self, key })
   }
 
   pub fn intersect(self, d2: Self, ctx: &'a Prov) -> Self {
-    Self::Intersect(DynamicIntersectDataflow {
-      d1: Box::new(self),
-      d2: Box::new(d2),
-      ctx,
-    })
+    Self::new(DynamicIntersectDataflow { d1: self, d2, ctx })
   }
 
   pub fn join(self, d2: Self, ctx: &'a Prov) -> Self {
-    Self::Join(DynamicJoinDataflow {
-      d1: Box::new(self),
-      d2: Box::new(d2),
-      ctx,
-    })
+    Self::new(DynamicJoinDataflow { d1: self, d2, ctx })
   }
 
   pub fn product(self, d2: Self, ctx: &'a Prov) -> Self {
-    Self::Product(DynamicProductDataflow {
-      d1: Box::new(self),
-      d2: Box::new(d2),
-      ctx,
-    })
+    Self::new(DynamicProductDataflow { d1: self, d2, ctx })
   }
 
   pub fn union(self, d2: Self) -> Self {
-    Self::Union(DynamicUnionDataflow {
-      d1: Box::new(self),
-      d2: Box::new(d2),
-    })
+    Self::new(DynamicUnionDataflow { d1: self, d2 })
   }
 
   pub fn difference(self, d2: Self, ctx: &'a Prov) -> Self {
-    Self::Difference(DynamicDifferenceDataflow {
-      d1: Box::new(self),
-      d2: Box::new(d2),
-      ctx,
-    })
+    Self::new(DynamicDifferenceDataflow { d1: self, d2, ctx })
   }
 
   pub fn antijoin(self, d2: Self, ctx: &'a Prov) -> Self {
-    Self::Antijoin(DynamicAntijoinDataflow {
-      d1: Box::new(self),
-      d2: Box::new(d2),
-      ctx,
-    })
+    Self::new(DynamicAntijoinDataflow { d1: self, d2, ctx })
   }
 
-  pub fn foreign_predicate_ground(pred: String, bounded: Vec<Value>, first_iter: bool, ctx: &'a Prov) -> Self {
-    Self::ForeignPredicateGround(ForeignPredicateGroundDataflow {
+  pub fn foreign_predicate_ground(pred: String, bounded: Vec<Value>, first_iter: bool, ctx: &'a Prov, runtime: &'a RuntimeEnvironment) -> Self {
+    Self::new(ForeignPredicateGroundDataflow {
       foreign_predicate: pred,
       bounded_constants: bounded,
       first_iteration: first_iter,
       ctx,
+      runtime,
     })
   }
 
-  pub fn foreign_predicate_constraint(self, pred: String, args: Vec<Expr>, ctx: &'a Prov) -> Self {
-    Self::ForeignPredicateConstraint(ForeignPredicateConstraintDataflow {
-      dataflow: Box::new(self),
+  pub fn foreign_predicate_constraint(self, pred: String, args: Vec<Expr>, ctx: &'a Prov, runtime: &'a RuntimeEnvironment) -> Self {
+    Self::new(ForeignPredicateConstraintDataflow {
+      dataflow: self,
       foreign_predicate: pred,
       args,
       ctx,
+      runtime,
     })
   }
 
-  pub fn foreign_predicate_join(self, pred: String, args: Vec<Expr>, ctx: &'a Prov) -> Self {
-    Self::ForeignPredicateJoin(ForeignPredicateJoinDataflow {
-      left: Box::new(self),
+  pub fn foreign_predicate_join(self, pred: String, args: Vec<Expr>, ctx: &'a Prov, runtime: &'a RuntimeEnvironment) -> Self {
+    Self::new(ForeignPredicateJoinDataflow {
+      left: self,
       foreign_predicate: pred,
       args,
       ctx,
+      runtime,
     })
   }
 
-  pub fn dynamic_exclusion(self, other: Self, ctx: &'a Prov) -> Self {
-    Self::DynamicExclusion(DynamicExclusionDataflow::new(self, other, ctx))
-  }
-
-  pub fn iter_stable(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
-    match self {
-      // Static relations
-      Self::StableUnit(i) => i.iter_stable(runtime),
-      Self::RecentUnit(i) => i.iter_stable(runtime),
-      Self::Vec(_) => DynamicBatches::Empty,
-      Self::UntaggedVec(i) => i.iter_stable(runtime),
-
-      // Dynamic relations
-      Self::DynamicStableCollection(dc) => dc.iter_stable(runtime),
-      Self::DynamicRecentCollection(dc) => dc.iter_stable(runtime),
-      Self::DynamicRelation(dr) => dr.iter_stable(runtime),
-
-      // Unary operations
-      Self::Project(p) => p.iter_stable(runtime),
-      Self::Filter(f) => f.iter_stable(runtime),
-      Self::Find(f) => f.iter_stable(runtime),
-
-      // Binary operations
-      Self::Union(u) => u.iter_stable(runtime),
-      Self::Join(j) => j.iter_stable(runtime),
-      Self::Product(p) => p.iter_stable(runtime),
-      Self::Intersect(i) => i.iter_stable(runtime),
-      Self::Difference(d) => d.iter_stable(runtime),
-      Self::Antijoin(a) => a.iter_stable(runtime),
-
-      // Aggregation operations
-      Self::Aggregate(a) => a.iter_stable(runtime),
-
-      // Tag operations
-      Self::OverwriteOne(d) => d.iter_stable(runtime),
-      Self::DynamicExclusion(d) => d.iter_stable(runtime),
-
-      // Foreign predicates
-      Self::ForeignPredicateGround(d) => d.iter_stable(runtime),
-      Self::ForeignPredicateConstraint(d) => d.iter_stable(runtime),
-      Self::ForeignPredicateJoin(d) => d.iter_stable(runtime),
-    }
-  }
-
-  pub fn iter_recent(&self, runtime: &'a RuntimeEnvironment) -> DynamicBatches<'a, Prov> {
-    match self {
-      // Static relations
-      Self::StableUnit(i) => i.iter_recent(runtime),
-      Self::RecentUnit(i) => i.iter_recent(runtime),
-      Self::Vec(v) => DynamicBatches::single(DynamicBatch::vec(v)),
-      Self::UntaggedVec(i) => i.iter_recent(runtime),
-
-      // Dynamic relations
-      Self::DynamicStableCollection(dc) => dc.iter_recent(runtime),
-      Self::DynamicRecentCollection(dc) => dc.iter_recent(runtime),
-      Self::DynamicRelation(dr) => dr.iter_recent(runtime),
-
-      // Unary operations
-      Self::Project(p) => p.iter_recent(runtime),
-      Self::Filter(f) => f.iter_recent(runtime),
-      Self::Find(f) => f.iter_recent(runtime),
-
-      // Binary operations
-      Self::Union(u) => u.iter_recent(runtime),
-      Self::Join(j) => j.iter_recent(runtime),
-      Self::Product(p) => p.iter_recent(runtime),
-      Self::Intersect(i) => i.iter_recent(runtime),
-      Self::Difference(d) => d.iter_recent(runtime),
-      Self::Antijoin(a) => a.iter_recent(runtime),
-
-      // Aggregation operations
-      Self::Aggregate(a) => a.iter_recent(runtime),
-
-      // Tag operations
-      Self::OverwriteOne(d) => d.iter_recent(runtime),
-      Self::DynamicExclusion(d) => d.iter_recent(runtime),
-
-      // Foreign predicates
-      Self::ForeignPredicateGround(d) => d.iter_recent(runtime),
-      Self::ForeignPredicateConstraint(d) => d.iter_recent(runtime),
-      Self::ForeignPredicateJoin(d) => d.iter_recent(runtime),
-    }
+  pub fn dynamic_exclusion(self, other: Self, ctx: &'a Prov, runtime: &'a RuntimeEnvironment) -> Self {
+    Self::new(DynamicExclusionDataflow::new(self, other, ctx, runtime))
   }
 }
 
-impl<'a, Prov: Provenance> From<&'a DynamicRelation<Prov>> for DynamicDataflow<'a, Prov> {
-  fn from(r: &'a DynamicRelation<Prov>) -> Self {
-    Self::dynamic_relation(r)
+#[derive(Clone)]
+pub struct RefElementsDataflow<'a, Prov: Provenance>(&'a DynamicElements<Prov>);
+
+impl<'a, Prov: Provenance> Dataflow<'a, Prov> for RefElementsDataflow<'a, Prov> {
+  fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
+    DynamicBatches::single(RefElementsBatch::new(self.0))
   }
 }

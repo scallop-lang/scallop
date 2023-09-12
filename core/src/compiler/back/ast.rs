@@ -1,12 +1,16 @@
 use std::collections::*;
 
-use super::Attributes;
+use crate::common::adt_variant_registry::ADTVariantRegistry;
 use crate::common::aggregate_op::AggregateOp;
-use crate::common::foreign_function::ForeignFunctionRegistry;
-use crate::common::foreign_predicate::ForeignPredicateRegistry;
+use crate::common::foreign_function::*;
+use crate::common::foreign_predicate::*;
 use crate::common::input_tag::DynamicInputTag;
 use crate::common::output_option::OutputOption;
+use crate::common::value_type::ValueType;
+
 use crate::compiler::front;
+
+use super::Attributes;
 
 pub type Type = crate::common::value_type::ValueType;
 
@@ -21,6 +25,7 @@ pub struct Program {
   pub rules: Vec<Rule>,
   pub function_registry: ForeignFunctionRegistry,
   pub predicate_registry: ForeignPredicateRegistry,
+  pub adt_variant_registry: ADTVariantRegistry,
 }
 
 impl Program {
@@ -110,6 +115,36 @@ impl Rule {
         _ => None,
       },
       _ => None,
+    })
+  }
+
+  pub fn needs_dynamically_parse_entity(
+    &self,
+    foreign_function_registry: &ForeignFunctionRegistry,
+    foreign_predicate_registry: &ForeignPredicateRegistry,
+  ) -> bool {
+    self.body_literals().any(|l| match l {
+      Literal::Atom(a) => {
+        if let Some(p) = foreign_predicate_registry.get(&a.predicate) {
+          p.free_argument_types().iter().any(|t| t == &ValueType::Entity)
+        } else {
+          false
+        }
+      }
+      Literal::Assign(assign) => match &assign.right {
+        AssignExpr::Call(c) => {
+          if let Some(f) = foreign_function_registry.get(&c.function) {
+            match f.return_type() {
+              ForeignFunctionParameterType::BaseType(ValueType::Entity) => true,
+              _ => false,
+            }
+          } else {
+            false
+          }
+        }
+        _ => false,
+      },
+      _ => false,
     })
   }
 }
@@ -649,10 +684,10 @@ pub enum UnaryConstraintOp {
   Not,
 }
 
-impl From<&front::ast::UnaryOpNode> for Option<UnaryConstraintOp> {
-  fn from(op: &front::ast::UnaryOpNode) -> Self {
+impl From<&front::ast::_UnaryOp> for Option<UnaryConstraintOp> {
+  fn from(op: &front::ast::_UnaryOp) -> Self {
     match op {
-      front::ast::UnaryOpNode::Not => Some(UnaryConstraintOp::Not),
+      front::ast::_UnaryOp::Not => Some(UnaryConstraintOp::Not),
       _ => None,
     }
   }

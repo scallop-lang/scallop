@@ -1,0 +1,17 @@
+@segment_anything(["mask", "area"], prompt_bb=true, dump_image=true)
+type image_segment(bound img: Tensor, bbx: u32, bby: u32, bbw: u32, bbh: u32, id: u32, mask: Tensor, area: u32)
+
+rel img_dir = {"etc/scallop-cli/res/testing/images/coffee_leave_example_1.jpg"}
+
+rel bounding_box = {
+  (2339, 163, 960, 824),
+}
+
+rel image($load_image(img_dir)) = img_dir(img_dir)
+
+rel segment(area) =
+  image(img) and
+  bounding_box(x, y, w, h) and
+  image_segment(img, x, y, w, h, id, _, area)
+
+query segment

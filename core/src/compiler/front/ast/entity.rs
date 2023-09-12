@@ -1,55 +1,40 @@
-use serde::*;
-
 use crate::common::entity;
 
 use super::*;
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub enum EntityNode {
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+pub enum Entity {
   Expr(Expr),
   Object(Object),
 }
 
-pub type Entity = AstNode<EntityNode>;
-
 impl Entity {
-  /// Create a new constant entity
-  pub fn constant(c: Constant) -> Self {
-    Self::default(EntityNode::Expr(Expr::Constant(c)))
+  /// Convert the entity to a constant if it is one
+  pub fn as_constant(&self) -> Option<&Constant> {
+    self.as_expr().and_then(Expr::as_constant)
   }
 
   /// Checks if the entity is a simple constant
   pub fn is_constant(&self) -> bool {
-    match &self.node {
-      EntityNode::Expr(e) => e.is_constant(),
-      _ => false,
-    }
-  }
-
-  /// Get the constant if the entity is a simple constant
-  pub fn get_constant(&self) -> Option<&Constant> {
-    match &self.node {
-      EntityNode::Expr(e) => e.get_constant(),
-      _ => None,
-    }
+    self.as_expr().map(Expr::is_constant).unwrap_or(false)
   }
 
   /// Checks if the entity has variable inside
   pub fn has_variable(&self) -> bool {
-    match &self.node {
-      EntityNode::Expr(e) => e.has_variable(),
-      EntityNode::Object(o) => o.has_variable(),
+    match self {
+      Entity::Expr(e) => e.has_variable(),
+      Entity::Object(o) => o.has_variable(),
     }
   }
 
   /// Get the location of the first non-constant in the entity
-  pub fn get_first_non_constant_location<F>(&self, is_constant: &F) -> Option<&AstNodeLocation>
+  pub fn get_first_non_constant_location<F>(&self, is_constant: &F) -> Option<&NodeLocation>
   where
     F: Fn(&Variable) -> bool,
   {
-    match &self.node {
-      EntityNode::Expr(e) => e.get_first_non_constant_location(is_constant),
-      EntityNode::Object(o) => o.get_first_non_constant_location(is_constant),
+    match self {
+      Entity::Expr(e) => e.get_first_non_constant_location(is_constant),
+      Entity::Object(o) => o.get_first_non_constant_location(is_constant),
     }
   }
 
@@ -66,11 +51,11 @@ impl Entity {
       F: Fn(&Variable) -> Option<Constant>,
     {
       // Check whether we need to recurse
-      match &entity.node {
-        EntityNode::Expr(e) => {
-          if let Some(c) = e.get_constant() {
+      match entity {
+        Entity::Expr(e) => {
+          if let Some(c) = e.as_constant() {
             c.clone()
-          } else if let Some(v) = e.get_variable() {
+          } else if let Some(v) = e.as_variable() {
             if let Some(c) = f(v) {
               c
             } else {
@@ -80,18 +65,16 @@ impl Entity {
             panic!("[Internal Error] Should contain only constant or constant variables")
           }
         }
-        EntityNode::Object(obj) => {
+        Entity::Object(obj) => {
           let functor = obj.functor().clone_without_location_id();
           let args = obj.iter_args().map(|a| helper(a, facts, f)).collect::<Vec<_>>();
 
           // Create a hash value
-          let raw_id = entity::encode_entity(functor.name(), args.iter().map(|a| &a.node));
+          let raw_id = entity::encode_entity(functor.name(), args.iter().map(|a| a));
 
           // Create a constant ID of the hash value
-          let id = Constant {
-            loc: obj.location().clone(),
-            node: ConstantNode::Entity(raw_id),
-          };
+          let entity = EntityLiteral::new_with_loc(raw_id, obj.location().clone());
+          let id = Constant::entity(entity);
 
           // Create the entity fact and store it inside the storage
           let entity_fact = EntityFact {
@@ -119,43 +102,25 @@ pub struct EntityFact {
   pub functor: Identifier,
   pub id: Constant,
   pub args: Vec<Constant>,
-  pub loc: AstNodeLocation,
+  pub loc: NodeLocation,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct ObjectNode {
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+pub struct _Object {
   pub functor: Identifier,
   pub args: Vec<Entity>,
 }
 
-pub type Object = AstNode<ObjectNode>;
-
 impl Object {
   pub fn has_variable(&self) -> bool {
-    self.node.args.iter().any(|a| a.has_variable())
-  }
-
-  pub fn functor(&self) -> &Identifier {
-    &self.node.functor
-  }
-
-  pub fn functor_mut(&mut self) -> &mut Identifier {
-    &mut self.node.functor
+    self.args().iter().any(|a| a.has_variable())
   }
 
   pub fn functor_name(&self) -> &str {
-    self.node.functor.name()
+    self.functor().name()
   }
 
-  pub fn iter_args(&self) -> impl Iterator<Item = &Entity> {
-    self.node.args.iter()
-  }
-
-  pub fn iter_args_mut(&mut self) -> impl Iterator<Item = &mut Entity> {
-    self.node.args.iter_mut()
-  }
-
-  pub fn get_first_non_constant_location<F>(&self, is_constant: &F) -> Option<&AstNodeLocation>
+  pub fn get_first_non_constant_location<F>(&self, is_constant: &F) -> Option<&NodeLocation>
   where
     F: Fn(&Variable) -> bool,
   {

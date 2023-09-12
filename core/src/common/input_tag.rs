@@ -1,15 +1,16 @@
 use serde::*;
 
-use super::tensors::Tensor;
+use super::foreign_tensor::DynamicExternalTensor;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, Serialize)]
 pub enum DynamicInputTag {
   None,
   Exclusive(usize),
   Bool(bool),
+  Natural(usize),
   Float(f64),
   ExclusiveFloat(f64, usize),
-  Tensor(Tensor),
+  Tensor(DynamicExternalTensor),
 }
 
 impl DynamicInputTag {
@@ -43,6 +44,7 @@ impl std::fmt::Display for DynamicInputTag {
       Self::None => Ok(()),
       Self::Exclusive(i) => f.write_str(&format!("[ME({})]", i)),
       Self::Bool(b) => b.fmt(f),
+      Self::Natural(n) => n.fmt(f),
       Self::Float(n) => n.fmt(f),
       Self::ExclusiveFloat(n, i) => f.write_str(&format!("{} [ME({})]", n, i)),
       Self::Tensor(t) => t.fmt(f),

@@ -42,32 +42,42 @@ impl HeadRelationAnalysis {
   }
 }
 
-impl NodeVisitor for HeadRelationAnalysis {
-  fn visit_relation_type(&mut self, rd: &ast::RelationType) {
-    self.declared_relations.insert(rd.predicate().to_string());
+impl NodeVisitor<RelationType> for HeadRelationAnalysis {
+  fn visit(&mut self, rd: &RelationType) {
+    self.declared_relations.insert(rd.predicate_name().to_string());
   }
+}
 
-  fn visit_fact_decl(&mut self, fd: &ast::FactDecl) {
-    self.declared_relations.insert(fd.predicate().to_string());
+impl NodeVisitor<FactDecl> for HeadRelationAnalysis {
+  fn visit(&mut self, fd: &FactDecl) {
+    self.declared_relations.insert(fd.predicate_name().to_string());
   }
+}
 
-  fn visit_constant_set_decl(&mut self, csd: &ast::ConstantSetDecl) {
-    self.declared_relations.insert(csd.predicate().to_string());
+impl NodeVisitor<ConstantSetDecl> for HeadRelationAnalysis {
+  fn visit(&mut self, csd: &ConstantSetDecl) {
+    self.declared_relations.insert(csd.name().to_string());
   }
+}
 
-  fn visit_rule(&mut self, rd: &ast::Rule) {
+impl NodeVisitor<Rule> for HeadRelationAnalysis {
+  fn visit(&mut self, rd: &Rule) {
     for predicate in rd.head().iter_predicates() {
       self.declared_relations.insert(predicate.to_string());
     }
   }
+}
 
-  fn visit_query(&mut self, qd: &ast::Query) {
+impl NodeVisitor<Query> for HeadRelationAnalysis {
+  fn visit(&mut self, qd: &Query) {
     self
       .used_relations
       .insert(qd.create_relation_name().to_string(), qd.location().clone());
   }
+}
 
-  fn visit_atom(&mut self, a: &ast::Atom) {
+impl NodeVisitor<Atom> for HeadRelationAnalysis {
+  fn visit(&mut self, a: &Atom) {
     self
       .used_relations
       .insert(a.predicate().to_string(), a.location().clone());

@@ -16,6 +16,7 @@ pub enum BindingError {
   InvalidBatchSize,
   EmptyBatchInput,
   InvalidInputTag,
+  CannotRegisterTensor,
   PyErr(PyErr),
 }
 
@@ -35,6 +36,7 @@ impl std::fmt::Display for BindingError {
       Self::InvalidBatchSize => f.write_str("Invalid batch size"),
       Self::EmptyBatchInput => f.write_str("Empty batched input"),
       Self::InvalidInputTag => f.write_str("Invalid input tag"),
+      Self::CannotRegisterTensor => f.write_str("Cannot register tensor"),
       Self::PyErr(e) => std::fmt::Display::fmt(e, f),
     }
   }
@@ -62,7 +64,7 @@ impl std::convert::From<BindingError> for PyErr {
     match err {
       BindingError::PyErr(e) => e,
       err => {
-        let err_str = format!("Scallop Error: {}", err.to_string());
+        let err_str = format!("{}", err.to_string());
         let py_err_str: Py<PyAny> = Python::with_gil(|py| err_str.to_object(py));
         PyException::new_err(py_err_str)
       }
