@@ -38,11 +38,18 @@ class ScallopForwardFunction(torch_importer.Module):
     jit_name: str = "",
     jit_recompile: bool = False,
     dispatch: str = "parallel",
+    monitors: List[str] = [],
   ):
     super(ScallopForwardFunction, self).__init__()
 
     # Setup the context
-    self.ctx = ScallopContext(provenance=provenance, custom_provenance=custom_provenance, k=k, train_k=train_k, test_k=test_k)
+    self.ctx = ScallopContext(
+      provenance=provenance,
+      custom_provenance=custom_provenance,
+      k=k,
+      train_k=train_k,
+      test_k=test_k,
+      monitors=monitors)
 
     # Import the file if specified
     if file is not None:

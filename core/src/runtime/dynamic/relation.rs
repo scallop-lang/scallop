@@ -102,7 +102,10 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
       .map(|(info, tuple)| DynamicElement::new(tuple.into(), ctx.tagging_optional_fn(info)))
       .collect::<Vec<_>>();
 
-    self.to_add.borrow_mut().push(DynamicCollection::from_vec(elements, ctx));
+    self
+      .to_add
+      .borrow_mut()
+      .push(DynamicCollection::from_vec(elements, ctx));
   }
 
   pub fn insert_tagged_with_monitor<Tup, M>(&self, ctx: &Prov, data: Vec<(Option<InputTagOf<Prov>>, Tup)>, m: &M)
@@ -120,7 +123,10 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
       })
       .collect::<Vec<_>>();
 
-    self.to_add.borrow_mut().push(DynamicCollection::from_vec(elements, ctx));
+    self
+      .to_add
+      .borrow_mut()
+      .push(DynamicCollection::from_vec(elements, ctx));
   }
 
   pub fn num_stable(&self) -> usize {
@@ -221,7 +227,12 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     !self.recent.borrow().is_empty()
   }
 
-  pub fn insert_dataflow_recent<'a>(&'a self, ctx: &'a Prov, d: &DynamicDataflow<'a, Prov>, runtime: &'a RuntimeEnvironment) {
+  pub fn insert_dataflow_recent<'a>(
+    &'a self,
+    ctx: &'a Prov,
+    d: &DynamicDataflow<'a, Prov>,
+    runtime: &'a RuntimeEnvironment,
+  ) {
     for batch in d.iter_recent() {
       let data = if runtime.early_discard {
         batch.filter(move |e| !ctx.discard(&e.tag)).collect::<Vec<_>>()
@@ -232,7 +243,12 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     }
   }
 
-  pub fn insert_dataflow_stable<'a>(&'a self, ctx: &'a Prov, d: &DynamicDataflow<'a, Prov>, runtime: &'a RuntimeEnvironment) {
+  pub fn insert_dataflow_stable<'a>(
+    &'a self,
+    ctx: &'a Prov,
+    d: &DynamicDataflow<'a, Prov>,
+    runtime: &'a RuntimeEnvironment,
+  ) {
     for batch in d.iter_stable() {
       let data = if runtime.early_discard {
         batch.filter(move |e| !ctx.discard(&e.tag)).collect::<Vec<_>>()

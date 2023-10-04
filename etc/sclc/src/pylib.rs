@@ -293,15 +293,15 @@ fn generate_context_code() -> TokenStream {
     #[pymethods]
     impl Context {
       #[new]
-      #[args(provenance = "\"unit\"", top_k = "None")]
-      fn new(provenance: &str, top_k: Option<usize>) -> PyResult<Self> {
+      #[args(provenance = "\"unit\"", top_k = "None", wmc_with_disjunctions = "False")]
+      fn new(provenance: &str, top_k: Option<usize>, wmc_with_disjunctions: bool) -> PyResult<Self> {
         let top_k = top_k.unwrap_or(3);
         match provenance {
           "unit" => Ok(Self { ctx: ContextEnum::Unit(StaticContext::new(unit::UnitProvenance::default())) }),
           "minmaxprob" => Ok(Self { ctx: ContextEnum::MinMaxProb(StaticContext::new(min_max_prob::MinMaxProbProvenance::default())) }),
           "addmultprob" => Ok(Self { ctx: ContextEnum::AddMultProb(StaticContext::new(add_mult_prob::AddMultProbProvenance::default())) }),
           "diffminmaxprob" => Ok(Self { ctx: ContextEnum::DiffMinMaxProb(StaticContext::new(diff_min_max_prob::DiffMinMaxProbProvenance::default())) }),
-          "difftopkproofs" => Ok(Self { ctx: ContextEnum::DiffTopKProofs(StaticContext::new(diff_top_k_proofs::DiffTopKProofsProvenance::new(top_k))) }),
+          "difftopkproofs" => Ok(Self { ctx: ContextEnum::DiffTopKProofs(StaticContext::new(diff_top_k_proofs::DiffTopKProofsProvenance::new(top_k, wmc_with_disjunctions))) }),
           "difftopbottomkclauses" => Ok(Self { ctx: ContextEnum::DiffTopBottomKClauses(StaticContext::new(diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance::new(top_k))) }),
           p => Err(PyErr::from(BindingError(format!("Unknown provenance `{}`", p.to_string())))),
         }

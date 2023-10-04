@@ -13,6 +13,21 @@ impl DNFFormula {
     Self { clauses }
   }
 
+  pub fn get_singleton_id(&self) -> Option<usize> {
+    if self.clauses.len() == 1 {
+      if self.clauses[0].literals.len() == 1 {
+        match &self.clauses[0].literals[0] {
+          Literal::Pos(id) => Some(*id),
+          _ => None,
+        }
+      } else {
+        None
+      }
+    } else {
+      None
+    }
+  }
+
   pub fn is_empty(&self) -> bool {
     self.clauses.is_empty()
   }

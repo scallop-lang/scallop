@@ -12,7 +12,7 @@ mod sum_2 {
 
 fn main() {
   // First set the top-k-proofs provenance context
-  let mut ctx = top_k_proofs::TopKProofsProvenance::new(3);
+  let mut ctx = top_k_proofs::TopKProofsProvenance::new(3, false);
 
   // Then create an edb and populate facts inside of it
   let mut edb = sum_2::create_edb::<top_k_proofs::TopKProofsProvenance>();

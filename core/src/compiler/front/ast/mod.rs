@@ -28,5 +28,5 @@ pub use type_decl::*;
 pub use types::*;
 pub use utils::*;
 
-use serde::*;
 use astnode_derive::*;
+use serde::*;

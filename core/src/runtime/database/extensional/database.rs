@@ -261,7 +261,9 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
   }
 
   pub fn internalize_with_monitor<M: Monitor<Prov>>(&mut self, env: &RuntimeEnvironment, ctx: &Prov, m: &M) {
-    for (_, relation) in &mut self.extensional_relations {
+    for (name, relation) in &mut self.extensional_relations {
+      m.observe_loading_relation(name);
+      m.observe_loading_relation_from_edb(name);
       relation.internalize_with_monitor(env, ctx, m);
     }
     self.internalized = true

@@ -55,9 +55,7 @@ impl NodeVisitor<RuleDecl> for TransformTaggedRule {
       let pred = Self::transform(rule_decl);
 
       // Store this probability for later
-      self
-        .to_add_tags
-        .push((pred.clone(), rule_decl.tag().tag().clone()));
+      self.to_add_tags.push((pred.clone(), rule_decl.tag().tag().clone()));
     } else if Self::has_prob_attr(rule_decl) {
       // If the rule is annotated with `@probabilistic`
       Self::transform(rule_decl);

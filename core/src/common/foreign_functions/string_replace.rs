@@ -29,9 +29,7 @@ impl ForeignFunction for StringReplace {
   fn execute(&self, args: Vec<Value>) -> Option<Value> {
     assert_eq!(args.len(), 3);
     match (&args[0], &args[1], &args[2]) {
-      (Value::String(s), Value::String(pat), Value::String(replace)) => {
-        Some(Value::String(s.replace(pat, replace)))
-      },
+      (Value::String(s), Value::String(pat), Value::String(replace)) => Some(Value::String(s.replace(pat, replace))),
       _ => panic!("Invalid argument, expected string"),
     }
   }

@@ -5,4 +5,4 @@ rel object_color(3, "green")
 rel object_color(4, "green")
 rel object_color(5, "red")
 
-rel max_color(c) = _ = max[c](n: n = count(o: object_color(o, c)))
+rel max_color(c) = c := argmax[c](n: n = count(o: object_color(o, c)))

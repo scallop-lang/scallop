@@ -7,4 +7,4 @@ rel class_student_grade = {
   (1, "frank", 30),
 }
 
-rel class_top_student(c, s) = _ = max[s](g: class_student_grade(c, s, g))
+rel class_top_student(c, s) = s = argmax[s](g: class_student_grade(c, s, g))

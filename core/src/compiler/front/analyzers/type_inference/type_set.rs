@@ -267,7 +267,7 @@ impl TypeSet {
     }
   }
 
-  pub fn unify_type_sets(tss: Vec<&TypeSet>) -> Result<TypeSet, TypeInferenceError> {
+  pub fn unify_type_sets(tss: Vec<&TypeSet>) -> Result<TypeSet, CannotUnifyTypes> {
     let mut ty = tss[0].clone();
     for curr_ty in tss {
       match ty.unify(curr_ty) {
@@ -278,12 +278,12 @@ impl TypeSet {
     Ok(ty)
   }
 
-  pub fn unify(&self, other: &Self) -> Result<Self, TypeInferenceError> {
+  pub fn unify(&self, other: &Self) -> Result<Self, CannotUnifyTypes> {
     use std::cmp::Ordering::*;
     match self.partial_cmp(other) {
       Some(Equal) | Some(Less) => Ok(self.clone()),
       Some(Greater) => Ok(other.clone()),
-      None => Err(TypeInferenceError::CannotUnifyTypes {
+      None => Err(CannotUnifyTypes {
         t1: self.clone(),
         t2: other.clone(),
         loc: None,

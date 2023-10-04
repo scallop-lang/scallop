@@ -1,5 +1,7 @@
+use crate::common::foreign_aggregate::*;
+use crate::common::foreign_aggregates::*;
 use crate::runtime::dynamic::*;
-use crate::runtime::statics::*;
+use crate::runtime::env::*;
 
 use super::*;
 
@@ -69,12 +71,49 @@ impl Provenance for UnitProvenance {
   fn saturated(&self, _: &Self::Tag, _: &Self::Tag) -> bool {
     true
   }
+}
 
-  fn dynamic_top_k(&self, k: usize, batch: DynamicElements<Self>) -> DynamicElements<Self> {
-    unweighted_aggregate_top_k_helper(batch, k)
+impl Aggregator<UnitProvenance> for CountAggregator {
+  fn aggregate(
+    &self,
+    _p: &UnitProvenance,
+    _env: &RuntimeEnvironment,
+    elems: DynamicElements<UnitProvenance>,
+  ) -> DynamicElements<UnitProvenance> {
+    vec![DynamicElement::new(elems.len(), Unit)]
   }
+}
 
-  fn static_top_k<T: StaticTupleTrait>(&self, k: usize, batch: StaticElements<T, Self>) -> StaticElements<T, Self> {
-    unweighted_aggregate_top_k_helper(batch, k)
+impl Aggregator<UnitProvenance> for ExistsAggregator {
+  fn aggregate(
+    &self,
+    _p: &UnitProvenance,
+    _env: &RuntimeEnvironment,
+    elems: DynamicElements<UnitProvenance>,
+  ) -> DynamicElements<UnitProvenance> {
+    vec![DynamicElement::new(!elems.is_empty(), Unit)]
+  }
+}
+
+impl Aggregator<UnitProvenance> for MinMaxAggregator {
+  fn aggregate(
+    &self,
+    p: &UnitProvenance,
+    _env: &RuntimeEnvironment,
+    batch: DynamicElements<UnitProvenance>,
+  ) -> DynamicElements<UnitProvenance> {
+    self.discrete_min_max(p, batch.iter_tuples())
+  }
+}
+
+impl Aggregator<UnitProvenance> for SumProdAggregator {
+  fn aggregate(
+    &self,
+    _p: &UnitProvenance,
+    _env: &RuntimeEnvironment,
+    batch: DynamicElements<UnitProvenance>,
+  ) -> DynamicElements<UnitProvenance> {
+    let res = self.perform_sum_prod(batch.iter_tuples());
+    vec![DynamicElement::new(res, Unit)]
   }
 }

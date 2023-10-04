@@ -1,4 +1,4 @@
-use scallop_core::common::aggregate_op::AggregateOp;
+use scallop_core::common::value_type::ValueType;
 use scallop_core::runtime::dynamic::dataflow::*;
 use scallop_core::runtime::dynamic::*;
 use scallop_core::runtime::env::*;
@@ -36,7 +36,9 @@ fn test_dynamic_aggregate_count_1() {
     agg.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::new(DynamicAggregationSingleGroupDataflow::new(
-        AggregateOp::count().into(),
+        rt.aggregate_registry
+          .instantiate_aggregator("count", vec![], false, vec![], vec![ValueType::I8, ValueType::I8])
+          .unwrap(),
         DynamicDataflow::dynamic_collection(&completed_target, first_time),
         &ctx,
         &rt,

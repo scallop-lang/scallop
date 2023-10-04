@@ -1,6 +1,16 @@
 name: Scallopy
 
-on: [push]
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - "**.py"
+      - "**.rs"
+  pull_request:
+    branches: [ master ]
+    paths:
+      - "**.py"
+      - "**.rs"
 
 env:
   SCALLOPDIR: ${{ github.workspace }}

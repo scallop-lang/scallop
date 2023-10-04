@@ -154,9 +154,9 @@
 extern crate regex;
 #[macro_use]
 extern crate lazy_static;
-extern crate num;
 extern crate chrono;
 extern crate chronoutil;
+extern crate num;
 
 /// This module contains the parse function and the error `enum`.
 ///

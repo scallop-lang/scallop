@@ -1,32 +1,36 @@
-extern crate num;
 extern crate chrono;
 extern crate chronoutil;
+extern crate num;
 extern crate parse_relative_duration;
 
-use num::BigInt;
 use chrono::Duration;
 use chronoutil::RelativeDuration;
+use num::BigInt;
 
 use parse_relative_duration::parse;
 
 macro_rules! test_parse {
-    (fn $fun:ident($string: expr, $months: expr, $seconds: expr, $nanoseconds: expr)) => {
-        #[test]
-        fn $fun() {
-            assert_eq!(parse($string), Ok(
-                RelativeDuration::months($months).with_duration(Duration::seconds($seconds) + Duration::nanoseconds($nanoseconds))
-            ))
-        }
-    };
+  (fn $fun:ident($string: expr, $months: expr, $seconds: expr, $nanoseconds: expr)) => {
+    #[test]
+    fn $fun() {
+      assert_eq!(
+        parse($string),
+        Ok(
+          RelativeDuration::months($months)
+            .with_duration(Duration::seconds($seconds) + Duration::nanoseconds($nanoseconds))
+        )
+      )
+    }
+  };
 }
 
 macro_rules! test_invalid {
-    (fn $fun:ident($string: expr, $error: expr)) => {
-        #[test]
-        fn $fun() {
-            assert_eq!(parse($string), Err($error));
-        }
-    };
+  (fn $fun:ident($string: expr, $error: expr)) => {
+    #[test]
+    fn $fun() {
+      assert_eq!(parse($string), Err($error));
+    }
+  };
 }
 
 test_parse!(fn nano1("1nsec", 0, 0, 1));
@@ -170,12 +174,12 @@ test_invalid!(fn wrong_order("year15", parse::Error::NoUnitFound("15".to_string(
 
 #[test]
 fn number_too_big() {
-    assert_eq!(
-        Ok(parse("123456789012345678901234567890 seconds")),
-        "123456789012345678901234567890"
-            .parse::<BigInt>()
-            .map(|int| Err(parse::Error::OutOfBounds(int)))
-    );
+  assert_eq!(
+    Ok(parse("123456789012345678901234567890 seconds")),
+    "123456789012345678901234567890"
+      .parse::<BigInt>()
+      .map(|int| Err(parse::Error::OutOfBounds(int)))
+  );
 }
 
 test_invalid!(fn not_enough_units("16 17 seconds", parse::Error::NoUnitFound("16".to_string())));

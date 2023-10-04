@@ -213,13 +213,13 @@ impl CollectionIterator {
       slf.current_index += 1;
       if slf.collection.has_empty_tag() {
         if let Some(tuple) = to_python_tuple(slf.collection.ith_tuple(i), &slf.env) {
-          return IterNextOutput::Yield(tuple)
+          return IterNextOutput::Yield(tuple);
         }
       } else {
         let tuple = to_python_tuple(slf.collection.ith_tuple(i), &slf.env);
         let tag = slf.collection.ith_tag(i);
         let elem = Python::with_gil(|py| (tag, tuple).to_object(py));
-        return IterNextOutput::Yield(elem)
+        return IterNextOutput::Yield(elem);
       }
     }
     IterNextOutput::Return("Ended")

@@ -1,94 +1,102 @@
 use super::tuple::*;
 
-pub trait Tuples {
-  fn minimum(self) -> Vec<Tuple>;
+pub trait Tuples<'a> {
+  fn sort(self, num_args: usize) -> Vec<&'a Tuple>;
 
-  fn arg_minimum(self) -> Vec<Tuple>;
+  fn minimum(self) -> Vec<&'a Tuple>;
 
-  fn maximum(self) -> Vec<Tuple>;
+  fn arg_minimum(self, num_args: usize) -> Vec<&'a Tuple>;
 
-  fn arg_maximum(self) -> Vec<Tuple>;
+  fn maximum(self) -> Vec<&'a Tuple>;
+
+  fn arg_maximum(self, num_args: usize) -> Vec<&'a Tuple>;
 }
 
-impl<'a, I> Tuples for I
+impl<'a, I> Tuples<'a> for I
 where
   I: Iterator<Item = &'a Tuple>,
 {
-  fn minimum(self) -> Vec<Tuple> {
+  fn sort(self, num_args: usize) -> Vec<&'a Tuple> {
+    let mut collected = self.collect::<Vec<_>>();
+    collected.sort_by_key(|e| &e[num_args..]);
+    collected
+  }
+
+  fn minimum(self) -> Vec<&'a Tuple> {
     let mut result = vec![];
     let mut min_value = None;
     for v in self {
-      if let Some(m) = &min_value {
+      if let Some(m) = min_value {
         if v == m {
-          result.push(v.clone());
+          result.push(v);
         } else if v < m {
-          min_value = Some(v.clone());
+          min_value = Some(v);
           result.clear();
-          result.push(v.clone());
+          result.push(v);
         }
       } else {
-        min_value = Some(v.clone());
-        result.push(v.clone());
+        min_value = Some(v);
+        result.push(v);
       }
     }
     return result;
   }
 
-  fn arg_minimum(self) -> Vec<Tuple> {
+  fn arg_minimum(self, num_args: usize) -> Vec<&'a Tuple> {
     let mut result = vec![];
-    let mut min_value = None;
+    let mut min_value: Option<&[Tuple]> = None;
     for v in self {
       if let Some(m) = &min_value {
-        if &v[1] == m {
-          result.push(v.clone());
-        } else if &v[1] < m {
-          min_value = Some(v[1].clone());
+        if &v[num_args..] == &m[..] {
+          result.push(v);
+        } else if &v[num_args..] < m {
+          min_value = Some(&v[num_args..]);
           result.clear();
-          result.push(v.clone());
+          result.push(v);
         }
       } else {
-        min_value = Some(v[1].clone());
-        result.push(v.clone());
+        min_value = Some(&v[num_args..]);
+        result.push(v);
       }
     }
     return result;
   }
 
-  fn maximum(self) -> Vec<Tuple> {
+  fn maximum(self) -> Vec<&'a Tuple> {
     let mut result = vec![];
     let mut min_value = None;
     for v in self {
-      if let Some(m) = &min_value {
+      if let Some(m) = min_value {
         if v == m {
-          result.push(v.clone());
+          result.push(v);
         } else if v > m {
-          min_value = Some(v.clone());
+          min_value = Some(v);
           result.clear();
-          result.push(v.clone());
+          result.push(v);
         }
       } else {
-        min_value = Some(v.clone());
-        result.push(v.clone());
+        min_value = Some(v);
+        result.push(v);
       }
     }
     return result;
   }
 
-  fn arg_maximum(self) -> Vec<Tuple> {
+  fn arg_maximum(self, num_args: usize) -> Vec<&'a Tuple> {
     let mut result = vec![];
-    let mut min_value = None;
+    let mut max_value: Option<&[Tuple]> = None;
     for v in self {
-      if let Some(m) = &min_value {
-        if &v[1] == m {
-          result.push(v.clone());
-        } else if &v[1] > m {
-          min_value = Some(v[1].clone());
+      if let Some(m) = &max_value {
+        if &v[num_args..] == &m[..] {
+          result.push(v);
+        } else if &v[num_args..] > &m[..] {
+          max_value = Some(&v[num_args..]);
           result.clear();
-          result.push(v.clone());
+          result.push(v);
         }
       } else {
-        min_value = Some(v[1].clone());
-        result.push(v.clone());
+        max_value = Some(&v[num_args..]);
+        result.push(v);
       }
     }
     return result;

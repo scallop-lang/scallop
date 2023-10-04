@@ -16,6 +16,8 @@ pub trait Float:
   fn zero() -> Self;
 
   fn one() -> Self;
+
+  fn from_f64(f: f64) -> Self;
 }
 
 impl Float for f32 {
@@ -26,6 +28,10 @@ impl Float for f32 {
   fn one() -> Self {
     1.0
   }
+
+  fn from_f64(f: f64) -> Self {
+    f as f32
+  }
 }
 
 impl Float for f64 {
@@ -35,5 +41,9 @@ impl Float for f64 {
 
   fn one() -> Self {
     1.0
+  }
+
+  fn from_f64(f: f64) -> Self {
+    f
   }
 }

@@ -18,31 +18,27 @@ impl<'a> TransformConstVarToConst<'a> {
       .entity_facts
       .iter()
       .map(|entity_fact| {
-        Item::RelationDecl(
-          RelationDecl::Fact(
-            FactDecl::new(
-              Attributes::new(),
-              Tag::new(DynamicInputTag::None),
-              Atom::new_with_loc(
-                {
-                  entity_fact
-                    .functor
-                    .clone_without_location_id()
-                    .map(|n| format!("adt#{n}"))
-                },
-                vec![],
-                {
-                  std::iter::once(&entity_fact.id)
-                    .chain(entity_fact.args.iter())
-                    .cloned()
-                    .map(Expr::Constant)
-                    .collect()
-                },
-                entity_fact.loc.clone(),
-              ),
-            ),
+        Item::RelationDecl(RelationDecl::Fact(FactDecl::new(
+          Attributes::new(),
+          Tag::new(DynamicInputTag::None),
+          Atom::new_with_loc(
+            {
+              entity_fact
+                .functor
+                .clone_without_location_id()
+                .map(|n| format!("adt#{n}"))
+            },
+            vec![],
+            {
+              std::iter::once(&entity_fact.id)
+                .chain(entity_fact.args.iter())
+                .cloned()
+                .map(Expr::Constant)
+                .collect()
+            },
+            entity_fact.loc.clone(),
           ),
-        )
+        )))
       })
       .collect()
   }

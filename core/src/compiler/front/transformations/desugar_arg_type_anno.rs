@@ -21,7 +21,11 @@ impl DesugarArgTypeAdornment {
   pub fn retain_relation(&mut self, rel_type: &RelationType, existing_attrs: &Vec<Attribute>) -> bool {
     if rel_type.has_adornment() {
       let demand_attr = Self::generate_demand_attribute(rel_type);
-      let attrs: Vec<_> = existing_attrs.iter().cloned().chain(std::iter::once(demand_attr)).collect();
+      let attrs: Vec<_> = existing_attrs
+        .iter()
+        .cloned()
+        .chain(std::iter::once(demand_attr))
+        .collect();
       let item = Item::TypeDecl(TypeDecl::Relation(RelationTypeDecl::new(attrs, vec![rel_type.clone()])));
       self.new_items.push(item);
       false

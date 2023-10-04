@@ -20,7 +20,7 @@ pub struct ForeignPredicateJoinDataflow<'a, Prov: Provenance> {
   pub ctx: &'a Prov,
 
   /// Runtime environment
-  pub runtime: &'a RuntimeEnvironment
+  pub runtime: &'a RuntimeEnvironment,
 }
 
 impl<'a, Prov: Provenance> Clone for ForeignPredicateJoinDataflow<'a, Prov> {
@@ -39,7 +39,8 @@ impl<'a, Prov: Provenance> Dataflow<'a, Prov> for ForeignPredicateJoinDataflow<'
   fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
     DynamicBatches::new(ForeignPredicateJoinBatches {
       batches: self.left.iter_stable(),
-      foreign_predicate: self.runtime
+      foreign_predicate: self
+        .runtime
         .predicate_registry
         .get(&self.foreign_predicate)
         .expect("Foreign predicate not found")
@@ -53,7 +54,8 @@ impl<'a, Prov: Provenance> Dataflow<'a, Prov> for ForeignPredicateJoinDataflow<'
   fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     DynamicBatches::new(ForeignPredicateJoinBatches {
       batches: self.left.iter_recent(),
-      foreign_predicate: self.runtime
+      foreign_predicate: self
+        .runtime
         .predicate_registry
         .get(&self.foreign_predicate)
         .expect("Foreign predicate not found")

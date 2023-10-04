@@ -133,9 +133,9 @@ fn bad_enum_type_decl() {
 fn bad_no_binding_agg_1() {
   expect_front_compile_failure(
     r#"
-    rel r() = x := count(edge(1, 3))
+    rel r() = x := sum(edge(1, 3))
     "#,
-    |e| e.contains("binding variables of `count` aggregation cannot be empty"),
+    |e| e.contains("arity mismatch on aggregate `sum`. Expected 1 input variables, but found 0"),
   )
 }
 
@@ -145,6 +145,6 @@ fn issue_96() {
     r#"
     type semantic_parse(bound q: String, e: Expr)
     "#,
-    |e| e.contains("unknown custom type `Expr`")
+    |e| e.contains("unknown custom type `Expr`"),
   )
 }

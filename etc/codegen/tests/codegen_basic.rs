@@ -301,6 +301,24 @@ fn codegen_out_degree_2() {
 }
 
 #[test]
+fn codegen_exists_1() {
+  mod exists_1 {
+    use scallop_codegen::scallop;
+    scallop! {
+      rel edge = {(0, 1), (1, 2)}
+      rel path(x, y) = edge(x, y) or (path(x, z) and edge(z, y))
+      rel result1(b) = b := exists(path(0, 2))
+      rel result2(b) = b := exists(path(0, 3))
+    }
+  }
+
+  let mut ctx = unit::UnitProvenance::default();
+  let result = exists_1::run(&mut ctx);
+  expect_static_output_collection(&result.result1, vec![(true,)]);
+  expect_static_output_collection(&result.result2, vec![(false,)]);
+}
+
+#[test]
 fn codegen_sum_1() {
   mod sum_1 {
     use scallop_codegen::scallop;
@@ -506,7 +524,7 @@ fn codegen_srl_1() {
         noun(n, _, "Person"),
         synonym(vid, vid0)
 
-      rel how_many_play_soccer(c) = c = count(n: plays_soccer(n))
+      rel how_many_play_soccer(c) = c := count(n: plays_soccer(n))
     }
   }
   let mut ctx = unit::UnitProvenance::default();
@@ -528,7 +546,7 @@ fn codegen_class_student_grade_1() {
         (1, "frank", 30),
       }
 
-      rel class_top_student(c, s) = _ = max[s](g: class_student_grade(c, s, g))
+      rel class_top_student(c, s) = s := argmax[s](g: class_student_grade(c, s, g))
     }
   }
   let mut ctx = unit::UnitProvenance::default();

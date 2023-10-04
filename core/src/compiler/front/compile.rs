@@ -7,6 +7,7 @@ use super::analyzers::*;
 use super::attribute::*;
 use super::*;
 
+use crate::common::foreign_aggregate::*;
 use crate::common::foreign_function::*;
 use crate::common::foreign_predicate::*;
 use crate::common::tuple_type::*;
@@ -33,6 +34,9 @@ pub struct FrontContext {
   /// Foreign predicate registry holding all foreign predicates
   pub foreign_predicate_registry: ForeignPredicateRegistry,
 
+  /// Foreign aggregate registry holding all foreign aggregates
+  pub foreign_aggregate_registry: AggregateRegistry,
+
   /// Attribute processor registry holding all attribute processors
   pub attribute_processor_registry: AttributeProcessorRegistry,
 
@@ -47,13 +51,15 @@ impl FrontContext {
   pub fn new() -> Self {
     let function_registry = ForeignFunctionRegistry::std();
     let predicate_registry = ForeignPredicateRegistry::std();
+    let aggregate_registry = AggregateRegistry::std();
     let attribute_registry = AttributeProcessorRegistry::new();
-    let analysis = Analysis::new(&function_registry, &predicate_registry);
+    let analysis = Analysis::new(&function_registry, &predicate_registry, &aggregate_registry);
     Self {
       sources: Sources::new(),
       items: Vec::new(),
       foreign_function_registry: function_registry,
       foreign_predicate_registry: predicate_registry,
+      foreign_aggregate_registry: aggregate_registry,
       attribute_processor_registry: attribute_registry,
       imported_files: HashSet::new(),
       node_id_annotator: NodeIdAnnotator::new(),
@@ -357,7 +363,12 @@ impl FrontContext {
   }
 
   pub fn relations(&self) -> Vec<String> {
-    self.type_inference().relations().into_iter().filter(|r| !self.is_hidden_relation(r)).collect()
+    self
+      .type_inference()
+      .relations()
+      .into_iter()
+      .filter(|r| !self.is_hidden_relation(r))
+      .collect()
   }
 
   pub fn is_hidden_relation(&self, r: &str) -> bool {

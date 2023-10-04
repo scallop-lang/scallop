@@ -1,6 +1,5 @@
 use std::collections::*;
 
-use crate::common::aggregate_op::*;
 use crate::common::output_option::OutputOption;
 use crate::common::value_type::ValueType;
 use crate::compiler::back;
@@ -10,7 +9,7 @@ use super::super::ast as front;
 use super::super::compile::*;
 use super::FlattenExprContext;
 
-use front::{AstNode, NodeLocation, AstWalker};
+use front::{AstNode, AstWalker, NodeLocation};
 
 impl FrontContext {
   pub fn to_back_program(&self) -> back::Program {
@@ -47,6 +46,7 @@ impl FrontContext {
       rules,
       function_registry: self.foreign_function_registry.clone(),
       predicate_registry: self.foreign_predicate_registry.clone(),
+      aggregate_registry: self.foreign_aggregate_registry.clone(),
       adt_variant_registry: self.type_inference().create_adt_variant_registry(),
     }
   }
@@ -469,56 +469,62 @@ impl FrontContext {
       .chain(to_agg_var_names.iter())
       .cloned()
       .collect::<Vec<_>>();
-    let body_tys = self.type_inference().variable_types(src_rule_loc, body_args.iter());
-    let body_terms = self.back_terms_with_types(body_args.clone(), body_tys.clone());
+    let body_arg_tys = self.type_inference().variable_types(src_rule_loc, body_args.iter());
+    let body_terms = self.back_terms_with_types(body_args.clone(), body_arg_tys.clone());
 
-    // Get the reduce literal
+    // Get the variables for reduce literal
     let group_by_vars = self.back_vars(src_rule_loc, group_by_vars.into_iter().collect());
     let other_group_by_vars = self.back_vars(src_rule_loc, other_group_by_vars);
-    let to_agg_vars = self.back_vars(src_rule_loc, to_agg_var_names.into_iter().collect());
-    let left_vars = self.back_vars(src_rule_loc, agg_ctx.left_variable_names().into_iter().collect());
-    let arg_vars = self.back_vars(src_rule_loc, arg_var_names.into_iter().collect());
+    let to_agg_vars = self.back_vars(src_rule_loc, to_agg_var_names.clone());
+    let left_vars = agg_ctx
+      .result_var_or_wildcards
+      .iter()
+      .map(|(loc, maybe_name)| {
+        if let Some(name) = maybe_name {
+          back::Variable::new(name.clone(), self.type_inference().variable_type(src_rule_loc, name))
+        } else {
+          let name = format!("agg#wc#{}", loc.id.expect("[internal error] should have id"));
+          let ty = self
+            .type_inference()
+            .loc_value_type(loc)
+            .expect("[internal error] should have inferred type");
+          back::Variable::new(name, ty)
+        }
+      })
+      .collect();
+    let arg_vars = self.back_vars(src_rule_loc, arg_var_names.iter().cloned().collect());
+
+    // Get the types of the variables for reduce literal
+    let left_var_types = self
+      .type_inference()
+      .loc_value_types(agg_ctx.result_var_or_wildcards.iter().map(|(l, _)| l))
+      .expect("[internal error] detected result of reduce without inferred type");
+    let arg_var_types = self.type_inference().variable_types(src_rule_loc, arg_var_names.iter());
+    let to_agg_var_types = self
+      .type_inference()
+      .variable_types(src_rule_loc, to_agg_var_names.iter());
 
     // Generate the internal aggregate operator
-    let op = match &agg_ctx.aggregate_op {
-      front::_ReduceOp::Count(discrete) => {
-        AggregateOp::Count { discrete: *discrete }
-      },
-      front::_ReduceOp::Sum => {
-        assert_eq!(
-          left_vars.len(),
-          1,
-          "[Internal Error] There should be only one var for summation"
-        );
-        AggregateOp::Sum(left_vars[0].ty.clone())
-      }
-      front::_ReduceOp::Prod => {
-        assert_eq!(
-          left_vars.len(),
-          1,
-          "[Internal Error] There should be only one var for production"
-        );
-        AggregateOp::Prod(left_vars[0].ty.clone())
-      }
-      front::_ReduceOp::Min => AggregateOp::min(!arg_vars.is_empty()),
-      front::_ReduceOp::Max => AggregateOp::max(!arg_vars.is_empty()),
-      front::_ReduceOp::Exists => AggregateOp::Exists,
-      front::_ReduceOp::Unique => AggregateOp::top_k(1),
-      front::_ReduceOp::TopK(k) => AggregateOp::top_k(k.clone()),
-      front::_ReduceOp::CategoricalK(k) => AggregateOp::categorical_k(k.clone()),
-      front::_ReduceOp::Forall => {
-        panic!("[Internal Error] There should be no forall aggregator op. This is a bug");
-      }
-      front::_ReduceOp::Unknown(_) => {
-        panic!("[Internal Error] There should be no unknown aggregator op. This is a bug");
-      }
-    };
+    let op = agg_ctx.aggregate_op.name.name().to_string();
+    let params = agg_ctx
+      .aggregate_op
+      .parameters
+      .iter()
+      .map(|p| {
+        let value_type = self
+          .type_inference()
+          .expr_value_type(p)
+          .expect("[internal error] aggregate param not grounded with value type");
+        p.to_value(&value_type)
+      })
+      .collect::<Vec<_>>();
+    let has_exclamation_mark = agg_ctx.aggregate_op.has_exclaimation_mark;
 
     // Get the body to-aggregate relation
     let body_attr =
       back::AggregateBodyAttribute::new(op.clone(), group_by_vars.len(), arg_vars.len(), to_agg_vars.len());
     let body_attrs = back::Attributes::singleton(body_attr);
-    let body_relation = back::Relation::new_with_attrs(body_attrs, body_predicate.clone(), body_tys.clone());
+    let body_relation = back::Relation::new_with_attrs(body_attrs, body_predicate.clone(), body_arg_tys.clone());
     temp_relations.push(body_relation);
 
     // Get the rules for body
@@ -538,12 +544,21 @@ impl FrontContext {
     // Get the literal
     let body_atom = back::Atom::new(body_predicate.clone(), body_terms);
     let reduce_literal = back::Reduce::new(
+      // Aggregator
       op,
+      params,
+      has_exclamation_mark,
+      // types
+      left_var_types,
+      arg_var_types,
+      to_agg_var_types,
+      // Variables
       left_vars,
       group_by_vars,
       other_group_by_vars,
       arg_vars,
       to_agg_vars,
+      // Bodies
       body_atom,
       group_by_atom,
     );
@@ -559,11 +574,6 @@ impl FrontContext {
       .map(|(v, t)| back::Term::variable(v, t))
       .collect()
   }
-
-  // fn back_terms(&self, src_rule_loc: &NodeLocation, var_names: Vec<String>) -> Vec<back::Term> {
-  //   let var_tys = self.type_inference().variable_types(src_rule_loc, var_names.iter());
-  //   self.back_terms_with_types(var_names, var_tys)
-  // }
 
   fn back_vars_with_types(&self, var_names: Vec<String>, var_tys: Vec<ValueType>) -> Vec<back::Variable> {
     var_names

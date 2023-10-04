@@ -1,5 +1,5 @@
-use std::any::Any;
 use serde::*;
+use std::any::Any;
 
 use super::*;
 
@@ -17,9 +17,7 @@ pub struct DynamicExternalTensor {
 
 impl DynamicExternalTensor {
   pub fn new<T: ExternalTensor>(t: T) -> Self {
-    Self {
-      tensor: Box::new(t),
-    }
+    Self { tensor: Box::new(t) }
   }
 
   pub fn internal(&self) -> &dyn ExternalTensor {
@@ -34,7 +32,7 @@ impl DynamicExternalTensor {
 impl Clone for DynamicExternalTensor {
   fn clone(&self) -> Self {
     Self {
-      tensor: dyn_clone::clone_box(&*self.tensor)
+      tensor: dyn_clone::clone_box(&*self.tensor),
     }
   }
 }

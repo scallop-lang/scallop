@@ -1,5 +1,6 @@
 # Change Log
 
-## [Unreleased]
+## 0.1.1, Sep 23, 2023
 
-- Initial release
+- Improved aggregation syntax to allow for arbitrary aggregates
+- Fixed disjunctive head syntax

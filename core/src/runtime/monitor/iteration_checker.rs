@@ -6,6 +6,7 @@ use super::*;
 ///
 /// A monitor with iteration limit; will panic if the execution uses an iteration
 /// over the limit
+#[derive(Clone)]
 pub struct IterationCheckingMonitor {
   iter_limit: usize,
 }
@@ -17,6 +18,10 @@ impl IterationCheckingMonitor {
 }
 
 impl<Prov: Provenance> Monitor<Prov> for IterationCheckingMonitor {
+  fn name(&self) -> &'static str {
+    "iteration-checking"
+  }
+
   fn observe_stratum_iteration(&self, iteration_count: usize) {
     if iteration_count > self.iter_limit {
       panic!(

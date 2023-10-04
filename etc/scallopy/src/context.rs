@@ -107,8 +107,13 @@ impl Context {
   /// * `k` - an unsigned integer serving as the hyper-parameter for provenance such as `"topkproofs"`
   /// * `custom_provenance` - an optional python object serving as the provenance context
   #[new]
-  #[pyo3(signature=(provenance="unit", k=3, custom_provenance=None))]
-  fn new(provenance: &str, k: usize, custom_provenance: Option<Py<PyAny>>) -> Result<Self, BindingError> {
+  #[pyo3(signature=(provenance="unit", k=3, wmc_with_disjunctions=false, custom_provenance=None))]
+  fn new(
+    provenance: &str,
+    k: usize,
+    wmc_with_disjunctions: bool,
+    custom_provenance: Option<Py<PyAny>>,
+  ) -> Result<Self, BindingError> {
     // Check provenance type
     match provenance {
       "unit" => Ok(Self {
@@ -129,12 +134,12 @@ impl Context {
       }),
       "topkproofs" => Ok(Self {
         ctx: ContextEnum::TopKProofs(IntegrateContext::new_incremental(
-          top_k_proofs::TopKProofsProvenance::new(k),
+          top_k_proofs::TopKProofsProvenance::new(k, wmc_with_disjunctions),
         )),
       }),
       "topbottomkclauses" => Ok(Self {
         ctx: ContextEnum::TopBottomKClauses(IntegrateContext::new_incremental(
-          top_bottom_k_clauses::TopBottomKClausesProvenance::new(k),
+          top_bottom_k_clauses::TopBottomKClausesProvenance::new(k, wmc_with_disjunctions),
         )),
       }),
       "diffminmaxprob" => Ok(Self {
@@ -169,12 +174,12 @@ impl Context {
       }),
       "difftopkproofs" => Ok(Self {
         ctx: ContextEnum::DiffTopKProofs(IntegrateContext::new_incremental(
-          diff_top_k_proofs::DiffTopKProofsProvenance::new(k),
+          diff_top_k_proofs::DiffTopKProofsProvenance::new(k, wmc_with_disjunctions),
         )),
       }),
       "difftopbottomkclauses" => Ok(Self {
         ctx: ContextEnum::DiffTopBottomKClauses(IntegrateContext::new_incremental(
-          diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance::new(k),
+          diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance::new(k, wmc_with_disjunctions),
         )),
       }),
       "custom" => {
@@ -196,7 +201,7 @@ impl Context {
   }
 
   /// Create a new scallop context with a different provenance as the current context
-  fn clone_with_new_provenance(&self, provenance: &str, k: usize) -> Result<Self, BindingError> {
+  fn clone_with_new_provenance(&self, provenance: &str, k: usize, wmc_with_disjunctions: bool) -> Result<Self, BindingError> {
     // Check provenance type
     match provenance {
       "unit" => Ok(Self {
@@ -231,14 +236,14 @@ impl Context {
         ctx: ContextEnum::TopKProofs(match_context_except_custom!(
           &self.ctx,
           c,
-          c.clone_with_new_provenance(top_k_proofs::TopKProofsProvenance::new(k))
+          c.clone_with_new_provenance(top_k_proofs::TopKProofsProvenance::new(k, wmc_with_disjunctions))
         )?),
       }),
       "topbottomkclauses" => Ok(Self {
         ctx: ContextEnum::TopBottomKClauses(match_context_except_custom!(
           &self.ctx,
           c,
-          c.clone_with_new_provenance(top_bottom_k_clauses::TopBottomKClausesProvenance::new(k),)
+          c.clone_with_new_provenance(top_bottom_k_clauses::TopBottomKClausesProvenance::new(k, wmc_with_disjunctions),)
         )?),
       }),
       "diffminmaxprob" => Ok(Self {
@@ -287,14 +292,14 @@ impl Context {
         ctx: ContextEnum::DiffTopKProofs(match_context_except_custom!(
           &self.ctx,
           c,
-          c.clone_with_new_provenance(diff_top_k_proofs::DiffTopKProofsProvenance::new(k),)
+          c.clone_with_new_provenance(diff_top_k_proofs::DiffTopKProofsProvenance::new(k, wmc_with_disjunctions),)
         )?),
       }),
       "difftopbottomkclauses" => Ok(Self {
         ctx: ContextEnum::DiffTopBottomKClauses(match_context_except_custom!(
           &self.ctx,
           c,
-          c.clone_with_new_provenance(diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance::new(k),)
+          c.clone_with_new_provenance(diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance::new(k, wmc_with_disjunctions),)
         )?),
       }),
       "custom" => Err(BindingError::CustomProvenanceUnsupported),
@@ -336,6 +341,11 @@ impl Context {
   /// Remove the iteration limit
   fn remove_iter_limit(&mut self) {
     match_context!(&mut self.ctx, c, c.remove_iter_limit())
+  }
+
+  /// Add monitors to the system
+  fn add_monitors(&mut self, monitors: Vec<&str>) {
+    match_context!(&mut self.ctx, c, c.add_monitors(&monitors))
   }
 
   /// Compile the surface program stored in the scallopy context into the ram program.

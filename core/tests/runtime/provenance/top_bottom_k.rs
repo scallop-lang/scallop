@@ -7,7 +7,7 @@ mod diff {
 
   #[test]
   fn test_diff_top_bottom_k_clauses_1() {
-    let ctx = DiffTopBottomKClausesProvenance::<(), RcFamily>::new(1);
+    let ctx = DiffTopBottomKClausesProvenance::<(), RcFamily>::new(1, false);
 
     // Create a few tags
     let a = ctx.tagging_fn((0.9, (), None).into());
@@ -29,7 +29,7 @@ mod diff {
 
   #[test]
   fn test_diff_top_bottom_k_clauses_2() {
-    let ctx = DiffTopBottomKClausesProvenance::<(), RcFamily>::new(1);
+    let ctx = DiffTopBottomKClausesProvenance::<(), RcFamily>::new(1, false);
 
     // Create a few tags
     let a = ctx.tagging_fn((0.1, (), None).into());

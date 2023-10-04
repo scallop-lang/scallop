@@ -3,7 +3,7 @@ pub use std::iter::FromIterator;
 
 #[derive(Clone, Debug)]
 pub struct Disjunction {
-  facts: BTreeSet<usize>,
+  pub facts: BTreeSet<usize>,
 }
 
 impl Disjunction {
@@ -70,8 +70,8 @@ impl FromIterator<usize> for Disjunction {
 
 #[derive(Clone, Debug, Default)]
 pub struct Disjunctions {
-  id_map: HashMap<usize, usize>,
-  disjunctions: Vec<Disjunction>,
+  pub id_map: HashMap<usize, usize>,
+  pub disjunctions: Vec<Disjunction>,
 }
 
 impl Disjunctions {

@@ -154,7 +154,7 @@ It is also possible to get argmax/argmin.
 Suppose we want to get the person (along with their grade) who scored the best, we write:
 
 ``` scl
-rel best_student(n, s) = s := max[n](s: exam_grades(n, s))
+rel best_student(n, s) = (n, s) := max[n](s: exam_grades(n, s))
 ```
 
 Here, we are still finding the maximum score `s`, but along with `max` we have specified the "arg" (`[n]`) which associates with the maximum score.
@@ -163,8 +163,14 @@ The arg variable is grounded by the aggregation body, and can be directly used i
 
 If we do not care about the grade and just want to know who has the best grade, we can use wildcard `_` to ignore the result variable, like
 
+``` scl
+rel best_student(n) = (n, _) := max[n](s: exam_grades(n, s))
 ```
-rel best_student(n) = _ := max[n](s: exam_grades(n, s))
+
+Alternatively, we can also use `argmax`:
+
+``` scl
+rel best_student(n) = n := argmax[n](s: exam_grades(n, s))
 ```
 
 ## Exists and Forall

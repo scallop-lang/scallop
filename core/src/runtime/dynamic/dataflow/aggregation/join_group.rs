@@ -3,7 +3,7 @@ use itertools::*;
 use super::*;
 
 pub struct DynamicAggregationJoinGroupDataflow<'a, Prov: Provenance> {
-  pub agg: DynamicAggregator,
+  pub agg: DynamicAggregator<Prov>,
   pub d1: DynamicDataflow<'a, Prov>,
   pub d2: DynamicDataflow<'a, Prov>,
   pub ctx: &'a Prov,
@@ -23,8 +23,20 @@ impl<'a, Prov: Provenance> Clone for DynamicAggregationJoinGroupDataflow<'a, Pro
 }
 
 impl<'a, Prov: Provenance> DynamicAggregationJoinGroupDataflow<'a, Prov> {
-  pub fn new(agg: DynamicAggregator, d1: DynamicDataflow<'a, Prov>, d2: DynamicDataflow<'a, Prov>, ctx: &'a Prov, runtime: &'a RuntimeEnvironment) -> Self {
-    Self { agg, d1, d2, ctx, runtime }
+  pub fn new(
+    agg: DynamicAggregator<Prov>,
+    d1: DynamicDataflow<'a, Prov>,
+    d2: DynamicDataflow<'a, Prov>,
+    ctx: &'a Prov,
+    runtime: &'a RuntimeEnvironment,
+  ) -> Self {
+    Self {
+      agg,
+      d1,
+      d2,
+      ctx,
+      runtime,
+    }
   }
 }
 
@@ -105,7 +117,7 @@ impl<'a, Prov: Provenance> Dataflow<'a, Prov> for DynamicAggregationJoinGroupDat
           .iter()
           .map(|e| DynamicElement::new(e.tuple[1].clone(), e.tag.clone()))
           .collect::<Vec<_>>();
-        let agg_results = self.agg.aggregate(to_agg_tups, self.ctx, self.runtime);
+        let agg_results = self.agg.aggregate(self.ctx, self.runtime, to_agg_tups);
         iproduct!(group_by_vals, agg_results)
           .map(|((tag, t1), agg_result)| {
             DynamicElement::new(

@@ -1,5 +1,5 @@
-use scallop_core::common::aggregate_op::AggregateOp;
 use scallop_core::common::expr::*;
+use scallop_core::common::value_type::ValueType;
 use scallop_core::compiler::ram::*;
 use scallop_core::runtime::dynamic::*;
 use scallop_core::runtime::env::*;
@@ -10,9 +10,9 @@ fn test_iteration_1<Prov>() -> DynamicCollection<Prov>
 where
   Prov: Provenance + Default,
 {
-  let mut ctx = Prov::default();
+  let ctx = Prov::default();
+  let rt = RuntimeEnvironment::default();
   let mut iter = DynamicIteration::<Prov>::new();
-  let mut rt = RuntimeEnvironment::default();
 
   // First create relations
   iter.create_dynamic_relation("edge");
@@ -22,7 +22,7 @@ where
   // Insert EDB facts
   iter
     .get_dynamic_relation_unsafe("edge")
-    .insert_untagged(&mut ctx, vec![(0, 1), (1, 2), (1, 3)]);
+    .insert_untagged(&ctx, vec![(0, 1), (1, 2), (1, 3)]);
 
   // Insert updates
   iter.add_update_dataflow("path", Dataflow::relation("edge"));
@@ -42,7 +42,7 @@ where
   iter.add_output_relation("edge");
 
   // Run the iteration
-  let mut result = iter.run(&ctx, &mut rt);
+  let mut result = iter.run(&ctx, &rt);
 
   // Test the result
   expect_collection(&result["path"], vec![(0, 1), (1, 2), (0, 2), (1, 3), (0, 3)]);
@@ -71,15 +71,15 @@ fn test_iteration_2<Prov>() -> DynamicCollection<Prov>
 where
   Prov: Provenance + Default,
 {
-  let mut ctx = Prov::default();
-  let mut rt = RuntimeEnvironment::default();
+  let ctx = Prov::default();
+  let rt = RuntimeEnvironment::default();
 
   let result_1 = {
     let mut strata_1 = DynamicIteration::<Prov>::new();
     strata_1.create_dynamic_relation("color");
     strata_1.create_dynamic_relation("_color_rev");
     strata_1.get_dynamic_relation_unsafe("color").insert_untagged(
-      &mut ctx,
+      &ctx,
       vec![
         (0, "blue"),
         (1, "green"),
@@ -94,7 +94,7 @@ where
       Dataflow::relation("color").project((Expr::access(1), Expr::access(0))),
     );
     strata_1.add_output_relation("_color_rev");
-    strata_1.run(&ctx, &mut rt)
+    strata_1.run(&ctx, &rt)
   };
 
   let result_2 = {
@@ -103,10 +103,18 @@ where
     strata_2.add_input_dynamic_collection("_color_rev", &result_1["_color_rev"]);
     strata_2.add_update_dataflow(
       "color_count",
-      Dataflow::reduce(AggregateOp::count(), "_color_rev", ReduceGroupByType::Implicit),
+      Dataflow::reduce(
+        "count".to_string(),
+        vec![],
+        false,
+        vec![],
+        vec![ValueType::I32],
+        "_color_rev",
+        ReduceGroupByType::Implicit,
+      ),
     );
     strata_2.add_output_relation("color_count");
-    strata_2.run(&ctx, &mut rt)
+    strata_2.run(&ctx, &rt)
   };
 
   let mut result_3 = {
@@ -115,10 +123,18 @@ where
     strata_3.add_input_dynamic_collection("color_count", &result_2["color_count"]);
     strata_3.add_update_dataflow(
       "max_color_count",
-      Dataflow::reduce(AggregateOp::Argmax, "color_count", ReduceGroupByType::None),
+      Dataflow::reduce(
+        "max".to_string(),
+        vec![],
+        false,
+        vec![ValueType::Str],
+        vec![ValueType::USize],
+        "color_count",
+        ReduceGroupByType::None,
+      ),
     );
     strata_3.add_output_relation("max_color_count");
-    strata_3.run(&ctx, &mut rt)
+    strata_3.run(&ctx, &rt)
   };
 
   expect_collection(&result_3["max_color_count"], vec![("blue", 3usize)]);

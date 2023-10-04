@@ -10,11 +10,19 @@ pub struct DynamicProjectDataflow<'a, Prov: Provenance> {
 
 impl<'a, Prov: Provenance> Dataflow<'a, Prov> for DynamicProjectDataflow<'a, Prov> {
   fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::new(DynamicProjectBatches::new(self.runtime, self.source.iter_stable(), self.expression.clone()))
+    DynamicBatches::new(DynamicProjectBatches::new(
+      self.runtime,
+      self.source.iter_stable(),
+      self.expression.clone(),
+    ))
   }
 
   fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::new(DynamicProjectBatches::new(self.runtime, self.source.iter_recent(), self.expression.clone()))
+    DynamicBatches::new(DynamicProjectBatches::new(
+      self.runtime,
+      self.source.iter_recent(),
+      self.expression.clone(),
+    ))
   }
 }
 
@@ -27,7 +35,11 @@ pub struct DynamicProjectBatches<'a, Prov: Provenance> {
 
 impl<'a, Prov: Provenance> DynamicProjectBatches<'a, Prov> {
   pub fn new(runtime: &'a RuntimeEnvironment, source: DynamicBatches<'a, Prov>, expression: Expr) -> Self {
-    Self { runtime, source, expression }
+    Self {
+      runtime,
+      source,
+      expression,
+    }
   }
 }
 

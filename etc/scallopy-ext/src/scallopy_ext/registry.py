@@ -4,25 +4,27 @@ from argparse import ArgumentParser
 
 import scallopy
 
+from . import utils
+
 class PluginRegistry:
   def __init__(self):
-    self.setup_argparse_functions = entry_points(group="scallop.plugin.setup_arg_parser")
-    self.configure_functions = entry_points(group="scallop.plugin.configure")
-    self.loading_functions = entry_points(group="scallop.plugin.load_into_context")
+    self.setup_argparse_functions = utils.dedup(entry_points(group="scallop.plugin.setup_arg_parser"))
+    self.configure_functions = utils.dedup(entry_points(group="scallop.plugin.configure"))
+    self.loading_functions = utils.dedup(entry_points(group="scallop.plugin.load_into_context"))
     self.unknown_args = {}
 
   def loaded_plugins(self) -> List[str]:
     all_plugins = set()
     for setup_module in self.setup_argparse_functions:
-      all_plugins.add(setup_module.name)
-    for setup_module in self.setup_argparse_functions:
-      all_plugins.add(setup_module.name)
-    for setup_module in self.setup_argparse_functions:
-      all_plugins.add(setup_module.name)
+      all_plugins.add(f"{setup_module.name}::setup_arg_parser")
+    for config_module in self.configure_functions:
+      all_plugins.add(f"{config_module.name}::configure")
+    for loading_module in self.loading_functions:
+      all_plugins.add(f"{loading_module.name}::load_into_context")
     return list(all_plugins)
 
   def dump_loaded_plugins(self):
-    print("[scallopy-ext] Loaded plugins:", self.loaded_plugins())
+    print("[scallopy-ext] Loaded plugins:", ", ".join(self.loaded_plugins()))
 
   def setup_argument_parser(self, parser: ArgumentParser):
     for setup_module in self.setup_argparse_functions:

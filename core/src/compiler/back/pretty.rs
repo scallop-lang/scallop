@@ -301,7 +301,7 @@ impl Display for Reduce {
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
     if self.left_vars.len() > 1 {
       f.write_fmt(format_args!(
-        "({}) = ",
+        "({}) := ",
         self
           .left_vars
           .iter()
@@ -310,7 +310,15 @@ impl Display for Reduce {
           .join(", ")
       ))?;
     } else if self.left_vars.len() == 1 {
-      f.write_fmt(format_args!("{} = ", self.left_vars[0].name))?;
+      f.write_fmt(format_args!("{} := ", self.left_vars[0].name))?;
+    }
+    f.write_str(&self.aggregator)?;
+    if self.params.len() > 0 {
+      let params = self.params.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", ");
+      f.write_str(&params)?;
+    }
+    if self.has_exclamation_mark {
+      f.write_str("!")?;
     }
     let group_by_vars = if self.group_by_vars.is_empty() {
       String::new()
@@ -352,8 +360,8 @@ impl Display for Reduce {
       .collect::<Vec<_>>()
       .join(", ");
     f.write_fmt(format_args!(
-      "{}{}{}({}: {}{})",
-      self.op, group_by_vars, arg_vars, to_agg_vars, self.body_formula, group_by_atom
+      "{}{}({}: {}{})",
+      group_by_vars, arg_vars, to_agg_vars, self.body_formula, group_by_atom
     ))
   }
 }

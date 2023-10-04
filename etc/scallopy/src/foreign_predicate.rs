@@ -25,12 +25,14 @@ pub struct PythonForeignPredicate {
 impl PythonForeignPredicate {
   pub fn new(fp: PyObject) -> Self {
     Python::with_gil(|py| {
-      let name = fp.getattr(py, "name")
+      let name = fp
+        .getattr(py, "name")
         .expect("Cannot get foreign predicate name")
         .extract(py)
         .expect("Foreign predicate name cannot be extracted into String");
 
-      let suppress_warning = fp.getattr(py, "suppress_warning")
+      let suppress_warning = fp
+        .getattr(py, "suppress_warning")
         .expect("Cannot get foreign predicate `suppress_warning`")
         .extract(py)
         .expect("Foreign predicate `suppress_warning` cannot be extracted into bool");

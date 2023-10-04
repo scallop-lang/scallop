@@ -9,11 +9,17 @@ pub struct DynamicFindDataflow<'a, Prov: Provenance> {
 
 impl<'a, Prov: Provenance> Dataflow<'a, Prov> for DynamicFindDataflow<'a, Prov> {
   fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::new(DynamicFindBatches { source: self.source.iter_stable(), key: self.key.clone() })
+    DynamicBatches::new(DynamicFindBatches {
+      source: self.source.iter_stable(),
+      key: self.key.clone(),
+    })
   }
 
   fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::new(DynamicFindBatches { source: self.source.iter_recent(), key: self.key.clone() })
+    DynamicBatches::new(DynamicFindBatches {
+      source: self.source.iter_recent(),
+      key: self.key.clone(),
+    })
   }
 }
 
@@ -49,17 +55,15 @@ impl<'a, Prov: Provenance> Batch<'a, Prov> for DynamicFindBatch<'a, Prov> {
     let key = self.key.clone();
     loop {
       match &self.curr_elem {
-        Some(elem) => {
-          match elem.tuple[0].cmp(&key) {
-            Ordering::Less => self.curr_elem = self.source.search_elem_0_until(&key),
-            Ordering::Equal => {
-              let result = elem.clone();
-              self.curr_elem = self.source.next_elem();
-              return Some(result);
-            }
-            Ordering::Greater => return None,
+        Some(elem) => match elem.tuple[0].cmp(&key) {
+          Ordering::Less => self.curr_elem = self.source.search_elem_0_until(&key),
+          Ordering::Equal => {
+            let result = elem.clone();
+            self.curr_elem = self.source.next_elem();
+            return Some(result);
           }
-        }
+          Ordering::Greater => return None,
+        },
         None => return None,
       }
     }

@@ -18,9 +18,7 @@ pub struct DynamicTensorRegistry {
 
 impl DynamicTensorRegistry {
   pub fn new() -> Self {
-    Self {
-      maybe_registry: None,
-    }
+    Self { maybe_registry: None }
   }
 
   pub fn set<T: TensorRegistry>(&mut self, t: T) {
@@ -36,7 +34,10 @@ impl DynamicTensorRegistry {
   }
 
   pub fn get(&self, int_tensor: &InternalTensorSymbol) -> Option<DynamicExternalTensor> {
-    self.maybe_registry.as_ref().and_then(|registry| registry.get(int_tensor).cloned())
+    self
+      .maybe_registry
+      .as_ref()
+      .and_then(|registry| registry.get(int_tensor).cloned())
   }
 
   pub fn eval(&self, value: &TensorValue) -> Option<DynamicExternalTensor> {

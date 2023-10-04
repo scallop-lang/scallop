@@ -1,10 +1,10 @@
 use pyo3::types::*;
 
-use scallop_core::common::input_tag::*;
 use scallop_core::common::foreign_tensor::*;
+use scallop_core::common::input_tag::*;
 
-use super::tensor::*;
 use super::error::*;
+use super::tensor::*;
 
 pub fn from_python_input_tag(ty: &str, tag: &PyAny) -> Result<DynamicInputTag, BindingError> {
   match ty {
@@ -16,10 +16,10 @@ pub fn from_python_input_tag(ty: &str, tag: &PyAny) -> Result<DynamicInputTag, B
     "exclusive-prob" => {
       let (prob, exc_id): (f64, usize) = tag.extract()?;
       Ok(DynamicInputTag::ExclusiveFloat(prob, exc_id))
-    },
-    "diff-prob" => {
-      Ok(DynamicInputTag::Tensor(DynamicExternalTensor::new(Tensor::from_py_value(tag.into()))))
-    },
-    _ => Err(BindingError::InvalidInputTag)
+    }
+    "diff-prob" => Ok(DynamicInputTag::Tensor(DynamicExternalTensor::new(
+      Tensor::from_py_value(tag.into()),
+    ))),
+    _ => Err(BindingError::InvalidInputTag),
   }
 }

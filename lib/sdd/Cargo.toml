@@ -1,6 +1,6 @@
 [package]
 name = "sdd"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Ziyang Li <liby99@icloud.com>"]
 edition = "2018"
 

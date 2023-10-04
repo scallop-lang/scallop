@@ -32,20 +32,14 @@ impl NodeVisitor<Formula> for DesugarRange {
           match r.inclusive() {
             true => vec![
               r.lower().clone(),
-              Expr::binary(
-                BinaryExpr::new(
-                  BinaryOp::new_add(),
-                  r.upper().clone(),
-                  Expr::Constant(Constant::integer(IntLiteral::new(1))),
-                )
-              ),
+              Expr::binary(BinaryExpr::new(
+                BinaryOp::new_add(),
+                r.upper().clone(),
+                Expr::Constant(Constant::integer(IntLiteral::new(1))),
+              )),
               Expr::Variable(r.left().clone()),
             ],
-            false => vec![
-              r.lower().clone(),
-              r.upper().clone(),
-              Expr::Variable(r.left().clone()),
-            ],
+            false => vec![r.lower().clone(), r.upper().clone(), Expr::Variable(r.left().clone())],
           },
           r.location().clone(),
         );

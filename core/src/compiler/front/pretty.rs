@@ -116,9 +116,7 @@ impl Display for Query {
 impl Display for AttributeValue {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     match &self {
-      AttributeValue::Constant(c) => {
-        c.fmt(f)
-      },
+      AttributeValue::Constant(c) => c.fmt(f),
       AttributeValue::List(l) => {
         f.write_str("[")?;
         for (i, v) in l.iter().enumerate() {
@@ -128,7 +126,7 @@ impl Display for AttributeValue {
           v.fmt(f)?;
         }
         f.write_str("]")
-      },
+      }
       AttributeValue::Tuple(l) => {
         f.write_str("(")?;
         for (i, v) in l.iter().enumerate() {
@@ -138,7 +136,7 @@ impl Display for AttributeValue {
           v.fmt(f)?;
         }
         f.write_str(")")
-      },
+      }
     }
   }
 }
@@ -155,7 +153,7 @@ impl Display for Attribute {
         match arg {
           AttributeArg::Pos(p) => {
             f.write_fmt(format_args!("{}", p))?;
-          },
+          }
           AttributeArg::Kw(kw) => {
             f.write_fmt(format_args!("{} = {}", kw.name(), kw.value()))?;
           }
@@ -278,11 +276,7 @@ impl Display for AlgebraicDataTypeDecl {
 impl Display for AlgebraicDataTypeVariant {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     let name = self.constructor_name();
-    let args = self
-      .iter_args()
-      .map(|t| format!("{t}"))
-      .collect::<Vec<_>>()
-      .join(", ");
+    let args = self.iter_args().map(|t| format!("{t}")).collect::<Vec<_>>().join(", ");
     f.write_fmt(format_args!("{name}({args})"))
   }
 }
@@ -546,7 +540,11 @@ impl Display for Disjunction {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     f.write_fmt(format_args!(
       "({})",
-      self.iter_args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(" or ")
+      self
+        .iter_args()
+        .map(|a| format!("{}", a))
+        .collect::<Vec<_>>()
+        .join(" or ")
     ))
   }
 }
@@ -555,7 +553,11 @@ impl Display for Conjunction {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     f.write_fmt(format_args!(
       "({})",
-      self.iter_args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(" and ")
+      self
+        .iter_args()
+        .map(|a| format!("{}", a))
+        .collect::<Vec<_>>()
+        .join(" and ")
     ))
   }
 }
@@ -574,6 +576,7 @@ impl Display for Constraint {
 
 impl Display for Reduce {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    println!("Printing reduce");
     if self.left().len() > 1 {
       f.write_fmt(format_args!(
         "({})",
@@ -587,7 +590,7 @@ impl Display for Reduce {
     } else {
       Display::fmt(self.left().iter().next().unwrap(), f)?;
     }
-    f.write_str(" = ")?;
+    f.write_str(" := ")?;
     self.operator().fmt(f)?;
     if !self.args().is_empty() {
       f.write_fmt(format_args!(
@@ -634,7 +637,21 @@ impl Display for ForallExistsReduce {
 
 impl Display for ReduceOp {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    f.write_str(&self.to_string())
+    f.write_str(self.name().name())?;
+    if self.has_parameters() {
+      f.write_str("<")?;
+      for (i, param) in self.iter_parameters().enumerate() {
+        if i > 0 {
+          f.write_str(", ")?;
+        }
+        param.fmt(f)?;
+      }
+      f.write_str(">")?;
+    }
+    if *self.has_exclaimation_mark() {
+      f.write_str("!")?;
+    }
+    Ok(())
   }
 }
 

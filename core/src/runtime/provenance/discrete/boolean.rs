@@ -1,6 +1,9 @@
-use super::*;
+use crate::common::foreign_aggregate::*;
+use crate::common::foreign_aggregates::*;
 use crate::runtime::dynamic::*;
-use crate::runtime::statics::*;
+use crate::runtime::env::*;
+
+use super::*;
 
 pub type Boolean = bool;
 
@@ -53,26 +56,53 @@ impl Provenance for BooleanProvenance {
   fn saturated(&self, t_old: &Self::Tag, t_new: &Self::Tag) -> bool {
     t_old == t_new
   }
+}
 
-  fn dynamic_count(&self, batch: DynamicElements<Self>) -> DynamicElements<Self> {
-    let count = batch
-      .into_iter()
-      .fold(0usize, |acc, e| if e.tag { acc + 1 } else { acc });
-    vec![DynamicElement::new(count, self.one())]
+impl Aggregator<BooleanProvenance> for CountAggregator {
+  fn aggregate(
+    &self,
+    _p: &BooleanProvenance,
+    _env: &RuntimeEnvironment,
+    elems: DynamicElements<BooleanProvenance>,
+  ) -> DynamicElements<BooleanProvenance> {
+    let cnt = elems.iter().fold(0usize, |c, e| if e.tag { c + 1 } else { c });
+    vec![DynamicElement::new(cnt, true)]
   }
+}
 
-  fn static_count<T: StaticTupleTrait>(&self, batch: StaticElements<T, Self>) -> StaticElements<usize, Self> {
-    let count = batch
-      .into_iter()
-      .fold(0usize, |acc, e| if e.tag { acc + 1 } else { acc });
-    vec![StaticElement::new(count, self.one())]
+impl Aggregator<BooleanProvenance> for ExistsAggregator {
+  fn aggregate(
+    &self,
+    _p: &BooleanProvenance,
+    _env: &RuntimeEnvironment,
+    elems: DynamicElements<BooleanProvenance>,
+  ) -> DynamicElements<BooleanProvenance> {
+    let exist = elems.iter().any(|e| e.tag);
+    vec![DynamicElement::new(exist, true)]
   }
+}
 
-  fn dynamic_top_k(&self, k: usize, batch: DynamicElements<Self>) -> DynamicElements<Self> {
-    unweighted_aggregate_top_k_helper(batch, k)
+impl Aggregator<BooleanProvenance> for MinMaxAggregator {
+  fn aggregate(
+    &self,
+    p: &BooleanProvenance,
+    _env: &RuntimeEnvironment,
+    batch: DynamicElements<BooleanProvenance>,
+  ) -> DynamicElements<BooleanProvenance> {
+    let elems = batch.iter().filter_map(|e| if e.tag { Some(&e.tuple) } else { None });
+    self.discrete_min_max(p, elems)
   }
+}
 
-  fn static_top_k<T: StaticTupleTrait>(&self, k: usize, batch: StaticElements<T, Self>) -> StaticElements<T, Self> {
-    unweighted_aggregate_top_k_helper(batch, k)
+impl Aggregator<BooleanProvenance> for SumProdAggregator {
+  fn aggregate(
+    &self,
+    _p: &BooleanProvenance,
+    _env: &RuntimeEnvironment,
+    batch: DynamicElements<BooleanProvenance>,
+  ) -> DynamicElements<BooleanProvenance> {
+    let elems = batch.iter().filter_map(|e| if e.tag { Some(&e.tuple) } else { None });
+    let res = self.perform_sum_prod(elems);
+    vec![DynamicElement::new(res, true)]
   }
 }

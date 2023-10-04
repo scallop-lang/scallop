@@ -119,20 +119,30 @@ rel expr_to_string(e, $format("({} {} {})", op1_str, op_str, op2_str)) =
 
 // Rules with aggregation inside
 rel num_students(n) = n := count(a: student(p))
-rel num_paths(n) = n := count(a, b: path(a, b))
+rel num_paths(n) = n := count!(a, b: path(a, b))
 rel my_rule(x) = _ := count(a, b: path(a, b) where c: color(c))
 rel my_rule_2() = forall(a, b: path(a, b) and path(a, b) implies edge(a, b))
-rel sample_rule(x) = x := top<3>(a, b: path(a, b))
+rel sample_rule(x) = (x, y) := top<3>(a, b: path(a, b))
 rel sample_rule(x) = x := categorical<3>(a, b: path(a, b))
-rel sample_rule(x) = x := uniform<3>(a, b: path(a, b))
-rel sample_rule(x) = x := min[a](a, b: path(a, b))
-rel sample_rule(x) = _ := min[x](s: score(x, s))
+rel sample_rule(x) = x := uniform!<3>(a, b: path(a, b))
+rel sample_rule(x) = (a, x) := min![a](a, b: path(a, b, v, d))
+rel sample_rule(x) = (abhb, xjh, yjhhk, zkjjk, dkhbkhb) := min[a](a, b: path(a, b) where c, d, e, f, g: some_relation(3851))
+rel sample_rule(x) = x := argmin![a, g, h, u, h](a, c, d, b: path(a, b))
+rel sample_rule(x) = x := argmin![a, g, h, u, h](a, c, d, b: path(a, b) /* something like this */ )
+rel sample_rule(x) = x := argmin!(a, c, d, b:
+  path(a, b) and // new line
+  edge(a, b) and // new line again
+  a == b
+)
+rel sample_rule(x) = _ := min![x](s: score(x, s))
+rel sample_rule(x) = _ := sum[p](s: score(x, s))
+rel sample_rule(x) = _ := cross_entropy[i](y_pred, y: pred(i, y_pred) and ground_truth(i, y))
 
 // Nested aggregation
 rel nested_agg(x) = x := count(x: m := max(x: relation(x)))
 
 // Disjunctive datalog
-rel { assign(x, true); assign(x, false) } = var(x)
+rel { assign(x, true); assign(x, false) } = var(x, y, z, a, b, c, d, e, f, g, h, i, j, a + 1)
 
 // Relations with generic arguments
 rel grid(x, y) = range<i32>(0, 5, x) and range<i32>(0, 5, y)

@@ -1,6 +1,6 @@
 [package]
 name = "scallop-core"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Ziyang Li <liby99@icloud.com>"]
 edition = "2018"
 
@@ -27,6 +27,7 @@ dateparser = "0.1.6"
 dyn-clone = "1.0.10"
 lazy_static = "1.4"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 parse_relative_duration = { path = "../lib/parse_relative_duration" }
 rand = { version = "0.8", features = ["std_rng", "small_rng", "alloc"] }
 astnode-derive = { path = "../lib/astnode-derive" }

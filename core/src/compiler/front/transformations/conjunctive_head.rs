@@ -33,21 +33,17 @@ impl NodeVisitor<Rule> for TransformConjunctiveHead {
     match rule.head() {
       RuleHead::Conjunction(c) => {
         for atom in c.iter_atoms() {
-          self.to_add_items.push(
-            Item::RelationDecl(
-              RelationDecl::Rule(
-                RuleDecl::new(
-                  Attributes::new(),
-                  Tag::none(),
-                  Rule::new_with_loc(
-                    RuleHead::atom(atom.clone()),
-                    rule.body().clone(),
-                    rule.location().clone_without_id(),
-                  ),
-                )
+          self
+            .to_add_items
+            .push(Item::RelationDecl(RelationDecl::Rule(RuleDecl::new(
+              Attributes::new(),
+              Tag::none(),
+              Rule::new_with_loc(
+                RuleHead::atom(atom.clone()),
+                rule.body().clone(),
+                rule.location().clone_without_id(),
               ),
-            ),
-          );
+            ))));
         }
       }
       _ => {}

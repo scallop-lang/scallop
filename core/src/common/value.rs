@@ -3,8 +3,8 @@ use std::convert::*;
 use chrono::{DateTime, Utc};
 use chronoutil::RelativeDuration;
 
-use super::foreign_tensor::*;
 use super::duration::*;
+use super::foreign_tensor::*;
 use super::value_type::*;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]

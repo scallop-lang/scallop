@@ -31,7 +31,10 @@ impl<'a> TransformAlgebraicDataType<'a> {
       .adt_variants
       .iter()
       .map(|(variant_name, variant_info)| {
-        let rel_name = variant_info.name.clone_without_location_id().map(|n| format!("adt#{n}"));
+        let rel_name = variant_info
+          .name
+          .clone_without_location_id()
+          .map(|n| format!("adt#{n}"));
 
         // Generate the args including the first ID type
         let first_arg = Type::named(variant_info.belongs_to_type.name().to_string());
@@ -57,24 +60,17 @@ impl<'a> TransformAlgebraicDataType<'a> {
           .collect();
         let adt_attr = Attribute::new(
           Identifier::new("adt".to_string()),
-          vec![
-            AttributeValue::string(variant_name.clone()).into(),
-            is_entity.into(),
-          ],
+          vec![AttributeValue::string(variant_name.clone()).into(), is_entity.into()],
         );
 
         // Generate another attribute `@hidden`
         let hidden_attr = Attribute::new(Identifier::new("hidden".to_string()), vec![]);
 
         // Generate a type declaration item
-        Item::TypeDecl(
-          TypeDecl::Relation(
-            RelationTypeDecl::new(
-              vec![adt_attr, hidden_attr],
-              vec![RelationType::new(rel_name, arg_types)],
-            ),
-          ),
-        )
+        Item::TypeDecl(TypeDecl::Relation(RelationTypeDecl::new(
+          vec![adt_attr, hidden_attr],
+          vec![RelationType::new(rel_name, arg_types)],
+        )))
       })
       .collect();
 

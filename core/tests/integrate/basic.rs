@@ -289,6 +289,17 @@ fn fib_dt_test_1() {
 }
 
 #[test]
+fn aggregate_argmax_1() {
+  expect_interpret_result(
+    r#"
+      rel exam_grades = {("tom", 50.0), ("mary", 60.0)}
+      rel best_student(n) = n := argmax[n](s: exam_grades(n, s))
+    "#,
+    ("best_student", vec![("mary".to_string(),)]),
+  )
+}
+
+#[test]
 fn obj_color_test_1() {
   expect_interpret_result(
     r#"
@@ -299,8 +310,8 @@ fn obj_color_test_1() {
       rel object_color(4, "green")
       rel object_color(5, "red")
 
-      rel color_count(c, n) :- n = count(o: object_color(o, c))
-      rel max_color(c) :- _ = max[c](n: color_count(c, n))
+      rel color_count(c, n) :- n := count(o: object_color(o, c))
+      rel max_color(c) :- c := argmax[c](n: color_count(c, n))
     "#,
     ("max_color", vec![("green".to_string(),)]),
   );
@@ -318,7 +329,7 @@ fn obj_color_test_2() {
         (4, "green"),
         (5, "blue"),
       }
-      rel max_color(c) = _ = max[c](n: n = count(o: object_color(o, c)))
+      rel max_color(c) = c := argmax[c](n: n := count(o: object_color(o, c)))
     "#,
     ("max_color", vec![("blue".to_string(),), ("green".to_string(),)]),
   );
@@ -476,7 +487,7 @@ fn class_student_grade_1() {
         (1, "frank", 30),
       }
 
-      rel class_top_student(c, s) = _ = max[s](g: class_student_grade(c, s, g))
+      rel class_top_student(c, s) = s := argmax[s](g: class_student_grade(c, s, g))
     "#,
     (
       "class_top_student",
@@ -499,10 +510,46 @@ fn class_student_grade_2() {
       }
 
       rel avg_score((s as f32) / (n as f32)) =
-        s = sum(x: class_student_grade(_, _, x)),
-        n = count(a, b, c: class_student_grade(a, b, c))
+        s := sum[class, name](x: class_student_grade(class, name, x)),
+        n := count(class, name: class_student_grade(class, name, _))
     "#,
     ("avg_score", vec![(63.333f32,)]),
+  )
+}
+
+#[test]
+fn aggr_sum_test_1() {
+  expect_interpret_result(
+    r#"
+      rel sales = {(0, 100), (1, 100), (2, 200)}
+      rel total_sale(t) = t := sum[p](s: sales(p, s))
+    "#,
+    ("total_sale", vec![(400i32,)]),
+  )
+}
+
+#[test]
+fn aggr_sum_test_2() {
+  expect_interpret_result(
+    r#"
+      rel sales = {("market", "tom", 100), ("ads", "tom", 100), ("ads", "jenny", 200)}
+      rel total_sale(t) = t := sum[d, p](s: sales(d, p, s))
+    "#,
+    ("total_sale", vec![(400i32,)]),
+  )
+}
+
+#[test]
+fn aggr_sum_test_3() {
+  expect_interpret_result(
+    r#"
+      rel sales = {("market", "tom", 100), ("ads", "tom", 100), ("ads", "jenny", 100)}
+      rel dp_sale(d, t) = t := sum[p](s: sales(d, p, s))
+    "#,
+    (
+      "dp_sale",
+      vec![("market".to_string(), 100i32), ("ads".to_string(), 200i32)],
+    ),
   )
 }
 

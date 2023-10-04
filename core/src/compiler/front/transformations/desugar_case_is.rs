@@ -13,22 +13,20 @@ impl DesugarCaseIs {
     match &case.entity() {
       Entity::Expr(e) => {
         // If the entity is directly an expression, the formula is a constraint
-        Formula::Constraint(
-          Constraint::new_with_loc(
-            Expr::binary(
-              BinaryExpr::new(
-                BinaryOp::new_eq(),
-                Expr::Variable(case.variable().clone()),
-                e.clone(),
-              ),
-            ),
-            case.location().clone()
-          ),
-        )
+        Formula::Constraint(Constraint::new_with_loc(
+          Expr::binary(BinaryExpr::new(
+            BinaryOp::new_eq(),
+            Expr::Variable(case.variable().clone()),
+            e.clone(),
+          )),
+          case.location().clone(),
+        ))
       }
       Entity::Object(o) => {
         // If the entity is an object, the formula is a conjunction of atoms
-        let parent_id = case.location_id().expect("Case location id is not populated prior to desugar case is transformation");
+        let parent_id = case
+          .location_id()
+          .expect("Case location id is not populated prior to desugar case is transformation");
         let variable = case.variable().clone();
         let mut variable_counter = IdAllocator::new();
         let mut formulas = vec![];
@@ -85,9 +83,7 @@ impl DesugarCaseIs {
 impl NodeVisitor<Formula> for DesugarCaseIs {
   fn visit_mut(&mut self, formula: &mut Formula) {
     match formula {
-      Formula::Case(c) => {
-        *formula = self.transform_case_is_to_formula(c)
-      },
+      Formula::Case(c) => *formula = self.transform_case_is_to_formula(c),
       _ => {}
     }
   }

@@ -75,16 +75,10 @@ pub struct _RelationType {
 
 impl Into<Vec<Item>> for RelationType {
   fn into(self) -> Vec<Item> {
-    vec![
-      Item::TypeDecl(
-        TypeDecl::Relation(
-          RelationTypeDecl::new(
-            Attributes::new(),
-            vec![self]
-          ),
-        ),
-      ),
-    ]
+    vec![Item::TypeDecl(TypeDecl::Relation(RelationTypeDecl::new(
+      Attributes::new(),
+      vec![self],
+    )))]
   }
 }
 

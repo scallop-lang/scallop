@@ -18,9 +18,7 @@ pub enum Formula {
 impl Formula {
   pub fn negate(&self) -> Self {
     match self {
-      Self::Atom(a) => {
-        Self::NegAtom(NegAtom::new(a.clone()))
-      },
+      Self::Atom(a) => Self::NegAtom(NegAtom::new(a.clone())),
       Self::NegAtom(n) => Self::Atom(n.atom().clone()),
       Self::Case(_) => {
         // TODO
@@ -181,79 +179,10 @@ impl Reduce {
 
 #[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
-pub enum _ReduceOp {
-  Count(bool),
-  Sum,
-  Prod,
-  Min,
-  Max,
-  Exists,
-  Forall,
-  Unique,
-  TopK(usize),
-  CategoricalK(usize),
-  Unknown(String),
-}
-
-impl ToString for _ReduceOp {
-  fn to_string(&self) -> String {
-    match self {
-      Self::Count(discrete) => if *discrete {
-        "count!".to_string()
-      } else {
-        "count".to_string()
-      },
-      Self::Sum => "sum".to_string(),
-      Self::Prod => "prod".to_string(),
-      Self::Min => "min".to_string(),
-      Self::Max => "max".to_string(),
-      Self::Exists => "exists".to_string(),
-      Self::Forall => "forall".to_string(),
-      Self::Unique => "unique".to_string(),
-      Self::TopK(k) => format!("top<{}>", k),
-      Self::CategoricalK(k) => format!("categorical<{}>", k),
-      Self::Unknown(_) => "unknown".to_string(),
-    }
-  }
-}
-
-impl ReduceOp {
-  pub fn output_arity(&self) -> Option<usize> {
-    match self.internal() {
-      _ReduceOp::Count(_) => Some(1),
-      _ReduceOp::Sum => Some(1),
-      _ReduceOp::Prod => Some(1),
-      _ReduceOp::Min => Some(1),
-      _ReduceOp::Max => Some(1),
-      _ReduceOp::Exists => Some(1),
-      _ReduceOp::Forall => Some(1),
-      _ReduceOp::Unique => None,
-      _ReduceOp::TopK(_) => None,
-      _ReduceOp::CategoricalK(_) => None,
-      _ReduceOp::Unknown(_) => None,
-    }
-  }
-
-  pub fn num_bindings(&self) -> Option<usize> {
-    match self.internal() {
-      _ReduceOp::Count(_) => None,
-      _ReduceOp::Sum => Some(1),
-      _ReduceOp::Prod => Some(1),
-      _ReduceOp::Min => Some(1),
-      _ReduceOp::Max => Some(1),
-      _ReduceOp::Exists => None,
-      _ReduceOp::Forall => None,
-      _ReduceOp::Unique => None,
-      _ReduceOp::TopK(_) => None,
-      _ => None,
-    }
-  }
-}
-
-impl ToString for ReduceOp {
-  fn to_string(&self) -> String {
-    self.internal().to_string()
-  }
+pub struct _ReduceOp {
+  pub name: Identifier,
+  pub parameters: Vec<Constant>,
+  pub has_exclaimation_mark: bool,
 }
 
 /// An syntax sugar for forall/exists operation, e.g. `forall(p: person(p) => father(p, _))`.

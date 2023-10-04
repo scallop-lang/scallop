@@ -8,6 +8,8 @@ pub mod duration;
 pub mod element;
 pub mod entity;
 pub mod expr;
+pub mod foreign_aggregate;
+pub mod foreign_aggregates;
 pub mod foreign_function;
 pub mod foreign_functions;
 pub mod foreign_predicate;

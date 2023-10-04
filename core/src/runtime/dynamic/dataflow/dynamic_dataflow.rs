@@ -80,11 +80,19 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
   }
 
   pub fn project(self, expression: Expr, runtime: &'a RuntimeEnvironment) -> Self {
-    Self::new(DynamicProjectDataflow { source: self, expression, runtime })
+    Self::new(DynamicProjectDataflow {
+      source: self,
+      expression,
+      runtime,
+    })
   }
 
   pub fn filter(self, filter: Expr, runtime: &'a RuntimeEnvironment) -> Self {
-    Self::new(DynamicFilterDataflow { source: self, filter, runtime })
+    Self::new(DynamicFilterDataflow {
+      source: self,
+      filter,
+      runtime,
+    })
   }
 
   pub fn find(self, key: Tuple) -> Self {
@@ -115,7 +123,13 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
     Self::new(DynamicAntijoinDataflow { d1: self, d2, ctx })
   }
 
-  pub fn foreign_predicate_ground(pred: String, bounded: Vec<Value>, first_iter: bool, ctx: &'a Prov, runtime: &'a RuntimeEnvironment) -> Self {
+  pub fn foreign_predicate_ground(
+    pred: String,
+    bounded: Vec<Value>,
+    first_iter: bool,
+    ctx: &'a Prov,
+    runtime: &'a RuntimeEnvironment,
+  ) -> Self {
     Self::new(ForeignPredicateGroundDataflow {
       foreign_predicate: pred,
       bounded_constants: bounded,
@@ -125,7 +139,13 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
     })
   }
 
-  pub fn foreign_predicate_constraint(self, pred: String, args: Vec<Expr>, ctx: &'a Prov, runtime: &'a RuntimeEnvironment) -> Self {
+  pub fn foreign_predicate_constraint(
+    self,
+    pred: String,
+    args: Vec<Expr>,
+    ctx: &'a Prov,
+    runtime: &'a RuntimeEnvironment,
+  ) -> Self {
     Self::new(ForeignPredicateConstraintDataflow {
       dataflow: self,
       foreign_predicate: pred,
@@ -135,7 +155,13 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
     })
   }
 
-  pub fn foreign_predicate_join(self, pred: String, args: Vec<Expr>, ctx: &'a Prov, runtime: &'a RuntimeEnvironment) -> Self {
+  pub fn foreign_predicate_join(
+    self,
+    pred: String,
+    args: Vec<Expr>,
+    ctx: &'a Prov,
+    runtime: &'a RuntimeEnvironment,
+  ) -> Self {
     Self::new(ForeignPredicateJoinDataflow {
       left: self,
       foreign_predicate: pred,

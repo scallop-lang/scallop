@@ -27,6 +27,9 @@ pub struct IntegrateContext<Prov: Provenance, P: PointerFamily = RcFamily> {
   /// This is for incremental compilation
   front_ctx: compiler::front::FrontContext,
 
+  /// The monitors
+  monitors: DynamicMonitors<Prov>,
+
   /// Flag denoting whether the Front-IR has changed or not; initialized to not changed.
   /// Once the front is compiled and stayed unchanged, no further analysis will be performed
   /// on the front compilation context
@@ -50,6 +53,7 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
           ..Default::default()
         }),
       },
+      monitors: DynamicMonitors::new(),
       front_has_changed: false,
     }
   }
@@ -58,6 +62,7 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     Self {
       options: compiler::CompileOptions::default(),
       front_ctx: compiler::front::FrontContext::new(),
+      monitors: DynamicMonitors::new(),
       internal: InternalIntegrateContext {
         prov_ctx,
         runtime_env: RuntimeEnvironment::default(),
@@ -76,6 +81,7 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     Self {
       options: options.compiler_options,
       front_ctx: compiler::front::FrontContext::new(),
+      monitors: DynamicMonitors::new(),
       internal: InternalIntegrateContext {
         prov_ctx,
         runtime_env: RuntimeEnvironment::default(),
@@ -96,6 +102,7 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     IntegrateContext {
       options: self.options.clone(),
       front_ctx: self.front_ctx.clone(),
+      monitors: DynamicMonitors::new(),
       internal: InternalIntegrateContext {
         prov_ctx: new_prov,
         runtime_env: self.internal.runtime_env.clone(),
@@ -133,6 +140,12 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     self.front_ctx.compile_source(source).map_err(IntegrateError::front)?;
     self.front_has_changed = true;
     Ok(())
+  }
+
+  pub fn add_monitors(&mut self, monitors: &[&str]) {
+    let reg = MonitorRegistry::<Prov>::std();
+    let monitors = reg.load_monitors(&monitors);
+    self.monitors.extend(monitors)
   }
 
   /// Add a program string
@@ -479,7 +492,11 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     self.compile()?;
 
     // Finally execute the ram
-    self.internal.run()
+    if self.monitors.is_empty() {
+      self.internal.run()
+    } else {
+      self.internal.run_with_monitor(&self.monitors)
+    }
   }
 
   /// Get the relation type
@@ -524,7 +541,11 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
 
   /// Get the relation output collection of a given relation
   pub fn computed_relation(&mut self, relation: &str) -> Option<P::Rc<dynamic::DynamicOutputCollection<Prov>>> {
-    self.internal.computed_relation(relation)
+    if self.monitors.is_empty() {
+      self.internal.computed_relation(relation)
+    } else {
+      self.internal.computed_relation_with_monitor(relation, &self.monitors)
+    }
   }
 
   /// Get the relation output collection of a given relation
@@ -668,6 +689,17 @@ impl<Prov: Provenance, P: PointerFamily> InternalIntegrateContext<Prov, P> {
 
   pub fn computed_relation_ref(&mut self, relation: &str) -> Option<&dynamic::DynamicOutputCollection<Prov>> {
     self.exec_ctx.recover(relation, &self.runtime_env, &self.prov_ctx);
+    self.exec_ctx.relation_ref(relation)
+  }
+
+  pub fn computed_relation_ref_with_monitor<M: Monitor<Prov>>(
+    &mut self,
+    relation: &str,
+    m: &M,
+  ) -> Option<&dynamic::DynamicOutputCollection<Prov>> {
+    self
+      .exec_ctx
+      .recover_with_monitor(relation, &self.runtime_env, &self.prov_ctx, m);
     self.exec_ctx.relation_ref(relation)
   }
 

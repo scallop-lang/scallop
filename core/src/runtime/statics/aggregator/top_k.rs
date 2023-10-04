@@ -1,7 +1,10 @@
 use std::marker::PhantomData;
 
+use crate::runtime::env::*;
 use crate::runtime::provenance::*;
 use crate::runtime::statics::*;
+
+use crate::common::foreign_aggregates::*;
 
 pub struct TopKAggregator<Tup: StaticTupleTrait, Prov: Provenance> {
   k: usize,
@@ -24,8 +27,17 @@ where
 {
   type Output = Tup;
 
-  fn aggregate(&self, tuples: StaticElements<Tup, Prov>, ctx: &Prov) -> StaticElements<Self::Output, Prov> {
-    ctx.static_top_k(self.k, tuples)
+  fn aggregate(
+    &self,
+    tuples: StaticElements<Tup, Prov>,
+    rt: &RuntimeEnvironment,
+    ctx: &Prov,
+  ) -> StaticElements<Self::Output, Prov> {
+    let agg = TopKSampler::new(self.k);
+    let weights = tuples.iter().map(|e| ctx.weight(&e.tag)).collect();
+    let indices = agg.sample_weight_only(rt, weights);
+    let stat_elems = indices.into_iter().map(|i| tuples[i].clone()).collect();
+    stat_elems
   }
 }
 

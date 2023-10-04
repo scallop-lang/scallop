@@ -67,11 +67,17 @@ impl AttributeValue {
   }
 
   pub fn as_boolean(&self) -> Option<bool> {
-    self.as_constant().and_then(|c| c.as_boolean()).map(|b| b.value().clone())
+    self
+      .as_constant()
+      .and_then(|c| c.as_boolean())
+      .map(|b| b.value().clone())
   }
 
   pub fn as_string(&self) -> Option<String> {
-    self.as_constant().and_then(|c| c.as_string()).map(|b| b.string().clone())
+    self
+      .as_constant()
+      .and_then(|c| c.as_string())
+      .map(|b| b.string().clone())
   }
 }
 
@@ -114,7 +120,10 @@ impl Attribute {
   }
 
   pub fn num_pos_args(&self) -> usize {
-    self.iter_args().filter(|a| AttributeArg::is_pos(a)).fold(0, |acc, _| acc + 1)
+    self
+      .iter_args()
+      .filter(|a| AttributeArg::is_pos(a))
+      .fold(0, |acc, _| acc + 1)
   }
 
   pub fn iter_pos_args(&self) -> impl Iterator<Item = &AttributeValue> {
@@ -157,7 +166,10 @@ impl Attribute {
   }
 
   pub fn num_kw_args(&self) -> usize {
-    self.iter_args().filter(|a| AttributeArg::is_kw(a)).fold(0, |acc, _| acc + 1)
+    self
+      .iter_args()
+      .filter(|a| AttributeArg::is_kw(a))
+      .fold(0, |acc, _| acc + 1)
   }
 
   pub fn iter_kw_args(&self) -> impl Iterator<Item = &AttributeKwArg> {

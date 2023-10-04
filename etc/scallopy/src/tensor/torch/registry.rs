@@ -1,5 +1,5 @@
-use std::collections::*;
 use pyo3::prelude::*;
+use std::collections::*;
 
 use scallop_core::common::foreign_tensor::*;
 
@@ -24,34 +24,66 @@ impl TorchTensorRegistry {
   }
 
   fn eval_expr_torch(&self, value: &TensorExpr) -> TorchTensor {
-    Python::with_gil(|py| {
-      match value {
-        TensorExpr::Symbol(s) => self.get_torch(s),
-        TensorExpr::Float(f) => {
-          let builtins = PyModule::import(py, "torch").expect("Cannot import torch");
-          let result: Py<PyAny> = builtins.getattr("tensor").expect("Cannot get tensor").call1((*f,)).expect("Cannot create tensor").extract().expect("Cannot convert");
-          TorchTensor::new(result)
-        }
-        TensorExpr::Add(a, b) => {
-          let (ta, tb) = (self.eval_expr_torch(&a), self.eval_expr_torch(&b));
-          let result: Py<PyAny> = ta.internal().getattr(py, "__add__").expect("Cannot sum").call1(py, (tb.internal(),)).expect("Cannot sum").extract(py).expect("Cannot convert");
-          TorchTensor::new(result)
-        }
-        TensorExpr::Sub(a, b) => {
-          let (ta, tb) = (self.eval_expr_torch(&a), self.eval_expr_torch(&b));
-          let result: Py<PyAny> = ta.internal().getattr(py, "__sub__").expect("Cannot sub").call1(py, (tb.internal(),)).expect("Cannot sub").extract(py).expect("Cannot convert");
-          TorchTensor::new(result)
-        }
-        TensorExpr::Mul(a, b) => {
-          let (ta, tb) = (self.eval_expr_torch(&a), self.eval_expr_torch(&b));
-          let result: Py<PyAny> = ta.internal().getattr(py, "__mul__").expect("Cannot mul").call1(py, (tb.internal(),)).expect("Cannot mul").extract(py).expect("Cannot convert");
-          TorchTensor::new(result)
-        }
-        TensorExpr::Dot(a, b) => {
-          let (ta, tb) = (self.eval_expr_torch(&a), self.eval_expr_torch(&b));
-          let result: Py<PyAny> = ta.internal().getattr(py, "dot").expect("Cannot dot").call1(py, (tb.internal(),)).expect("Cannot dot").extract(py).expect("Cannot convert");
-          TorchTensor::new(result)
-        }
+    Python::with_gil(|py| match value {
+      TensorExpr::Symbol(s) => self.get_torch(s),
+      TensorExpr::Float(f) => {
+        let builtins = PyModule::import(py, "torch").expect("Cannot import torch");
+        let result: Py<PyAny> = builtins
+          .getattr("tensor")
+          .expect("Cannot get tensor")
+          .call1((*f,))
+          .expect("Cannot create tensor")
+          .extract()
+          .expect("Cannot convert");
+        TorchTensor::new(result)
+      }
+      TensorExpr::Add(a, b) => {
+        let (ta, tb) = (self.eval_expr_torch(&a), self.eval_expr_torch(&b));
+        let result: Py<PyAny> = ta
+          .internal()
+          .getattr(py, "__add__")
+          .expect("Cannot sum")
+          .call1(py, (tb.internal(),))
+          .expect("Cannot sum")
+          .extract(py)
+          .expect("Cannot convert");
+        TorchTensor::new(result)
+      }
+      TensorExpr::Sub(a, b) => {
+        let (ta, tb) = (self.eval_expr_torch(&a), self.eval_expr_torch(&b));
+        let result: Py<PyAny> = ta
+          .internal()
+          .getattr(py, "__sub__")
+          .expect("Cannot sub")
+          .call1(py, (tb.internal(),))
+          .expect("Cannot sub")
+          .extract(py)
+          .expect("Cannot convert");
+        TorchTensor::new(result)
+      }
+      TensorExpr::Mul(a, b) => {
+        let (ta, tb) = (self.eval_expr_torch(&a), self.eval_expr_torch(&b));
+        let result: Py<PyAny> = ta
+          .internal()
+          .getattr(py, "__mul__")
+          .expect("Cannot mul")
+          .call1(py, (tb.internal(),))
+          .expect("Cannot mul")
+          .extract(py)
+          .expect("Cannot convert");
+        TorchTensor::new(result)
+      }
+      TensorExpr::Dot(a, b) => {
+        let (ta, tb) = (self.eval_expr_torch(&a), self.eval_expr_torch(&b));
+        let result: Py<PyAny> = ta
+          .internal()
+          .getattr(py, "dot")
+          .expect("Cannot dot")
+          .call1(py, (tb.internal(),))
+          .expect("Cannot dot")
+          .extract(py)
+          .expect("Cannot convert");
+        TorchTensor::new(result)
       }
     })
   }

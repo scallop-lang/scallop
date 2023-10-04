@@ -88,7 +88,10 @@ impl<'a> FlattenExprContext<'a> {
     } else if let Some(leaf) = self.leaf.get(loc) {
       leaf.clone()
     } else {
-      panic!("[Internal Error] Cannot find loc {:?} from the context, should not happen", loc)
+      panic!(
+        "[Internal Error] Cannot find loc {:?} from the context, should not happen",
+        loc
+      )
     }
   }
 
@@ -277,11 +280,7 @@ impl<'a> FlattenExprContext<'a> {
     let mut literals = vec![];
 
     // First get the atom
-    let back_atom_args = neg_atom
-      .atom()
-      .iter_args()
-      .map(|a| self.get_expr_term(a))
-      .collect();
+    let back_atom_args = neg_atom.atom().iter_args().map(|a| self.get_expr_term(a)).collect();
     let back_atom = back::NegAtom {
       atom: back::Atom {
         predicate: neg_atom.atom().formatted_predicate().clone(),
@@ -335,7 +334,10 @@ impl<'a> FlattenExprContext<'a> {
 
       curr_literals
     } else {
-      panic!("[Internal Error] Cannot use `{}` for unary constraint", u.op().internal());
+      panic!(
+        "[Internal Error] Cannot use `{}` for unary constraint",
+        u.op().internal()
+      );
     }
   }
 

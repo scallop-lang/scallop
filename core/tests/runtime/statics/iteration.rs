@@ -1,11 +1,13 @@
+use scallop_core::runtime::env::*;
 use scallop_core::runtime::provenance::*;
 use scallop_core::runtime::statics::*;
 use scallop_core::testing::*;
 
 #[test]
 fn test_static_iter_edge_path() {
+  let env = RuntimeEnvironment::default();
   let mut prov = unit::UnitProvenance::default();
-  let mut iter = StaticIteration::<unit::UnitProvenance>::new(&mut prov);
+  let mut iter = StaticIteration::<unit::UnitProvenance>::new(&env, &mut prov);
 
   // Add relations
   let edge = iter.create_relation::<(usize, usize)>();
@@ -30,6 +32,7 @@ fn test_static_iter_edge_path() {
 
 #[test]
 fn test_static_iter_odd_even_3() {
+  let env = RuntimeEnvironment::default();
   let mut prov = unit::UnitProvenance::default();
 
   struct Stratum0Result<C: Provenance> {
@@ -38,8 +41,8 @@ fn test_static_iter_odd_even_3() {
     _numbers_perm_0_0: StaticCollection<(i32, i32), C>,
   }
 
-  fn stratum_0<C: Provenance>(prov: &mut C) -> Stratum0Result<C> {
-    let mut iter = StaticIteration::<C>::new(prov);
+  fn stratum_0<C: Provenance>(env: &RuntimeEnvironment, prov: &mut C) -> Stratum0Result<C> {
+    let mut iter = StaticIteration::<C>::new(env, prov);
     let numbers = iter.create_relation::<(i32,)>();
     let _numbers_perm_0_ = iter.create_relation::<(i32, ())>();
     let _numbers_perm_0_0 = iter.create_relation::<(i32, i32)>();
@@ -70,8 +73,12 @@ fn test_static_iter_odd_even_3() {
     odd: StaticCollection<(i32,), C>,
   }
 
-  fn stratum_1<C: Provenance>(prov: &mut C, stratum_0_result: &Stratum0Result<C>) -> Stratum1Result<C> {
-    let mut iter = StaticIteration::<C>::new(prov);
+  fn stratum_1<C: Provenance>(
+    env: &RuntimeEnvironment,
+    prov: &mut C,
+    stratum_0_result: &Stratum0Result<C>,
+  ) -> Stratum1Result<C> {
+    let mut iter = StaticIteration::<C>::new(env, prov);
     let _temp_0 = iter.create_relation::<(i32, i32)>();
     let odd = iter.create_relation::<(i32,)>();
     let _odd_perm_0 = iter.create_relation::<(i32, ())>();
@@ -113,11 +120,12 @@ fn test_static_iter_odd_even_3() {
   }
 
   fn stratum_2<C: Provenance>(
+    env: &RuntimeEnvironment,
     prov: &mut C,
     stratum_0_result: &Stratum0Result<C>,
     stratum_1_result: &Stratum1Result<C>,
   ) -> Stratum2Result<C> {
-    let mut iter = StaticIteration::<C>::new(prov);
+    let mut iter = StaticIteration::<C>::new(env, prov);
     let even = iter.create_relation::<(i32,)>();
     while iter.changed() || iter.is_first_iteration() {
       iter.insert_dataflow(
@@ -141,9 +149,9 @@ fn test_static_iter_odd_even_3() {
   }
 
   // Execute
-  let stratum_0_result = stratum_0(&mut prov);
-  let stratum_1_result = stratum_1(&mut prov, &stratum_0_result);
-  let stratum_2_result = stratum_2(&mut prov, &stratum_0_result, &stratum_1_result);
+  let stratum_0_result = stratum_0(&env, &mut prov);
+  let stratum_1_result = stratum_1(&env, &mut prov, &stratum_0_result);
+  let stratum_2_result = stratum_2(&env, &mut prov, &stratum_0_result, &stratum_1_result);
 
   // Check result
   expect_static_collection(&stratum_1_result.odd, vec![(1,), (3,), (5,), (7,), (9,)]);
@@ -157,8 +165,8 @@ fn test_static_out_degree_join() {
     edge: StaticCollection<(usize, usize), C>,
   }
 
-  fn stratum_0<C: Provenance>(prov: &mut C) -> Stratum0Result<C> {
-    let mut iter = StaticIteration::<C>::new(prov);
+  fn stratum_0<C: Provenance>(env: &RuntimeEnvironment, prov: &mut C) -> Stratum0Result<C> {
+    let mut iter = StaticIteration::<C>::new(env, prov);
 
     // Add relations
     let node = iter.create_relation::<(usize,)>();
@@ -186,8 +194,12 @@ fn test_static_out_degree_join() {
     out_degree: StaticCollection<(usize, usize), C>,
   }
 
-  fn stratum_1<C: Provenance>(prov: &mut C, stratum_0_result: &Stratum0Result<C>) -> Stratum1Result<C> {
-    let mut iter = StaticIteration::<C>::new(prov);
+  fn stratum_1<C: Provenance>(
+    env: &RuntimeEnvironment,
+    prov: &mut C,
+    stratum_0_result: &Stratum0Result<C>,
+  ) -> Stratum1Result<C> {
+    let mut iter = StaticIteration::<C>::new(env, prov);
 
     // Add relations
     let out_degree = iter.create_relation::<(usize, usize)>();
@@ -198,7 +210,7 @@ fn test_static_out_degree_join() {
         &out_degree,
         dataflow::project(
           iter.aggregate_join_group(
-            CountAggregator::new(),
+            CountAggregator::new(false),
             dataflow::collection(&stratum_0_result.node_temp, iter.is_first_iteration()),
             dataflow::collection(&stratum_0_result.edge, iter.is_first_iteration()),
           ),
@@ -213,11 +225,12 @@ fn test_static_out_degree_join() {
     }
   }
 
+  let env = RuntimeEnvironment::default();
   let mut prov = unit::UnitProvenance::default();
 
   // Execute
-  let stratum_0_result = stratum_0(&mut prov);
-  let stratum_1_result = stratum_1(&mut prov, &stratum_0_result);
+  let stratum_0_result = stratum_0(&env, &mut prov);
+  let stratum_1_result = stratum_1(&env, &mut prov, &stratum_0_result);
 
   // Check result
   expect_static_collection(&stratum_1_result.out_degree, vec![(0, 1), (1, 1), (2, 0)]);
@@ -229,8 +242,8 @@ fn test_static_out_degree_implicit_group() {
     edge: StaticCollection<(usize, usize), C>,
   }
 
-  fn stratum_0<C: Provenance>(prov: &mut C) -> Stratum0Result<C> {
-    let mut iter = StaticIteration::<C>::new(prov);
+  fn stratum_0<C: Provenance>(env: &RuntimeEnvironment, prov: &mut C) -> Stratum0Result<C> {
+    let mut iter = StaticIteration::<C>::new(env, prov);
 
     // Add relations
     let edge = iter.create_relation::<(usize, usize)>();
@@ -253,8 +266,12 @@ fn test_static_out_degree_implicit_group() {
     out_degree: StaticCollection<(usize, usize), C>,
   }
 
-  fn stratum_1<C: Provenance>(prov: &mut C, stratum_0_result: &Stratum0Result<C>) -> Stratum1Result<C> {
-    let mut iter = StaticIteration::<C>::new(prov);
+  fn stratum_1<C: Provenance>(
+    env: &RuntimeEnvironment,
+    prov: &mut C,
+    stratum_0_result: &Stratum0Result<C>,
+  ) -> Stratum1Result<C> {
+    let mut iter = StaticIteration::<C>::new(env, prov);
 
     // Add relations
     let out_degree = iter.create_relation::<(usize, usize)>();
@@ -264,7 +281,7 @@ fn test_static_out_degree_implicit_group() {
       iter.insert_dataflow(
         &out_degree,
         iter.aggregate_implicit_group(
-          CountAggregator::new(),
+          CountAggregator::new(false),
           dataflow::collection(&stratum_0_result.edge, iter.is_first_iteration()),
         ),
       );
@@ -276,11 +293,12 @@ fn test_static_out_degree_implicit_group() {
     }
   }
 
+  let env = RuntimeEnvironment::default();
   let mut prov = unit::UnitProvenance::default();
 
   // Execute
-  let stratum_0_result = stratum_0(&mut prov);
-  let stratum_1_result = stratum_1(&mut prov, &stratum_0_result);
+  let stratum_0_result = stratum_0(&env, &mut prov);
+  let stratum_1_result = stratum_1(&env, &mut prov, &stratum_0_result);
 
   // Check result
   expect_static_collection(&stratum_1_result.out_degree, vec![(0, 1), (1, 1)]);
@@ -292,8 +310,8 @@ fn test_static_num_edges() {
     edge: StaticCollection<(usize, usize), C>,
   }
 
-  fn stratum_0<C: Provenance>(prov: &mut C) -> Stratum0Result<C> {
-    let mut iter = StaticIteration::<C>::new(prov);
+  fn stratum_0<C: Provenance>(env: &RuntimeEnvironment, prov: &mut C) -> Stratum0Result<C> {
+    let mut iter = StaticIteration::<C>::new(env, prov);
 
     // Add relations
     let edge = iter.create_relation::<(usize, usize)>();
@@ -316,8 +334,12 @@ fn test_static_num_edges() {
     num_edges: StaticCollection<usize, C>,
   }
 
-  fn stratum_1<C: Provenance>(prov: &mut C, stratum_0_result: &Stratum0Result<C>) -> Stratum1Result<C> {
-    let mut iter = StaticIteration::<C>::new(prov);
+  fn stratum_1<C: Provenance>(
+    env: &RuntimeEnvironment,
+    prov: &mut C,
+    stratum_0_result: &Stratum0Result<C>,
+  ) -> Stratum1Result<C> {
+    let mut iter = StaticIteration::<C>::new(env, prov);
 
     // Add relations
     let num_edges = iter.create_relation::<usize>();
@@ -327,7 +349,7 @@ fn test_static_num_edges() {
       iter.insert_dataflow(
         &num_edges,
         iter.aggregate(
-          CountAggregator::new(),
+          CountAggregator::new(false),
           dataflow::collection(&stratum_0_result.edge, iter.is_first_iteration()),
         ),
       );
@@ -339,11 +361,12 @@ fn test_static_num_edges() {
     }
   }
 
+  let env = RuntimeEnvironment::default();
   let mut prov = unit::UnitProvenance::default();
 
   // Execute
-  let stratum_0_result = stratum_0(&mut prov);
-  let stratum_1_result = stratum_1(&mut prov, &stratum_0_result);
+  let stratum_0_result = stratum_0(&env, &mut prov);
+  let stratum_1_result = stratum_1(&env, &mut prov, &stratum_0_result);
 
   // Check result
   expect_static_collection(&stratum_1_result.num_edges, vec![3]);

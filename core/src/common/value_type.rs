@@ -285,6 +285,74 @@ impl ValueType {
     }
   }
 
+  pub fn avg<'a, I: Iterator<Item = &'a Tuple>>(&self, i: I) -> Tuple {
+    match self {
+      Self::I8 => {
+        let (sum, num) = i.fold((0, 0), |(a, n), v| (a + v.as_i8(), n + 1));
+        (sum / num).into()
+      }
+      Self::I16 => {
+        let (sum, num) = i.fold((0, 0), |(a, n), v| (a + v.as_i16(), n + 1));
+        (sum / num).into()
+      }
+      Self::I32 => {
+        let (sum, num) = i.fold((0, 0), |(a, n), v| (a + v.as_i32(), n + 1));
+        (sum / num).into()
+      }
+      Self::I64 => {
+        let (sum, num) = i.fold((0, 0), |(a, n), v| (a + v.as_i64(), n + 1));
+        (sum / num).into()
+      }
+      Self::I128 => {
+        let (sum, num) = i.fold((0, 0), |(a, n), v| (a + v.as_i128(), n + 1));
+        (sum / num).into()
+      }
+      Self::ISize => {
+        let (sum, num) = i.fold((0, 0), |(a, n), v| (a + v.as_isize(), n + 1));
+        (sum / num).into()
+      }
+
+      // Unsigned
+      Self::U8 => {
+        let (sum, num) = i.fold((0, 0), |(a, n), v| (a + v.as_u8(), n + 1));
+        (sum / num).into()
+      }
+      Self::U16 => {
+        let (sum, num) = i.fold((0, 0), |(a, n), v| (a + v.as_u16(), n + 1));
+        (sum / num).into()
+      }
+      Self::U32 => {
+        let (sum, num) = i.fold((0, 0), |(a, n), v| (a + v.as_u32(), n + 1));
+        (sum / num).into()
+      }
+      Self::U64 => {
+        let (sum, num) = i.fold((0, 0), |(a, n), v| (a + v.as_u64(), n + 1));
+        (sum / num).into()
+      }
+      Self::U128 => {
+        let (sum, num) = i.fold((0, 0), |(a, n), v| (a + v.as_u128(), n + 1));
+        (sum / num).into()
+      }
+      Self::USize => {
+        let (sum, num) = i.fold((0, 0), |(a, n), v| (a + v.as_usize(), n + 1));
+        (sum / num).into()
+      }
+
+      // Floating point
+      Self::F32 => {
+        let (sum, num) = i.fold((0.0, 0), |(a, n), v| (a + v.as_f32(), n + 1));
+        (sum / num as f32).into()
+      }
+      Self::F64 => {
+        let (sum, num) = i.fold((0.0, 0), |(a, n), v| (a + v.as_f64(), n + 1));
+        (sum / num as f64).into()
+      }
+
+      // Others
+      _ => panic!("Cannot perform sum on type `{}`", self),
+    }
+  }
+
   pub fn prod<'a, I: Iterator<Item = &'a Tuple>>(&self, i: I) -> Tuple {
     match self {
       Self::I8 => i.fold(1, |a, v| a * v.as_i8()).into(),

@@ -445,7 +445,7 @@ Lastly, we use the aggregation to find the equivalent programs with the minimum 
 Note that we have used an `argmax` aggregation denoted by `min[p]` here:
 
 ``` scl
-rel best_program(p) = _ := min[p](w: input_expr(e) and equivalent(e, p) and weight(p, w))
+rel best_program(p) = p := argmin[p](w: input_expr(e) and equivalent(e, p) and weight(p, w))
 ```
 
 If we query for the best program and turn it into string, we will get our expected output, a single variable `"a"`!

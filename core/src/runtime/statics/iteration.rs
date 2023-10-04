@@ -1,19 +1,23 @@
 use super::*;
+
+use crate::runtime::env::*;
 use crate::runtime::provenance::*;
 
 pub struct StaticIteration<'a, Prov: Provenance> {
   pub iter_num: usize,
   pub early_discard: bool,
   pub relations: Vec<Box<dyn StaticRelationTrait<Prov>>>,
+  pub runtime_environment: &'a RuntimeEnvironment,
   pub provenance_context: &'a mut Prov,
 }
 
 impl<'a, Prov: Provenance> StaticIteration<'a, Prov> {
   /// Create a new Iteration
-  pub fn new(provenance_context: &'a mut Prov) -> Self {
+  pub fn new(runtime_environment: &'a RuntimeEnvironment, provenance_context: &'a mut Prov) -> Self {
     Self {
       iter_num: 0,
       early_discard: true,
+      runtime_environment,
       provenance_context,
       relations: Vec::new(),
     }
@@ -122,7 +126,7 @@ impl<'a, Prov: Provenance> StaticIteration<'a, Prov> {
     T1: StaticTupleTrait,
     D: dataflow::Dataflow<T1, Prov>,
   {
-    dataflow::AggregationSingleGroup::new(agg, d, &self.provenance_context)
+    dataflow::AggregationSingleGroup::new(agg, d, self.runtime_environment, &self.provenance_context)
   }
 
   pub fn aggregate_implicit_group<A, D, K, T1>(
@@ -136,7 +140,7 @@ impl<'a, Prov: Provenance> StaticIteration<'a, Prov> {
     T1: StaticTupleTrait,
     D: dataflow::Dataflow<(K, T1), Prov>,
   {
-    dataflow::AggregationImplicitGroup::new(agg, d, &self.provenance_context)
+    dataflow::AggregationImplicitGroup::new(agg, d, self.runtime_environment, &self.provenance_context)
   }
 
   pub fn aggregate_join_group<A, D1, D2, K, T1, T2>(
@@ -153,7 +157,7 @@ impl<'a, Prov: Provenance> StaticIteration<'a, Prov> {
     D1: dataflow::Dataflow<(K, T1), Prov>,
     D2: dataflow::Dataflow<(K, T2), Prov>,
   {
-    dataflow::AggregationJoinGroup::new(agg, v1, v2, &self.provenance_context)
+    dataflow::AggregationJoinGroup::new(agg, v1, v2, self.runtime_environment, &self.provenance_context)
   }
 
   pub fn complete<Tup>(&self, r: &StaticRelation<Tup, Prov>) -> StaticCollection<Tup, Prov>

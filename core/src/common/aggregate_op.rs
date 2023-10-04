@@ -6,8 +6,8 @@ use super::value_type::*;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AggregateOp {
   Count { discrete: bool },
-  Sum(ValueType),
-  Prod(ValueType),
+  Sum { has_arg: bool, ty: ValueType },
+  Prod { has_arg: bool, ty: ValueType },
   Min,
   Argmin,
   Max,
@@ -20,9 +20,27 @@ pub enum AggregateOp {
 impl std::fmt::Display for AggregateOp {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      Self::Count { discrete } => if *discrete { f.write_str("discrete_count") } else { f.write_str("count") },
-      Self::Sum(t) => f.write_fmt(format_args!("sum<{}>", t)),
-      Self::Prod(t) => f.write_fmt(format_args!("prod<{}>", t)),
+      Self::Count { discrete } => {
+        if *discrete {
+          f.write_str("discrete_count")
+        } else {
+          f.write_str("count")
+        }
+      }
+      Self::Sum { has_arg, ty } => {
+        if *has_arg {
+          f.write_fmt(format_args!("sum_wa<{}>", ty))
+        } else {
+          f.write_fmt(format_args!("sum<{}>", ty))
+        }
+      }
+      Self::Prod { has_arg, ty } => {
+        if *has_arg {
+          f.write_fmt(format_args!("prod_wa<{}>", ty))
+        } else {
+          f.write_fmt(format_args!("prod<{}>", ty))
+        }
+      }
       Self::Min => f.write_str("min"),
       Self::Max => f.write_str("max"),
       Self::Argmin => f.write_str("argmin"),
@@ -65,5 +83,19 @@ impl AggregateOp {
 
   pub fn categorical_k(k: usize) -> Self {
     Self::CategoricalK(k)
+  }
+
+  pub fn is_min_max(&self) -> bool {
+    match self {
+      Self::Min | Self::Max | Self::Argmin | Self::Argmax => true,
+      _ => false,
+    }
+  }
+
+  pub fn is_sum_prod(&self) -> bool {
+    match self {
+      Self::Sum { .. } | Self::Prod { .. } => true,
+      _ => false,
+    }
   }
 }

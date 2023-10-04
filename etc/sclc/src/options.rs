@@ -27,8 +27,11 @@ pub struct Options {
   #[structopt(long)]
   pub provenance: Option<String>,
 
-  #[structopt(long, default_value = "3")]
+  #[structopt(short = "k", long, default_value = "3")]
   pub top_k: usize,
+
+  #[structopt(long)]
+  pub wmc_with_disjunctions: bool,
 }
 
 impl From<&Options> for compiler::CompileOptions {

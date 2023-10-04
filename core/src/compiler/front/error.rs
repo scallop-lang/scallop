@@ -5,6 +5,7 @@ use crate::common::value_type::ValueParseError;
 
 use super::*;
 
+#[derive(Clone, Debug)]
 pub enum FrontCompileErrorType {
   Warning,
   Error,
@@ -123,6 +124,68 @@ impl FrontCompileError {
 
   pub fn clear_errors(&mut self) {
     self.errors.clear();
+  }
+}
+
+#[derive(Debug, Clone)]
+pub struct FrontCompileErrorMessage {
+  pub error_type: FrontCompileErrorType,
+  pub parts: Vec<FrontCompileErrorPart>,
+}
+
+#[derive(Debug, Clone)]
+pub enum FrontCompileErrorPart {
+  Message(String),
+  Source(NodeLocation),
+}
+
+impl FrontCompileErrorMessage {
+  pub fn error() -> Self {
+    Self {
+      error_type: FrontCompileErrorType::Error,
+      parts: vec![],
+    }
+  }
+
+  pub fn warning() -> Self {
+    Self {
+      error_type: FrontCompileErrorType::Warning,
+      parts: vec![],
+    }
+  }
+
+  pub fn msg<S: ToString>(mut self, s: S) -> Self {
+    self.parts.push(FrontCompileErrorPart::Message(s.to_string()));
+    self
+  }
+
+  pub fn src(mut self, loc: NodeLocation) -> Self {
+    self.parts.push(FrontCompileErrorPart::Source(loc));
+    self
+  }
+}
+
+impl FrontCompileErrorTrait for FrontCompileErrorMessage {
+  fn error_type(&self) -> FrontCompileErrorType {
+    self.error_type.clone()
+  }
+
+  fn report(&self, src: &Sources) -> String {
+    let mut whole_message = String::new();
+    for (i, part) in self.parts.iter().enumerate() {
+      if i > 0 {
+        whole_message += "\n";
+      }
+      match part {
+        FrontCompileErrorPart::Message(msg) => {
+          whole_message += msg;
+        }
+        FrontCompileErrorPart::Source(loc) => {
+          whole_message += &loc.report(src);
+        }
+      }
+    }
+    whole_message
   }
 }
 

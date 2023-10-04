@@ -1,5 +1,5 @@
-use scallop_core::common::aggregate_op::AggregateOp;
 use scallop_core::common::expr::*;
+use scallop_core::common::value_type::ValueType;
 use scallop_core::compiler::ram::*;
 use scallop_core::runtime::dynamic::*;
 use scallop_core::runtime::env::*;
@@ -7,15 +7,15 @@ use scallop_core::runtime::provenance::*;
 
 #[test]
 fn test_simple_probability_count() {
-  let mut ctx = min_max_prob::MinMaxProbProvenance::default();
-  let mut rt = RuntimeEnvironment::default();
+  let ctx = min_max_prob::MinMaxProbProvenance::default();
+  let rt = RuntimeEnvironment::default();
 
   let result_1 = {
     let mut strata_1 = DynamicIteration::<min_max_prob::MinMaxProbProvenance>::new();
     strata_1.create_dynamic_relation("color");
     strata_1.create_dynamic_relation("_color_rev");
     strata_1.get_dynamic_relation_unsafe("color").insert_tagged(
-      &mut ctx,
+      &ctx,
       vec![
         (Some(0.5), (0usize, "blue")),
         (Some(0.8), (1, "green")),
@@ -30,7 +30,7 @@ fn test_simple_probability_count() {
       Dataflow::relation("color").project((Expr::access(1), Expr::access(0))),
     );
     strata_1.add_output_relation("_color_rev");
-    strata_1.run(&ctx, &mut rt)
+    strata_1.run(&ctx, &rt)
   };
 
   let result_2 = {
@@ -39,10 +39,18 @@ fn test_simple_probability_count() {
     strata_2.add_input_dynamic_collection("_color_rev", &result_1["_color_rev"]);
     strata_2.add_update_dataflow(
       "color_count",
-      Dataflow::reduce(AggregateOp::count(), "_color_rev", ReduceGroupByType::Implicit),
+      Dataflow::reduce(
+        "count".to_string(),
+        vec![],
+        false,
+        vec![],
+        vec![ValueType::USize],
+        "_color_rev",
+        ReduceGroupByType::Implicit,
+      ),
     );
     strata_2.add_output_relation("color_count");
-    strata_2.run(&ctx, &mut rt)
+    strata_2.run(&ctx, &rt)
   };
 
   println!("{:?}", result_2)
@@ -50,15 +58,15 @@ fn test_simple_probability_count() {
 
 #[test]
 fn test_min_max_prob_count_max() {
-  let mut ctx = min_max_prob::MinMaxProbProvenance::default();
-  let mut rt = RuntimeEnvironment::default();
+  let ctx = min_max_prob::MinMaxProbProvenance::default();
+  let rt = RuntimeEnvironment::default();
 
   let result_1 = {
     let mut strata_1 = DynamicIteration::<min_max_prob::MinMaxProbProvenance>::new();
     strata_1.create_dynamic_relation("color");
     strata_1.create_dynamic_relation("_color_rev");
     strata_1.get_dynamic_relation_unsafe("color").insert_tagged(
-      &mut ctx,
+      &ctx,
       vec![
         (Some(0.6), (0usize, "blue")),
         (Some(0.4), (0, "green")),
@@ -73,7 +81,7 @@ fn test_min_max_prob_count_max() {
       Dataflow::relation("color").project((Expr::access(1), Expr::access(0))),
     );
     strata_1.add_output_relation("_color_rev");
-    strata_1.run(&ctx, &mut rt)
+    strata_1.run(&ctx, &rt)
   };
 
   let result_2 = {
@@ -82,10 +90,18 @@ fn test_min_max_prob_count_max() {
     strata_2.add_input_dynamic_collection("_color_rev", &result_1["_color_rev"]);
     strata_2.add_update_dataflow(
       "color_count",
-      Dataflow::reduce(AggregateOp::count(), "_color_rev", ReduceGroupByType::Implicit),
+      Dataflow::reduce(
+        "count".to_string(),
+        vec![],
+        false,
+        vec![],
+        vec![ValueType::USize],
+        "_color_rev",
+        ReduceGroupByType::Implicit,
+      ),
     );
     strata_2.add_output_relation("color_count");
-    strata_2.run(&ctx, &mut rt)
+    strata_2.run(&ctx, &rt)
   };
 
   println!("{:?}", result_2);
@@ -96,10 +112,18 @@ fn test_min_max_prob_count_max() {
     strata_3.add_input_dynamic_collection("color_count", &result_2["color_count"]);
     strata_3.add_update_dataflow(
       "max_color",
-      Dataflow::reduce(AggregateOp::Argmax, "color_count", ReduceGroupByType::None),
+      Dataflow::reduce(
+        "max".to_string(),
+        vec![],
+        false,
+        vec![ValueType::Str],
+        vec![ValueType::USize],
+        "color_count",
+        ReduceGroupByType::None,
+      ),
     );
     strata_3.add_output_relation("max_color");
-    strata_3.run(&ctx, &mut rt)
+    strata_3.run(&ctx, &rt)
   };
 
   println!("{:?}", result_2["color_count"]);

@@ -1,7 +1,7 @@
 use super::*;
 
 pub struct DynamicAggregationSingleGroupDataflow<'a, Prov: Provenance> {
-  pub agg: DynamicAggregator,
+  pub agg: DynamicAggregator<Prov>,
   pub d: DynamicDataflow<'a, Prov>,
   pub ctx: &'a Prov,
   pub runtime: &'a RuntimeEnvironment,
@@ -19,7 +19,12 @@ impl<'a, Prov: Provenance> Clone for DynamicAggregationSingleGroupDataflow<'a, P
 }
 
 impl<'a, Prov: Provenance> DynamicAggregationSingleGroupDataflow<'a, Prov> {
-  pub fn new(agg: DynamicAggregator, d: DynamicDataflow<'a, Prov>, ctx: &'a Prov, runtime: &'a RuntimeEnvironment) -> Self {
+  pub fn new(
+    agg: DynamicAggregator<Prov>,
+    d: DynamicDataflow<'a, Prov>,
+    ctx: &'a Prov,
+    runtime: &'a RuntimeEnvironment,
+  ) -> Self {
     Self { agg, d, ctx, runtime }
   }
 }
@@ -28,7 +33,7 @@ impl<'a, Prov: Provenance> Dataflow<'a, Prov> for DynamicAggregationSingleGroupD
   fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
     if let Some(b) = self.d.iter_recent().next_batch() {
       let batch = b.collect::<Vec<_>>();
-      DynamicBatches::single(ElementsBatch::new(self.agg.aggregate(batch, self.ctx, self.runtime)))
+      DynamicBatches::single(ElementsBatch::new(self.agg.aggregate(self.ctx, self.runtime, batch)))
     } else {
       DynamicBatches::empty()
     }

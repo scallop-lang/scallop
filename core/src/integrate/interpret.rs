@@ -126,11 +126,15 @@ impl<Prov: provenance::Provenance, Ptr: PointerFamily> InterpretContext<Prov, Pt
         OutputOption::Hidden => {}
         OutputOption::Default => {
           // Recover
+          m.observe_recovering_relation(predicate);
           relation.recover_with_monitor(&self.runtime_env, &self.provenance, m, true);
+          m.observe_finish_recovering_relation(predicate);
         }
         OutputOption::File(f) => {
           // Recover and export the file
+          m.observe_recovering_relation(predicate);
           relation.recover_with_monitor(&self.runtime_env, &self.provenance, m, true);
+          m.observe_finish_recovering_relation(predicate);
           database::io::store_file(f, relation).map_err(IntegrateError::io)?;
         }
       }

@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use crate::runtime::env::*;
 use crate::runtime::provenance::*;
 use crate::runtime::statics::*;
 
@@ -14,6 +15,7 @@ where
 {
   agg: A,
   d: D,
+  rt: &'a RuntimeEnvironment,
   ctx: &'a Prov,
   phantom: PhantomData<T1>,
 }
@@ -25,10 +27,11 @@ where
   A: Aggregator<T1, Prov>,
   Prov: Provenance,
 {
-  pub fn new(agg: A, d: D, ctx: &'a Prov) -> Self {
+  pub fn new(agg: A, d: D, rt: &'a RuntimeEnvironment, ctx: &'a Prov) -> Self {
     Self {
       agg,
       d,
+      rt,
       ctx,
       phantom: PhantomData,
     }
@@ -53,18 +56,13 @@ where
   fn iter_recent(self) -> Self::Recent {
     // Sanitize input relation
     let batch = if let Some(b) = self.d.iter_recent().next() {
-      let result = b.collect::<Vec<_>>();
-      if result.is_empty() {
-        return Self::Recent::empty();
-      } else {
-        result
-      }
+      b.collect::<Vec<_>>()
     } else {
       return Self::Recent::empty();
     };
 
     // Aggregate the result using aggregator
-    let result = self.agg.aggregate(batch, self.ctx);
+    let result = self.agg.aggregate(batch, self.rt, self.ctx);
     Self::Recent::singleton(result.into_iter())
   }
 }
@@ -80,6 +78,7 @@ where
     Self {
       agg: self.agg.clone(),
       d: self.d.clone(),
+      rt: self.rt,
       ctx: self.ctx,
       phantom: PhantomData,
     }

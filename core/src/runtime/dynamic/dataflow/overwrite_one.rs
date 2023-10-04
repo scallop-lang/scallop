@@ -16,11 +16,17 @@ impl<'a, Prov: Provenance> Clone for DynamicOverwriteOneDataflow<'a, Prov> {
 
 impl<'a, Prov: Provenance> Dataflow<'a, Prov> for DynamicOverwriteOneDataflow<'a, Prov> {
   fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::new(DynamicOverwriteOneBatches { source: self.source.iter_stable(), ctx: self.ctx })
+    DynamicBatches::new(DynamicOverwriteOneBatches {
+      source: self.source.iter_stable(),
+      ctx: self.ctx,
+    })
   }
 
   fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::new(DynamicOverwriteOneBatches { source: self.source.iter_recent(), ctx: self.ctx })
+    DynamicBatches::new(DynamicOverwriteOneBatches {
+      source: self.source.iter_recent(),
+      ctx: self.ctx,
+    })
   }
 }
 

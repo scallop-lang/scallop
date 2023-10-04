@@ -4,12 +4,24 @@ use crate::runtime::provenance::*;
 use super::*;
 
 pub struct DynamicMonitors<Prov: Provenance> {
-  monitors: Vec<Box<dyn Monitor<Prov>>>,
+  pub monitors: Vec<Box<dyn Monitor<Prov>>>,
+}
+
+impl<Prov: Provenance> Clone for DynamicMonitors<Prov> {
+  fn clone(&self) -> Self {
+    Self {
+      monitors: self.monitors.iter().map(|m| dyn_clone::clone_box(&**m)).collect(),
+    }
+  }
 }
 
 impl<Prov: Provenance> DynamicMonitors<Prov> {
   pub fn new() -> Self {
     Self { monitors: vec![] }
+  }
+
+  pub fn monitor_names(&self) -> Vec<&str> {
+    self.monitors.iter().map(|m| m.name()).collect()
   }
 
   pub fn is_empty(&self) -> bool {
@@ -25,6 +37,12 @@ impl<Prov: Provenance> DynamicMonitors<Prov> {
     self.add(m);
     self
   }
+
+  pub fn extend(&mut self, other: Self) {
+    for m in other.monitors {
+      self.monitors.push(m);
+    }
+  }
 }
 
 macro_rules! dynamic_monitors_observe_event {
@@ -38,6 +56,9 @@ macro_rules! dynamic_monitors_observe_event {
 }
 
 impl<Prov: Provenance> Monitor<Prov> for DynamicMonitors<Prov> {
+  fn name(&self) -> &'static str {
+    "multiple"
+  }
   dynamic_monitors_observe_event!(observe_executing_stratum, (stratum_id: usize));
   dynamic_monitors_observe_event!(observe_stratum_iteration, (iteration_count: usize));
   dynamic_monitors_observe_event!(observe_hitting_iteration_limit, ());
@@ -45,13 +66,9 @@ impl<Prov: Provenance> Monitor<Prov> for DynamicMonitors<Prov> {
   dynamic_monitors_observe_event!(observe_loading_relation, (relation: &str));
   dynamic_monitors_observe_event!(observe_loading_relation_from_edb, (relation: &str));
   dynamic_monitors_observe_event!(observe_loading_relation_from_idb, (relation: &str));
-  dynamic_monitors_observe_event!(
-    observe_tagging,
-    (tup: &Tuple, input_tag: &Option<Prov::InputTag>, tag: &Prov::Tag)
-  );
+  dynamic_monitors_observe_event!(observe_tagging, (tup: &Tuple, input_tag: &Option<Prov::InputTag>, tag: &Prov::Tag));
+  dynamic_monitors_observe_event!(observe_finish_execution, ());
   dynamic_monitors_observe_event!(observe_recovering_relation, (relation: &str));
-  dynamic_monitors_observe_event!(
-    observe_recover,
-    (tup: &Tuple, tag: &Prov::Tag, output_tag: &Prov::OutputTag)
-  );
+  dynamic_monitors_observe_event!(observe_recover, (tup: &Tuple, tag: &Prov::Tag, output_tag: &Prov::OutputTag));
+  dynamic_monitors_observe_event!(observe_finish_recovering_relation, (relation: &str));
 }

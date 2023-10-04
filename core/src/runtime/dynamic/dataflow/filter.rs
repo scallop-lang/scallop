@@ -10,11 +10,19 @@ pub struct DynamicFilterDataflow<'a, Prov: Provenance> {
 
 impl<'a, Prov: Provenance> Dataflow<'a, Prov> for DynamicFilterDataflow<'a, Prov> {
   fn iter_stable(&self) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::new(DynamicFilterBatches { runtime: self.runtime, source: self.source.iter_stable(), filter: self.filter.clone() })
+    DynamicBatches::new(DynamicFilterBatches {
+      runtime: self.runtime,
+      source: self.source.iter_stable(),
+      filter: self.filter.clone(),
+    })
   }
 
   fn iter_recent(&self) -> DynamicBatches<'a, Prov> {
-    DynamicBatches::new(DynamicFilterBatches { runtime: self.runtime, source: self.source.iter_recent(), filter: self.filter.clone() })
+    DynamicBatches::new(DynamicFilterBatches {
+      runtime: self.runtime,
+      source: self.source.iter_recent(),
+      filter: self.filter.clone(),
+    })
   }
 }
 

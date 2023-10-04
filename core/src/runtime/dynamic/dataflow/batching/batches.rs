@@ -95,10 +95,7 @@ pub struct DynamicBatchesChain<'a, Prov: Provenance> {
 
 impl<'a, Prov: Provenance> DynamicBatchesChain<'a, Prov> {
   pub fn new(bs: Vec<DynamicBatches<'a, Prov>>) -> Self {
-    Self {
-      bs,
-      id: 0,
-    }
+    Self { bs, id: 0 }
   }
 }
 
@@ -125,7 +122,11 @@ pub struct DynamicBatchesBinary<'a, Prov: Provenance> {
 }
 
 impl<'a, Prov: Provenance> DynamicBatchesBinary<'a, Prov> {
-  pub fn new<Op: BatchBinaryOp<'a, Prov>>(mut b1: DynamicBatches<'a, Prov>, b2: DynamicBatches<'a, Prov>, op: Op) -> Self {
+  pub fn new<Op: BatchBinaryOp<'a, Prov>>(
+    mut b1: DynamicBatches<'a, Prov>,
+    b2: DynamicBatches<'a, Prov>,
+    op: Op,
+  ) -> Self {
     let b1_curr = b1.next_batch();
     let b2_source = b2.clone();
     Self {

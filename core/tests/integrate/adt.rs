@@ -160,7 +160,7 @@ const EQSAT_1_PROGRAM: &'static str = r#"
   rel equiv_programs(sp) = input_program(p) and equivalent(p, sp)
 
   // Find the best program (minimum weight) among all programs equivalent to p
-  rel best_program(p) = w := min[p](w: equiv_programs(p) and weight(p, w))
+  rel best_program(p) = p := argmin[p](w: equiv_programs(p) and weight(p, w))
   rel best_program_str(s) = best_program(best_prog) and to_string(best_prog, s)
   query best_program_str
 "#;

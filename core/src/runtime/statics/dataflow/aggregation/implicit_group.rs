@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use crate::runtime::env::*;
 use crate::runtime::provenance::*;
 use crate::runtime::statics::*;
 
@@ -15,6 +16,7 @@ where
 {
   agg: A,
   d: D,
+  rt: &'a RuntimeEnvironment,
   ctx: &'a Prov,
   phantom: PhantomData<(K, T1)>,
 }
@@ -27,10 +29,11 @@ where
   A: Aggregator<T1, Prov>,
   Prov: Provenance,
 {
-  pub fn new(agg: A, d: D, ctx: &'a Prov) -> Self {
+  pub fn new(agg: A, d: D, rt: &'a RuntimeEnvironment, ctx: &'a Prov) -> Self {
     Self {
       agg,
       d,
+      rt,
       ctx,
       phantom: PhantomData,
     }
@@ -63,12 +66,13 @@ where
 
     // Cache the context
     let agg = self.agg;
+    let rt = self.rt;
     let ctx = self.ctx;
 
     // Temporary function to aggregate the group and populate the result
     let consolidate_group =
       |result: &mut StaticElements<(K, A::Output), Prov>, agg_key: K, agg_group: StaticElements<T1, Prov>| {
-        let agg_results = agg.aggregate(agg_group, ctx);
+        let agg_results = agg.aggregate(agg_group, rt, ctx);
         let joined_results = agg_results
           .into_iter()
           .map(|agg_result| StaticElement::new((agg_key.clone(), agg_result.tuple.get().clone()), agg_result.tag));
@@ -123,6 +127,7 @@ where
     Self {
       agg: self.agg.clone(),
       d: self.d.clone(),
+      rt: self.rt,
       ctx: self.ctx,
       phantom: PhantomData,
     }

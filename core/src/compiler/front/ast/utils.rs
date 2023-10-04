@@ -1,7 +1,7 @@
 use colored::*;
 
-use super::*;
 use super::super::*;
+use super::*;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct CharLocation {
@@ -323,7 +323,10 @@ derive_ast_walker!(String);
 derive_ast_walker!(crate::common::input_tag::DynamicInputTag);
 derive_ast_walker!(crate::common::binary_op::BinaryOp);
 
-impl<T> AstWalker for Vec<T> where T: AstWalker {
+impl<T> AstWalker for Vec<T>
+where
+  T: AstWalker,
+{
   fn walk<V>(&self, v: &mut V) {
     for child in self {
       child.walk(v)
@@ -337,7 +340,10 @@ impl<T> AstWalker for Vec<T> where T: AstWalker {
   }
 }
 
-impl<T> AstWalker for Option<T> where T: AstWalker {
+impl<T> AstWalker for Option<T>
+where
+  T: AstWalker,
+{
   fn walk<V>(&self, v: &mut V) {
     if let Some(n) = self {
       n.walk(v)
@@ -351,7 +357,10 @@ impl<T> AstWalker for Option<T> where T: AstWalker {
   }
 }
 
-impl<T> AstWalker for Box<T> where T: AstWalker {
+impl<T> AstWalker for Box<T>
+where
+  T: AstWalker,
+{
   fn walk<V>(&self, v: &mut V) {
     (&**self).walk(v)
   }
@@ -361,7 +370,10 @@ impl<T> AstWalker for Box<T> where T: AstWalker {
   }
 }
 
-impl<A> AstWalker for (A,) where A: AstWalker {
+impl<A> AstWalker for (A,)
+where
+  A: AstWalker,
+{
   fn walk<V>(&self, v: &mut V) {
     self.0.walk(v);
   }
@@ -371,7 +383,11 @@ impl<A> AstWalker for (A,) where A: AstWalker {
   }
 }
 
-impl<A, B> AstWalker for (A, B) where A: AstWalker, B: AstWalker {
+impl<A, B> AstWalker for (A, B)
+where
+  A: AstWalker,
+  B: AstWalker,
+{
   fn walk<V>(&self, v: &mut V) {
     self.0.walk(v);
     self.1.walk(v);
@@ -383,7 +399,12 @@ impl<A, B> AstWalker for (A, B) where A: AstWalker, B: AstWalker {
   }
 }
 
-impl<A, B, C> AstWalker for (A, B, C) where A: AstWalker, B: AstWalker, C: AstWalker {
+impl<A, B, C> AstWalker for (A, B, C)
+where
+  A: AstWalker,
+  B: AstWalker,
+  C: AstWalker,
+{
   fn walk<V>(&self, v: &mut V) {
     self.0.walk(v);
     self.1.walk(v);

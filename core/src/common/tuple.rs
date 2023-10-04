@@ -11,6 +11,10 @@ impl Tuple {
     TupleType::type_of(self)
   }
 
+  pub fn tuple<I: Iterator<Item = Self>>(i: I) -> Self {
+    Self::Tuple(i.collect())
+  }
+
   pub fn arity(&self) -> usize {
     match self {
       Self::Tuple(ts) => ts.len(),

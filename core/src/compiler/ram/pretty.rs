@@ -138,9 +138,22 @@ impl Dataflow {
           ReduceGroupByType::Implicit => format!(" implicit group"),
           _ => format!(""),
         };
+        let params = if !r.params.is_empty() {
+          format!(
+            "<{}>",
+            r.params.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", ")
+          )
+        } else {
+          format!("")
+        };
+        let exclamation_mark = if r.has_exclamation_mark {
+          format!("!")
+        } else {
+          format!("")
+        };
         f.write_fmt(format_args!(
-          "Aggregation {}({}{})",
-          r.op, r.predicate, group_by_predicate
+          "Aggregation {}{}{}({}{})",
+          r.aggregator, params, exclamation_mark, r.predicate, group_by_predicate
         ))
       }
 

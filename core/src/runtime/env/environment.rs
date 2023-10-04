@@ -3,6 +3,7 @@ use std::collections::*;
 use crate::common::constants::*;
 use crate::common::entity;
 use crate::common::expr::*;
+use crate::common::foreign_aggregate::*;
 use crate::common::foreign_function::*;
 use crate::common::foreign_predicate::*;
 use crate::common::foreign_tensor;
@@ -34,6 +35,9 @@ pub struct RuntimeEnvironment {
   /// Foreign predicate registry
   pub predicate_registry: ForeignPredicateRegistry,
 
+  /// Foreign aggregate registry
+  pub aggregate_registry: AggregateRegistry,
+
   /// Mutual exclusion ID allocator
   pub exclusion_id_allocator: IdAllocator2,
 
@@ -62,6 +66,7 @@ impl RuntimeEnvironment {
       iter_limit: None,
       function_registry: ForeignFunctionRegistry::std(),
       predicate_registry: ForeignPredicateRegistry::std(),
+      aggregate_registry: AggregateRegistry::std(),
       exclusion_id_allocator: IdAllocator2::new(),
       symbol_registry: SymbolRegistry2::new(),
       dynamic_entity_store: DynamicEntityStorage2::new(),
@@ -77,6 +82,7 @@ impl RuntimeEnvironment {
       iter_limit: None,
       function_registry: ForeignFunctionRegistry::std(),
       predicate_registry: ForeignPredicateRegistry::std(),
+      aggregate_registry: AggregateRegistry::std(),
       exclusion_id_allocator: IdAllocator2::new(),
       symbol_registry: SymbolRegistry2::new(),
       dynamic_entity_store: DynamicEntityStorage2::new(),
@@ -84,7 +90,7 @@ impl RuntimeEnvironment {
     }
   }
 
-  pub fn new(ffr: ForeignFunctionRegistry, fpr: ForeignPredicateRegistry) -> Self {
+  pub fn new(ffr: ForeignFunctionRegistry, fpr: ForeignPredicateRegistry, far: AggregateRegistry) -> Self {
     Self {
       random_seed: DEFAULT_RANDOM_SEED,
       random: Random::new(DEFAULT_RANDOM_SEED),
@@ -92,6 +98,7 @@ impl RuntimeEnvironment {
       iter_limit: None,
       function_registry: ffr,
       predicate_registry: fpr,
+      aggregate_registry: far,
       exclusion_id_allocator: IdAllocator2::new(),
       symbol_registry: SymbolRegistry2::new(),
       dynamic_entity_store: DynamicEntityStorage2::new(),
@@ -107,6 +114,7 @@ impl RuntimeEnvironment {
       iter_limit: None,
       function_registry: ffr,
       predicate_registry: ForeignPredicateRegistry::std(),
+      aggregate_registry: AggregateRegistry::std(),
       exclusion_id_allocator: IdAllocator2::new(),
       symbol_registry: SymbolRegistry2::new(),
       dynamic_entity_store: DynamicEntityStorage2::new(),
@@ -122,6 +130,7 @@ impl RuntimeEnvironment {
       iter_limit: options.iter_limit,
       function_registry: ForeignFunctionRegistry::std(),
       predicate_registry: ForeignPredicateRegistry::std(),
+      aggregate_registry: AggregateRegistry::std(),
       exclusion_id_allocator: IdAllocator2::new(),
       symbol_registry: SymbolRegistry2::new(),
       dynamic_entity_store: DynamicEntityStorage2::new(),
@@ -148,6 +157,7 @@ impl RuntimeEnvironment {
   pub fn load_from_ram_program(&mut self, ram_program: &ram::Program) {
     self.function_registry = ram_program.function_registry.clone();
     self.predicate_registry = ram_program.predicate_registry.clone();
+    self.aggregate_registry = ram_program.aggregate_registry.clone();
     self
       .dynamic_entity_store
       .update_variant_registry(ram_program.adt_variant_registry.clone());
@@ -212,9 +222,11 @@ impl RuntimeEnvironment {
 
   pub fn externalize_tuple(&self, tup: &Tuple) -> Option<Tuple> {
     match tup {
-      Tuple::Tuple(ts) => {
-        Some(Tuple::Tuple(ts.iter().map(|t| self.externalize_tuple(t)).collect::<Option<Box<[_]>>>()?))
-      },
+      Tuple::Tuple(ts) => Some(Tuple::Tuple(
+        ts.iter()
+          .map(|t| self.externalize_tuple(t))
+          .collect::<Option<Box<[_]>>>()?,
+      )),
       Tuple::Value(v) => self.externalize_value(v).map(Tuple::Value),
     }
   }

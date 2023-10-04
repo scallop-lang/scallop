@@ -29,7 +29,12 @@ pub struct DynamicExclusionDataflow<'a, Prov: Provenance> {
 }
 
 impl<'a, Prov: Provenance> DynamicExclusionDataflow<'a, Prov> {
-  pub fn new(left: DynamicDataflow<'a, Prov>, right: DynamicDataflow<'a, Prov>, ctx: &'a Prov, runtime: &'a RuntimeEnvironment) -> Self {
+  pub fn new(
+    left: DynamicDataflow<'a, Prov>,
+    right: DynamicDataflow<'a, Prov>,
+    ctx: &'a Prov,
+    runtime: &'a RuntimeEnvironment,
+  ) -> Self {
     Self {
       left,
       right,

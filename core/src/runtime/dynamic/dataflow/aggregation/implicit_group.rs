@@ -3,7 +3,7 @@ use crate::common::tuple::*;
 use super::*;
 
 pub struct DynamicAggregationImplicitGroupDataflow<'a, Prov: Provenance> {
-  pub agg: DynamicAggregator,
+  pub agg: DynamicAggregator<Prov>,
   pub d: DynamicDataflow<'a, Prov>,
   pub ctx: &'a Prov,
   pub runtime: &'a RuntimeEnvironment,
@@ -21,7 +21,12 @@ impl<'a, Prov: Provenance> Clone for DynamicAggregationImplicitGroupDataflow<'a,
 }
 
 impl<'a, Prov: Provenance> DynamicAggregationImplicitGroupDataflow<'a, Prov> {
-  pub fn new(agg: DynamicAggregator, d: DynamicDataflow<'a, Prov>, ctx: &'a Prov, runtime: &'a RuntimeEnvironment) -> Self {
+  pub fn new(
+    agg: DynamicAggregator<Prov>,
+    d: DynamicDataflow<'a, Prov>,
+    ctx: &'a Prov,
+    runtime: &'a RuntimeEnvironment,
+  ) -> Self {
     Self { agg, d, ctx, runtime }
   }
 }
@@ -36,14 +41,13 @@ impl<'a, Prov: Provenance> Dataflow<'a, Prov> for DynamicAggregationImplicitGrou
     };
 
     // Temporary function to aggregate the group and populate the result
-    let consolidate_group =
-      |result: &mut DynamicElements<Prov>, agg_key: Tuple, agg_group| {
-        let agg_results = self.agg.aggregate(agg_group, self.ctx, self.runtime);
-        let joined_results = agg_results
-          .into_iter()
-          .map(|agg_result| DynamicElement::new((agg_key.clone(), agg_result.tuple.clone()), agg_result.tag));
-        result.extend(joined_results);
-      };
+    let consolidate_group = |result: &mut DynamicElements<Prov>, agg_key: Tuple, agg_group| {
+      let agg_results = self.agg.aggregate(self.ctx, self.runtime, agg_group);
+      let joined_results = agg_results
+        .into_iter()
+        .map(|agg_result| DynamicElement::new((agg_key.clone(), agg_result.tuple.clone()), agg_result.tag));
+      result.extend(joined_results);
+    };
 
     // Get the first element from the batch; otherwise, return empty
     let first_elem = if let Some(e) = batch.next_elem() {

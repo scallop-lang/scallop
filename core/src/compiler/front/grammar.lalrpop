@@ -495,40 +495,18 @@ VariableOrWildcard: VariableOrWildcard = {
 
 ReduceOp = Spanned<_ReduceOp>;
 _ReduceOp: _ReduceOp = {
-  "exists" => _ReduceOp::Exists,
-  "forall" => _ReduceOp::Forall,
-  <n: Identifier> => {
-    match n.name().as_str() {
-      "count" => _ReduceOp::Count(false),
-      "sum" => _ReduceOp::Sum,
-      "prod" => _ReduceOp::Prod,
-      "min" => _ReduceOp::Min,
-      "max" => _ReduceOp::Max,
-      "unique" => _ReduceOp::Unique,
-      x => _ReduceOp::Unknown(x.to_string()),
-    }
+  <l: @L> "exists" <r: @R> <has_exclamation_mark: "!"?> => {
+    _ReduceOp::new(Identifier::new_with_span("exists".to_string(), l, r), vec![], has_exclamation_mark.is_some())
   },
-  <n: Identifier> "!" => {
-    match n.name().as_str() {
-      "count" => _ReduceOp::Count(true),
-      x => _ReduceOp::Unknown(x.to_string()),
-    }
+  <l: @L> "forall" <r: @R> <has_exclamation_mark: "!"?> => {
+    _ReduceOp::new(Identifier::new_with_span("forall".to_string(), l, r), vec![], has_exclamation_mark.is_some())
   },
-  <n: Identifier> "<" <k: Int> ">" => {
-    match n.name().as_str() {
-      "top" => if k > 0 {
-        _ReduceOp::TopK(k as usize)
-      } else {
-        _ReduceOp::Unknown(format!("top<{}>", k))
-      },
-      "categorical" => if k > 0 {
-        _ReduceOp::CategoricalK(k as usize)
-      } else {
-        _ReduceOp::Unknown(format!("categorical<{}>", k))
-      },
-      x => _ReduceOp::Unknown(x.to_string()),
-    }
-  }
+  <n: Identifier> <has_exclamation_mark: "!"?> => {
+    _ReduceOp::new(n, vec![], has_exclamation_mark.is_some())
+  },
+  <n: Identifier> <has_exclamation_mark: "!"?> "<" <cs: AtLeastOneSeparatedStrict<Constant, ",">> ">" => {
+    _ReduceOp::new(n, cs, has_exclamation_mark.is_some())
+  },
 }
 
 ReduceArgsFull: Vec<Variable> = {
@@ -567,8 +545,12 @@ _Reduce: _Reduce = {
 
 ForallExistsReduceOp = Spanned<_ForallExistsReduceOp>;
 _ForallExistsReduceOp: _ReduceOp = {
-  "exists" => _ReduceOp::Exists,
-  "forall" => _ReduceOp::Forall,
+  <l: @L> "exists" <r: @R> <has_exclamation_mark: "!"?> => {
+    _ReduceOp::new(Identifier::new_with_span("exists".to_string(), l, r), vec![], has_exclamation_mark.is_some())
+  },
+  <l: @L> "forall" <r: @R> <has_exclamation_mark: "!"?> => {
+    _ReduceOp::new(Identifier::new_with_span("forall".to_string(), l, r), vec![], has_exclamation_mark.is_some())
+  },
 }
 
 ForallExistsReduce = Spanned<_ForallExistsReduce>;

@@ -1,12 +1,12 @@
-use itertools::Itertools;
+use crate::common::element::*;
+use crate::common::foreign_aggregate::*;
+use crate::common::foreign_aggregates::*;
+use crate::common::foreign_tensor::*;
+use crate::runtime::dynamic::*;
+use crate::runtime::env::*;
+use crate::utils::*;
 
 use super::*;
-use crate::common::element::*;
-use crate::common::foreign_tensor::*;
-use crate::common::value_type::*;
-use crate::runtime::dynamic::*;
-use crate::runtime::statics::*;
-use crate::utils::*;
 
 #[derive(Clone)]
 pub enum Derivative {
@@ -46,6 +46,26 @@ impl std::fmt::Debug for Prob {
   }
 }
 
+impl std::cmp::PartialEq for Prob {
+  fn eq(&self, other: &Self) -> bool {
+    self.0 == other.0
+  }
+}
+
+impl std::cmp::Eq for Prob {}
+
+impl std::cmp::PartialOrd for Prob {
+  fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    self.0.partial_cmp(&other.0)
+  }
+}
+
+impl std::cmp::Ord for Prob {
+  fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    self.0.total_cmp(&other.0)
+  }
+}
+
 impl Tag for Prob {}
 
 pub struct DiffMinMaxProbProvenance<T: FromTensor, P: PointerFamily> {
@@ -59,48 +79,6 @@ impl<T: FromTensor, P: PointerFamily> Clone for DiffMinMaxProbProvenance<T, P> {
       valid_threshold: self.valid_threshold,
       storage: P::new_rc_cell(P::get_rc_cell(&self.storage, |s| s.clone())),
     }
-  }
-}
-
-impl<T: FromTensor, P: PointerFamily> DiffMinMaxProbProvenance<T, P> {
-  pub fn collect_chosen_elements<'a, E>(&self, all: &'a Vec<E>, chosen_ids: &Vec<usize>) -> Vec<&'a E>
-  where
-    E: Element<Self>,
-  {
-    all
-      .iter()
-      .enumerate()
-      .filter(|(i, _)| chosen_ids.contains(i))
-      .map(|(_, e)| e)
-      .collect::<Vec<_>>()
-  }
-
-  pub fn min_tag_of_chosen_set<E: Element<Self>>(&self, all: &Vec<E>, chosen_ids: &Vec<usize>) -> Prob {
-    all
-      .iter()
-      .enumerate()
-      .map(|(id, elem)| {
-        if chosen_ids.contains(&id) {
-          elem.tag().clone()
-        } else {
-          self.negate(elem.tag()).unwrap()
-        }
-      })
-      .fold(self.one(), |a, b| self.mult(&a, &b))
-  }
-
-  fn max_min_prob_of_k_count<E: Element<Self>>(&self, sorted_set: &Vec<E>, k: usize) -> Prob {
-    sorted_set
-      .iter()
-      .enumerate()
-      .map(|(id, elem)| {
-        if id < k {
-          elem.tag().clone()
-        } else {
-          self.negate(elem.tag()).unwrap()
-        }
-      })
-      .fold(self.one(), |a, b| self.mult(&a, &b))
   }
 }
 
@@ -207,171 +185,49 @@ impl<T: FromTensor, P: PointerFamily> Provenance for DiffMinMaxProbProvenance<T,
   fn weight(&self, t: &Self::Tag) -> f64 {
     t.0
   }
+}
 
-  fn dynamic_count(&self, mut batch: DynamicElements<Self>) -> DynamicElements<Self> {
-    if batch.is_empty() {
-      vec![DynamicElement::new(0usize, self.one())]
-    } else {
-      batch.sort_by(|a, b| b.tag.0.total_cmp(&a.tag.0));
-      let mut elems = vec![];
-      for k in 0..=batch.len() {
-        let prob = self.max_min_prob_of_k_count(&batch, k);
-        elems.push(DynamicElement::new(k, prob));
-      }
-      elems
-    }
-  }
-
-  fn dynamic_sum(&self, ty: &ValueType, batch: DynamicElements<Self>) -> DynamicElements<Self> {
-    let mut elems = vec![];
-    for chosen_set in (0..batch.len()).powerset() {
-      let chosen_elements = self.collect_chosen_elements(&batch, &chosen_set);
-      let sum = ty.sum(chosen_elements.iter_tuples());
-      let prob = self.min_tag_of_chosen_set(&batch, &chosen_set);
-      elems.push(DynamicElement::new(sum, prob));
-    }
-    elems
-  }
-
-  fn dynamic_prod(&self, ty: &ValueType, batch: DynamicElements<Self>) -> DynamicElements<Self> {
-    let mut elems = vec![];
-    for chosen_set in (0..batch.len()).powerset() {
-      let chosen_elements = self.collect_chosen_elements(&batch, &chosen_set);
-      let sum = ty.prod(chosen_elements.iter_tuples());
-      let prob = self.min_tag_of_chosen_set(&batch, &chosen_set);
-      elems.push(DynamicElement::new(sum, prob));
-    }
-    elems
-  }
-
-  fn dynamic_min(&self, batch: DynamicElements<Self>) -> DynamicElements<Self> {
-    let mut elems = vec![];
-    for i in 0..batch.len() {
-      let min_elem = batch[i].tuple.clone();
-      let mut agg_tag = self.one();
-      for j in 0..i {
-        agg_tag = self.mult(&agg_tag, &self.negate(&batch[j].tag).unwrap());
-      }
-      agg_tag = self.mult(&agg_tag, &batch[i].tag);
-      elems.push(DynamicElement::new(min_elem, agg_tag));
-    }
-    elems
-  }
-
-  fn dynamic_max(&self, batch: DynamicElements<Self>) -> DynamicElements<Self> {
-    let mut elems = vec![];
-    for i in 0..batch.len() {
-      let max_elem = batch[i].tuple.clone();
-      let mut agg_tag = batch[i].tag.clone();
-      for j in i + 1..batch.len() {
-        agg_tag = self.mult(&agg_tag, &self.negate(&batch[j].tag).unwrap());
-      }
-      elems.push(DynamicElement::new(max_elem, agg_tag));
-    }
-    elems
-  }
-
-  fn dynamic_exists(&self, batch: DynamicElements<Self>) -> DynamicElements<Self> {
-    let mut max_prob = 0.0;
-    let mut max_deriv = None;
-    for elem in batch {
-      let prob = elem.tag.0;
-      if prob > max_prob {
-        max_prob = prob;
-        max_deriv = Some(elem.tag.1);
-      }
-    }
-    if let Some(deriv) = max_deriv {
-      let f = DynamicElement::new(false, Self::Tag::new(1.0 - max_prob, deriv.negate()));
-      let t = DynamicElement::new(true, Self::Tag::new(max_prob, deriv));
-      vec![f, t]
-    } else {
-      vec![DynamicElement::new(false, self.one())]
-    }
-  }
-
-  fn static_count<Tup: StaticTupleTrait>(&self, mut batch: StaticElements<Tup, Self>) -> StaticElements<usize, Self> {
-    if batch.is_empty() {
-      vec![StaticElement::new(0usize, self.one())]
-    } else {
-      batch.sort_by(|a, b| b.tag.0.total_cmp(&a.tag.0));
-      let mut elems = vec![];
-      for k in 0..=batch.len() {
-        let prob = self.max_min_prob_of_k_count(&batch, k);
-        elems.push(StaticElement::new(k, prob));
-      }
-      elems
-    }
-  }
-
-  fn static_sum<Tup: StaticTupleTrait + SumType>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<Tup, Self> {
-    let mut elems = vec![];
-    for chosen_set in (0..batch.len()).powerset() {
-      let chosen_elements = self.collect_chosen_elements(&batch, &chosen_set);
-      let sum = Tup::sum(chosen_elements.iter_tuples().cloned());
-      let prob = self.min_tag_of_chosen_set(&batch, &chosen_set);
-      elems.push(StaticElement::new(sum, prob));
-    }
-    elems
-  }
-
-  fn static_prod<Tup: StaticTupleTrait + ProdType>(
+impl<T: FromTensor, P: PointerFamily> Aggregator<DiffMinMaxProbProvenance<T, P>> for CountAggregator {
+  fn aggregate(
     &self,
-    batch: StaticElements<Tup, Self>,
-  ) -> StaticElements<Tup, Self> {
-    let mut elems = vec![];
-    for chosen_set in (0..batch.len()).powerset() {
-      let chosen_elements = self.collect_chosen_elements(&batch, &chosen_set);
-      let prod = Tup::prod(chosen_elements.iter_tuples().cloned());
-      let prob = self.min_tag_of_chosen_set(&batch, &chosen_set);
-      elems.push(StaticElement::new(prod, prob));
-    }
-    elems
-  }
-
-  fn static_min<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<Tup, Self> {
-    let mut elems = vec![];
-    for i in 0..batch.len() {
-      let min_elem = batch[i].tuple.get().clone();
-      let mut agg_tag = self.one();
-      for j in 0..i {
-        agg_tag = self.mult(&agg_tag, &self.negate(&batch[j].tag).unwrap());
-      }
-      agg_tag = self.mult(&agg_tag, &batch[i].tag);
-      elems.push(StaticElement::new(min_elem, agg_tag));
-    }
-    elems
-  }
-
-  fn static_max<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<Tup, Self> {
-    let mut elems = vec![];
-    for i in 0..batch.len() {
-      let max_elem = batch[i].tuple.get().clone();
-      let mut agg_tag = batch[i].tag.clone();
-      for j in i + 1..batch.len() {
-        agg_tag = self.mult(&agg_tag, &self.negate(&batch[j].tag).unwrap());
-      }
-      elems.push(StaticElement::new(max_elem, agg_tag));
-    }
-    elems
-  }
-
-  fn static_exists<Tup: StaticTupleTrait>(&self, batch: StaticElements<Tup, Self>) -> StaticElements<bool, Self> {
-    let mut max_prob = 0.0;
-    let mut max_deriv = None;
-    for elem in batch {
-      let prob = elem.tag.0;
-      if prob > max_prob {
-        max_prob = prob;
-        max_deriv = Some(elem.tag.1);
-      }
-    }
-    if let Some(deriv) = max_deriv {
-      let f = StaticElement::new(false, Self::Tag::new(1.0 - max_prob, deriv.negate()));
-      let t = StaticElement::new(true, Self::Tag::new(max_prob, deriv));
-      vec![f, t]
+    p: &DiffMinMaxProbProvenance<T, P>,
+    _env: &RuntimeEnvironment,
+    mut batch: DynamicElements<DiffMinMaxProbProvenance<T, P>>,
+  ) -> DynamicElements<DiffMinMaxProbProvenance<T, P>> {
+    if self.non_multi_world {
+      vec![DynamicElement::new(batch.len(), p.one())]
     } else {
-      vec![StaticElement::new(false, self.one())]
+      if batch.is_empty() {
+        vec![DynamicElement::new(0usize, p.one())]
+      } else {
+        batch.sort_by(|a, b| b.tag.0.total_cmp(&a.tag.0));
+        let mut elems = vec![];
+        for k in 0..=batch.len() {
+          let prob = max_min_prob_of_k_count(&batch, k);
+          elems.push(DynamicElement::new(k, prob));
+        }
+        elems
+      }
     }
   }
+}
+
+fn max_min_prob_of_k_count<T, P, E>(sorted_set: &Vec<E>, k: usize) -> Prob
+where
+  T: FromTensor,
+  P: PointerFamily,
+  E: Element<DiffMinMaxProbProvenance<T, P>>,
+{
+  let prob = sorted_set
+    .iter()
+    .enumerate()
+    .map(|(id, elem)| {
+      if id < k {
+        elem.tag().clone()
+      } else {
+        Prob(1.0 - elem.tag().0, elem.tag().1.negate())
+      }
+    })
+    .fold(Prob(f64::INFINITY, Derivative::Zero), |a, b| a.min(b));
+  prob.into()
 }

@@ -27,7 +27,7 @@ pub fn interpret_with_minmaxprob(source: String) -> String {
 
 #[wasm_bindgen]
 pub fn interpret_with_topkproofs(source: String, top_k: usize) -> String {
-  let ctx = top_k_proofs::TopKProofsProvenance::<RcFamily>::new(top_k);
+  let ctx = top_k_proofs::TopKProofsProvenance::<RcFamily>::new(top_k, false);
   match interpret_string_with_ctx(source, ctx) {
     Ok(result) => result
       .into_iter()
@@ -42,7 +42,7 @@ pub fn interpret_with_topkproofs(source: String, top_k: usize) -> String {
 
 #[wasm_bindgen]
 pub fn interpret_with_topbottomkclauses(source: String, k: usize) -> String {
-  let ctx = top_bottom_k_clauses::TopBottomKClausesProvenance::<RcFamily>::new(k);
+  let ctx = top_bottom_k_clauses::TopBottomKClausesProvenance::<RcFamily>::new(k, false);
   match interpret_string_with_ctx(source, ctx) {
     Ok(result) => result
       .into_iter()

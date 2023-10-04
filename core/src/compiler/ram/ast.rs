@@ -1,8 +1,8 @@
 use std::collections::*;
 
-use crate::common::adt_variant_registry::ADTVariantRegistry;
-use crate::common::aggregate_op::AggregateOp;
+use crate::common::adt_variant_registry::*;
 use crate::common::expr::*;
+use crate::common::foreign_aggregate::*;
 use crate::common::foreign_function::*;
 use crate::common::foreign_predicate::*;
 use crate::common::input_file::InputFile;
@@ -11,12 +11,14 @@ use crate::common::output_option::OutputOption;
 use crate::common::tuple::{AsTuple, Tuple};
 use crate::common::tuple_type::TupleType;
 use crate::common::value::Value;
+use crate::common::value_type::ValueType;
 
 #[derive(Debug, Clone)]
 pub struct Program {
   pub strata: Vec<Stratum>,
   pub function_registry: ForeignFunctionRegistry,
   pub predicate_registry: ForeignPredicateRegistry,
+  pub aggregate_registry: AggregateRegistry,
   pub adt_variant_registry: ADTVariantRegistry,
   pub relation_to_stratum: HashMap<String, usize>,
 }
@@ -27,6 +29,7 @@ impl Program {
       strata: Vec::new(),
       function_registry: ForeignFunctionRegistry::new(),
       predicate_registry: ForeignPredicateRegistry::new(),
+      aggregate_registry: AggregateRegistry::new(),
       adt_variant_registry: ADTVariantRegistry::new(),
       relation_to_stratum: HashMap::new(),
     }
@@ -297,9 +300,21 @@ impl Dataflow {
     Self::ForeignPredicateJoin(Box::new(self), predicate, args)
   }
 
-  pub fn reduce<S: ToString>(op: AggregateOp, predicate: S, group_by: ReduceGroupByType) -> Self {
+  pub fn reduce<S: ToString>(
+    aggregator: String,
+    params: Vec<Value>,
+    has_exclamation_mark: bool,
+    arg_var_types: Vec<ValueType>,
+    input_var_types: Vec<ValueType>,
+    predicate: S,
+    group_by: ReduceGroupByType,
+  ) -> Self {
     Self::Reduce(Reduce {
-      op,
+      aggregator,
+      params,
+      has_exclamation_mark,
+      arg_var_types,
+      input_var_types,
       predicate: predicate.to_string(),
       group_by,
     })
@@ -355,7 +370,11 @@ impl ReduceGroupByType {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Reduce {
-  pub op: AggregateOp,
+  pub aggregator: String,
+  pub params: Vec<Value>,
+  pub has_exclamation_mark: bool,
+  pub arg_var_types: Vec<ValueType>,
+  pub input_var_types: Vec<ValueType>,
   pub predicate: String,
   pub group_by: ReduceGroupByType,
 }

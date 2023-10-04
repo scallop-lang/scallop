@@ -106,6 +106,7 @@ impl Program {
       strata: ram_strata,
       function_registry: self.function_registry.clone(),
       predicate_registry: self.predicate_registry.clone(),
+      aggregate_registry: self.aggregate_registry.clone(),
       adt_variant_registry: self.adt_variant_registry.clone(),
       relation_to_stratum,
     })

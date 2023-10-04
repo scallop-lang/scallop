@@ -1,4 +1,4 @@
-use serde::ser::{Serialize, Serializer, SerializeStruct};
+use serde::ser::{Serialize, SerializeStruct, Serializer};
 
 use crate::common::value_type::*;
 
@@ -36,7 +36,7 @@ pub enum _Type {
 impl Serialize for _Type {
   fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
   where
-      S: Serializer,
+    S: Serializer,
   {
     // 3 is the number of fields in the struct.
     let mut state = serializer.serialize_struct("_Type", 2)?;

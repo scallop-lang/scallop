@@ -52,7 +52,7 @@ rel fib = {(0, 1), (1, 1)}
 rel fib(x, a + b) = fib(x - 1, a), fib(x - 2, b), x > 1
 
 // Reduce
-rel how_many_play_soccer(c) = c = count(n: plays_soccer(n))
+rel how_many_play_soccer(c) = c := count(n: plays_soccer(n))
 
 // Logical operators
 rel something(a && b) = b || c && !d && x == y || x != y

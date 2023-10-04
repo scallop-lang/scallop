@@ -37,6 +37,13 @@ impl<T> GenericTuple<T> {
       Self::Tuple(_) => None,
     }
   }
+
+  pub fn drain(self, i: usize) -> Option<GenericTuple<T>> {
+    match self {
+      Self::Value(_) => None,
+      Self::Tuple(vs) => vs.into_vec().into_iter().nth(i),
+    }
+  }
 }
 
 impl<T> std::ops::Index<usize> for GenericTuple<T> {
@@ -46,6 +53,61 @@ impl<T> std::ops::Index<usize> for GenericTuple<T> {
     match self {
       Self::Tuple(t) => &t[i],
       _ => panic!("Cannot access tuple value with `{:?}`", i),
+    }
+  }
+}
+
+impl<T> std::ops::Index<std::ops::Range<usize>> for GenericTuple<T> {
+  type Output = [Self];
+
+  fn index(&self, range: std::ops::Range<usize>) -> &Self::Output {
+    match self {
+      Self::Tuple(t) => &t[range],
+      _ => panic!("Cannot access tuple value with `{:?}`", range),
+    }
+  }
+}
+
+impl<T> std::ops::Index<std::ops::RangeTo<usize>> for GenericTuple<T> {
+  type Output = [Self];
+
+  fn index(&self, range: std::ops::RangeTo<usize>) -> &Self::Output {
+    match self {
+      Self::Tuple(t) => &t[range],
+      _ => panic!("Cannot access tuple value with `{:?}`", range),
+    }
+  }
+}
+
+impl<T> std::ops::Index<std::ops::RangeFrom<usize>> for GenericTuple<T> {
+  type Output = [Self];
+
+  fn index(&self, range: std::ops::RangeFrom<usize>) -> &Self::Output {
+    match self {
+      Self::Tuple(t) => &t[range],
+      _ => panic!("Cannot access tuple value with `{:?}`", range),
+    }
+  }
+}
+
+impl<T> std::ops::Index<std::ops::RangeInclusive<usize>> for GenericTuple<T> {
+  type Output = [Self];
+
+  fn index(&self, range: std::ops::RangeInclusive<usize>) -> &Self::Output {
+    match self {
+      Self::Tuple(t) => &t[range],
+      _ => panic!("Cannot access tuple value with `{:?}`", range),
+    }
+  }
+}
+
+impl<T> std::ops::Index<std::ops::RangeFull> for GenericTuple<T> {
+  type Output = [Self];
+
+  fn index(&self, range: std::ops::RangeFull) -> &Self::Output {
+    match self {
+      Self::Tuple(t) => &t[range],
+      _ => panic!("Cannot access tuple value with `{:?}`", range),
     }
   }
 }

@@ -3,7 +3,6 @@ use quote::{format_ident, quote};
 use std::collections::*;
 
 use super::*;
-use crate::common::aggregate_op::*;
 use crate::common::binary_op::*;
 use crate::common::expr::*;
 use crate::common::input_tag::*;
@@ -66,7 +65,7 @@ impl ast::Program {
             quote! { &#dep_strat_name, }
           })
           .collect::<Vec<_>>();
-        quote! { let #curr_strat_name = #curr_strat_run_name(ctx, &mut edb, #(#args)*); }
+        quote! { let #curr_strat_name = #curr_strat_run_name(&rt, ctx, &mut edb, #(#args)*); }
       })
       .collect::<Vec<_>>();
 
@@ -95,8 +94,8 @@ impl ast::Program {
         run_with_edb(ctx, ExtensionalDatabase::new())
       }
       pub fn run_with_edb<C: Provenance>(ctx: &mut C, mut edb: ExtensionalDatabase<C>) -> OutputRelations<C> {
-        let runtime_env = RuntimeEnvironment::default();
-        edb.internalize(&runtime_env, ctx);
+        let rt = RuntimeEnvironment::default();
+        edb.internalize(&rt, ctx);
         #(#exec_strata)*
         #output_relations
       }
@@ -235,6 +234,21 @@ impl ast::Stratum {
       .map(|update| update.to_rs_insert(id, rel_to_strat_map))
       .collect::<Vec<_>>();
 
+    // 2.5. complete statements
+    let complete_stmts = self
+      .relations
+      .iter()
+      .map(|(_, r)| {
+        let field_name = relation_name_to_rs_field_name(&r.predicate);
+        quote! {
+          let #field_name = iter.complete(&#field_name);
+        }
+        // let relation_name = r.predicate.clone();
+        // quote! { println!("{}: {:?}", #relation_name, #field_name); }
+      })
+      .collect::<Vec<_>>();
+    let complete_stmts = quote! { #(#complete_stmts)* };
+
     // 3. Ensemble final result
     let ensemble_result_fields = self
       .relations
@@ -242,7 +256,7 @@ impl ast::Stratum {
       .filter_map(|(_, r)| {
         if r.output.is_not_hidden() || inters_dep.contains(&r.predicate) {
           let rs_name = relation_name_to_rs_field_name(&r.predicate);
-          Some(quote! { #rs_name: iter.complete(&#rs_name), })
+          Some(quote! { #rs_name, })
         } else {
           None
         }
@@ -252,13 +266,14 @@ impl ast::Stratum {
 
     // Final function
     quote! {
-      fn #fn_name<C: Provenance>(ctx: &mut C, edb: &mut ExtensionalDatabase<C>, #(#args)*) -> #ret_ty<C> {
-        let mut iter = StaticIteration::<C>::new(ctx);
+      fn #fn_name<C: Provenance>(rt: &RuntimeEnvironment, ctx: &mut C, edb: &mut ExtensionalDatabase<C>, #(#args)*) -> #ret_ty<C> {
+        let mut iter = StaticIteration::<C>::new(rt, ctx);
         #(#create_relation_stmts)*
         while iter.changed() || iter.is_first_iteration() {
           #(#updates)*
           iter.step();
         }
+        #complete_stmts
         #ensemble_result
       }
     }
@@ -366,21 +381,37 @@ impl ast::Dataflow {
         let to_agg_col = get_col(&r.predicate);
 
         // Get the aggregator
-        let agg = match &r.op {
-          AggregateOp::Count { discrete } => if *discrete {
-            unimplemented! {}
-          } else {
-            quote! { CountAggregator::new() }
-          },
-          AggregateOp::Sum(_) => quote! { SumAggregator::new() },
-          AggregateOp::Prod(_) => quote! { ProdAggregator::new() },
-          AggregateOp::Max => quote! { MaxAggregator::new() },
-          AggregateOp::Min => quote! { MinAggregator::new() },
-          AggregateOp::Argmax => quote! { ArgmaxAggregator::new() },
-          AggregateOp::Argmin => quote! { ArgminAggregator::new() },
-          AggregateOp::Exists => quote! { ExistsAggregator::new() },
-          AggregateOp::TopK(k) => quote! { TopKAggregator::new(#k) },
-          AggregateOp::CategoricalK(_) => unimplemented! {},
+        let non_multi_world = r.has_exclamation_mark;
+        let agg = match r.aggregator.as_str() {
+          "count" => quote! { CountAggregator::new(#non_multi_world) },
+          "sum" => quote! { SumAggregator::new() },
+          "prod" => quote! { ProdAggregator::new() },
+          "max" => {
+            if r.arg_var_types.is_empty() {
+              quote! { MaxAggregator::new() }
+            } else {
+              unimplemented!("Implicit max with argument")
+            }
+          }
+          "min" => {
+            if r.arg_var_types.is_empty() {
+              quote! { MinAggregator::new() }
+            } else {
+              unimplemented!("Implicit max with argument")
+            }
+          }
+          "argmax" => {
+            quote! { ArgmaxAggregator::new() }
+          }
+          "argmin" => {
+            quote! { ArgminAggregator::new() }
+          }
+          "exists" => quote! { ExistsAggregator::new(#non_multi_world) },
+          "top" => {
+            let k = r.params[0].as_usize();
+            quote! { TopKAggregator::new(#k) }
+          }
+          _ => unimplemented!(),
         };
 
         // Get the dataflow

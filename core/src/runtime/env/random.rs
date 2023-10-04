@@ -1,5 +1,6 @@
 use std::sync::*;
 
+use rand::prelude::*;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 
@@ -19,5 +20,10 @@ impl Random {
   /// Sample an element from a distribution using the rng
   pub fn sample_from<T, D: rand::distributions::Distribution<T>>(&self, dist: &D) -> T {
     dist.sample(&mut *self.rng.lock().unwrap())
+  }
+
+  /// Sample a number between 0 and `n` (exclusive)
+  pub fn random_usize(&self, n: usize) -> usize {
+    self.rng.lock().unwrap().gen_range(0..n)
   }
 }

@@ -1,3 +1,4 @@
+use crate::common::foreign_aggregate::AggregateRegistry;
 use crate::common::foreign_function::ForeignFunctionRegistry;
 use crate::common::foreign_predicate::ForeignPredicateRegistry;
 
@@ -24,7 +25,11 @@ pub struct Analysis {
 
 impl Analysis {
   /// Create a new front IR analysis object
-  pub fn new(function_registry: &ForeignFunctionRegistry, predicate_registry: &ForeignPredicateRegistry) -> Self {
+  pub fn new(
+    function_registry: &ForeignFunctionRegistry,
+    predicate_registry: &ForeignPredicateRegistry,
+    aggregate_registry: &AggregateRegistry,
+  ) -> Self {
     Self {
       invalid_constant: InvalidConstantAnalyzer::new(),
       invalid_wildcard: InvalidWildcardAnalyzer::new(),
@@ -36,7 +41,7 @@ impl Analysis {
       constant_decl_analysis: ConstantDeclAnalysis::new(),
       adt_analysis: AlgebraicDataTypeAnalysis::new(),
       head_relation_analysis: HeadRelationAnalysis::new(predicate_registry),
-      type_inference: TypeInference::new(function_registry, predicate_registry),
+      type_inference: TypeInference::new(function_registry, predicate_registry, aggregate_registry),
       boundness_analysis: BoundnessAnalysis::new(predicate_registry),
       demand_attr_analysis: DemandAttributeAnalysis::new(),
     }

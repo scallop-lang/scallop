@@ -37,5 +37,4 @@ pub mod errors {
   pub use super::invalid_constant::InvalidConstantError;
   pub use super::invalid_wildcard::InvalidWildcardError;
   pub use super::output_files::OutputFilesError;
-  pub use super::type_inference::TypeInferenceError;
 }

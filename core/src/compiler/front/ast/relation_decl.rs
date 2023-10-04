@@ -95,7 +95,11 @@ pub struct _RuleDecl {
 impl RuleDecl {
   pub fn rule_tag_predicate(&self) -> String {
     if let Some(head_atom) = self.rule().head().as_atom() {
-      format!("rt#{}#{}", head_atom.predicate(), self.location_id().expect("location id has not been tagged yet"))
+      format!(
+        "rt#{}#{}",
+        head_atom.predicate(),
+        self.location_id().expect("location id has not been tagged yet")
+      )
     } else {
       unimplemented!("Rule head is not an atom")
     }

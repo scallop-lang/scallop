@@ -38,6 +38,7 @@ where
         match e {
           compiler::CompileError::Front(e) => {
             let e = format!("{}", e);
+            println!("{e}");
             if f(e) {
               return;
             }

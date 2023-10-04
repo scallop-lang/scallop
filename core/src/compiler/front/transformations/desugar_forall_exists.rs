@@ -47,15 +47,11 @@ impl NodeVisitor<Formula> for DesugarForallExists {
         let reduce_formula = Formula::Reduce(reduce);
 
         // Create the constraint formula
-        let constraint = Constraint::new(
-          Expr::binary(
-            BinaryExpr::new(
-              BinaryOp::new_eq(),
-              Expr::variable(boolean_var.clone()),
-              Expr::constant(Constant::boolean(BoolLiteral::new(goal))),
-            )
-          )
-        );
+        let constraint = Constraint::new(Expr::binary(BinaryExpr::new(
+          BinaryOp::new_eq(),
+          Expr::variable(boolean_var.clone()),
+          Expr::constant(Constant::boolean(BoolLiteral::new(goal))),
+        )));
         let constraint_formula = Formula::Constraint(constraint);
 
         // Create the conjunction of the two

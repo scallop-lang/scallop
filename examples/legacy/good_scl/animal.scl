@@ -20,4 +20,4 @@ rel num_things("animal", n) :- n = count(o: name(o, "animal"))
 rel num_things("tiger", n) :- n = count(o: name(o, "tiger"))
 
 // Comparing
-rel more_animal_or_tiger(t) :- _ = max[t](n: num_things(t, n))
+rel more_animal_or_tiger(t) :- t = argmax[t](n: num_things(t, n))

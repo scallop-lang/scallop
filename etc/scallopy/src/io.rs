@@ -33,13 +33,22 @@ impl Into<Attribute> for CSVFileOptions {
     args.push(AttributeArgument::named_bool("has_header", self.has_header));
     args.push(AttributeArgument::named_bool("has_probability", self.has_probability));
     if let Some(keys) = self.keys {
-      args.push(AttributeArgument::named_list("keys", keys.iter().cloned().map(AttributeValue::string).collect()));
+      args.push(AttributeArgument::named_list(
+        "keys",
+        keys.iter().cloned().map(AttributeValue::string).collect(),
+      ));
     }
     if let Some(fields) = self.fields {
-      args.push(AttributeArgument::named_list("fields", fields.iter().cloned().map(AttributeValue::string).collect()));
+      args.push(AttributeArgument::named_list(
+        "fields",
+        fields.iter().cloned().map(AttributeValue::string).collect(),
+      ));
     }
 
     // Get attribute
-    Attribute { name: "file".to_string(), args }
+    Attribute {
+      name: "file".to_string(),
+      args,
+    }
   }
 }

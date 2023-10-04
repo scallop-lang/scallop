@@ -60,10 +60,12 @@ class ScallopContext:
     provenance: str = "unit",
     custom_provenance: Optional[ScallopProvenance] = None,
     k: int = 3,
+    wmc_with_disjunctions: bool = False,
     train_k: Optional[int] = None,
     test_k: Optional[int] = None,
     fork_from: Optional[ScallopContext] = None,
     no_stdlib: bool = False,
+    monitors: List[str] = [],
   ):
     super(ScallopContext, self).__init__()
 
@@ -98,15 +100,21 @@ class ScallopContext:
       self._mutual_exclusion_counter = Counter()
       self._sample_facts = {}
       self._k = k
+      self._wmc_with_disjunctions = wmc_with_disjunctions
       self._train_k = train_k
       self._test_k = test_k
       self._history_actions: List[HistoryAction] = []
+      self._monitors = monitors
       self._internal = InternalScallopContext(provenance=provenance, custom_provenance=custom_provenance, k=k)
 
       # Load stdlib
       self._internal.enable_tensor_registry() # Always enable tensor registry for now
       if not no_stdlib:
         self.load_stdlib()
+
+      # Load monitors
+      if len(self._monitors) > 0:
+        self._internal.add_monitors(self._monitors)
     else:
       # Fork from an existing context
       self.provenance = deepcopy(fork_from.provenance)
@@ -118,9 +126,11 @@ class ScallopContext:
       self._mutual_exclusion_counter = deepcopy(fork_from._mutual_exclusion_counter)
       self._sample_facts = deepcopy(fork_from._sample_facts)
       self._k = deepcopy(fork_from._k)
+      self._wmc_with_disjunctions = deepcopy(fork_from._wmc_with_disjunctions)
       self._train_k = deepcopy(fork_from._train_k)
       self._test_k = deepcopy(fork_from._test_k)
       self._history_actions = deepcopy(fork_from._history_actions)
+      self._monitors = deepcopy(fork_from._monitors)
       self._internal = fork_from._internal.clone()
 
   def __getstate__(self):
@@ -142,14 +152,19 @@ class ScallopContext:
     self._history_actions: List[HistoryAction] = []
 
     # Internal scallop context
-    self._internal = InternalScallopContext(provenance=self.provenance, custom_provenance=self._custom_provenance, k=self._k)
+    self._internal = InternalScallopContext(provenance=self.provenance, custom_provenance=self._custom_provenance, k=self._k, wmc_with_disjunctions=self._wmc_with_disjunctions)
 
     # Restore from history actions
     for history_action in state["_history_actions"]:
       function = getattr(self, history_action.func_name)
       function(*history_action.pos_args, **history_action.kw_args)
 
-  def clone(self, provenance=None, k=None) -> ScallopContext:
+  def clone(
+    self,
+    provenance: Optional[str] = None,
+    k: Optional[int] = None,
+    wmc_with_disjunctions: Optional[bool] = None,
+  ) -> ScallopContext:
     """
     Clone the current context. This is useful for incremental execution:
 
@@ -175,7 +190,8 @@ class ScallopContext:
 
       # Clone internal context; this process may fail if the provenance is not compatible
       new_k = k if k is not None else self._k
-      new_ctx._internal = new_ctx._internal.clone_with_new_provenance(provenance, new_k)
+      new_wmc_with_disjunctions = wmc_with_disjunctions if wmc_with_disjunctions is not None else self._wmc_with_disjunctions
+      new_ctx._internal = new_ctx._internal.clone_with_new_provenance(provenance, new_k, new_wmc_with_disjunctions)
 
       # Update parameters related to provenance
       new_ctx.provenance = provenance
@@ -552,7 +568,7 @@ class ScallopContext:
     """
     return self._internal.get_front_ir()
 
-  def relation(self, relation: str, debug: bool = False) -> ScallopCollection:
+  def relation(self, relation: str) -> ScallopCollection:
     """
     Inspect the (computed) relation in the context. Will return
     a `ScallopCollection` which is iterable.
@@ -564,7 +580,7 @@ class ScallopContext:
 
     :param relation: the name of the relation
     """
-    int_col = self._internal.relation(relation) if not debug else self._internal.relation_with_debug_tag(relation)
+    int_col = self._internal.relation(relation)
     return ScallopCollection(self.provenance, int_col)
 
   def has_relation(self, relation: str) -> bool:

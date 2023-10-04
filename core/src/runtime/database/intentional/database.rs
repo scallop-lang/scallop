@@ -118,6 +118,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalDatabase<Prov, Ptr> {
       // !SPECIAL MONITORING!
       m.observe_recovering_relation(relation);
       r.recover_with_monitor(env, ctx, m, drain);
+      m.observe_finish_recovering_relation(relation);
     }
   }
 

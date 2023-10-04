@@ -2,8 +2,6 @@ use std::collections::*;
 
 use itertools::iproduct;
 
-use crate::runtime::dynamic::*;
-use crate::runtime::statics::*;
 use crate::utils::*;
 
 use super::*;
@@ -214,13 +212,5 @@ impl<P: PointerFamily> Provenance for ProofsProvenance<P> {
 
   fn saturated(&self, t_old: &Self::Tag, t_new: &Self::Tag) -> bool {
     t_old == t_new
-  }
-
-  fn dynamic_top_k(&self, k: usize, batch: DynamicElements<Self>) -> DynamicElements<Self> {
-    unweighted_aggregate_top_k_helper(batch, k)
-  }
-
-  fn static_top_k<T: StaticTupleTrait>(&self, k: usize, batch: StaticElements<T, Self>) -> StaticElements<T, Self> {
-    unweighted_aggregate_top_k_helper(batch, k)
   }
 }

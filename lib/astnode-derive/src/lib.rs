@@ -119,21 +119,21 @@ fn skip_decorators(token_list: Vec<TokenTree>) -> Vec<TokenTree> {
     match &token_list[i] {
       TokenTree::Punct(p) if p.as_char() == '#' => {
         i += 2;
-      },
-      _ => {
-        break token_list[i..].to_vec()
-      },
+      }
+      _ => break token_list[i..].to_vec(),
     }
   }
 }
 
 fn get_has_pub(token_list: &Vec<TokenTree>) -> bool {
   match &token_list[0] {
-    TokenTree::Ident(i) => if i.to_string() == "pub" {
-      true
-    } else {
-      false
-    },
+    TokenTree::Ident(i) => {
+      if i.to_string() == "pub" {
+        true
+      } else {
+        false
+      }
+    }
     _ => false,
   }
 }
@@ -145,11 +145,9 @@ fn get_is_struct(has_pub: bool, token_list: &Vec<TokenTree>) -> bool {
       if i.to_string() == "struct" {
         match &token_list[offset + 2] {
           TokenTree::Group(g) => match g.delimiter() {
-            Delimiter::Brace => {
-              true
-            }
-            _ => panic!("AstNode only support decorating struct with fields")
-          }
+            Delimiter::Brace => true,
+            _ => panic!("AstNode only support decorating struct with fields"),
+          },
           TokenTree::Punct(p) if p.as_char() == ';' => true,
           t => panic!("Unknown token tree {}", t),
         }
@@ -177,7 +175,7 @@ fn get_type_name(has_pub: bool, is_struct: bool, token_list: &Vec<TokenTree>) ->
       } else {
         full_name
       }
-    },
+    }
     other => panic!("Unexpected token tree {:?}", other),
   }
 }
@@ -202,22 +200,20 @@ fn get_struct_fields(has_pub: bool, token_list: &Vec<TokenTree>) -> Vec<(bool, S
                 curr_is_pub = Some(false);
                 curr_field_name = Some(i.to_string());
               }
-            },
-            _ => panic!("Cannot parse")
+            }
+            _ => panic!("Cannot parse"),
           }
         } else if curr_is_pub.is_some() && curr_field_name.is_none() {
           match token {
             TokenTree::Ident(i) => {
               curr_field_name = Some(i.to_string());
             }
-            _ => panic!("Cannot parse")
+            _ => panic!("Cannot parse"),
           }
         } else if curr_field_name.is_some() && curr_field_type.is_none() {
           match token {
-            TokenTree::Punct(p) if p.as_char() == ':' => {
-              curr_field_type = Some("".to_string())
-            }
-            _ => panic!("Cannot parse")
+            TokenTree::Punct(p) if p.as_char() == ':' => curr_field_type = Some("".to_string()),
+            _ => panic!("Cannot parse"),
           }
         } else if curr_field_type.is_some() {
           match token {
@@ -255,7 +251,7 @@ fn get_struct_fields(has_pub: bool, token_list: &Vec<TokenTree>) -> Vec<(bool, S
                 }
               }
             }
-            _ => panic!("Cannot parse")
+            _ => panic!("Cannot parse"),
           }
         }
       }
@@ -270,7 +266,7 @@ fn get_struct_fields(has_pub: bool, token_list: &Vec<TokenTree>) -> Vec<(bool, S
       fields
     }
     TokenTree::Punct(_) => vec![],
-    _ => panic!("Not a group")
+    _ => panic!("Not a group"),
   }
 }
 
@@ -290,13 +286,19 @@ fn get_enum_variants(has_pub: bool, token_list: &Vec<TokenTree>) -> Vec<(String,
               TokenTree::Ident(i) => {
                 curr_variant_name = Some(i.to_string());
               }
-              _ => panic!("Cannot parse")
+              _ => panic!("Cannot parse"),
             }
           } else if curr_variant_name.is_some() && curr_variant_type.is_none() {
             match token {
               TokenTree::Group(g) => {
                 if g.delimiter() == Delimiter::Parenthesis {
-                  curr_variant_type = Some(Some(g.stream().into_iter().map(|t| t.to_string()).collect::<Vec<_>>().join("")));
+                  curr_variant_type = Some(Some(
+                    g.stream()
+                      .into_iter()
+                      .map(|t| t.to_string())
+                      .collect::<Vec<_>>()
+                      .join(""),
+                  ));
                 } else {
                   panic!("AstNode enum variant cannot be a struct")
                 }
@@ -306,7 +308,7 @@ fn get_enum_variants(has_pub: bool, token_list: &Vec<TokenTree>) -> Vec<(String,
                 curr_variant_name = None;
                 curr_variant_type = None;
               }
-              _ => panic!("Cannot parse")
+              _ => panic!("Cannot parse"),
             }
           } else if curr_variant_name.is_some() && curr_variant_type.is_some() {
             match token {
@@ -315,7 +317,7 @@ fn get_enum_variants(has_pub: bool, token_list: &Vec<TokenTree>) -> Vec<(String,
                 curr_variant_name = None;
                 curr_variant_type = None;
               }
-              _ => panic!("Cannot parse")
+              _ => panic!("Cannot parse"),
             }
           } else {
             panic!("Cannot parse")
@@ -334,16 +336,11 @@ fn get_enum_variants(has_pub: bool, token_list: &Vec<TokenTree>) -> Vec<(String,
         panic!("AstNode enum has to have at least one variant")
       }
     }
-    _ => panic!("Not a group")
+    _ => panic!("Not a group"),
   }
 }
 
-fn derive_struct(
-  pub_kw: &str,
-  name: String,
-  has_pub: bool,
-  token_list: &Vec<TokenTree>,
-) -> String {
+fn derive_struct(pub_kw: &str, name: String, has_pub: bool, token_list: &Vec<TokenTree>) -> String {
   let struct_def = format!(r#"{pub_kw} type {name} = AstNodeWrapper<_{name}>;"#);
 
   let fields = get_struct_fields(has_pub, &token_list);
@@ -372,7 +369,8 @@ fn derive_struct(
     .collect::<String>();
 
   // Constructor
-  let new_impl = format!(r#"
+  let new_impl = format!(
+    r#"
     impl _{name} {{
       pub fn new({fn_args}) -> Self {{ Self {{ {constructor_args} }} }}
       pub fn with_location(self, loc: NodeLocation) -> {name} {{ {name} {{ _loc: loc, _node: self }} }}
@@ -387,7 +385,8 @@ fn derive_struct(
       pub fn internal(&self) -> &_{name} {{ &self._node }}
       pub fn internal_mut(&mut self) -> &mut _{name} {{ &mut self._node }}
     }}
-  "#);
+  "#
+  );
 
   // Walker
   let (walker, walker_mut): (String, String) = fields
@@ -398,12 +397,14 @@ fn derive_struct(
       (walk, walk_mut)
     })
     .unzip();
-  let impl_walker = format!(r#"
+  let impl_walker = format!(
+    r#"
     impl AstWalker for {name} {{
       fn walk<V>(&self, v: &mut V) {{ v.visit(self); v.visit(&self._loc); {walker} }}
       fn walk_mut<V>(&mut self, v: &mut V) {{ v.visit_mut(self); v.visit_mut(&mut self._loc); {walker_mut} }}
     }}
-  "#);
+  "#
+  );
 
   // Accessor
   let fields_accessor = fields
@@ -444,12 +445,7 @@ fn derive_struct(
     .join("\n");
   let fields_impl = format!(r#"impl {name} {{ {fields_accessor} }}"#);
 
-  vec![
-    struct_def,
-    new_impl,
-    impl_walker,
-    fields_impl,
-  ].join("\n")
+  vec![struct_def, new_impl, impl_walker, fields_impl].join("\n")
 }
 
 fn derive_enum(pub_kw: &str, name: String, has_pub: bool, token_list: &Vec<TokenTree>) -> String {
@@ -462,17 +458,31 @@ fn derive_enum(pub_kw: &str, name: String, has_pub: bool, token_list: &Vec<Token
 }
 
 fn derive_variant_enum(name: String, variants: Vec<(String, Option<String>)>) -> String {
-  let imut_cases = variants.iter().map(|(name, _)| format!("Self::{name}(v) => v.location()")).collect::<Vec<_>>().join(",");
-  let mut_cases = variants.iter().map(|(name, _)| format!("Self::{name}(v) => v.location_mut()")).collect::<Vec<_>>().join(",");
-  let clone_cases = variants.iter().map(|(name, _)| format!("Self::{name}(v) => Self::{name}(v.clone_with_loc(loc))")).collect::<Vec<_>>().join(",");
+  let imut_cases = variants
+    .iter()
+    .map(|(name, _)| format!("Self::{name}(v) => v.location()"))
+    .collect::<Vec<_>>()
+    .join(",");
+  let mut_cases = variants
+    .iter()
+    .map(|(name, _)| format!("Self::{name}(v) => v.location_mut()"))
+    .collect::<Vec<_>>()
+    .join(",");
+  let clone_cases = variants
+    .iter()
+    .map(|(name, _)| format!("Self::{name}(v) => Self::{name}(v.clone_with_loc(loc))"))
+    .collect::<Vec<_>>()
+    .join(",");
 
-  let ast_node_impl = format!(r#"
+  let ast_node_impl = format!(
+    r#"
     impl AstNode for {name} {{
       fn location(&self) -> &NodeLocation {{ match self {{ {imut_cases} }} }}
       fn location_mut(&mut self) -> &mut NodeLocation {{ match self {{ {mut_cases} }} }}
       fn clone_with_loc(&self, loc: NodeLocation) -> Self {{ match self {{ {clone_cases} }} }}
     }}
-  "#);
+  "#
+  );
 
   let helpers = variants
     .iter()
@@ -501,26 +511,28 @@ fn derive_variant_enum(name: String, variants: Vec<(String, Option<String>)>) ->
       )
     })
     .unzip();
-  let impl_walker = format!(r#"
+  let impl_walker = format!(
+    r#"
     impl AstWalker for {name} {{
       fn walk<V>(&self, v: &mut V) {{ v.visit(self); match self {{ {walkers} }} }}
       fn walk_mut<V>(&mut self, v: &mut V) {{ v.visit_mut(self); match self {{ {walker_muts} }} }}
     }}
-  "#);
+  "#
+  );
 
-  vec![
-    ast_node_impl,
-    match_helper_impl,
-    impl_walker,
-  ].join("\n")
+  vec![ast_node_impl, match_helper_impl, impl_walker].join("\n")
 }
 
 fn derive_const_enum(pub_kw: &str, name: String, variants: Vec<(String, Option<String>)>) -> String {
-  assert!(name.chars().nth(0) == Some('_'), "The first character of the name needs to be an underscore `_`");
+  assert!(
+    name.chars().nth(0) == Some('_'),
+    "The first character of the name needs to be an underscore `_`"
+  );
   let name = name[1..].to_string();
   let type_def = format!(r#"{pub_kw} type {name} = AstNodeWrapper<_{name}>;"#);
 
-  let universal_helper = format!(r#"
+  let universal_helper = format!(
+    r#"
     impl _{name} {{
       pub fn with_location(self, loc: NodeLocation) -> {name} {{ {name} {{ _loc: loc, _node: self }} }}
       pub fn with_span(self, start: usize, end: usize) -> {name} {{ {name} {{ _loc: NodeLocation::from_span(start, end), _node: self }} }}
@@ -529,7 +541,8 @@ fn derive_const_enum(pub_kw: &str, name: String, variants: Vec<(String, Option<S
       pub fn internal(&self) -> &_{name} {{ &self._node }}
       pub fn internal_mut(&mut self) -> &mut _{name} {{ &mut self._node }}
     }}
-  "#);
+  "#
+  );
 
   let helpers = variants
     .iter()
@@ -556,17 +569,14 @@ fn derive_const_enum(pub_kw: &str, name: String, variants: Vec<(String, Option<S
     .join("\n");
   let match_helper_impl = format!(r#" impl {name} {{ {helpers} }} "#);
 
-  let impl_walker = format!(r#"
+  let impl_walker = format!(
+    r#"
     impl AstWalker for {name} {{
       fn walk<V>(&self, v: &mut V) {{ v.visit(self); v.visit(&self._loc); }}
       fn walk_mut<V>(&mut self, v: &mut V) {{ v.visit_mut(self); v.visit_mut(&mut self._loc); }}
     }}
-  "#);
+  "#
+  );
 
-  vec![
-    type_def,
-    universal_helper,
-    match_helper_impl,
-    impl_walker,
-  ].join("\n")
+  vec![type_def, universal_helper, match_helper_impl, impl_walker].join("\n")
 }

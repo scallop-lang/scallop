@@ -16,6 +16,7 @@ class InternalScallopContext:
     self,
     provenance: str = "unit",
     k: int = 3,
+    wmc_with_disjunctions: bool = False,
     custom_provenance: Optional[ScallopProvenance] = None,
   ) -> None: ...
 
@@ -28,6 +29,7 @@ class InternalScallopContext:
     provenance: str,
     custom_provenance: Any,
     k: int,
+    wmc_with_disjunctions: bool,
   ) -> InternalScallopContext: ...
 
   def set_non_incremental(self): ...
@@ -43,6 +45,8 @@ class InternalScallopContext:
   def set_iter_limit(self, k: int): ...
 
   def remove_iter_limit(self): ...
+
+  def add_monitors(self, monitors: List[str]): ...
 
   def run(self, iter_limit: Optional[int]) -> None: ...
 

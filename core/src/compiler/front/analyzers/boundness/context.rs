@@ -55,7 +55,11 @@ pub struct DisjunctionContext {
 impl DisjunctionContext {
   pub fn from_formula(formula: &Formula) -> Self {
     let conjuncts: Vec<ConjunctionContext> = match formula {
-      Formula::Disjunction(d) => d.iter_args().map(|a| Self::from_formula(a).conjuncts).flatten().collect(),
+      Formula::Disjunction(d) => d
+        .iter_args()
+        .map(|a| Self::from_formula(a).conjuncts)
+        .flatten()
+        .collect(),
       Formula::Conjunction(c) => {
         let ctxs = c.iter_args().map(|a| Self::from_formula(a).conjuncts);
         let cp = ctxs.multi_cartesian_product();
@@ -193,6 +197,7 @@ impl ConjunctionContext {
 
 #[derive(Debug, Clone)]
 pub struct AggregationContext {
+  pub result_var_or_wildcards: Vec<(Loc, Option<String>)>,
   pub result_vars: Vec<Variable>,
   pub binding_vars: Vec<String>,
   pub arg_vars: Vec<Variable>,
@@ -205,23 +210,23 @@ pub struct AggregationContext {
 }
 
 impl AggregationContext {
-  pub fn left_variable_names(&self) -> BTreeSet<String> {
+  pub fn left_variable_names(&self) -> Vec<String> {
     self.result_vars.iter().map(|v| v.name().to_string()).collect()
   }
 
-  pub fn binding_variable_names(&self) -> BTreeSet<String> {
+  pub fn binding_variable_names(&self) -> Vec<String> {
     self.binding_vars.iter().cloned().collect()
   }
 
-  pub fn argument_variable_names(&self) -> BTreeSet<String> {
+  pub fn argument_variable_names(&self) -> Vec<String> {
     self.arg_vars.iter().map(|n| n.name().to_string()).collect()
   }
 
-  pub fn group_by_head_variable_names(&self) -> BTreeSet<String> {
+  pub fn group_by_head_variable_names(&self) -> Vec<String> {
     if let Some((_, vars, _)) = &self.group_by {
       vars.iter().map(|n| n.name().to_string()).collect()
     } else {
-      BTreeSet::new()
+      Vec::new()
     }
   }
 
@@ -247,6 +252,15 @@ impl AggregationContext {
 
     // Construct self
     Self {
+      result_var_or_wildcards: reduce
+        .iter_left()
+        .map(|vow| {
+          (
+            vow.location().clone(),
+            vow.as_variable().map(|v| v.name().name().clone()),
+          )
+        })
+        .collect(),
       result_vars: reduce.iter_left_variables().cloned().collect(),
       binding_vars: reduce.iter_binding_names().map(|n| n.to_string()).collect(),
       arg_vars: reduce.args().clone(),

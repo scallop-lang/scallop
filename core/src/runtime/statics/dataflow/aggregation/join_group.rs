@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use itertools::iproduct;
 
+use crate::runtime::env::*;
 use crate::runtime::provenance::*;
 use crate::runtime::statics::*;
 
@@ -20,6 +21,7 @@ where
   agg: A,
   d1: D1,
   d2: D2,
+  rt: &'a RuntimeEnvironment,
   ctx: &'a Prov,
   phantom: PhantomData<(K, T1, T2)>,
 }
@@ -34,11 +36,12 @@ where
   A: Aggregator<T2, Prov>,
   Prov: Provenance,
 {
-  pub fn new(agg: A, d1: D1, d2: D2, ctx: &'a Prov) -> Self {
+  pub fn new(agg: A, d1: D1, d2: D2, rt: &'a RuntimeEnvironment, ctx: &'a Prov) -> Self {
     Self {
       agg,
       d1,
       d2,
+      rt,
       ctx,
       phantom: PhantomData,
     }
@@ -78,6 +81,7 @@ where
     };
 
     let agg = self.agg;
+    let rt = self.rt;
     let ctx = self.ctx;
 
     let mut groups = vec![];
@@ -143,7 +147,7 @@ where
           .iter()
           .map(|e| StaticElement::new(e.tuple.1.clone(), e.tag.clone()))
           .collect::<Vec<_>>();
-        let agg_results = agg.aggregate(to_agg_tups, ctx);
+        let agg_results = agg.aggregate(to_agg_tups, rt, ctx);
         iproduct!(group_by_vals, agg_results)
           .map(|((tag, t1), agg_result)| {
             StaticElement::new(
@@ -175,6 +179,7 @@ where
       agg: self.agg.clone(),
       d1: self.d1.clone(),
       d2: self.d2.clone(),
+      rt: self.rt,
       ctx: self.ctx,
       phantom: PhantomData,
     }

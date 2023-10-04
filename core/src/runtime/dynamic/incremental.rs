@@ -320,7 +320,9 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
   where
     M: Monitor<Prov>,
   {
-    self.incremental_execute_with_monitor_helper(None, runtime, ctx, m)
+    self.incremental_execute_with_monitor_helper(None, runtime, ctx, m)?;
+    m.observe_finish_execution();
+    Ok(())
   }
 
   pub fn incremental_execute_with_monitor<M>(

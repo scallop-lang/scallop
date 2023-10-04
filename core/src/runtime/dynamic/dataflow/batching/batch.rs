@@ -56,7 +56,10 @@ impl<'a, Prov: Provenance> DynamicBatch<'a, Prov> {
   }
 
   pub fn filter<F: Fn(&DynamicElement<Prov>) -> bool + Clone + 'a>(self, f: F) -> Self {
-    Self(Box::new(FilterBatch { child: self, filter_fn: f }))
+    Self(Box::new(FilterBatch {
+      child: self,
+      filter_fn: f,
+    }))
   }
 }
 
@@ -75,9 +78,7 @@ pub struct RefElementsBatch<'a, Prov: Provenance> {
 
 impl<'a, Prov: Provenance> RefElementsBatch<'a, Prov> {
   pub fn new(elements: &'a DynamicElements<Prov>) -> Self {
-    Self {
-      iter: elements.iter(),
-    }
+    Self { iter: elements.iter() }
   }
 }
 

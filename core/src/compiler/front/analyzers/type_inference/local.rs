@@ -13,7 +13,7 @@ pub struct LocalTypeInferenceContext {
   pub vars_of_same_type: Vec<(String, String)>,
   pub var_types: HashMap<String, (TypeSet, Loc)>,
   pub constraints: Vec<Loc>,
-  pub errors: Vec<TypeInferenceError>,
+  pub errors: Vec<Error>,
 }
 
 impl LocalTypeInferenceContext {
@@ -45,7 +45,7 @@ impl LocalTypeInferenceContext {
     &self,
     predicate_registry: &PredicateTypeRegistry,
     inferred_relation_types: &mut HashMap<String, (Vec<TypeSet>, Loc)>,
-  ) -> Result<(), TypeInferenceError> {
+  ) -> Result<(), Error> {
     for (pred, arities) in &self.atom_arities {
       // Skip foreign predicates
       if predicate_registry.contains_predicate(pred) {
@@ -60,16 +60,10 @@ impl LocalTypeInferenceContext {
       }
 
       // Make sure the arity matches
-      let (tys, source_loc) = &inferred_relation_types[pred];
+      let (tys, _) = &inferred_relation_types[pred];
       for (arity, atom_loc) in arities {
         if arity != &tys.len() {
-          return Err(TypeInferenceError::ArityMismatch {
-            predicate: pred.clone(),
-            expected: tys.len(),
-            actual: *arity,
-            source_loc: source_loc.clone(),
-            mismatch_loc: atom_loc.clone(),
-          });
+          return Err(Error::arity_mismatch(pred.clone(), tys.len(), *arity, atom_loc.clone()));
         }
       }
     }
@@ -120,8 +114,9 @@ impl LocalTypeInferenceContext {
     inferred_relation_types: &HashMap<String, (Vec<TypeSet>, Loc)>,
     function_type_registry: &FunctionTypeRegistry,
     predicate_type_registry: &PredicateTypeRegistry,
+    aggregate_type_registry: &AggregateTypeRegistry,
     inferred_expr_types: &mut HashMap<Loc, TypeSet>,
-  ) -> Result<(), TypeInferenceError> {
+  ) -> Result<(), Error> {
     for unif in &self.unifications {
       unif.unify(
         custom_types,
@@ -129,6 +124,7 @@ impl LocalTypeInferenceContext {
         inferred_relation_types,
         function_type_registry,
         predicate_type_registry,
+        aggregate_type_registry,
         inferred_expr_types,
       )?;
     }
@@ -139,7 +135,7 @@ impl LocalTypeInferenceContext {
     &self,
     inferred_var_expr: &mut HashMap<Loc, HashMap<String, BTreeSet<Loc>>>,
     inferred_expr_types: &mut HashMap<Loc, TypeSet>,
-  ) -> Result<(), TypeInferenceError> {
+  ) -> Result<(), Error> {
     let mut var_tys = inferred_var_expr
       .entry(self.rule_loc.clone())
       .or_default()
@@ -150,14 +146,11 @@ impl LocalTypeInferenceContext {
           .filter_map(|e| inferred_expr_types.get(e))
           .collect::<Vec<_>>();
         if tys.is_empty() {
-          Err(TypeInferenceError::UnknownVariable {
-            variable: var.clone(),
-            loc: self.rule_loc.clone(),
-          })
+          Err(Error::unknown_variable(var.clone(), self.rule_loc.clone()))
         } else {
           match TypeSet::unify_type_sets(tys) {
             Ok(ty) => Ok((var.clone(), ty)),
-            Err(err) => Err(err),
+            Err(err) => Err(err.into()),
           }
         }
       })
@@ -169,17 +162,13 @@ impl LocalTypeInferenceContext {
       let v2_ty = &var_tys[v2];
       match v1_ty.unify(v2_ty) {
         Err(err) => {
-          let new_err = match err {
-            TypeInferenceError::CannotUnifyTypes { t1, t2, .. } => TypeInferenceError::CannotUnifyVariables {
-              v1: v1.clone(),
-              t1,
-              v2: v2.clone(),
-              t2,
-              loc: self.rule_loc.clone(),
-            },
-            err => err,
-          };
-          return Err(new_err);
+          return Err(Error::cannot_unify_variables(
+            v1.clone(),
+            err.t1,
+            v2.clone(),
+            err.t2,
+            self.rule_loc.clone(),
+          ));
         }
         Ok(new_ty) => {
           var_tys.insert(v1.clone(), new_ty.clone());
@@ -191,7 +180,7 @@ impl LocalTypeInferenceContext {
     // Check variable type constraints
     for (var, (ty, _)) in &self.var_types {
       let curr_ty = &var_tys[var];
-      let new_ty = ty.unify(curr_ty)?;
+      let new_ty = ty.unify(curr_ty).map_err(|e| e.into())?;
       var_tys.insert(var.clone(), new_ty);
     }
 
@@ -211,7 +200,7 @@ impl LocalTypeInferenceContext {
     inferred_relation_expr: &HashMap<(String, usize), BTreeSet<Loc>>,
     inferred_expr_types: &HashMap<Loc, TypeSet>,
     inferred_relation_types: &mut HashMap<String, (Vec<TypeSet>, Loc)>,
-  ) -> Result<(), TypeInferenceError> {
+  ) -> Result<(), Error> {
     // Propagate inferred relation types
     for ((predicate, i), exprs) in inferred_relation_expr {
       let tys = exprs
@@ -219,7 +208,7 @@ impl LocalTypeInferenceContext {
         .filter_map(|e| inferred_expr_types.get(e))
         .collect::<Vec<_>>();
       if !tys.is_empty() {
-        let ty = TypeSet::unify_type_sets(tys)?;
+        let ty = TypeSet::unify_type_sets(tys).map_err(|e| e.into())?;
         if let Some((arg_types, _)) = inferred_relation_types.get_mut(predicate) {
           arg_types[*i] = ty;
         }
@@ -233,7 +222,7 @@ impl LocalTypeInferenceContext {
     &self,
     custom_types: &HashMap<String, (ValueType, Loc)>,
     inferred_expr_types: &HashMap<Loc, TypeSet>,
-  ) -> Result<(), TypeInferenceError> {
+  ) -> Result<(), Error> {
     // Check if type cast can happen
     for unif in &self.unifications {
       match unif {
@@ -241,11 +230,7 @@ impl LocalTypeInferenceContext {
           let target_base_ty = find_value_type(custom_types, ty).unwrap();
           let op1_ty = &inferred_expr_types[op1];
           if !op1_ty.can_type_cast(&target_base_ty) {
-            return Err(TypeInferenceError::CannotTypeCast {
-              t1: op1_ty.clone(),
-              t2: target_base_ty,
-              loc: e.clone(),
-            });
+            return Err(Error::cannot_type_cast(op1_ty.clone(), target_base_ty, e.clone()));
           }
         }
         _ => {}
@@ -254,15 +239,12 @@ impl LocalTypeInferenceContext {
     Ok(())
   }
 
-  pub fn check_constraint(&self, inferred_expr_types: &HashMap<Loc, TypeSet>) -> Result<(), TypeInferenceError> {
+  pub fn check_constraint(&self, inferred_expr_types: &HashMap<Loc, TypeSet>) -> Result<(), Error> {
     // Check if constraints are all boolean
     for constraint_expr in &self.constraints {
       let ty = &inferred_expr_types[constraint_expr];
       if !ty.is_boolean() {
-        return Err(TypeInferenceError::ConstraintNotBoolean {
-          ty: ty.clone(),
-          loc: constraint_expr.clone(),
-        });
+        return Err(Error::constraint_not_boolean(ty.clone(), constraint_expr.clone()));
       }
     }
     Ok(())
@@ -304,124 +286,26 @@ impl NodeVisitor<Constraint> for LocalTypeInferenceContext {
 
 impl NodeVisitor<Reduce> for LocalTypeInferenceContext {
   fn visit(&mut self, r: &Reduce) {
-    // First check the output validity
-    let vars = r.left();
-    if let Some(arity) = r.operator().output_arity() {
-      if vars.len() != arity {
-        self.errors.push(TypeInferenceError::InvalidReduceOutput {
-          op: r.operator().to_string().to_string(),
-          expected: arity,
-          found: r.left().len(),
-          loc: r.location().clone(),
-        });
-        return;
-      }
-    }
+    // First get the aggregate type
+    let agg_op = r.operator();
+    let agg_name = agg_op.name().name();
+    let has_exclamation_mark = agg_op.has_exclaimation_mark().clone();
 
-    // Then check the number of bindings
-    let maybe_num_bindings = r.operator().num_bindings();
-    let bindings = r.bindings();
-    if let Some(num_bindings) = maybe_num_bindings {
-      if bindings.len() != num_bindings {
-        self.errors.push(TypeInferenceError::InvalidReduceBindingVar {
-          op: r.operator().to_string().to_string(),
-          expected: num_bindings,
-          found: bindings.len(),
-          loc: r.location().clone(),
-        });
-        return;
-      }
-    }
-
-    // Then propagate the variables
-    match r.operator().internal() {
-      _ReduceOp::Count(_) => {
-        if let Some(n) = vars[0].name() {
-          let loc = vars[0].location();
-          let ty = TypeSet::BaseType(ValueType::USize, loc.clone());
-          self.var_types.insert(n.to_string(), (ty, loc.clone()));
-        }
-      }
-      _ReduceOp::Sum => {
-        if let Some(n) = vars[0].name() {
-          let loc = vars[0].location();
-          let ty = TypeSet::Numeric(loc.clone());
-          self.var_types.insert(n.to_string(), (ty, loc.clone()));
-
-          // Result var and binding var should have the same type
-          self
-            .vars_of_same_type
-            .push((n.to_string(), bindings[0].name().to_string()));
-        }
-      }
-      _ReduceOp::Prod => {
-        if let Some(n) = vars[0].name() {
-          let loc = vars[0].location();
-          let ty = TypeSet::Numeric(loc.clone());
-          self.var_types.insert(n.to_string(), (ty, loc.clone()));
-
-          // Result var and binding var should have the same type
-          self
-            .vars_of_same_type
-            .push((n.to_string(), bindings[0].name().to_string()));
-        }
-      }
-      _ReduceOp::Min => {
-        if let Some(n) = vars[0].name() {
-          let loc = vars[0].location();
-          let ty = TypeSet::Numeric(loc.clone());
-          self.var_types.insert(n.to_string(), (ty, loc.clone()));
-
-          // Result var and binding var should have the same type
-          self
-            .vars_of_same_type
-            .push((n.to_string(), bindings[0].name().to_string()));
-        }
-      }
-      _ReduceOp::Max => {
-        if let Some(n) = vars[0].name() {
-          let loc = vars[0].location();
-          let ty = TypeSet::Numeric(loc.clone());
-          self.var_types.insert(n.to_string(), (ty, loc.clone()));
-
-          // Result var and binding var should have the same type
-          self
-            .vars_of_same_type
-            .push((n.to_string(), bindings[0].name().to_string()));
-        }
-      }
-      _ReduceOp::Exists => {
-        if let Some(n) = vars[0].name() {
-          let loc = vars[0].location();
-          let ty = TypeSet::BaseType(ValueType::Bool, loc.clone());
-          self.var_types.insert(n.to_string(), (ty, loc.clone()));
-        }
-      }
-      _ReduceOp::Forall => {
-        if let Some(n) = vars[0].name() {
-          let loc = vars[0].location();
-          let ty = TypeSet::BaseType(ValueType::Bool, loc.clone());
-          self.var_types.insert(n.to_string(), (ty, loc.clone()));
-        }
-      }
-      _ReduceOp::Unique | _ReduceOp::TopK(_) | _ReduceOp::CategoricalK(_) => {
-        if vars.len() == bindings.len() {
-          for (var, binding) in vars.iter().zip(bindings.iter()) {
-            if let Some(n) = var.name() {
-              self.vars_of_same_type.push((n.to_string(), binding.name().to_string()));
-            }
-          }
-        } else {
-          self.errors.push(TypeInferenceError::InvalidUniqueNumParams {
-            num_output_vars: vars.len(),
-            num_binding_vars: bindings.len(),
-            loc: r.location().clone(),
-          });
-          return;
-        }
-      }
-      _ReduceOp::Unknown(_) => {}
-    }
+    // Add the aggregation unification
+    self.unifications.push(Unification::Aggregate(
+      r.iter_left().map(|vow| vow.location()).cloned().collect(),
+      agg_name.clone(),
+      agg_op.location().clone(),
+      agg_op
+        .parameters()
+        .iter()
+        .map(|param| param.location())
+        .cloned()
+        .collect(),
+      r.iter_args().map(|a| a.location()).cloned().collect(),
+      r.iter_bindings().map(|a| a.location()).cloned().collect(),
+      has_exclamation_mark,
+    ));
   }
 }
 

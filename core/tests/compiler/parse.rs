@@ -1,5 +1,5 @@
-use scallop_core::compiler::front::parser::*;
 use scallop_core::compiler::front::ast::*;
+use scallop_core::compiler::front::parser::*;
 
 #[test]
 fn parse_type_decl() {

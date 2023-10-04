@@ -307,9 +307,11 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
           .foreign_predicate_join(p.clone(), a.clone(), ctx, env)
       }
       ram::Dataflow::OverwriteOne(d) => self.build_dynamic_dataflow(env, ctx, d).overwrite_one(ctx),
-      ram::Dataflow::Exclusion(d1, d2) => self
-        .build_dynamic_dataflow(env, ctx, d1)
-        .dynamic_exclusion(self.build_dynamic_dataflow(env, ctx, d2), ctx, env),
+      ram::Dataflow::Exclusion(d1, d2) => {
+        self
+          .build_dynamic_dataflow(env, ctx, d1)
+          .dynamic_exclusion(self.build_dynamic_dataflow(env, ctx, d2), ctx, env)
+      }
       ram::Dataflow::Filter(d, e) => {
         let internal_filter = env
           .internalize_expr(e)
@@ -359,7 +361,16 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
         r1.antijoin(r2, ctx)
       }
       ram::Dataflow::Reduce(a) => {
-        let op = a.op.clone().into();
+        let op = env
+          .aggregate_registry
+          .instantiate_aggregator::<Prov>(
+            &a.aggregator,
+            a.params.clone(),
+            a.has_exclamation_mark,
+            a.arg_var_types.clone(),
+            a.input_var_types.clone(),
+          )
+          .expect(&format!("cannot instantiate aggregator `{}`", a.aggregator));
         match &a.group_by {
           ram::ReduceGroupByType::None => {
             let c = self.build_dynamic_collection(&a.predicate);

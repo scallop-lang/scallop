@@ -903,39 +903,21 @@ impl Program {
     r: &Reduce,
     prop: DataflowProp,
   ) -> ram::Dataflow {
-    // Handle different versions of reduce...
+    // TODO: Handle output of aggregators
     let lt = VariableTuple::from_vars(r.left_vars.iter().cloned(), true);
+
+    // Handle different versions of reduce...
     let (var_tuple, has_group_by) = if !r.group_by_vars.is_empty() {
       let gbt = VariableTuple::from_vars(r.group_by_vars.iter().cloned(), true);
       let vt = if r.group_by_formula.is_some() {
         let ogbt = VariableTuple::from_vars(r.other_group_by_vars.iter().cloned(), true);
-        if !r.arg_vars.is_empty() {
-          let avt = VariableTuple::from_vars(r.arg_vars.iter().cloned(), true);
-          VariableTuple::from((gbt, ogbt, (avt, lt)))
-        } else {
-          // With group by, no arg
-          VariableTuple::from((gbt, ogbt, lt))
-        }
+        VariableTuple::from((gbt, ogbt, lt))
       } else {
-        if !r.arg_vars.is_empty() {
-          let avt = VariableTuple::from_vars(r.arg_vars.iter().cloned(), true);
-          VariableTuple::from((gbt, (avt, lt)))
-        } else {
-          // With group by, no arg
-          VariableTuple::from((gbt, lt))
-        }
+        VariableTuple::from((gbt, lt))
       };
       (vt, true)
     } else {
-      if !r.arg_vars.is_empty() {
-        // No group by, with arg
-        let avt = VariableTuple::from_vars(r.arg_vars.iter().cloned(), true);
-        let var_tuple = VariableTuple::from((avt, lt));
-        (var_tuple, false)
-      } else {
-        // No group_by, no arg
-        (lt, false)
-      }
+      (lt, false)
     };
 
     // Get the type of group by...
@@ -950,7 +932,15 @@ impl Program {
     };
 
     // Construct the reduce and the dataflow
-    let agg = ram::Dataflow::reduce(r.op.clone(), r.body_formula.predicate.clone(), group_by);
+    let agg = ram::Dataflow::reduce(
+      r.aggregator.clone(),
+      r.params.clone(),
+      r.has_exclamation_mark,
+      r.arg_var_types.clone(),
+      r.input_var_types.clone(),
+      r.body_formula.predicate.clone(),
+      group_by,
+    );
     let dataflow = ram::Dataflow::project(agg, var_tuple.projection(goal));
 
     // Check if we need to store into temporary variable
@@ -1094,7 +1084,6 @@ impl Program {
       // For an aggregate sub-relation
       let head_args = head.variable_args().into_iter().cloned().collect::<Vec<_>>();
       let num_group_by = agg_attr.num_group_by_vars;
-      let num_args = agg_attr.num_arg_vars;
 
       // Compute the items for aggregation
       let mut elems = vec![];
@@ -1102,16 +1091,8 @@ impl Program {
         let tuple_vars = VariableTuple::from_vars(head_args[..num_group_by].iter().cloned(), true);
         elems.push(tuple_vars);
       }
-      let start = num_group_by + num_args;
-      let to_agg_tuple = VariableTuple::from_vars(head_args[start..].iter().cloned(), true);
-      if num_args > 0 {
-        let start = num_group_by;
-        let end = num_group_by + num_args;
-        let tuple_args = VariableTuple::from_vars(head_args[start..end].iter().cloned(), true);
-        elems.push((tuple_args, to_agg_tuple).into());
-      } else {
-        elems.push(to_agg_tuple);
-      }
+      let to_agg_tuple = VariableTuple::from_vars(head_args[num_group_by..].iter().cloned(), true);
+      elems.push(to_agg_tuple);
 
       // Combine them into a var tuple
       let var_tuple = if elems.len() == 1 {

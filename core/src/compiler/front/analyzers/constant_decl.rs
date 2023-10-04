@@ -154,7 +154,8 @@ impl NodeVisitor<ConstAssignment> for ConstantDeclAnalysis {
       let entity = ca.value();
 
       // Then we make sure that the entity is indeed a constant
-      if let Some(var_loc) = entity.get_first_non_constant_location(&|v| self.variables.contains_key(v.variable_name())) {
+      if let Some(var_loc) = entity.get_first_non_constant_location(&|v| self.variables.contains_key(v.variable_name()))
+      {
         self.errors.push(ConstantDeclError::EntityContainsNonConstant {
           const_decl_loc: ca.location().clone(),
           var_loc: var_loc.clone(),
@@ -169,21 +170,15 @@ impl NodeVisitor<ConstAssignment> for ConstantDeclAnalysis {
 
         // Process the entity into a set of entity facts and one final constant value
         let (entity_facts, constant) =
-          entity.to_facts_with_constant_variables(|v|
-            self
-              .variables
-              .get(v.name().name())
-              .map(|(_, _, c)| c.clone())
-          );
+          entity.to_facts_with_constant_variables(|v| self.variables.get(v.name().name()).map(|(_, _, c)| c.clone()));
 
         // Extend the entity facts with the storage
         self.entity_facts.extend(entity_facts);
 
         // Store the variable
-        self.variables.insert(
-          ca.name().name().to_string(),
-          (ca.location().clone(), ty, constant),
-        );
+        self
+          .variables
+          .insert(ca.name().name().to_string(), (ca.location().clone(), ty, constant));
       }
     }
   }

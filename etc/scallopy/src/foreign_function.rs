@@ -22,17 +22,13 @@ impl PythonForeignFunction {
   /// Create a new PythonForeignFunction
   pub fn new(ff: PyObject) -> Self {
     let suppress_warning = Python::with_gil(|py| {
-      ff
-        .getattr(py, "suppress_warning")
+      ff.getattr(py, "suppress_warning")
         .expect("Cannot get foreign function generic type parameters")
         .extract(py)
         .expect("`suppress_warning` cannot be extracted into boolean")
     });
 
-    Self {
-      ff,
-      suppress_warning,
-    }
+    Self { ff, suppress_warning }
   }
 }
 

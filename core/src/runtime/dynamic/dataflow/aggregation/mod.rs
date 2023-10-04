@@ -7,3 +7,5 @@ pub use join_group::*;
 pub use single_group::*;
 
 use super::*;
+
+use crate::common::foreign_aggregate::*;

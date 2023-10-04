@@ -14,7 +14,7 @@ impl InvalidConstantAnalyzer {
 impl NodeVisitor<DateTimeLiteral> for InvalidConstantAnalyzer {
   fn visit(&mut self, datetime: &DateTimeLiteral) {
     match crate::utils::parse_date_time_string(datetime.datetime()) {
-      Some(_) => {},
+      Some(_) => {}
       None => {
         self.errors.push(InvalidConstantError::InvalidConstant {
           loc: datetime.location().clone(),
@@ -28,7 +28,7 @@ impl NodeVisitor<DateTimeLiteral> for InvalidConstantAnalyzer {
 impl NodeVisitor<DurationLiteral> for InvalidConstantAnalyzer {
   fn visit(&mut self, duration: &DurationLiteral) {
     match crate::utils::parse_duration_string(duration.duration()) {
-      Some(_) => {},
+      Some(_) => {}
       None => {
         self.errors.push(InvalidConstantError::InvalidConstant {
           loc: duration.location().clone(),

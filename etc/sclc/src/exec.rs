@@ -154,14 +154,15 @@ fn run_function(output_code: TokenStream) -> TokenStream {
 fn main_body(opt: &Options) -> TokenStream {
   if let Some(p) = &opt.provenance {
     let top_k = opt.top_k;
+    let wmc_with_disjunctions = opt.wmc_with_disjunctions;
     match p.as_str() {
       "unit" => quote! { run(unit::UnitProvenance::default()); },
       "bool" => quote! { run(boolean::BooleanProvenance::default()); },
       "minmaxprob" => quote! { run(min_max_prob::MinMaxProbProvenance::default()); },
       "addmultprob" => quote! { run(add_mult_prob::AddMultProbProvenance::default()); },
-      "topkproofs" => quote! { run(top_k_proofs::TopKProofsProvenance::<RcFamily>::new(#top_k)); },
+      "topkproofs" => quote! { run(top_k_proofs::TopKProofsProvenance::<RcFamily>::new(#top_k, #wmc_with_disjunctions)); },
       "samplekproofs" => quote! { run(sample_k_proofs::SampleKProofsContext::new(#top_k)); },
-      "topbottomkclauses" => quote! { run(top_bottom_k_clauses::TopBottomKClausesContext::<RcFamily>::new(#top_k)); },
+      "topbottomkclauses" => quote! { run(top_bottom_k_clauses::TopBottomKClausesContext::<RcFamily>::new(#top_k, #wmc_with_disjunctions)); },
       p => panic!("Unknown provenance `{}`. Aborting", p),
     }
   } else {
@@ -172,9 +173,9 @@ fn main_body(opt: &Options) -> TokenStream {
         "bool" => run(boolean::BooleanProvenance::default()),
         "minmaxprob" => run(min_max_prob::MinMaxProbProvenance::default()),
         "addmultprob" => run(add_mult_prob::AddMultProbProvenance::default()),
-        "topkproofs" => run(top_k_proofs::TopKProofsProvenance::<RcFamily>::new(opt.top_k)),
+        "topkproofs" => run(top_k_proofs::TopKProofsProvenance::<RcFamily>::new(opt.top_k, opt.wmc_with_disjunctions)),
         "samplekproofs" => run(sample_k_proofs::SampleKProofsProvenance::new(opt.top_k)),
-        "topbottomkclauses" => run(top_bottom_k_clauses::TopBottomKClausesProvenance::<RcFamily>::new(opt.top_k)),
+        "topbottomkclauses" => run(top_bottom_k_clauses::TopBottomKClausesProvenance::<RcFamily>::new(opt.top_k, opt.wmc_with_disjunction)),
         p => println!("Unknown provenance `{}`. Aborting", p),
       }
     }

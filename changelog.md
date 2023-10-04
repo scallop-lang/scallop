@@ -1,4 +1,18 @@
-# (Latest) v0.2.0, Jun 11, 2023
+# v0.2.2, (WIP)
+
+- Adding `wmc_with_disjunctions` option for provenances that deal with boolean formulas for more accurate probability estimation
+
+# v0.2.1, Sep 12, 2023
+
+- Democratizing foreign functions and foreign predicates so that they can be implemented in Python
+- Adding foreign attributes which are higher-order functions
+- Adding `scallop-ext` the extension library and multiple Scallop plugins, including `scallop-gpt`, `scallop-clip`, and so on.
+- Fixed multiple bugs related foreign predicate computation
+- Adding `count!` aggregator for non-probabilistic operation
+- Fixed sum and product aggregator so that they can accept additional argument
+- Multiple bugs fixed; performance improved
+
+# v0.2.0, Jun 11, 2023
 
 - Fixing CSV loading and its performance; adding new modes to specify `keys`
 - Adding `Symbol` type to the language

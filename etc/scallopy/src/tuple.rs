@@ -104,12 +104,14 @@ pub fn from_python_value(v: &PyAny, ty: &ValueType, env: &PythonRuntimeEnvironme
     }
     ValueType::DateTime => {
       let string = v.extract()?;
-      let dt = utils::parse_date_time_string(string).ok_or(PyTypeError::new_err(format!("Cannot parse into DateTime: {}", string)))?;
+      let dt = utils::parse_date_time_string(string)
+        .ok_or(PyTypeError::new_err(format!("Cannot parse into DateTime: {}", string)))?;
       Ok(Value::DateTime(dt))
     }
     ValueType::Duration => {
       let string = v.extract()?;
-      let dt = utils::parse_duration_string(string).ok_or(PyTypeError::new_err(format!("Cannot parse into Duration: {}", string)))?;
+      let dt = utils::parse_duration_string(string)
+        .ok_or(PyTypeError::new_err(format!("Cannot parse into Duration: {}", string)))?;
       Ok(Value::Duration(dt))
     }
     ValueType::Entity => {
@@ -122,7 +124,10 @@ pub fn from_python_value(v: &PyAny, ty: &ValueType, env: &PythonRuntimeEnvironme
 
 fn tensor_from_py_object(pyobj: &PyAny, env: &PythonRuntimeEnvironment) -> PyResult<Value> {
   let py_tensor = Tensor::from_py_value(pyobj);
-  let symbol = env.tensor_registry.register(DynamicExternalTensor::new(py_tensor)).ok_or(BindingError::CannotRegisterTensor)?;
+  let symbol = env
+    .tensor_registry
+    .register(DynamicExternalTensor::new(py_tensor))
+    .ok_or(BindingError::CannotRegisterTensor)?;
   Ok(Value::TensorValue(symbol.into()))
 }
 

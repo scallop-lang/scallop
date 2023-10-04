@@ -342,11 +342,12 @@
 		},
 		"relation_decl": {
 			"patterns": [
-				{ "include": "#fact_set_decl" }
+				{ "include": "#fact_set_decl" },
+				{ "include": "#disj_head_decl" }
 			]
 		},
 		"fact_set_decl": {
-			"begin": "(rel)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s*(=)\\s*\\{",
+			"begin": "(rel)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s*(=|:-)\\s*\\{",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.scallop"
@@ -376,6 +377,23 @@
 				}
 			}
 		},
+		"disj_head_decl": {
+			"begin": "(rel)\\s+\\{",
+			"end": "\\}\\s*(=|:-)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				}
+			},
+			"endCaptures": {
+				"2": {
+					"name": "keyword.operator.scallop"
+				}
+			},
+			"patterns": [
+				{ "include": "#atom" }
+			]
+		},
 		"query_decl": {
 			"match": "(query)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\n",
 			"captures": {
@@ -389,153 +407,101 @@
 		},
 		"aggregation": {
 			"patterns": [
-				{ "include": "#simple_aggregation" },
+				{ "include": "#basic_aggregation" },
 				{ "include": "#sample_aggregation" },
-				{ "include": "#argminmax_aggregation" },
+				{ "include": "#arg_aggr_aggregation" },
 				{ "include": "#forall_exists_aggregation" }
 			]
 		},
-		"simple_aggregation": {
-			"begin": "([a-zA-Z_][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z_][a-zA-Z0-9_]*))*\\s*(:=|=)\\s*(count|sum|prod|min|max|exists|forall|unique)\\(([a-zA-Z][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z][a-zA-Z0-9_]*))*\\s*:",
-			"end": "\\)",
+		"basic_aggregation": {
+			"begin": "(:=)\\s*([a-zA-Z][a-zA-Z0-9_]*)(!?)\\(",
+			"end": ":",
 			"beginCaptures": {
 				"1": {
-					"name": "variable.parameter.scallop"
-				},
-				"3": {
-					"name": "variable.parameter.scallop"
-				},
-				"4": {
 					"name": "keyword.operator.scallop"
 				},
-				"5": {
+				"2": {
 					"name": "keyword.other.scallop"
 				},
-				"6": {
-					"name": "variable.parameter.scallop"
-				},
-				"8": {
-					"name": "variable.parameter.scallop"
+				"3": {
+					"name": "keyword.operator.scallop"
 				}
 			},
 			"patterns": [
 				{ "include": "#comment" },
-				{ "include": "#where_clause" },
-				{ "include": "#formula" }
+				{ "include": "#variable" }
 			]
 		},
 		"sample_aggregation": {
-			"begin": "([a-zA-Z_][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z_][a-zA-Z0-9_]*))*\\s*(:=|=)\\s*(top|categorical|uniform)(<)(\\d+)(>)\\(([a-zA-Z][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z][a-zA-Z0-9_]*))*\\s*:",
-			"end": "\\)",
+			"begin": "(:=)\\s*([a-zA-Z][a-zA-Z0-9_]*)(!?)(<)(\\d+)(>)\\(",
+			"end": ":",
 			"beginCaptures": {
 				"1": {
-					"name": "variable.parameter.scallop"
+					"name": "keyword.operator.scallop"
+				},
+				"2": {
+					"name": "keyword.other.scallop"
 				},
 				"3": {
-					"name": "variable.parameter.scallop"
+					"name": "keyword.operator.scallop"
 				},
 				"4": {
 					"name": "keyword.operator.scallop"
 				},
 				"5": {
-					"name": "keyword.other.scallop"
-				},
-				"6": {
-					"name": "punctuation.brackets.angle.scallop"
-				},
-				"7": {
 					"name": "constant.numeric.scallop"
 				},
-				"8": {
-					"name": "punctuation.brackets.angle.scallop"
-				},
-				"9": {
-					"name": "variable.parameter.scallop"
-				},
-				"11": {
-					"name": "variable.parameter.scallop"
+				"6": {
+					"name": "keyword.operator.scallop"
 				}
 			},
 			"patterns": [
 				{ "include": "#comment" },
-				{ "include": "#where_clause" },
-				{ "include": "#formula" }
+				{ "include": "#variable" }
 			]
 		},
-		"argminmax_aggregation": {
-			"begin": "([a-zA-Z_][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z_][a-zA-Z0-9_]*))*\\s*(:=|=)\\s*(min|max)(\\[)([a-zA-Z][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z][a-zA-Z0-9_]*))*(\\])\\(([a-zA-Z][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z][a-zA-Z0-9_]*))*\\s*:",
-			"end": "\\)",
+		"arg_aggr_aggregation": {
+			"begin": "(:=)\\s*([a-zA-Z][a-zA-Z0-9_]*)(!?)(\\[)",
+			"end": "\\]",
 			"beginCaptures": {
 				"1": {
-					"name": "variable.parameter.scallop"
-				},
-				"3": {
-					"name": "variable.parameter.scallop"
-				},
-				"4": {
 					"name": "keyword.operator.scallop"
 				},
-				"5": {
+				"2": {
 					"name": "keyword.other.scallop"
 				},
-				"6": {
+				"3": {
+					"name": "keyword.operator.scallop"
+				},
+				"4": {
 					"name": "punctuation.brackets.angle.scallop"
-				},
-				"7": {
-					"name": "variable.parameter.scallop"
-				},
-				"9": {
-					"name": "variable.parameter.scallop"
-				},
-				"10": {
+				}
+			},
+			"endCaptures": {
+				"0": {
 					"name": "punctuation.brackets.angle.scallop"
-				},
-				"11": {
-					"name": "variable.parameter.scallop"
-				},
-				"13": {
-					"name": "variable.parameter.scallop"
 				}
 			},
 			"patterns": [
 				{ "include": "#comment" },
-				{ "include": "#where_clause" },
-				{ "include": "#formula" }
+				{ "include": "#variable" }
 			]
 		},
 		"forall_exists_aggregation": {
-			"begin": "(forall|exists)\\(([a-zA-Z][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z][a-zA-Z0-9_]*))*\\s*:",
-			"end": "\\)",
+			"begin": "(forall|exists)(!?)\\(",
+			"end": ":",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.scallop"
 				},
 				"2": {
-					"name": "variable.parameter.scallop"
-				},
-				"4": {
-					"name": "variable.parameter.scallop"
+					"name": "keyword.operator.scallop"
 				}
 			},
 			"patterns": [
 				{ "include": "#comment" },
-				{ "include": "#where_clause" },
-				{ "include": "#formula" }
+				{ "include": "#variable" }
 			]
-		},
-		"where_clause": {
-			"match": "(where)\\s+([a-zA-Z][a-zA-Z0-9_]*)(\\s*,\\s*([a-zA-Z][a-zA-Z0-9_]*))*\\s*:",
-			"captures": {
-				"1": {
-					"name": "keyword.control.scallop"
-				},
-				"2": {
-					"name": "variable.parameter.scallop"
-				},
-				"4": {
-					"name": "variable.parameter.scallop"
-				}
-			}
 		},
 		"case_is": {
 			"begin": "(case)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s+(is)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s*\\(",

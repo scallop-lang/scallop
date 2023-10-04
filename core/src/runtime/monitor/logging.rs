@@ -4,6 +4,7 @@ use crate::runtime::provenance::Provenance;
 
 use super::*;
 
+#[derive(Clone)]
 pub struct LoggingMonitor;
 
 impl LoggingMonitor {
@@ -21,6 +22,10 @@ impl LoggingMonitor {
 }
 
 impl<Prov: Provenance> Monitor<Prov> for LoggingMonitor {
+  fn name(&self) -> &'static str {
+    "logging"
+  }
+
   fn observe_executing_stratum(&self, stratum_id: usize) {
     self.info(&format!("executing stratum #{}", stratum_id))
   }

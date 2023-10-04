@@ -3,9 +3,14 @@ use crate::runtime::provenance::Provenance;
 
 use super::*;
 
+#[derive(Clone)]
 pub struct DebugTagsMonitor;
 
 impl<Prov: Provenance> Monitor<Prov> for DebugTagsMonitor {
+  fn name(&self) -> &'static str {
+    "debug-tags"
+  }
+
   fn observe_loading_relation(&self, relation: &str) {
     println!("[Tagging Relation] {}", relation)
   }

@@ -1,12 +1,12 @@
 use std::collections::*;
 
-use crate::common::adt_variant_registry::ADTVariantRegistry;
-use crate::common::aggregate_op::AggregateOp;
+use crate::common::adt_variant_registry::*;
+use crate::common::foreign_aggregate::*;
 use crate::common::foreign_function::*;
 use crate::common::foreign_predicate::*;
-use crate::common::input_tag::DynamicInputTag;
-use crate::common::output_option::OutputOption;
-use crate::common::value_type::ValueType;
+use crate::common::input_tag::*;
+use crate::common::output_option::*;
+use crate::common::value_type::*;
 
 use crate::compiler::front;
 
@@ -25,6 +25,7 @@ pub struct Program {
   pub rules: Vec<Rule>,
   pub function_registry: ForeignFunctionRegistry,
   pub predicate_registry: ForeignPredicateRegistry,
+  pub aggregate_registry: AggregateRegistry,
   pub adt_variant_registry: ADTVariantRegistry,
 }
 
@@ -709,19 +710,36 @@ pub struct UnaryConstraint {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Reduce {
-  pub op: AggregateOp,
+  // Aggregator
+  pub aggregator: String,
+  pub params: Vec<Constant>,
+  pub has_exclamation_mark: bool,
+
+  // Concretized types of reduce arguments
+  pub left_var_types: Vec<ValueType>,
+  pub arg_var_types: Vec<ValueType>,
+  pub input_var_types: Vec<ValueType>,
+
+  // Variables
   pub left_vars: Vec<Variable>,
   pub group_by_vars: Vec<Variable>,
   pub other_group_by_vars: Vec<Variable>,
   pub arg_vars: Vec<Variable>,
   pub to_aggregate_vars: Vec<Variable>,
+
+  // Bodies of reduce
   pub body_formula: Atom,
   pub group_by_formula: Option<Atom>,
 }
 
 impl Reduce {
   pub fn new(
-    op: AggregateOp,
+    aggregator: String,
+    params: Vec<Constant>,
+    has_exclamation_mark: bool,
+    left_var_types: Vec<ValueType>,
+    arg_var_types: Vec<ValueType>,
+    input_var_types: Vec<ValueType>,
     left_vars: Vec<Variable>,
     group_by_vars: Vec<Variable>,
     other_group_by_vars: Vec<Variable>,
@@ -731,7 +749,12 @@ impl Reduce {
     group_by_formula: Option<Atom>,
   ) -> Self {
     Self {
-      op,
+      aggregator,
+      params,
+      has_exclamation_mark,
+      left_var_types,
+      arg_var_types,
+      input_var_types,
       left_vars,
       group_by_vars,
       other_group_by_vars,
