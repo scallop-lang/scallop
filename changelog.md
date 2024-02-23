@@ -1,6 +1,11 @@
-# v0.2.2, (WIP)
+# v0.2.2, Oct 25, 2023
 
 - Adding `wmc_with_disjunctions` option for provenances that deal with boolean formulas for more accurate probability estimation
+- Adding foreign aggregate interface
+- Added aggregators such as `avg`, `enumerate`, `normalize`, `weighted_sum`, and `sort`
+- Adding syntax sugar for aggregation
+- Unknown attribute will now be flagged and reported during compile time
+- Fixed Scallopy Extension compatibility issue with Python 3.8
 
 # v0.2.1, Sep 12, 2023
 
