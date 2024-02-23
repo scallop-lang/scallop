@@ -47,6 +47,10 @@ impl<P: PointerFamily> TopKProofsProvenance<P> {
   pub fn set_k(&mut self, k: usize) {
     self.k = k;
   }
+
+  pub fn cmp(x: &f64, y: &f64) -> bool {
+    (x - y).abs() < 0.001
+  }
 }
 
 impl<P: PointerFamily> DNFContextTrait for TopKProofsProvenance<P> {
@@ -88,9 +92,7 @@ impl<P: PointerFamily> Provenance for TopKProofsProvenance<P> {
     let s = RealSemiring;
     let v = |i: &usize| -> f64 { self.fact_probability(i) };
     if self.wmc_with_disjunctions {
-      P::get_cell(&self.disjunctions, |disj| {
-        t.wmc_with_disjunctions(&s, &v, disj)
-      })
+      P::get_cell(&self.disjunctions, |disj| t.wmc_with_disjunctions(&s, &v, disj))
     } else {
       t.wmc(&s, &v)
     }

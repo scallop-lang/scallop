@@ -370,6 +370,7 @@ impl NodeVisitor<AliasTypeDecl> for TypeInference {
 
 impl NodeVisitor<RelationTypeDecl> for TypeInference {
   fn visit(&mut self, relation_type_decl: &RelationTypeDecl) {
+    // First handle ADT
     if let Some(attr) = relation_type_decl.attrs().find("adt") {
       // Get the variant name string
       let adt_variant_name = attr
@@ -400,26 +401,73 @@ impl NodeVisitor<RelationTypeDecl> for TypeInference {
         (adt_variant_name.clone(), adt_is_entity_list),
       );
     }
-  }
-}
 
-impl NodeVisitor<RelationType> for TypeInference {
-  fn visit(&mut self, relation_type: &RelationType) {
     // Check if the relation is a foreign predicate
-    let predicate = relation_type.predicate_name();
-    if self.foreign_predicate_type_registry.contains_predicate(predicate) {
-      self.errors.push(Error::cannot_redefine_foreign_predicate(
-        predicate.to_string(),
-        relation_type.location().clone(),
-      ));
-      return;
-    }
+    for relation_type in relation_type_decl.rel_types() {
+      let predicate = relation_type.predicate_name();
+      let loc = relation_type.location().clone();
+      let is_foreign_predicate = self.foreign_predicate_type_registry.contains_predicate(predicate);
+      if relation_type_decl.has_ext() {
+        if is_foreign_predicate {
+          // unwrap is okay since we have checked
+          let fp_ty = self.foreign_predicate_type_registry.get(predicate).unwrap();
+          let dec_ty = relation_type.arg_bindings();
 
-    self.check_and_add_relation_type(
-      relation_type.predicate_name(),
-      relation_type.arg_bindings(),
-      relation_type.location(),
-    );
+          // First check arity
+          let num_fp_tys = fp_ty.len();
+          let num_dec_tys = dec_ty.len();
+          if fp_ty.len() != dec_ty.len() {
+            self.errors.push(Error::error()
+              .msg(format!("the extern predicate `{predicate}` is declared to have {num_dec_tys} arguments but its foreign predicate needs {num_fp_tys} arguments"))
+              .src(loc));
+            continue;
+          }
+
+          // Then check each of the element type
+          for (i, (ith_fp_ty, ith_dec_ty)) in fp_ty.arguments.iter().zip(dec_ty).enumerate() {
+            let ith_dec_val_ty = match ith_dec_ty.ty().to_value_type() {
+              Ok(ith_dec_val_ty) => ith_dec_val_ty,
+              Err(s) => {
+                self.errors.push(Error::error()
+                  .msg(format!("the {i}-th argument of predicate `{predicate}` is declared to have a custom type `{s}`. This is unallowed in external relation type definition"))
+                  .src(ith_dec_ty.location().clone()));
+                break;
+              }
+            };
+            if ith_fp_ty != &ith_dec_val_ty {
+              self.errors.push(Error::error()
+                .msg(format!("the {i}-th argument of predicate `{predicate}` is declared to have type `{ith_dec_val_ty}`, but its foreign predicate accepts type `{ith_fp_ty}`"))
+                .src(ith_dec_ty.location().clone()));
+              break;
+            }
+          }
+        } else {
+          // If not annotated,
+          self.errors.push(
+            Error::error()
+              .msg(format!(
+                "the predicate `{predicate}` is declared `extern` but is not imported as a foreign predicate"
+              ))
+              .src(loc),
+          );
+        }
+      } else {
+        if is_foreign_predicate {
+          // If not annotated, we treat it as a duplicated definition. An error is reported
+          self.errors.push(Error::cannot_redefine_foreign_predicate(
+            predicate.to_string(),
+            relation_type.location().clone(),
+          ));
+        } else {
+          // If it is not a foreign predicate, we simply add that to our infer list
+          self.check_and_add_relation_type(
+            relation_type.predicate_name(),
+            relation_type.arg_bindings(),
+            relation_type.location(),
+          );
+        }
+      }
+    }
   }
 }
 
@@ -702,6 +750,32 @@ impl NodeVisitor<Rule> for TypeInference {
     // First unify atom arity
     if let Err(err) = ctx.unify_atom_arities(&self.foreign_predicate_type_registry, &mut self.inferred_relation_types) {
       self.errors.push(err);
+      return;
+    }
+
+    // Add the context
+    self.rule_local_contexts.push(ctx);
+  }
+}
+
+impl NodeVisitor<ReduceRule> for TypeInference {
+  fn visit(&mut self, reduce_rule: &ReduceRule) {
+    // Check if a head predicate is a foreign predicate
+    let pred = reduce_rule.head().name();
+    if self.foreign_predicate_type_registry.contains_predicate(pred) {
+      self.errors.push(Error::cannot_redefine_foreign_predicate(
+        pred.to_string(),
+        reduce_rule.location().clone(),
+      ));
+      return;
+    }
+
+    // Otherwise, create a rule inference context
+    let ctx = LocalTypeInferenceContext::from_reduce_rule(reduce_rule);
+
+    // Check if context has error already
+    if !ctx.errors.is_empty() {
+      self.errors.extend(ctx.errors);
       return;
     }
 

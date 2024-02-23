@@ -1,4 +1,5 @@
 use scallop_core::common::expr::*;
+use scallop_core::common::foreign_aggregate::*;
 use scallop_core::common::value_type::*;
 use scallop_core::runtime::dynamic::dataflow::*;
 use scallop_core::runtime::dynamic::*;
@@ -52,7 +53,10 @@ fn test_dynamic_group_and_count_1() {
       &ctx,
       &DynamicDataflow::new(DynamicAggregationImplicitGroupDataflow::new(
         rt.aggregate_registry
-          .instantiate_aggregator("count", vec![], false, vec![], vec![ValueType::USize])
+          .instantiate_aggregator(
+            "count",
+            AggregateInfo::default().with_input_var_types(vec![ValueType::USize]),
+          )
           .unwrap(),
         DynamicDataflow::dynamic_collection(&completed_rev_color, first_time),
         &ctx,
@@ -115,7 +119,10 @@ fn test_dynamic_group_count_max_1() {
       &ctx,
       &DynamicDataflow::new(DynamicAggregationImplicitGroupDataflow::new(
         rt.aggregate_registry
-          .instantiate_aggregator("count", vec![], false, vec![], vec![ValueType::USize])
+          .instantiate_aggregator(
+            "count",
+            AggregateInfo::default().with_input_var_types(vec![ValueType::USize]),
+          )
           .unwrap(),
         DynamicDataflow::dynamic_collection(&completed_rev_color, iter_1_first_time),
         &ctx,
@@ -137,7 +144,12 @@ fn test_dynamic_group_count_max_1() {
       &ctx,
       &DynamicDataflow::new(DynamicAggregationSingleGroupDataflow::new(
         rt.aggregate_registry
-          .instantiate_aggregator("max", vec![], false, vec![ValueType::Str], vec![ValueType::USize])
+          .instantiate_aggregator(
+            "max",
+            AggregateInfo::default()
+              .with_arg_var_types(vec![ValueType::Str])
+              .with_input_var_types(vec![ValueType::USize]),
+          )
           .unwrap(),
         DynamicDataflow::dynamic_collection(&completed_color_count, iter_2_first_time),
         &ctx,

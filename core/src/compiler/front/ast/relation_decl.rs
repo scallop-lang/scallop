@@ -108,10 +108,18 @@ impl RuleDecl {
 
 #[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
+pub struct _ReduceRuleDecl {
+  pub attrs: Attributes,
+  pub rule: ReduceRule,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+#[doc(hidden)]
 pub enum RelationDecl {
   Set(ConstantSetDecl),
   Fact(FactDecl),
   Rule(RuleDecl),
+  ReduceRule(ReduceRuleDecl),
 }
 
 impl RelationDecl {
@@ -120,6 +128,7 @@ impl RelationDecl {
       RelationDecl::Set(s) => s.attrs(),
       RelationDecl::Fact(f) => f.attrs(),
       RelationDecl::Rule(r) => r.attrs(),
+      RelationDecl::ReduceRule(r) => r.attrs(),
     }
   }
 
@@ -128,6 +137,7 @@ impl RelationDecl {
       RelationDecl::Set(s) => s.attrs_mut(),
       RelationDecl::Fact(f) => f.attrs_mut(),
       RelationDecl::Rule(r) => r.attrs_mut(),
+      RelationDecl::ReduceRule(r) => r.attrs_mut(),
     }
   }
 }

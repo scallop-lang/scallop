@@ -381,20 +381,20 @@ impl ast::Dataflow {
         let to_agg_col = get_col(&r.predicate);
 
         // Get the aggregator
-        let non_multi_world = r.has_exclamation_mark;
+        let non_multi_world = r.aggregate_info.has_exclamation_mark;
         let agg = match r.aggregator.as_str() {
           "count" => quote! { CountAggregator::new(#non_multi_world) },
           "sum" => quote! { SumAggregator::new() },
           "prod" => quote! { ProdAggregator::new() },
           "max" => {
-            if r.arg_var_types.is_empty() {
+            if r.aggregate_info.arg_var_types.is_empty() {
               quote! { MaxAggregator::new() }
             } else {
               unimplemented!("Implicit max with argument")
             }
           }
           "min" => {
-            if r.arg_var_types.is_empty() {
+            if r.aggregate_info.arg_var_types.is_empty() {
               quote! { MinAggregator::new() }
             } else {
               unimplemented!("Implicit max with argument")
@@ -408,7 +408,7 @@ impl ast::Dataflow {
           }
           "exists" => quote! { ExistsAggregator::new(#non_multi_world) },
           "top" => {
-            let k = r.params[0].as_usize();
+            let k = r.aggregate_info.pos_params.get(0).map(|v| v.as_usize()).unwrap_or(1);
             quote! { TopKAggregator::new(#k) }
           }
           _ => unimplemented!(),

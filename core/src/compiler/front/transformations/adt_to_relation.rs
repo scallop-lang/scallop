@@ -69,6 +69,7 @@ impl<'a> TransformAlgebraicDataType<'a> {
         // Generate a type declaration item
         Item::TypeDecl(TypeDecl::Relation(RelationTypeDecl::new(
           vec![adt_attr, hidden_attr],
+          None,
           vec![RelationType::new(rel_name, arg_types)],
         )))
       })

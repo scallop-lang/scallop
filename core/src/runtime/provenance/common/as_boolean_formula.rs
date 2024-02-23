@@ -28,35 +28,17 @@ pub trait AsBooleanFormula {
     let formula = self.as_boolean_formula();
 
     // Adding disjunction as part of formula
-    let formula_with_disj = sdd::bf_disjunction(
-      std::iter::once(formula)
-        .chain(
-          disj
-            .disjunctions
-            .iter()
-            .map(|disj| {
-              sdd::bf_conjunction(
-                disj
-                  .facts
-                  .iter()
-                  .map(|to_be_neg_fact_id| {
-                    sdd::bf_disjunction(
-                      disj
-                        .facts
-                        .iter()
-                        .map(|fact_id| {
-                          if fact_id == to_be_neg_fact_id {
-                            sdd::bf_neg(fact_id.clone())
-                          } else {
-                            sdd::bf_pos(fact_id.clone())
-                          }
-                        })
-                    )
-                  })
-              )
-            })
-        )
-    );
+    let formula_with_disj = sdd::bf_disjunction(std::iter::once(formula).chain(disj.disjunctions.iter().map(|disj| {
+      sdd::bf_conjunction(disj.facts.iter().map(|to_be_neg_fact_id| {
+        sdd::bf_disjunction(disj.facts.iter().map(|fact_id| {
+          if fact_id == to_be_neg_fact_id {
+            sdd::bf_neg(fact_id.clone())
+          } else {
+            sdd::bf_pos(fact_id.clone())
+          }
+        }))
+      }))
+    })));
 
     let sdd_config = sdd::bottom_up::SDDBuilderConfig::with_formula(&formula_with_disj);
     let sdd_builder = sdd::bottom_up::SDDBuilder::with_config(sdd_config);

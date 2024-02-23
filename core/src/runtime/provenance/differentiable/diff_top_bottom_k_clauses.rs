@@ -97,9 +97,7 @@ impl<T: FromTensor, P: PointerFamily> Provenance for DiffTopBottomKClausesProven
       }
     };
     let wmc_result = if self.wmc_with_disjunctions {
-      P::get_cell(&self.disjunctions, |disj| {
-        t.wmc_with_disjunctions(&s, &v, disj)
-      })
+      P::get_cell(&self.disjunctions, |disj| t.wmc_with_disjunctions(&s, &v, disj))
     } else {
       t.wmc(&s, &v)
     };

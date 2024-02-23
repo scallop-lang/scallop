@@ -3,6 +3,7 @@ use super::super::*;
 #[derive(Clone, Debug)]
 pub enum AttributeError {
   DuplicatedAttributeProcessor { name: String },
+  UnknownAttribute { name: String },
   ReservedAttribute { name: String },
   Custom { msg: String },
 }
@@ -17,11 +18,10 @@ impl std::fmt::Display for AttributeError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
       Self::DuplicatedAttributeProcessor { name } => {
-        f.write_fmt(format_args!("Duplicated attribute processor `{}`", name))
+        f.write_fmt(format_args!("Duplicated attribute definitions for `@{}`", name))
       }
-      Self::ReservedAttribute { name } => {
-        f.write_fmt(format_args!("Attribute process `{}` is reserved in Scallop", name))
-      }
+      Self::UnknownAttribute { name } => f.write_fmt(format_args!("Unknown attribute `@{}`", name)),
+      Self::ReservedAttribute { name } => f.write_fmt(format_args!("Attribute `@{}` is reserved in Scallop", name)),
       Self::Custom { msg } => f.write_str(msg),
     }
   }

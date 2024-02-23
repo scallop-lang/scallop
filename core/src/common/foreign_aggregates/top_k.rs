@@ -1,6 +1,5 @@
 use std::collections::*;
 
-use crate::common::value::*;
 use crate::common::value_type::*;
 use crate::runtime::env::*;
 
@@ -44,12 +43,12 @@ impl SampleAggregate for TopKSamplerAggregate {
     }
   }
 
-  fn instantiate(&self, params: Vec<Value>, _: bool, _: Vec<ValueType>, _: Vec<ValueType>) -> DynamicSampler {
+  fn instantiate(&self, info: AggregateInfo) -> DynamicSampler {
     if self.is_unique {
       TopKSampler { k: 1 }.into()
     } else {
       TopKSampler {
-        k: params.get(0).map(|v| v.as_usize()).unwrap_or(1),
+        k: info.pos_params.get(0).map(|v| v.as_usize()).unwrap_or(1),
       }
       .into()
     }

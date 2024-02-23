@@ -76,9 +76,7 @@ impl<P: PointerFamily> Provenance for TopBottomKClausesProvenance<P> {
     let s = RealSemiring;
     let v = |i: &usize| -> f64 { self.fact_probability(i) };
     if self.wmc_with_disjunctions {
-      P::get_cell(&self.disjunctions, |disj| {
-        t.wmc_with_disjunctions(&s, &v, disj)
-      })
+      P::get_cell(&self.disjunctions, |disj| t.wmc_with_disjunctions(&s, &v, disj))
     } else {
       t.wmc(&s, &v)
     }

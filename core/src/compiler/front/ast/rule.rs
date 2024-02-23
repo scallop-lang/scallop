@@ -60,3 +60,10 @@ impl From<Atom> for RuleHead {
     Self::Atom(atom)
   }
 }
+
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+#[doc(hidden)]
+pub struct _ReduceRule {
+  pub head: Identifier,
+  pub reduce: Reduce,
+}

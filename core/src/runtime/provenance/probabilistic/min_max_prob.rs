@@ -26,7 +26,7 @@ impl MinMaxProbProvenance {
   }
 
   pub fn cmp(x: &f64, y: &f64) -> bool {
-    x == y
+    (x - y).abs() < 0.001
   }
 }
 

@@ -61,7 +61,16 @@ pub enum Unification {
 
   /// var* := AGGREGATE<param*>![arg*](in_var*: ...)
   /// var*, AGGREGATE name, AGGREGATE (loc), param*, arg*, in_var*, has_exclamation_mark
-  Aggregate(Vec<Loc>, String, Loc, Vec<Loc>, Vec<Loc>, Vec<Loc>, bool),
+  Aggregate {
+    left_vars: Vec<Loc>,
+    aggregate_name: String,
+    aggregate: Loc,
+    params: Vec<Loc>,
+    named_params: HashMap<String, (Loc, Loc)>,
+    arg_vars: Vec<Loc>,
+    input_vars: Vec<Loc>,
+    has_exclamation_mark: bool,
+  },
 
   /// C, ops*, new C(ops*)
   New(String, Vec<Loc>, Loc),
@@ -363,29 +372,60 @@ impl Unification {
           Err(Error::unknown_function_type(function.clone(), e.clone()))
         }
       }
-      Self::Aggregate(out_vars, agg, agg_loc, param_consts, arg_vars, in_vars, has_exclamation) => {
-        if let Some(agg_type) = aggregate_type_registry.get(agg) {
-          // 1. check the parameters length match
+      Self::Aggregate {
+        left_vars,
+        aggregate_name,
+        aggregate,
+        params,
+        named_params,
+        arg_vars,
+        input_vars,
+        has_exclamation_mark,
+      } => {
+        if let Some(agg_type) = aggregate_type_registry.get(aggregate_name) {
+          // 0. Make sure that it is not a reduce only rule that failed to be desugared
+          if left_vars.is_empty() {
+            let arg_arity = arg_vars.len();
+            let input_arity = input_vars.len();
+            if let Some(output_err) = agg_type.infer_output_arity(arg_arity, input_arity).err() {
+              return Err(
+                Error::error()
+                  .msg(format!(
+                    "Cannot infer the output variable arity for aggregate `{aggregate_name}`: {output_err}"
+                  ))
+                  .src(aggregate.clone()),
+              );
+            } else {
+              unreachable!("Aggregate may have empty return variable only if it is a partial aggregate in the reduce rule syntax sugar")
+            }
+          }
+
+          // 1. check the positional parameters length match
           let mut has_optional = false;
           let mut curr_param_const_id = 0;
           for (i, param_type) in agg_type.param_types.iter().enumerate() {
             match param_type {
               ParamType::Mandatory(vt) => {
                 if has_optional {
-                  return Err(Error::error()
-                    .msg(format!("error in aggregate `{agg}`: mandatory parameter must occur before optional parameter")));
-                } else if let Some(curr_param) = param_consts.get(curr_param_const_id) {
+                  return Err(Error::error().msg(format!(
+                    "error in aggregate `{aggregate_name}`: mandatory parameter must occur before optional parameter"
+                  )));
+                } else if let Some(curr_param) = params.get(curr_param_const_id) {
                   unify_ty(curr_param, TypeSet::base(vt.clone()), inferred_expr_types).map_err(|e| e.into())?;
                   curr_param_const_id += 1;
                 } else {
-                  return Err(Error::error()
-                    .msg(format!("mandatory {i}-th {vt} parameter not found for aggregate `{agg}`:"))
-                    .src(agg_loc.clone()))
+                  return Err(
+                    Error::error()
+                      .msg(format!(
+                        "mandatory {i}-th {vt} parameter not found for aggregate `{aggregate_name}`:"
+                      ))
+                      .src(aggregate.clone()),
+                  );
                 }
               }
               ParamType::Optional(vt) => {
                 has_optional = true;
-                if let Some(curr_param) = param_consts.get(curr_param_const_id) {
+                if let Some(curr_param) = params.get(curr_param_const_id) {
                   match unify_ty(curr_param, TypeSet::base(vt.clone()), inferred_expr_types) {
                     Ok(_) => {
                       curr_param_const_id += 1;
@@ -397,28 +437,69 @@ impl Unification {
             }
           }
 
-          // 2. check if there is any extra parameter not scanned
-          if curr_param_const_id + 1 < param_consts.len() {
-            return Err(Error::error()
-              .msg(format!("expected at most {} parameters, found {} parameters", agg_type.param_types.len(), param_consts.len()))
-              .src(agg_loc.clone()))
-          }
-
-          // 3. check the exclamation mark
-          if *has_exclamation && !agg_type.allow_exclamation_mark {
+          // 2. check if there is any extra positional parameter not scanned
+          if curr_param_const_id + 1 < params.len() {
             return Err(
               Error::error()
-                .msg(format!("aggregator `{agg}` does not support exclamation mark"))
-                .src(agg_loc.clone()),
+                .msg(format!(
+                  "expected at most {} parameters, found {} parameters",
+                  agg_type.param_types.len(),
+                  params.len()
+                ))
+                .src(aggregate.clone()),
             );
           }
 
-          // 4. trying to ground generics for the arg_vars or in_vars
+          // 3. Check whether specified named parameters have matching types
+          for (param_name, expected_param_type) in &agg_type.named_param_types {
+            if let Some((_, param_const)) = named_params.get(param_name) {
+              // If presented, check the type
+              let type_set = TypeSet::base(expected_param_type.value_type().clone());
+              unify_ty(param_const, type_set, inferred_expr_types).map_err(|e| e.into())?;
+            } else {
+              // If is mandatory, then throw error
+              if expected_param_type.is_mandatory() {
+                return Err(
+                  Error::error()
+                    .msg(format!(
+                      "{aggregate_name} expects a named parameter `{param_name}`, but is not found"
+                    ))
+                    .src(aggregate.clone()),
+                );
+              }
+            }
+          }
+
+          // 4. Check if there is unspecified named parameters
+          for (param_name, (name_loc, _)) in named_params {
+            if agg_type.named_param_types.get(param_name).is_none() {
+              return Err(
+                Error::error()
+                  .msg(format!(
+                    "Unknown named parameter `{param_name}` for aggregate `{aggregate_name}`"
+                  ))
+                  .src(name_loc.clone()),
+              );
+            }
+          }
+
+          // 5. check the exclamation mark
+          if *has_exclamation_mark && !agg_type.allow_exclamation_mark {
+            return Err(
+              Error::error()
+                .msg(format!(
+                  "aggregator `{aggregate_name}` does not support exclamation mark"
+                ))
+                .src(aggregate.clone()),
+            );
+          }
+
+          // 3. trying to ground generics for the arg_vars or in_vars
           let mut grounded_generic_types = HashMap::new();
           ground_input_aggregate_binding_type(
             "argument",
-            agg,
-            agg_loc,
+            aggregate_name,
+            aggregate,
             &agg_type.arg_type,
             arg_vars,
             &agg_type.generics,
@@ -427,10 +508,10 @@ impl Unification {
           )?;
           ground_input_aggregate_binding_type(
             "input",
-            agg,
-            agg_loc,
+            aggregate_name,
+            aggregate,
             &agg_type.input_type,
-            in_vars,
+            input_vars,
             &agg_type.generics,
             &mut grounded_generic_types,
             inferred_expr_types,
@@ -438,10 +519,10 @@ impl Unification {
 
           // 5. trying to unify the out_vars
           ground_output_aggregate_binding_type(
-            agg,
-            agg_loc,
+            aggregate_name,
+            aggregate,
             &agg_type.output_type,
-            out_vars,
+            left_vars,
             &grounded_generic_types,
             inferred_expr_types,
           )?;
@@ -451,8 +532,8 @@ impl Unification {
         } else {
           Err(
             Error::error()
-              .msg(format!("unknown aggregate `{agg}`"))
-              .src(agg_loc.clone()),
+              .msg(format!("unknown aggregate `{aggregate_name}`"))
+              .src(aggregate.clone()),
           )
         }
       }

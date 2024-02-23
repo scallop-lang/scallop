@@ -1,4 +1,5 @@
 use scallop_core::common::expr::*;
+use scallop_core::common::foreign_aggregate::*;
 use scallop_core::common::value_type::*;
 use scallop_core::compiler::ram::*;
 use scallop_core::runtime::dynamic::*;
@@ -47,10 +48,7 @@ where
       "color_count",
       Dataflow::reduce(
         "count".to_string(),
-        vec![],
-        false,
-        vec![],
-        vec![ValueType::USize],
+        AggregateInfo::default().with_input_var_types(vec![ValueType::USize]),
         "_color_rev",
         ReduceGroupByType::join("_colors_key"),
       )

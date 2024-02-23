@@ -1,6 +1,4 @@
 use crate::common::tuple::*;
-use crate::common::value::*;
-use crate::common::value_type::*;
 use crate::runtime::dynamic::*;
 use crate::runtime::env::*;
 use crate::runtime::provenance::*;
@@ -12,13 +10,7 @@ pub trait SampleAggregate: dyn_clone::DynClone + 'static {
 
   fn param_types(&self) -> Vec<ParamType>;
 
-  fn instantiate(
-    &self,
-    params: Vec<Value>,
-    has_exclamation_mark: bool,
-    arg_types: Vec<ValueType>,
-    input_types: Vec<ValueType>,
-  ) -> DynamicSampler;
+  fn instantiate(&self, info: AggregateInfo) -> DynamicSampler;
 }
 
 pub struct DynamicSampleAggregate(Box<dyn SampleAggregate>);
@@ -57,21 +49,14 @@ impl Aggregate for DynamicSampleAggregate {
         .into_iter()
         .collect(),
       param_types: SampleAggregate::param_types(&*self.0),
-      arg_type: BindingTypes::unit(),
       input_type: BindingTypes::generic("T"),
       output_type: BindingTypes::generic("T"),
-      allow_exclamation_mark: false,
+      ..Default::default()
     }
   }
 
-  fn instantiate<P: Provenance>(
-    &self,
-    params: Vec<Value>,
-    has_exclamation_mark: bool,
-    arg_types: Vec<ValueType>,
-    input_types: Vec<ValueType>,
-  ) -> Self::Aggregator<P> {
-    SampleAggregate::instantiate(&*self.0, params, has_exclamation_mark, arg_types, input_types)
+  fn instantiate<P: Provenance>(&self, info: AggregateInfo) -> Self::Aggregator<P> {
+    SampleAggregate::instantiate(&*self.0, info)
   }
 }
 

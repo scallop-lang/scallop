@@ -363,13 +363,7 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
       ram::Dataflow::Reduce(a) => {
         let op = env
           .aggregate_registry
-          .instantiate_aggregator::<Prov>(
-            &a.aggregator,
-            a.params.clone(),
-            a.has_exclamation_mark,
-            a.arg_var_types.clone(),
-            a.input_var_types.clone(),
-          )
+          .instantiate_aggregator::<Prov>(&a.aggregator, a.aggregate_info.clone())
           .expect(&format!("cannot instantiate aggregator `{}`", a.aggregator));
         match &a.group_by {
           ram::ReduceGroupByType::None => {

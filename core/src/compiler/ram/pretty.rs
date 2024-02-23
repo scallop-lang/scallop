@@ -138,15 +138,35 @@ impl Dataflow {
           ReduceGroupByType::Implicit => format!(" implicit group"),
           _ => format!(""),
         };
-        let params = if !r.params.is_empty() {
-          format!(
-            "<{}>",
-            r.params.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", ")
-          )
+        let info = &r.aggregate_info;
+        let pos_params = if !info.pos_params.is_empty() {
+          info
+            .pos_params
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
         } else {
           format!("")
         };
-        let exclamation_mark = if r.has_exclamation_mark {
+        let named_params = if !info.named_params.is_empty() {
+          let comma = if info.pos_params.is_empty() { "" } else { ", " };
+          let s = info
+            .named_params
+            .iter()
+            .map(|(n, p)| format!("{} = {}", n, p))
+            .collect::<Vec<_>>()
+            .join(", ");
+          format!("{comma}{s}")
+        } else {
+          format!("")
+        };
+        let params = if info.pos_params.is_empty() && info.named_params.is_empty() {
+          format!("")
+        } else {
+          format!("<{}{}>", pos_params, named_params)
+        };
+        let exclamation_mark = if info.has_exclamation_mark {
           format!("!")
         } else {
           format!("")

@@ -32,12 +32,13 @@ mod attr_1 {
   }
 
   #[test]
-  fn attr_1_test_1() {
-    expect_compile(
+  fn unknown_attribute_1() {
+    expect_front_compile_failure(
       r#"
       @foo((1, 2), 3, 4)
       type my_relation(a: i32, b: i32)
       "#,
+      |s| s.contains("Unknown attribute `@foo`"),
     );
   }
 

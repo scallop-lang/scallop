@@ -12,11 +12,7 @@ impl TransformTaggedRule {
   }
 
   pub fn has_prob_attr(rule_decl: &RuleDecl) -> bool {
-    rule_decl
-      .attrs()
-      .iter()
-      .find(|a| a.name().name() == "probabilistic")
-      .is_some()
+    rule_decl.attrs().iter().find(|a| a.name().name() == "tagged").is_some()
   }
 
   pub fn transform(rule_decl: &mut RuleDecl) -> String {

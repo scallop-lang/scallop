@@ -5,7 +5,7 @@ use crate::compiler::front::FrontContext;
 use super::super::ast;
 use super::*;
 
-const RESERVED_ATTRIBUTES: [&'static str; 3] = ["hidden", "file", "demand"];
+const RESERVED_ATTRIBUTES: [&'static str; 4] = ["hidden", "file", "demand", "tagged"];
 
 #[derive(Clone, Debug)]
 pub struct AttributeProcessorRegistry {
@@ -47,9 +47,14 @@ impl AttributeProcessorRegistry {
     let mut post_proc_ctx = PostProcessingContext::new();
     for (item_index, item) in items.iter().enumerate() {
       for attr in item.attrs() {
-        if let Some(proc) = self.get_attribute_processor(attr.name().name()) {
+        let attr_name = attr.name().name();
+        if let Some(proc) = self.get_attribute_processor(attr_name) {
           let action = proc.apply(item, attr)?;
           post_proc_ctx.add_action(action, item_index);
+        } else if !RESERVED_ATTRIBUTES.contains(&attr_name.as_str()) {
+          return Err(AttributeError::UnknownAttribute {
+            name: attr_name.clone(),
+          });
         }
       }
     }

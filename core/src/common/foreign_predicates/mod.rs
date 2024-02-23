@@ -19,6 +19,7 @@ mod soft_lt;
 mod soft_neq;
 mod string_chars;
 mod string_find;
+mod string_index;
 mod string_split;
 mod tensor_shape;
 
@@ -32,5 +33,6 @@ pub use soft_lt::*;
 pub use soft_neq::*;
 pub use string_chars::*;
 pub use string_find::*;
+pub use string_index::*;
 pub use string_split::*;
 pub use tensor_shape::*;

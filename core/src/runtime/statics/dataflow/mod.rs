@@ -28,7 +28,6 @@ pub use project::*;
 pub use relation::*;
 pub use union::*;
 pub use unit::*;
-pub use vec::*;
 
 // Module specific
 use super::*;

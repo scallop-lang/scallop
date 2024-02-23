@@ -713,6 +713,7 @@ pub struct Reduce {
   // Aggregator
   pub aggregator: String,
   pub params: Vec<Constant>,
+  pub named_params: BTreeMap<String, Constant>,
   pub has_exclamation_mark: bool,
 
   // Concretized types of reduce arguments
@@ -736,6 +737,7 @@ impl Reduce {
   pub fn new(
     aggregator: String,
     params: Vec<Constant>,
+    named_params: BTreeMap<String, Constant>,
     has_exclamation_mark: bool,
     left_var_types: Vec<ValueType>,
     arg_var_types: Vec<ValueType>,
@@ -751,6 +753,7 @@ impl Reduce {
     Self {
       aggregator,
       params,
+      named_params,
       has_exclamation_mark,
       left_var_types,
       arg_var_types,

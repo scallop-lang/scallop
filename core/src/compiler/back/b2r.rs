@@ -5,6 +5,7 @@ use itertools::Itertools;
 use super::*;
 use crate::common::binary_op::BinaryOp;
 use crate::common::expr::Expr;
+use crate::common::foreign_aggregate::AggregateInfo;
 use crate::common::foreign_predicate::ForeignPredicate;
 use crate::common::output_option::OutputOption;
 use crate::common::tuple::Tuple;
@@ -932,15 +933,14 @@ impl Program {
     };
 
     // Construct the reduce and the dataflow
-    let agg = ram::Dataflow::reduce(
-      r.aggregator.clone(),
-      r.params.clone(),
-      r.has_exclamation_mark,
-      r.arg_var_types.clone(),
-      r.input_var_types.clone(),
-      r.body_formula.predicate.clone(),
-      group_by,
-    );
+    let info = AggregateInfo {
+      pos_params: r.params.clone(),
+      named_params: r.named_params.clone(),
+      has_exclamation_mark: r.has_exclamation_mark,
+      arg_var_types: r.arg_var_types.clone(),
+      input_var_types: r.input_var_types.clone(),
+    };
+    let agg = ram::Dataflow::reduce(r.aggregator.clone(), info, r.body_formula.predicate.clone(), group_by);
     let dataflow = ram::Dataflow::project(agg, var_tuple.projection(goal));
 
     // Check if we need to store into temporary variable

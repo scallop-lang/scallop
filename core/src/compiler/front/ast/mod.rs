@@ -1,3 +1,4 @@
+mod aggregate;
 mod attr;
 mod const_decl;
 mod constant;
@@ -13,6 +14,7 @@ mod type_decl;
 mod types;
 mod utils;
 
+pub use aggregate::*;
 pub use attr::*;
 pub use const_decl::*;
 pub use constant::*;

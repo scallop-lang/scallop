@@ -3,6 +3,7 @@ use std::collections::*;
 use crate::common::output_option::OutputOption;
 use crate::common::value_type::ValueType;
 use crate::compiler::back;
+use crate::compiler::front::ast::ReduceParam;
 
 use super::super::analyzers::boundness::{AggregationContext, ForeignPredicateBindings, RuleContext};
 use super::super::ast as front;
@@ -510,14 +511,35 @@ impl FrontContext {
       .aggregate_op
       .parameters
       .iter()
-      .map(|p| {
-        let value_type = self
-          .type_inference()
-          .expr_value_type(p)
-          .expect("[internal error] aggregate param not grounded with value type");
-        p.to_value(&value_type)
+      .filter_map(|p| {
+        if let ReduceParam::Positional(c) = p {
+          let value_type = self
+            .type_inference()
+            .expr_value_type(p)
+            .expect("[internal error] aggregate param not grounded with value type");
+          Some(c.to_value(&value_type))
+        } else {
+          None
+        }
       })
       .collect::<Vec<_>>();
+    let named_params = agg_ctx
+      .aggregate_op
+      .parameters
+      .iter()
+      .filter_map(|p| {
+        if let ReduceParam::Named(n) = p {
+          let c = n.value();
+          let value_type = self
+            .type_inference()
+            .expr_value_type(c)
+            .expect("[internal error] aggregate param not grounded with value type");
+          Some((n.name().name().clone(), c.to_value(&value_type)))
+        } else {
+          None
+        }
+      })
+      .collect::<BTreeMap<_, _>>();
     let has_exclamation_mark = agg_ctx.aggregate_op.has_exclaimation_mark;
 
     // Get the body to-aggregate relation
@@ -547,6 +569,7 @@ impl FrontContext {
       // Aggregator
       op,
       params,
+      named_params,
       has_exclamation_mark,
       // types
       left_var_types,

@@ -11,7 +11,6 @@ use crate::common::output_option::OutputOption;
 use crate::common::tuple::{AsTuple, Tuple};
 use crate::common::tuple_type::TupleType;
 use crate::common::value::Value;
-use crate::common::value_type::ValueType;
 
 #[derive(Debug, Clone)]
 pub struct Program {
@@ -302,19 +301,13 @@ impl Dataflow {
 
   pub fn reduce<S: ToString>(
     aggregator: String,
-    params: Vec<Value>,
-    has_exclamation_mark: bool,
-    arg_var_types: Vec<ValueType>,
-    input_var_types: Vec<ValueType>,
+    aggregate_info: AggregateInfo,
     predicate: S,
     group_by: ReduceGroupByType,
   ) -> Self {
     Self::Reduce(Reduce {
       aggregator,
-      params,
-      has_exclamation_mark,
-      arg_var_types,
-      input_var_types,
+      aggregate_info,
       predicate: predicate.to_string(),
       group_by,
     })
@@ -371,10 +364,7 @@ impl ReduceGroupByType {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Reduce {
   pub aggregator: String,
-  pub params: Vec<Value>,
-  pub has_exclamation_mark: bool,
-  pub arg_var_types: Vec<ValueType>,
-  pub input_var_types: Vec<ValueType>,
+  pub aggregate_info: AggregateInfo,
   pub predicate: String,
   pub group_by: ReduceGroupByType,
 }

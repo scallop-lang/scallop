@@ -1,4 +1,5 @@
 use scallop_core::common::expr::*;
+use scallop_core::common::foreign_aggregate::*;
 use scallop_core::common::value_type::ValueType;
 use scallop_core::compiler::ram::*;
 use scallop_core::runtime::dynamic::*;
@@ -41,10 +42,9 @@ fn test_simple_probability_count() {
       "color_count",
       Dataflow::reduce(
         "count".to_string(),
-        vec![],
-        false,
-        vec![],
-        vec![ValueType::USize],
+        AggregateInfo::default()
+          .with_arg_var_types(vec![ValueType::Str])
+          .with_input_var_types(vec![ValueType::USize]),
         "_color_rev",
         ReduceGroupByType::Implicit,
       ),
@@ -92,10 +92,7 @@ fn test_min_max_prob_count_max() {
       "color_count",
       Dataflow::reduce(
         "count".to_string(),
-        vec![],
-        false,
-        vec![],
-        vec![ValueType::USize],
+        AggregateInfo::default().with_input_var_types(vec![ValueType::USize]),
         "_color_rev",
         ReduceGroupByType::Implicit,
       ),
@@ -114,10 +111,9 @@ fn test_min_max_prob_count_max() {
       "max_color",
       Dataflow::reduce(
         "max".to_string(),
-        vec![],
-        false,
-        vec![ValueType::Str],
-        vec![ValueType::USize],
+        AggregateInfo::default()
+          .with_arg_var_types(vec![ValueType::Str])
+          .with_input_var_types(vec![ValueType::USize]),
         "color_count",
         ReduceGroupByType::None,
       ),

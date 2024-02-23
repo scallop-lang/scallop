@@ -99,6 +99,10 @@ pub enum Constant {
 }
 
 impl Constant {
+  pub fn bool_true() -> Self {
+    Self::Boolean(BoolLiteral::new(true))
+  }
+
   pub fn can_unify(&self, ty: &ValueType) -> bool {
     match (self, ty) {
       (Self::Integer(_), ValueType::I8)

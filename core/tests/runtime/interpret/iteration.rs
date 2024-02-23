@@ -1,4 +1,5 @@
 use scallop_core::common::expr::*;
+use scallop_core::common::foreign_aggregate::*;
 use scallop_core::common::value_type::ValueType;
 use scallop_core::compiler::ram::*;
 use scallop_core::runtime::dynamic::*;
@@ -105,10 +106,7 @@ where
       "color_count",
       Dataflow::reduce(
         "count".to_string(),
-        vec![],
-        false,
-        vec![],
-        vec![ValueType::I32],
+        AggregateInfo::default().with_input_var_types(vec![ValueType::I32]),
         "_color_rev",
         ReduceGroupByType::Implicit,
       ),
@@ -125,10 +123,9 @@ where
       "max_color_count",
       Dataflow::reduce(
         "max".to_string(),
-        vec![],
-        false,
-        vec![ValueType::Str],
-        vec![ValueType::USize],
+        AggregateInfo::default()
+          .with_arg_var_types(vec![ValueType::Str])
+          .with_input_var_types(vec![ValueType::I32]),
         "color_count",
         ReduceGroupByType::None,
       ),

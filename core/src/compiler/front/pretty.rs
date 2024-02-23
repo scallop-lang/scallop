@@ -91,6 +91,7 @@ impl Display for RelationDecl {
       RelationDecl::Set(s) => s.fmt(f),
       RelationDecl::Fact(a) => a.fmt(f),
       RelationDecl::Rule(r) => r.fmt(f),
+      RelationDecl::ReduceRule(r) => r.fmt(f),
     }
   }
 }
@@ -404,8 +405,8 @@ impl Display for ConstantOrVariable {
   }
 }
 
-impl std::fmt::Display for Constant {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for Constant {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     match self {
       Constant::Integer(i) => i.fmt(f),
       Constant::Entity(e) => e.fmt(f),
@@ -420,57 +421,72 @@ impl std::fmt::Display for Constant {
   }
 }
 
-impl std::fmt::Display for IntLiteral {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for IntLiteral {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.write_fmt(format_args!("{}", self.int()))
   }
 }
 
-impl std::fmt::Display for FloatLiteral {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for FloatLiteral {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.write_fmt(format_args!("{}", self.float()))
   }
 }
 
-impl std::fmt::Display for BoolLiteral {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for BoolLiteral {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.write_fmt(format_args!("{}", self.value()))
   }
 }
 
-impl std::fmt::Display for CharLiteral {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for CharLiteral {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.write_fmt(format_args!("'{}'", self.character()))
   }
 }
 
-impl std::fmt::Display for StringLiteral {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for StringLiteral {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.write_fmt(format_args!("\"{}\"", self.string()))
   }
 }
 
-impl std::fmt::Display for SymbolLiteral {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for SymbolLiteral {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.write_fmt(format_args!("s\"{}\"", self.symbol()))
   }
 }
 
-impl std::fmt::Display for DateTimeLiteral {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for DateTimeLiteral {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.write_fmt(format_args!("t\"{}\"", self.datetime()))
   }
 }
 
-impl std::fmt::Display for DurationLiteral {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for DurationLiteral {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.write_fmt(format_args!("d\"{}\"", self.duration()))
   }
 }
 
-impl std::fmt::Display for EntityLiteral {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for EntityLiteral {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.write_fmt(format_args!("e\"{}\"", self.symbol()))
+  }
+}
+
+impl Display for ReduceRule {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    f.write_fmt(format_args!("{} = {}", self.head(), self.reduce()))
+  }
+}
+
+impl Display for ReduceRuleDecl {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    for attr in self.attrs() {
+      f.write_fmt(format_args!("{} ", attr))?;
+    }
+    f.write_fmt(format_args!("rel {}", self.rule()))
   }
 }
 
@@ -576,21 +592,22 @@ impl Display for Constraint {
 
 impl Display for Reduce {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    println!("Printing reduce");
-    if self.left().len() > 1 {
-      f.write_fmt(format_args!(
-        "({})",
-        self
-          .left()
-          .iter()
-          .map(|v| format!("{}", v))
-          .collect::<Vec<_>>()
-          .join(", ")
-      ))?;
-    } else {
-      Display::fmt(self.left().iter().next().unwrap(), f)?;
+    if !self.left().is_empty() {
+      if self.left().len() > 1 {
+        f.write_fmt(format_args!(
+          "({})",
+          self
+            .left()
+            .iter()
+            .map(|v| format!("{}", v))
+            .collect::<Vec<_>>()
+            .join(", ")
+        ))?;
+      } else {
+        Display::fmt(self.left().iter().next().unwrap(), f)?;
+      }
+      f.write_str(" := ")?;
     }
-    f.write_str(" := ")?;
     self.operator().fmt(f)?;
     if !self.args().is_empty() {
       f.write_fmt(format_args!(
@@ -604,7 +621,7 @@ impl Display for Reduce {
       ))?;
     }
     f.write_fmt(format_args!(
-      "({}: {})",
+      "({}: {}",
       self
         .bindings()
         .iter()
@@ -612,7 +629,20 @@ impl Display for Reduce {
         .collect::<Vec<_>>()
         .join(", "),
       self.body()
-    ))
+    ))?;
+    if let Some((group_by_vars, group_by_body)) = self.group_by() {
+      f.write_fmt(format_args!(
+        " where {}: {})",
+        group_by_vars
+          .iter()
+          .map(|b| format!("{}", b))
+          .collect::<Vec<_>>()
+          .join(", "),
+        group_by_body,
+      ))
+    } else {
+      f.write_str(")")
+    }
   }
 }
 
@@ -632,6 +662,21 @@ impl Display for ForallExistsReduce {
         .join(", "),
       self.body()
     ))
+  }
+}
+
+impl Display for NamedReduceParam {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    f.write_fmt(format_args!("{} = {}", self.name(), self.value()))
+  }
+}
+
+impl Display for ReduceParam {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    match self {
+      Self::Named(n) => n.fmt(f),
+      Self::Positional(c) => c.fmt(f),
+    }
   }
 }
 

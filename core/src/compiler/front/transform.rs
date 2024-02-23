@@ -12,6 +12,7 @@ pub fn apply_transformations(ast: &mut Vec<Item>, analysis: &mut Analysis) {
   let mut desugar_case_is = DesugarCaseIs::new();
   let mut desugar_forall_exists = DesugarForallExists::new();
   let mut desugar_range = DesugarRange::new();
+  let mut desugar_reduce_rule = DesugarReduceRule::new(&analysis.type_inference.foreign_aggregate_type_registry);
   let mut forall_to_not_exists = TransformForall;
   let mut implies_to_disjunction = TransformImplies;
   let mut visitors = (
@@ -25,6 +26,7 @@ pub fn apply_transformations(ast: &mut Vec<Item>, analysis: &mut Analysis) {
     &mut desugar_case_is,
     &mut desugar_forall_exists,
     &mut desugar_range,
+    &mut desugar_reduce_rule,
     &mut forall_to_not_exists, // Note: forall needs to go before implies transformation
     &mut implies_to_disjunction,
   );

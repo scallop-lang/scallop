@@ -32,23 +32,16 @@ impl Aggregate for ExistsAggregate {
       generics: vec![("T".to_string(), GenericTypeFamily::possibly_empty_tuple())]
         .into_iter()
         .collect(),
-      param_types: vec![],
-      arg_type: BindingTypes::empty_tuple(),
       input_type: BindingTypes::generic("T"),
       output_type: BindingTypes::value_type(ValueType::Bool),
       allow_exclamation_mark: true,
+      ..Default::default()
     }
   }
 
-  fn instantiate<P: Provenance>(
-    &self,
-    _params: Vec<crate::common::value::Value>,
-    has_exclamation_mark: bool,
-    _arg_types: Vec<ValueType>,
-    _input_types: Vec<ValueType>,
-  ) -> Self::Aggregator<P> {
+  fn instantiate<P: Provenance>(&self, info: AggregateInfo) -> Self::Aggregator<P> {
     ExistsAggregator {
-      non_multi_world: has_exclamation_mark,
+      non_multi_world: info.has_exclamation_mark,
     }
   }
 }

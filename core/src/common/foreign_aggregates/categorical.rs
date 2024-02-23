@@ -2,7 +2,6 @@ use std::collections::*;
 
 use rand::distributions::WeightedIndex;
 
-use crate::common::value::*;
 use crate::common::value_type::*;
 use crate::runtime::env::*;
 
@@ -32,15 +31,9 @@ impl SampleAggregate for CategoricalAggregate {
     vec![ParamType::Mandatory(ValueType::USize)]
   }
 
-  fn instantiate(
-    &self,
-    params: Vec<Value>,
-    _has_exclamation_mark: bool,
-    _arg_types: Vec<ValueType>,
-    _input_types: Vec<ValueType>,
-  ) -> DynamicSampler {
+  fn instantiate(&self, info: AggregateInfo) -> DynamicSampler {
     CategoricalSampler {
-      k: params[0].as_usize(),
+      k: info.pos_params[0].as_usize(),
     }
     .into()
   }

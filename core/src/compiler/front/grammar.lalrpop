@@ -108,6 +108,7 @@ match {
 
   // Keywords
   "import",
+  "extern",
   "type",
   "const",
   "relation",
@@ -239,10 +240,13 @@ _RelationType: _RelationType = {
   },
 }
 
+ExternKeyword = Spanned<_ExternKeyword>;
+_ExternKeyword: _Extern = "extern" => _Extern;
+
 RelationTypeDecl = Spanned<_RelationTypeDecl>;
 _RelationTypeDecl: _RelationTypeDecl = {
-  <attrs: Attributes> "type" <rts: AtLeastOneSeparated<RelationType, ",">> => {
-    _RelationTypeDecl::new(attrs, rts)
+  <attrs: Attributes> <ext: ExternKeyword?> "type" <rts: AtLeastOneSeparated<RelationType, ",">> => {
+    _RelationTypeDecl::new(attrs, ext, rts)
   },
 }
 
@@ -335,6 +339,7 @@ RelationDecl: RelationDecl = {
   ConstantSetDecl => RelationDecl::Set(<>),
   FactDecl => RelationDecl::Fact(<>),
   RuleDecl => RelationDecl::Rule(<>),
+  ReduceRuleDecl => RelationDecl::ReduceRule(<>),
 }
 
 Tag = Spanned<_Tag>;
@@ -493,6 +498,17 @@ VariableOrWildcard: VariableOrWildcard = {
   Wildcard => VariableOrWildcard::Wildcard(<>),
 }
 
+NamedReduceParam = Spanned<_NamedReduceParam>;
+_NamedReduceParam: _NamedReduceParam = {
+  <i: Identifier> => _NamedReduceParam::new(i, Constant::bool_true()),
+  <i: Identifier> "=" <v: Constant> => _NamedReduceParam::new(i, v),
+}
+
+ReduceParam: ReduceParam = {
+  NamedReduceParam => ReduceParam::Named(<>),
+  Constant => ReduceParam::Positional(<>),
+}
+
 ReduceOp = Spanned<_ReduceOp>;
 _ReduceOp: _ReduceOp = {
   <l: @L> "exists" <r: @R> <has_exclamation_mark: "!"?> => {
@@ -504,9 +520,14 @@ _ReduceOp: _ReduceOp = {
   <n: Identifier> <has_exclamation_mark: "!"?> => {
     _ReduceOp::new(n, vec![], has_exclamation_mark.is_some())
   },
-  <n: Identifier> <has_exclamation_mark: "!"?> "<" <cs: AtLeastOneSeparatedStrict<Constant, ",">> ">" => {
-    _ReduceOp::new(n, cs, has_exclamation_mark.is_some())
+  <n: Identifier> <has_exclamation_mark: "!"?> "<" <ps: AtLeastOneSeparatedStrict<ReduceParam, ",">> ">" => {
+    _ReduceOp::new(n, ps, has_exclamation_mark.is_some())
   },
+  <n: SpecializedPredicate> => {
+    _ReduceOp::new(n.0, n.1.into_iter().map(|id| {
+      ReduceParam::Named(NamedReduceParam::new_with_loc(id.clone(), Constant::bool_true(), id.location().clone()))
+    }).collect(), false)
+  }
 }
 
 ReduceArgsFull: Vec<Variable> = {
@@ -770,6 +791,30 @@ _RuleDecl: _RuleDecl = {
   <a: Attributes> RelationKeyword <r: Rule> => {
     _RuleDecl::new(a, Tag::none(), r)
   },
+}
+
+ReduceRuleDecl = Spanned<_ReduceRuleDecl>;
+_ReduceRuleDecl: _ReduceRuleDecl = {
+  <a: Attributes> RelationKeyword <r: ReduceRule> => {
+    _ReduceRuleDecl::new(a, r)
+  }
+}
+
+ReduceRule = Spanned<_ReduceRule>;
+_ReduceRule: _ReduceRule = {
+  <rel_name: Identifier> DefineSymbol <body: PartialReduce> => {
+    _ReduceRule::new(rel_name, body)
+  }
+}
+
+PartialReduce = Spanned<_PartialReduce>;
+_PartialReduce: _Reduce = {
+  <op: ReduceOp> <args: ReduceArgs> "(" <f: Formula> <g: ReduceGroupBy?> ")" => {
+    _Reduce::new(vec![], op, args, vec![], f, g)
+  },
+  <op: ReduceOp> <args: ReduceArgs> "(" <bs: AtLeastOneSeparatedStrict<VariableBinding, ",">> ":" <f: Formula> <g: ReduceGroupBy?> ")" => {
+    _Reduce::new(vec![], op, args, bs, f, g)
+  }
 }
 
 /// ====================================== ///

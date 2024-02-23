@@ -35,6 +35,12 @@ impl LocalTypeInferenceContext {
     ctx
   }
 
+  pub fn from_reduce_rule(r: &ReduceRule) -> Self {
+    let mut ctx = Self::new(r.location().clone());
+    r.walk(&mut ctx);
+    ctx
+  }
+
   pub fn from_atom(a: &Atom) -> Self {
     let mut ctx = Self::new(a.location().clone());
     a.walk(&mut ctx);
@@ -292,20 +298,36 @@ impl NodeVisitor<Reduce> for LocalTypeInferenceContext {
     let has_exclamation_mark = agg_op.has_exclaimation_mark().clone();
 
     // Add the aggregation unification
-    self.unifications.push(Unification::Aggregate(
-      r.iter_left().map(|vow| vow.location()).cloned().collect(),
-      agg_name.clone(),
-      agg_op.location().clone(),
-      agg_op
+    self.unifications.push(Unification::Aggregate {
+      left_vars: r.iter_left().map(|vow| vow.location()).cloned().collect(),
+      aggregate_name: agg_name.clone(),
+      aggregate: agg_op.location().clone(),
+      params: agg_op
         .parameters()
         .iter()
-        .map(|param| param.location())
+        .filter_map(|param| match param {
+          ReduceParam::Positional(c) => Some(c.location()),
+          _ => None,
+        })
         .cloned()
         .collect(),
-      r.iter_args().map(|a| a.location()).cloned().collect(),
-      r.iter_bindings().map(|a| a.location()).cloned().collect(),
+      named_params: agg_op
+        .parameters()
+        .iter()
+        .filter_map(|param| match param {
+          ReduceParam::Named(c) => {
+            let name = c.name().name().clone();
+            let name_loc = c.name().location().clone();
+            let value_loc = c.value().location().clone();
+            Some((name, (name_loc, value_loc)))
+          }
+          _ => None,
+        })
+        .collect(),
+      arg_vars: r.iter_args().map(|a| a.location()).cloned().collect(),
+      input_vars: r.iter_bindings().map(|a| a.location()).cloned().collect(),
       has_exclamation_mark,
-    ));
+    });
   }
 }
 

@@ -142,10 +142,18 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
     Ok(())
   }
 
+  /// Extending the existing monitors with new ones
   pub fn add_monitors(&mut self, monitors: &[&str]) {
     let reg = MonitorRegistry::<Prov>::std();
     let monitors = reg.load_monitors(&monitors);
     self.monitors.extend(monitors)
+  }
+
+  /// Set the monitors with new ones
+  pub fn load_monitors(&mut self, monitors: &[&str]) {
+    let reg = MonitorRegistry::<Prov>::std();
+    let monitors = reg.load_monitors(&monitors);
+    self.monitors = monitors;
   }
 
   /// Add a program string
@@ -236,7 +244,7 @@ impl<Prov: Provenance, P: PointerFamily> IntegrateContext<Prov, P> {
   ) -> Result<compiler::front::SourceId, IntegrateError> {
     // First generate all attributes
     if let Some(_) = tag {
-      attrs.push(Attribute::named("probabilistic"));
+      attrs.push(Attribute::named("tagged"));
     }
 
     // Compile and get the source id

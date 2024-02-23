@@ -1,6 +1,5 @@
 use itertools::Itertools;
 
-use crate::common::value::*;
 use crate::common::value_type::*;
 use crate::runtime::dynamic::*;
 use crate::runtime::env::*;
@@ -28,23 +27,16 @@ impl Aggregate for CountAggregate {
   fn aggregate_type(&self) -> AggregateType {
     AggregateType {
       generics: std::iter::once(("T".to_string(), GenericTypeFamily::non_empty_tuple())).collect(),
-      param_types: vec![],
-      arg_type: BindingTypes::unit(),
       input_type: BindingTypes::generic("T"),
       output_type: BindingTypes::value_type(ValueType::USize),
       allow_exclamation_mark: true,
+      ..Default::default()
     }
   }
 
-  fn instantiate<P: Provenance>(
-    &self,
-    _params: Vec<Value>,
-    has_exlamation_mark: bool,
-    _arg_types: Vec<ValueType>,
-    _input_types: Vec<ValueType>,
-  ) -> Self::Aggregator<P> {
+  fn instantiate<P: Provenance>(&self, info: AggregateInfo) -> Self::Aggregator<P> {
     CountAggregator {
-      non_multi_world: has_exlamation_mark,
+      non_multi_world: info.has_exclamation_mark,
     }
   }
 }

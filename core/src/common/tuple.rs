@@ -30,6 +30,13 @@ impl Tuple {
     Self::Tuple(values.into_iter().map(Self::Value).collect())
   }
 
+  pub fn to_values(&self) -> Vec<Value> {
+    match self {
+      Self::Value(v) => vec![v.clone()],
+      Self::Tuple(t) => t.iter().flat_map(|t| t.to_values()).collect(),
+    }
+  }
+
   pub fn as_values(&self) -> Vec<Value> {
     match self {
       Self::Value(_) => panic!("Not a tuple"),

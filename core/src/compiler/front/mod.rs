@@ -20,6 +20,5 @@ use ast::*;
 pub use compile::*;
 pub use error::*;
 pub use f2b::*;
-pub use pretty::*;
 pub use source::*;
 pub use transform::*;

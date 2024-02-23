@@ -2,7 +2,6 @@ use itertools::Itertools;
 
 use crate::common::tuple::*;
 use crate::common::type_family::*;
-use crate::common::value::*;
 use crate::common::value_type::*;
 use crate::runtime::dynamic::*;
 use crate::runtime::env::*;
@@ -40,25 +39,19 @@ impl Aggregate for AvgAggregate {
       ]
       .into_iter()
       .collect(),
-      param_types: vec![],
       arg_type: BindingTypes::generic("A"),
       input_type: BindingTypes::generic("T"),
       output_type: BindingTypes::generic("T"),
       allow_exclamation_mark: true,
+      ..Default::default()
     }
   }
 
-  fn instantiate<P: Provenance>(
-    &self,
-    _params: Vec<Value>,
-    has_exclamation_mark: bool,
-    arg_types: Vec<ValueType>,
-    input_types: Vec<ValueType>,
-  ) -> Self::Aggregator<P> {
+  fn instantiate<P: Provenance>(&self, info: AggregateInfo) -> Self::Aggregator<P> {
     AvgAggregator {
-      non_multi_world: has_exclamation_mark,
-      num_args: arg_types.len(),
-      value_type: input_types[0].clone(),
+      non_multi_world: info.has_exclamation_mark,
+      num_args: info.arg_var_types.len(),
+      value_type: info.input_var_types[0].clone(),
     }
   }
 }

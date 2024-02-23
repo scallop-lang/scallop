@@ -1,6 +1,5 @@
 use crate::common::tuple::*;
 use crate::common::tuples::*;
-use crate::common::value_type::*;
 use crate::runtime::dynamic::*;
 use crate::runtime::env::*;
 use crate::runtime::provenance::*;
@@ -81,11 +80,11 @@ impl Aggregate for MinMaxAggregate {
         ]
         .into_iter()
         .collect(),
-        param_types: vec![],
         arg_type: BindingTypes::generic("A"),
         input_type: BindingTypes::generic("T"),
         output_type: BindingTypes::generic("A"),
         allow_exclamation_mark: true,
+        ..Default::default()
       }
     } else {
       AggregateType {
@@ -95,7 +94,6 @@ impl Aggregate for MinMaxAggregate {
         ]
         .into_iter()
         .collect(),
-        param_types: vec![],
         arg_type: BindingTypes::generic("A"),
         input_type: BindingTypes::generic("T"),
         output_type: BindingTypes::if_not_unit(
@@ -104,22 +102,17 @@ impl Aggregate for MinMaxAggregate {
           BindingTypes::generic("T"),
         ),
         allow_exclamation_mark: true,
+        ..Default::default()
       }
     }
   }
 
-  fn instantiate<P: Provenance>(
-    &self,
-    _params: Vec<crate::common::value::Value>,
-    has_exclamation_mark: bool,
-    arg_types: Vec<ValueType>,
-    _input_types: Vec<ValueType>,
-  ) -> Self::Aggregator<P> {
+  fn instantiate<P: Provenance>(&self, info: AggregateInfo) -> Self::Aggregator<P> {
     MinMaxAggregator {
       is_min: self.is_min,
       arg_only: self.arg_only,
-      non_multi_world: has_exclamation_mark,
-      num_args: arg_types.len(),
+      non_multi_world: info.has_exclamation_mark,
+      num_args: info.arg_var_types.len(),
     }
   }
 }
@@ -211,60 +204,84 @@ impl MinMaxAggregator {
   }
 
   pub fn multi_world_min_max<P: Provenance>(&self, prov: &P, mut batch: DynamicElements<P>) -> DynamicElements<P> {
-    // First, we sort all the tuples
-    batch.sort_by_key(|e| e.tuple[self.num_args..].iter().cloned().collect::<Vec<_>>());
-    let tagged_tuples = batch;
+    // Check if there is argument variables
+    if self.num_args > 0 {
+      // First, we sort all the tuples
+      batch.sort_by_key(|e| e.tuple[self.num_args..].iter().cloned().collect::<Vec<_>>());
+      let tagged_tuples = batch;
 
-    // Then we compute the strata
-    //
-    // For example, for the array [0, 0, 0, 1,  1,  2 , 3,  3],
-    // We have 4 strata            ---1---  --2--  -3-  --4--
-    // they are represented by their start index, [0, 3, 5, 6]
-    let strata = {
-      let (mut maybe_curr_elem, mut strata) = (None, vec![0]);
-      for (i, tagged_tuple) in tagged_tuples.iter().enumerate() {
-        if let Some(curr_elem) = maybe_curr_elem {
-          if &tagged_tuple.tuple[self.num_args..] > curr_elem {
-            strata.push(i);
+      // Then we compute the strata
+      //
+      // For example, for the array [0, 0, 0, 1,  1,  2 , 3,  3],
+      // We have 4 strata            ---1---  --2--  -3-  --4--
+      // they are represented by their start index, [0, 3, 5, 6]
+      let strata = {
+        let (mut maybe_curr_elem, mut strata) = (None, vec![0]);
+        for (i, tagged_tuple) in tagged_tuples.iter().enumerate() {
+          if let Some(curr_elem) = maybe_curr_elem {
+            if &tagged_tuple.tuple[self.num_args..] > curr_elem {
+              strata.push(i);
+            }
+          } else {
+            maybe_curr_elem = Some(&tagged_tuple.tuple[self.num_args..]);
           }
+        }
+        strata
+      };
+
+      // We now compute the tags
+      //
+      // Let's take `minimum` as an example. Suppose we are in a stratum.
+      // For an element inside of this stratum to be the minimum of the whole batch,
+      // It has to be the case that all the element before this stratum are FALSE (a.k.a. have a negated tag)
+      // the elements in and after this stratum do not matter,
+      let mut result = vec![];
+      for (i, stratum_start) in strata.iter().copied().enumerate() {
+        let stratum_end = if i + 1 < strata.len() {
+          strata[i + 1]
         } else {
-          maybe_curr_elem = Some(&tagged_tuple.tuple[self.num_args..]);
+          tagged_tuples.len()
+        };
+        let false_range = if self.is_min {
+          0..stratum_start
+        } else {
+          stratum_end..tagged_tuples.len()
+        };
+        let maybe_false_tag = false_range.fold(Some(prov.one()), |maybe_acc, j| {
+          maybe_acc.and_then(|acc| prov.negate(&tagged_tuples[j].tag).map(|neg| prov.mult(&acc, &neg)))
+        });
+        if let Some(false_tag) = maybe_false_tag {
+          for j in stratum_start..stratum_end {
+            let and_true_tag: P::Tag = prov.mult(&false_tag, &tagged_tuples[j].tag);
+            result.push(DynamicElement::<P>::new(tagged_tuples[j].tuple.clone(), and_true_tag));
+          }
         }
       }
-      strata
-    };
 
-    // We now compute the tags
-    //
-    // Let's take `minimum` as an example. Suppose we are in a stratum.
-    // For an element inside of this stratum to be the minimum of the whole batch,
-    // It has to be the case that all the element before this stratum are FALSE (a.k.a. have a negated tag)
-    // the elements in and after this stratum do not matter,
-    let mut result = vec![];
-    for (i, stratum_start) in strata.iter().copied().enumerate() {
-      let stratum_end = if i + 1 < strata.len() {
-        strata[i + 1]
-      } else {
-        tagged_tuples.len()
-      };
-      let false_range = if self.is_min {
-        0..stratum_start
-      } else {
-        stratum_end..tagged_tuples.len()
-      };
-      let maybe_false_tag = false_range.fold(Some(prov.one()), |maybe_acc, j| {
-        maybe_acc.and_then(|acc| prov.negate(&tagged_tuples[j].tag).map(|neg| prov.mult(&acc, &neg)))
-      });
-      if let Some(false_tag) = maybe_false_tag {
-        for j in stratum_start..stratum_end {
-          let and_true_tag: P::Tag = prov.mult(&false_tag, &tagged_tuples[j].tag);
-          result.push(DynamicElement::<P>::new(tagged_tuples[j].tuple.clone(), and_true_tag));
+      // Depending on whether we only need the argument, return only the arg part of the results
+      self.post_process_arg(result.into_iter())
+    } else {
+      // If there is no argument variable...
+      let mut result = vec![];
+      let mut accumulated_false_tag = prov.one();
+
+      // Depending on minimum/maximum...
+      for i in 0..batch.len() {
+        let i = if self.is_min { i } else { batch.len() - 1 - i };
+        let Tagged { tuple, tag } = &batch[i];
+        let and_true_tag = prov.mult(&accumulated_false_tag, tag);
+        println!("and true tag: {and_true_tag:?}");
+        result.push(DynamicElement::<P>::new(tuple.clone(), and_true_tag));
+        if let Some(f) = prov.negate(tag).map(|neg| prov.mult(&accumulated_false_tag, &neg)) {
+          println!("?????");
+          accumulated_false_tag = f;
+          println!("{accumulated_false_tag:?}");
         }
       }
+
+      // Depending on whether we only need the argument, return only the arg part of the results
+      self.post_process_arg(result.into_iter())
     }
-
-    // Depending on whether we only need the argument, return only the arg part of the results
-    self.post_process_arg(result.into_iter())
   }
 }
 

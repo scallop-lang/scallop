@@ -77,6 +77,7 @@ impl Into<Vec<Item>> for RelationType {
   fn into(self) -> Vec<Item> {
     vec![Item::TypeDecl(TypeDecl::Relation(RelationTypeDecl::new(
       Attributes::new(),
+      None,
       vec![self],
     )))]
   }
@@ -113,8 +114,13 @@ impl RelationType {
 
 #[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
+pub struct _Extern;
+
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+#[doc(hidden)]
 pub struct _RelationTypeDecl {
   pub attrs: Attributes,
+  pub ext: Option<Extern>,
   pub rel_types: Vec<RelationType>,
 }
 

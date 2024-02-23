@@ -26,7 +26,11 @@ impl DesugarArgTypeAdornment {
         .cloned()
         .chain(std::iter::once(demand_attr))
         .collect();
-      let item = Item::TypeDecl(TypeDecl::Relation(RelationTypeDecl::new(attrs, vec![rel_type.clone()])));
+      let item = Item::TypeDecl(TypeDecl::Relation(RelationTypeDecl::new(
+        attrs,
+        None,
+        vec![rel_type.clone()],
+      )));
       self.new_items.push(item);
       false
     } else {

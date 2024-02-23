@@ -321,6 +321,7 @@ impl ForeignPredicateRegistry {
 
     // String operations
     reg.register(fps::StringCharsBFF::new()).unwrap();
+    reg.register(fps::StringIndexBF::new()).unwrap();
     reg.register(fps::StringFindBBFF::new()).unwrap();
     reg.register(fps::StringSplitBBF::new()).unwrap();
 

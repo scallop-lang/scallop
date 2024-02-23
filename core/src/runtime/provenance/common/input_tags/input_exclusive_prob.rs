@@ -52,6 +52,7 @@ impl StaticInputTag for InputExclusiveProb {
   fn from_dynamic_input_tag(t: &DynamicInputTag) -> Option<Self> {
     match t {
       DynamicInputTag::Float(f) => Some(Self::new(f.clone(), None)),
+      DynamicInputTag::Exclusive(id) => Some(Self::new(1.0, Some(id.clone()))),
       DynamicInputTag::ExclusiveFloat(f, id) => Some(Self::new(f.clone(), Some(id.clone()))),
       DynamicInputTag::Tensor(t) => Some(Self::new(t.get_f64(), None)),
       _ => None,

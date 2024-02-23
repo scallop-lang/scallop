@@ -63,6 +63,13 @@ impl Value {
     }
   }
 
+  pub fn as_bool(&self) -> bool {
+    match self {
+      Self::Bool(s) => *s,
+      v => panic!("Cannot get bool from value {}", v),
+    }
+  }
+
   pub fn as_str(&self) -> &str {
     match self {
       Self::Str(s) => s,

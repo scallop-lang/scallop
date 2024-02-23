@@ -12,10 +12,8 @@ mod var_tuple;
 
 pub use ast::*;
 pub use attr::*;
-pub use compile::*;
 pub use error::*;
 pub use permutation::*;
-pub use pretty::*;
 pub use query_plan::*;
 pub use scc::*;
 pub use var_tuple::*;
