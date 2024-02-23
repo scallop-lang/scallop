@@ -1,0 +1,176 @@
+@gpt_extract_info(
+header="""
+Please extract step-by-step program.
+
+type Expr = Const(f32) | Var(String) | Add(Expr, Expr) | Sub(Expr, Expr) | Mul(Expr, Expr) | Div(Expr, Expr) | Abs(Expr) | Max(Expr, Expr) | Min(Expr, Expr)
+
+For example, to solve the question
+
+Tom can catch 70 fish per week. How many days does he need to catch 100 fish?
+
+We need the following procedure
+
+speed = 70 / 7
+time_needed = 100 / speed
+
+The above procedure should be expressed in JSON as the following
+
+[
+{"var": "speed", "expr": "Div(70, 7)"},
+{"var": "time_needed", "expr": "Div(100, Var('speed'))"}
+]
+
+And the final goal is
+
+{"var": "time_needed"}
+
+Here is another example: given the following question
+
+Jesse and Mia are competing in a week long race. They have one week to run 30 miles. On the first three days Jesse averages (2/3) of a mile. On day four she runs 10 miles. Mia averages 3 miles a day over the first 4 days. What is the average of their average that they have to run over the final three days?
+
+We need the following procedure:
+
+jesse_first_three_days = 2/3 * 3
+jesse_first_four_days = jesse_first_three_days + 10
+mia_first_four_days = 3 * 4
+remaining_days = 7 - 4
+jesse_remaining_distance = 30 - jesse_first_four_days
+mia_remaining_distance = 30 - mia_first_four_days
+jesse_remaining_average = jesse_remaining_distance / remaining_days
+mia_remaining_average = mia_remaining_distance / remaining_days
+average_of_average = (jesse_remaining_average + mia_remaining_average) / 2
+
+The above procedure should be expressed in JSON as the following
+
+[
+{"var": "jesse_first_three_days", "expr": "Mul(Div(Const(2), Const(3)), Const(3))"},
+{"var": "jesse_first_four_days", "expr": "Add(Var('jesse_first_three_days'), Const(10))"},
+{"var": "mia_first_four_days", "expr": "Mul(Const(3), Const(4))"},
+{"var": "remaining_days", "expr": "Sub(Const(7), Const(4))"},
+{"var": "jesse_remaining_distance", "expr": "Sub(Const(30), Var('jesse_first_four_days'))"},
+{"var": "mia_remaining_distance", "expr": "Sub(Const(30), Var('mia_first_four_days'))"},
+{"var": "jesse_remaining_average", "expr": "Div(Var('jesse_remaining_distance'), Var('remaining_days'))"},
+{"var": "mia_remaining_average", "expr": "Div(Var('mia_remaining_distance'), Var('remaining_days'))"},
+{"var": "average_of_average", "expr": "Div(Add(Var('jesse_remaining_average'), Var('mia_remaining_average')), Const(2))"},
+]
+
+And the final goal is
+
+{"var": "average_of_average"}
+
+
+Here is one more example: given the following question
+
+A man is trying to maximize the amount of money he saves each month. In particular, he is trying to decide between two different apartments. The first apartment costs $800 per month in rent and will cost an additional $260 per month in utilities. The second apartment costs $900 per month and will cost an additional $200 per month in utilities. The first apartment is slightly further from the man's work, and the man would have to drive 31 miles per day to get to work. The second apartment is closer, and the man would only have to drive 21 miles to get to work. According to the IRS, each mile a person drives has an average cost of 58 cents. If the man must drive to work 20 days each month, what is the difference between the total monthly costs of these two apartments after factoring in utility and driving-related costs?
+
+We need the following procedure:
+
+first_monthly_cost = 800 + 260
+second_monthly_cost = 900 + 200
+first_driving_cost_daily = 31 * 0.58
+second_driving_cost_daily = 21 * 0.58
+num_days_worked = 20
+first_driving_cost_monthly = first_driving_cost_daily * num_days_worked
+second_driving_cost_monthly = second_driving_cost_daily * num_days_worked
+first_total_cost = first_monthly_cost + first_driving_cost_monthly
+second_total_cost = second_monthly_cost + second_driving_cost_monthly
+absolute_difference_in_cost = | (first_total_cost - second_total_cost) |
+
+The above procedure should be expressed in JSON as the following
+
+[
+{"var": "first_monthly_cost", "expr": "Add(Const(800), Const(260))"},
+{"var": "second_monthly_cost", "expr": "Add(Const(900), Const(200))"},
+{"var": "first_driving_cost_daily", "expr": "Mul(Const(31), Const(0.58))"},
+{"var": "second_driving_cost_daily", "expr": "Mul(Const(21), Const(0.58))"},
+{"var": "num_days_worked", "expr": "Const(20)"},
+{"var": "first_driving_cost_monthly", "expr": "Mul(Var(first_driving_cost_daily), Var(num_days_worked))"},
+{"var": "second_driving_cost_monthly", "expr": "Mul(Var(second_driving_cost_daily), Var(num_days_worked))"},
+{"var": "first_total_cost", "expr": "Add(Var(first_monthly_cost), Var(first_driving_cost_monthly))"},
+{"var": "second_total_cost", "expr": "Add(Var(second_monthly_cost), Var(second_driving_cost_monthly))"},
+{"var": "absolute_difference_in_cost", "expr": "Abs(Sub(Var(first_total_cost), Var(second_total_cost)))"}
+]
+
+And the final goal is 
+
+{"var": "absolute_difference_in_cost"}
+
+Here is one final example: given the following question:
+
+Chris is deciding whether to sell apples or oranges. He can obtain either 100 apple trees that each make 10 apples a year or 3 orange trees that each make 30 oranges a year. Each apple can be sold for $0.10, while each orange can be sold for $1. Considering that Chris can either sell only apples or only oranges, what is the maximum revenue that he can make per year?
+
+We need the following procedure:
+
+apples_per_year = 100 * 10
+oranges_per_year = 3 * 30
+apple_revenue = apples_per_year * 0.10
+orange_revenue = oranges_per_year * 1
+maximum_revenue = max(apple_revenue, orange_revenue)
+
+The above procedure should be expressed in JSON as the following
+
+[
+{"var": "apples_per_year", "expr": "Mul(Const(100), Const(10))"}
+{"var": "oranges_per_year", "expr": "Mul(Const(3), Const(30))"}
+{"var": "apple_revenue", "expr": "Mul(Var(apples_per_year), Const(0.10))"}
+{"var": "orange_revenue", "expr": "Mul(Var(oranges_per_year), Const(1))"}
+{"var": "maximum_revenue", "expr": "Max(Var(apple_revenue), Var(orange_revenue))"}
+]
+
+And the final goal is
+
+{"var": "maximum_revenue"}
+
+Now, please look at the following problem:
+
+{{question}}
+""",
+prompts=[
+"let us first extract the steps as a JSON list. Do not provide the final goal yet",
+"what is the final goal represented as a JSON dict?"
+],
+model="gpt-4",
+)
+type extract_steps(bound question: String, var: String, expr: Entity), extract_goal(bound question: String, var: String)
+
+type Expr = Const(f32) | Var(String) | Add(Expr, Expr) | Sub(Expr, Expr) | Mul(Expr, Expr) | Div(Expr, Expr) | Abs(Expr) | Max(Expr, Expr) | Min(Expr, Expr)
+
+rel to_string(e, $format("{}", n)) = case e is Const(n)
+rel to_string(e, $format("{}", v)) = case e is Var(v)
+rel to_string(e, $format("({} + {})", l, r)) = case e is Add(e1, e2) and to_string(e1, l) and to_string(e2, r)
+rel to_string(e, $format("({} - {})", l, r)) = case e is Sub(e1, e2) and to_string(e1, l) and to_string(e2, r)
+rel to_string(e, $format("({} * {})", l, r)) = case e is Mul(e1, e2) and to_string(e1, l) and to_string(e2, r)
+rel to_string(e, $format("({} / {})", l, r)) = case e is Div(e1, e2) and to_string(e1, l) and to_string(e2, r)
+rel to_string(e, $format("|{}|", s)) = case e is Abs(e1) and to_string(e1, s)
+rel to_string(e, $format("Max({}, {})", l, r)) = case e is Max(e1, e2) and to_string(e1, l) and to_string(e2, r)
+rel to_string(e, $format("Min({}, {})", l, r)) = case e is Min(e1, e2) and to_string(e1, l) and to_string(e2, r)
+
+type question(q: String)
+
+rel step(var, expr) = question(q) and extract_steps(q, var, expr)
+rel goal(var) = question(q) and extract_goal(q, var)
+
+rel eval(e, n) = case e is Const(n)
+rel eval(e, r) = case e is Var(v) and var_result(v, r)
+rel eval(e, a + b) = case e is Add(e1, e2) and eval(e1, a) and eval(e2, b)
+rel eval(e, a - b) = case e is Sub(e1, e2) and eval(e1, a) and eval(e2, b)
+rel eval(e, a * b) = case e is Mul(e1, e2) and eval(e1, a) and eval(e2, b)
+rel eval(e, a / b) = case e is Div(e1, e2) and eval(e1, a) and eval(e2, b)
+rel eval(e, val) = case e is Abs(e1) and eval(e1, val) and val >= 0
+rel eval(e, -val) = case e is Abs(e1) and eval(e1, val) and val < 0
+rel eval(e, a) = case e is Max(e1, e2) and eval(e1, a) and eval(e2, b) and a >= b
+rel eval(e, b) = case e is Max(e1, e2) and eval(e1, a) and eval(e2, b) and a < b
+rel eval(e, b) = case e is Min(e1, e2) and eval(e1, a) and eval(e2, b) and a >= b
+rel eval(e, a) = case e is Min(e1, e2) and eval(e1, a) and eval(e2, b) and a < b
+
+rel step_as_string(var, expr_as_string) = step(var, expr) and to_string(expr, expr_as_string)
+
+rel var_result(v, r) = step(v, e) and eval(e, r)
+
+rel result(r) = goal(v) and var_result(v, r)
+
+query question
+query goal
+query step_as_string
+query var_result
+query result

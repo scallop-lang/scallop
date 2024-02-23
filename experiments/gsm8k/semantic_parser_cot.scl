@@ -1,0 +1,14 @@
+type Expr = Const(f32) | Add(Expr, Expr) | Sub(Expr, Expr) | Mult(Expr, Expr) | Div(Expr, Expr)
+
+type eval(bound e: Expr, v: f32)
+rel eval(e, v) = case e is Const(v)
+rel eval(e, v1 + v2) = case e is Add(e1, e2) and eval(e1, v1) and eval(e2, v2)
+rel eval(e, v1 - v2) = case e is Sub(e1, e2) and eval(e1, v1) and eval(e2, v2)
+rel eval(e, v1 * v2) = case e is Mult(e1, e2) and eval(e1, v1) and eval(e2, v2)
+rel eval(e, v1 / v2) = case e is Div(e1, e2) and eval(e1, v1) and eval(e2, v2)
+
+type parsed_expr(e: Expr)
+
+rel result(v) = parsed_expr(e) and eval(e, v)
+
+query result
