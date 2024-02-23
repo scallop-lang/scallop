@@ -30,7 +30,7 @@
   - [Fact with Probability](probabilistic/facts.md)
   - [Logic and Probability](probabilistic/logic.md)
   - [Provenance Library](probabilistic/library.md)
-  - [Aggregation and Probability](probabilistic/reasoning.md)
+  - [Aggregation and Probability](probabilistic/aggregation.md)
   - [Sampling with Probability](probabilistic/sampling.md)
 - [`scallopy`](scallopy/index.md)
   - [Getting Started](scallopy/getting_started.md)

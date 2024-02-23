@@ -66,6 +66,12 @@ rel num_edges(n) = n := count(a, b: edge(a, b))
 
 Here, we have two binding variables `a` and `b`, meaning that we are counting the number of *distinct* pairs of `a` and `b`.
 
+Note that we can use the syntax sugar for aggregation to omit the repeated `n`:
+
+``` scl
+rel num_edges = count(a, b: edge(a, b))
+```
+
 ### Implicit Group-By
 
 With `group-by`, we may count the number of facts under a pre-defined group.
@@ -130,10 +136,22 @@ rel sales = {("alice", 1000.0), ("bob", 1200.0), ("christine", 1000.0)}
 We can compute the sum of all the sales:
 
 ``` scl
-rel total_sales(s) = s := sum(sp: sales_1(p, sp)) // 3700.0
+rel total_sales(s) = s := sum[p](sp: sales(p, sp)) // 3200.0
+// or
+rel total_sales = sum[p](sp: sales(p, sp)) // 3200.0
 ```
 
 Notice that the result type of `s` is the same as the type of the binding variable `sp`, which is `f32` as indicated by the decimals in the definition of `sales`.
+Here, the argument variable `p` is necessary since it is the key to index each sale number.
+The above rule body is equivalent to the following math formula:
+
+\\[ s = \sum_p \text{sale}_p \\]
+
+If we do not use the argument variable, we get the following:
+
+``` scl
+rel total_sales_wrong(s) = s := sum(sp: sales(p, sp)) // 2200.0, since the two 1000.0 will be deduplicated without its key
+```
 
 The product aggregator `prod` can be used in a similar manner as `sum`.
 
@@ -145,6 +163,8 @@ In the following example, we find the maximum grade of an exam:
 ``` scl
 rel exam_grades = {("a", 95.2), ("b", 87.3), ("c", 99.9)}
 rel min_score(m) = m := max(s: exam_grades(_, s)) // 99.9
+// or, succinctly
+rel min_score = max(s: exam_grades(_, s)) // 99.9
 ```
 
 The number (and types) of binding variables can be arbitrary, but the result variables must match the binding variables.
@@ -155,6 +175,8 @@ Suppose we want to get the person (along with their grade) who scored the best, 
 
 ``` scl
 rel best_student(n, s) = (n, s) := max[n](s: exam_grades(n, s))
+// or, succinctly
+rel best_student = max[n](s: exam_grades(n, s))
 ```
 
 Here, we are still finding the maximum score `s`, but along with `max` we have specified the "arg" (`[n]`) which associates with the maximum score.
@@ -171,6 +193,8 @@ Alternatively, we can also use `argmax`:
 
 ``` scl
 rel best_student(n) = n := argmax[n](s: exam_grades(n, s))
+// or, succinctly
+rel best_student = argmax[n](s: exam_grades(n, s))
 ```
 
 ## Exists and Forall
@@ -218,7 +242,8 @@ Note that there can be arbitrary amount of binding variables.
 ### Universal Quantifier
 
 We can also have universal quantifier `forall`.
-For this, there is a special requirement for universal quantification, that the body formula has to be an `implies` formula.
+For this, there is a special requirement for universal quantification: the body formula has to be an `implies` (`=>`) formula.
+This restriction is enforced so that all the binding variables have bounds being specified on the left-hand-side of the `implies` formula.
 In the following example, we check if all the objects are spherical:
 
 ``` scl
@@ -248,3 +273,28 @@ rel target() = forall(o: obj_color(o, RED) implies obj_shape(o, CUBE)) // {()}
 
 Here, we directly use `obj_color` to serve as the left-hand-side of the `implies`.
 There will be one empty tuple being derived, suggesting that the statement is true.
+
+## String Join
+
+If you have multiple facts containing strings and you want to join them together, you can use the `string_join` aggregator:
+
+``` scl
+rel R = {"hello", "world"}
+rel P1(n) = n := string_join(s: R(s)) // P1("helloworld")
+rel P2(n) = n := string_join<" ">(s: R(s)) // P2("hello world")
+```
+
+In the above example,
+we can either directly join, producing the string "helloworld",
+or join with separator `" "`, producing the string "hello world".
+Note that the order of the strings in the joined string is determined by the strings.
+Here, `"hello"` starts with `"h"`, which is smaller than the `"w"` in `"world"`, therefore occurring before `"world"`.
+If you want to specify an explicit order, use the argument variable:
+
+``` scl
+rel R = {(2, "hello"), (1, "world")}
+rel P(n) = n := string_join<" ">[i](s: R(i, s)) // P("world hello")
+```
+
+Since we have specified the variable `i` to be the argument of `string_join`, it serves to order the tuples.
+Here, we have `(1, "world")` and `(2, "hello")`, so the joined string will be `"world hello"` instead of `"hello world"`.

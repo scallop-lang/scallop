@@ -121,10 +121,6 @@ For instance,
 ctx.add_relation("digit", int)
 ```
 
-### Configuring Relations
-
-#### `non_probabilistic`
-
 ## Adding Facts
 
 The most basic version of adding facts into an existing relation inside of an existing context.
@@ -133,6 +129,42 @@ We are assuming that the context has a provenance of `"unit"`.
 ``` py
 ctx.add_facts("edge", [(1, 2), (2, 3)])
 ```
+
+If the relation is declared to be having arity-1 and that the type is a singleton type instead of a 1-tuple, then the facts inside of the list do not need to be a tuple.
+
+``` py
+ctx.add_relation("digit", int)
+ctx.add_facts("digit", [1, 2, 3])
+```
+
+### Probabilistic Facts (Tagged Facts)
+
+When the Scallop context is configured to use a provenance other than.
+If one wants to add facts along with probabilities, they can wrap their non-probabilistic facts into tuples whose first element is a simple probability.
+For example, if originally we have a fact `1`, wrapping it with a corresponding probability gives us `(0.1, 1)`, where `0.1` is the probability.
+
+``` py
+ctx.add_facts("digit", [1, 2, 3])                      # without probability
+ctx.add_facts("digit", [(0.1, 1), (0.2, 2), (0.7, 3)]) # with probability
+```
+
+Of course, if the original facts are tuples, the ones with probability will be required to wrap further:
+
+``` py
+ctx.add_facts("color", [("A", "blue"), ("A", "green"), ...])               # without probability
+ctx.add_facts("color", [(0.1, ("A", "blue")), (0.2, ("A", "green")), ...]) # with probability
+```
+
+We can extend this syntax into tagged facts in general.
+Suppose we are using the boolean semiring (`boolean`), we are going to tag each fact using values such as `True` or `False`.
+
+``` py
+ctx = scallopy.Context(provenance="boolean")
+ctx.add_relation("edge", (int, int))
+ctx.add_facts("edge", [(True, (1, 2)), (False, (2, 3))])
+```
+
+### Non-tagged Facts in Tagged Context
 
 ## Adding Rules
 
