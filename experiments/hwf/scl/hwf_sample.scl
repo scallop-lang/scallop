@@ -1,0 +1,4 @@
+@py_eval type $py_eval_number(s: String) -> f32
+
+type symbol(id: i32, )
+type length(i32)

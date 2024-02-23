@@ -1,0 +1,39 @@
+// Inputs
+type symbol(usize, String)
+type length(usize)
+
+// Facts for lexing
+rel digit = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}
+rel mult_div = {"*", "/"}
+rel plus_minus = {"+", "-"}
+
+// Sampling
+rel sampled_symbol(id, sym) :- sym = top<7>(s: symbol(id, s), length(n), id < n)
+
+// Parsing
+type value_node(id: u64, string: String, begin: usize, end: usize)
+rel value_node($hash(x, d), d, x, x + 1) = sampled_symbol(x, d), digit(d)
+
+type mult_div_node(id: u64, string: String, left_node: u64, right_node: u64, begin: usize, end: usize)
+rel mult_div_node(id, string, 0, 0, b, e) = value_node(id, string, b, e)
+rel mult_div_node($hash(id, s, l, r), s, l, r, b, e) =
+  sampled_symbol(id, s), mult_div(s), mult_div_node(l, _, _, _, b, id), value_node(r, _, id + 1, e)
+
+type plus_minus_node(id: u64, string: String, left_node: u64, right_node: u64, begin: usize, end: usize)
+rel plus_minus_node(id, string, l, r, b, e) = mult_div_node(id, string, l, r, b, e)
+rel plus_minus_node($hash(id, s, l, r), s, l, r, b, e) =
+  sampled_symbol(id, s), plus_minus(s), plus_minus_node(l, _, _, _, b, id), mult_div_node(r, _, _, _, id + 1, e)
+
+type root_node(id: u64)
+rel root_node(id) = plus_minus_node(id, _, _, _, 0, l), length(l)
+
+// Evaluate AST
+@demand("bf")
+rel eval(x, s as f64) = value_node(x, s, _, _)
+rel eval(x, y1 + y2) = plus_minus_node(x, "+", l, r, _, _), eval(l, y1), eval(r, y2)
+rel eval(x, y1 - y2) = plus_minus_node(x, "-", l, r, _, _), eval(l, y1), eval(r, y2)
+rel eval(x, y1 * y2) = mult_div_node(x, "*", l, r, _, _), eval(l, y1), eval(r, y2)
+rel eval(x, y1 / y2) = mult_div_node(x, "/", l, r, _, _), eval(l, y1), eval(r, y2), y2 != 0.0
+
+// Compute result
+rel result(y) = eval(e, y), root_node(e)

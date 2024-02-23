@@ -1,0 +1,30 @@
+// Inputs
+type symbol(i32, String)
+type length(i32)
+
+// Facts for lexing
+rel digit = {("0", 0.0), ("1", 1.0), ("2", 2.0), ("3", 3.0), ("4", 4.0), ("5", 5.0), ("6", 6.0), ("7", 7.0), ("8", 8.0), ("9", 9.0)}
+rel mult_div = {"*", "/"}
+rel plus_minus = {"+", "-"}
+
+// Parsing
+rel value_node(x, v) =
+  v = unique(v: symbol(x, d), digit(d, v))
+rel mult_div_node(x, "v", -1, -1, x, x) = value_node(x, _)
+rel mult_div_node(x, s, l, r, l_begin, r) =
+  s = unique(s: symbol(x, s), mult_div(s)),
+  mult_div_node(l, _, _, _, l_begin, l_end), l_end == x - 1, value_node(r, _), r == x + 1
+rel plus_minus_node(x, t, l, r, begin, end) = mult_div_node(x, t, l, r, begin, end)
+rel plus_minus_node(x, s, l, r, l_b, r_e) =
+  s = unique(s: symbol(x, s), plus_minus(s)),
+  plus_minus_node(l, _, _, _, l_b, l_e), l_e == x - 1, mult_div_node(r, _, _, _, r_b, r_e), r_b == x + 1
+
+// Evaluate AST
+rel eval(x, y, x, x) = value_node(x, y)
+rel eval(x, y1 + y2, b, e) = plus_minus_node(x, "+", l, r, b, e), eval(l, y1, b, x - 1), eval(r, y2, x + 1, e)
+rel eval(x, y1 - y2, b, e) = plus_minus_node(x, "-", l, r, b, e), eval(l, y1, b, x - 1), eval(r, y2, x + 1, e)
+rel eval(x, y1 * y2, b, e) = plus_minus_node(x, "*", l, r, b, e), eval(l, y1, b, x - 1), eval(r, y2, x + 1, e)
+rel eval(x, y1 / y2, b, e) = plus_minus_node(x, "/", l, r, b, e), eval(l, y1, b, x - 1), eval(r, y2, x + 1, e), y2 != 0.0
+
+// Compute result
+rel result(y) = eval(e, y, 0, n - 1), length(n)
