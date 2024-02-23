@@ -1,0 +1,37 @@
+type question(question: String)
+//rel question = {"Anthony, Ben, and Charles are playing a game. At the start of the game, they are each holding a ball: Anthony has a orange ball, Ben has a white ball, and Charles has a blue ball. \n\nAs the game progresses, pairs of players trade balls. Ben and Charles swap balls. But before that, Anthony and Ben swap balls. At the very end, Anthony and Ben swap balls. But at the very beginning of the game, Anthony and Charles swap balls. At the end of the game, Ben has the "}
+
+@gpt_extract_info(
+  header="Please extract the relationships from the provided question.",
+  prompts=[
+    "What are the initial possessions in JSON format? (use 'person' and 'object' as fields)",
+    "What are the swaps in JSON format?",
+    "Who is the goal in JSON format?"
+  ],
+  examples=[
+    (
+      ["Alice, Bob, and Claire are playing a game. At the start of the game, they are each holding a ball: Alice has a orange ball, Bob has a white ball, and Claire has a blue ball. As the game progresses, pairs of players trade balls. First, Alice and Bob swap balls. Then, Bob and Claire swap balls. Finally, Alice and Bob swap balls. At the end of the game, Alice has the"],
+      [
+        [("Alice", "orange ball"), ("Bob", "white ball"), ("Claire", "blue ball")],
+        [("1", "Alice", "Bob"), ("2", "Bob", "Claire"), ("3", "Alice", "Bob")],
+        [("Alice")]
+      ]
+    )
+  ],
+  model="gpt-4",
+  debug=true,
+)
+type extract_possessions (bound question: String, person: String, object: String),
+     extract_swaps       (bound question: String, time: i32, person_a: String, person_b: String),
+     extract_goal        (bound question: String, goal: String),
+
+rel possessions(1, person, object) = question(question) and extract_possessions(question, person, object)
+rel swaps(time, p1, p2) = question(question) and extract_swaps(question, time, p1, p2)
+rel goal(person) = question(question) and extract_goal(question, person)
+
+rel swaps(time, p1, p2) = swaps(time, p2, p1)
+rel possessions(t + 1, p1, object) = swaps(t, p1, p2) and possessions(t, p2, object)
+rel possessions(t + 1, p1, object) = swaps(t, _, _) and not swaps(t, p1, _) and possessions(t, p1, object)
+
+rel final_time(t + 1) = t := max(t: swaps(t, _, _))
+rel answer(object) = goal(person) and possessions(t, person, object) and final_time(t)

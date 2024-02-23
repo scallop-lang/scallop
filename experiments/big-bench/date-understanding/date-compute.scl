@@ -1,0 +1,71 @@
+type question(question: String)
+
+@gpt_extract_info(
+  header="Please extract dates and their relationships from the provided question.",
+  prompts=[
+    "What are the mentioned MM/DD/YYYY dates in JSON format?",
+    "What is the goal in JSON format?",
+    "What are the relationships of the dates in JSON format?"
+  ],
+  examples=[
+    (
+      ["Yesterday is February 14, 2019. What is the date 1 month ago?"],
+      [
+        [("yesterday", "02/14/2019")],
+        [("1-month-ago")],
+        [("yesterday", "today", "1 day"), ("1-month-ago", "today", "1 month")]
+      ]
+    ),
+    (
+      ["Yesterday is February 14, 2019. What is the date 1 year later?"],
+      [
+        [("yesterday", "02/14/2019")],
+        [("1-year-later")],
+        [("yesterday", "today", "1 day"), ("today", "1-year-later", "1 year")]
+      ]
+    ),
+    (
+      ["The deadline is August 15, 2023, which is today. What is the date today?"],
+      [
+        [("deadline", "08/15/2023")],
+        [("today")],
+        [("today", "deadline", "0 days")]
+      ]
+    ),
+    (
+      ["Jenny began her current job on the Christmas Eve of 2016. What is the 5th anniversary?"],
+      [
+        [("start-date", "12/24/2016")],
+        [("anniversary")],
+        [("start-date", "anniversary", "5 years")]
+      ]
+    ),
+    (
+      ["Today is March 5th, 2010. Mark earns $1000 per day starting from now. When can Mark earn $10000?"],
+      [
+        [("start-date", "03/05/2010")],
+        [("earned-10000")],
+        [("start-date", "earned-10000", "10 days")]
+      ]
+    )
+  ],
+  model="gpt-4",
+  cot=[false,false,true],
+  debug=true,
+)
+type extract_mentioned_date(bound question: String, label: String, date: DateTime),
+     extract_goal          (bound question: String, goal: String),
+     extract_relationship  (bound question: String, earlier_date: String, later_date: String, diff: Duration)
+
+// Extract information from the question
+rel mentioned_date(label, date) = question(question) and extract_mentioned_date(question, label, date)
+rel relationship(l1, l2, diff)  = question(question) and extract_relationship(question, l1, l2, diff)
+rel goal(label)                 = question(question) and extract_goal(question, label)
+
+// Do computation
+rel derived_date(label, date)        = mentioned_date(label, date)
+rel derived_date(label, date - diff) = relationship(label, other, diff) and derived_date(other, date)
+rel derived_date(label, date + diff) = relationship(other, label, diff) and derived_date(other, date)
+
+// Get the answer corresponding to the goal
+rel answer(date) = goal(label) and derived_date(label, date)
