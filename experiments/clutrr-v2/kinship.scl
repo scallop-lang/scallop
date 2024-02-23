@@ -1,0 +1,191 @@
+type context(ctx: String)
+
+@gpt_extract_info(
+  header="""
+In this task, you will be given a question regarding kinships between characters in a story.
+Please extract individual kinships mentioned in the story and the characters whose kinship is desired in the question.
+
+Formally, you should extract two types of information in JSON format:
+1. Mentioned kinships. This should be a JSON list covering all the kinships mentioned, where each element
+is a JSON object with `p1`, `p2`, and `rela` fields, denoting that `p1` is `p2`'s' `rela`.
+Please pay extra attention to the directionality of the relation. For a pair of people,
+you should generate two relations, one between p1 and p2 and another between p2 and p1. Please only extract direct information mentioned in the question and avoid
+doing any computation except for making sure you get both directions.
+2. The query. It should be a JSON object with `p1` and `p2` fields, between which is the
+relationship we want to derived.
+
+Examples:
+
+Question: Dorothy's brother Michael and her went to get ice cream. Michael is the proud father of the lovely Donald. Who is Dorothy to Donald?
+What are the mentioned kinships in JSON format?
+[{"p1": "Michael", "p2": "Dorothy", "rela": "brother"}, {"p1": "Dorothy", "p2": "Michael", "rela": "sister"}, {"p1": "Michael", "p2": "Donald", "rela": "father"}, {"p1": "Donald", "p2": "Michael", "rela": "son"}]
+Whose kinship do we want to find?
+[{"p1": "Dorothy", "p2": "Donald"}]
+
+
+Question: Michael and his daughter Jennifer like to read poems together. Jason is the proud father of the lovely Michael. Who is Jason to Jennifer?
+What are the mentioned kinships in JSON format?
+[{"p1": "Jennifer", "p2": "Michael", "rela": "daughter"}, {"p1": "Michael", "p2": "Jennifer", "rela": "father"}, {"p1": "Jason", "p2": "Michael", "rela": "father"}, {"p1": "Michael", "p2": "Jason", "rela": "son"}]
+Whose kinship do we want to find?
+[{"p1": "Jason", "p2": "Jennifer"}]
+
+
+Question: Kevin loves going to plays with his wife Aida. Aida's dad James, however, does not like them at all. Who is James to Kevin?
+What are the mentioned kinships in JSON format?
+[{"p1": "Aida", "p2": "Kevin", "rela": "wife"}, {"p1": "Kevin", "p2": "Aida", "rela": "husband"}, {"p1": "James", "p2": "Aida", "rela": "father"}, {"p1": "Aida", "p2": "James", "rela": "daughter"}]
+Whose kinship do we want to find?
+[{"p1": "James", "p2": "Kevin"}]
+
+
+Now, look at the following context.
+
+Question: {{context}}
+  """,
+  prompts=[
+    "Now, first give me the kinships mentioned in this question in JSON format",
+    "Good, now please tell me the two people whose kinship we want to find in JSON format"
+  ],
+  model="gpt-4",
+)
+type extract_kinship(bound context: String, p1: String, p2: String, rela: String),
+     extract_question(bound context: String, p1: String, p2: String)
+
+rel kinship(p1, p2, rela) = context(ctx) and extract_kinship(ctx, p1, p2, rela)
+rel question(p1, p2) = context(ctx) and extract_question(ctx, p1, p2)
+
+rel composition = {
+  ("daughter", "daughter", "granddaughter"),
+  ("daughter", "sister", "daughter"),
+  ("daughter", "son", "grandson"),
+  ("daughter", "aunt", "sister"),
+  ("daughter", "father", "husband"),
+  ("daughter", "husband", "son-in-law"),
+  ("daughter", "brother", "son"),
+  ("daughter", "mother", "wife"),
+  ("daughter", "uncle", "brother"),
+  ("daughter", "grandfather", "father"),
+  ("daughter", "grandfather", "father-in-law"),
+  ("daughter", "grandmother", "mother"),
+  ("daughter", "grandmother", "mother-in-law"),
+  ("sister", "daughter", "niece"),
+  ("sister", "sister", "sister"),
+  ("sister", "son", "nephew"),
+  ("sister", "aunt", "aunt"),
+  ("sister", "father", "father"),
+  ("sister", "brother", "brother"),
+  // ("sister", "nephew", "nephew"),
+  // ("sister", "nephew", "son"),
+  ("sister", "mother", "mother"),
+  ("sister", "uncle", "uncle"),
+  ("sister", "grandfather", "grandfather"),
+  ("sister", "grandmother", "grandmother"),
+  // ("sister", "niece", "niece"),
+  // ("sister", "niece", "daughter"),
+  ("son", "daughter", "granddaughter"),
+  ("son", "sister", "daughter"),
+  ("son", "son", "grandson"),
+  ("son", "aunt", "sister"),
+  ("son", "father", "husband"),
+  ("son", "brother", "son"),
+  ("son", "mother", "wife"),
+  ("son", "uncle", "brother"),
+  ("son", "grandfather", "father"),
+  // ("son", "grandfather", "father-in-law"),
+  ("son", "wife", "daughter-in-law"),
+  ("son", "grandmother", "mother"),
+  // ("son", "grandmother", "mother-in-law"),
+  ("aunt", "sister", "aunt"),
+  ("aunt", "father", "grandfather"),
+  ("aunt", "brother", "uncle"),
+  ("aunt", "mother", "grandmother"),
+  ("father", "daughter", "sister"),
+  ("father", "sister", "aunt"),
+  ("father", "son", "brother"),
+  ("father", "father", "grandfather"),
+  // ("father", "granddaughter", "daughter"),
+  // ("father", "granddaughter", "niece"),
+  ("father", "brother", "uncle"),
+  ("father", "mother", "grandmother"),
+  ("father", "wife", "mother"),
+  ("husband", "daughter", "daughter"),
+  ("husband", "son", "son"),
+  ("husband", "father", "father-in-law"),
+  ("husband", "granddaughter", "granddaughter"),
+  ("husband", "mother", "mother-in-law"),
+  ("husband", "grandson", "grandson"),
+  ("granddaughter", "sister", "granddaughter"),
+  // ("granddaughter", "father", "son"),
+  // ("granddaughter", "father", "son-in-law"),
+  ("granddaughter", "brother", "grandson"),
+  // ("granddaughter", "mother", "daughter"),
+  // ("granddaughter", "mother", "daughter-in-law"),
+  // ("granddaughter", "grandfather", "husband"),
+  // ("granddaughter", "grandmother", "wife"),
+  ("brother", "daughter", "niece"),
+  ("brother", "sister", "sister"),
+  ("brother", "son", "nephew"),
+  ("brother", "aunt", "aunt"),
+  ("brother", "father", "father"),
+  ("brother", "brother", "brother"),
+  // ("brother", "nephew", "nephew"),
+  // ("brother", "nephew", "son"),
+  ("brother", "mother", "mother"),
+  ("brother", "uncle", "uncle"),
+  ("brother", "grandfather", "grandfather"),
+  ("brother", "grandmother", "grandmother"),
+  // 0.8::("brother", "niece", "niece"),
+  // 0.8::("brother", "niece", "daughter"),
+  ("nephew", "sister", "niece"),
+  // ("nephew", "aunt", "wife"),
+  // ("nephew", "aunt", "wife"),
+  // ("nephew", "father", "brother"),
+  ("nephew", "brother", "nephew"),
+  // ("nephew", "mother", "sister"),
+  // ("nephew", "uncle", "brother"),
+  // ("nephew", "uncle", "husband"),
+  // ("nephew", "grandfather", "father"),
+  // ("nephew", "grandmother", "mother"),
+  ("mother", "daughter", "sister"),
+  ("mother", "sister", "aunt"),
+  ("mother", "son", "brother"),
+  ("mother", "father", "grandfather"),
+  ("mother", "husband", "father"),
+  // ("mother", "granddaughter", "daughter"),
+  // ("mother", "granddaughter", "niece"),
+  ("mother", "brother", "uncle"),
+  ("mother", "mother", "grandmother"),
+  // ("mother", "grandson", "son"),
+  // ("mother", "grandson", "nephew"),
+  // ("mother", "son-in-law", "husband"),
+  ("mother", "father-in-law", "grandfather"),
+  // ("mother", "daughter-in-law", "wife"),
+  ("mother", "mother-in-law", "grandmother"),
+  ("uncle", "sister", "aunt"),
+  ("uncle", "father", "grandfather"),
+  ("uncle", "brother", "uncle"),
+  ("uncle", "mother", "grandmother"),
+  // ("grandfather", "daughter", "mother"),
+  // ("grandfather", "daughter", "aunt"),
+  // ("grandfather", "son", "father"),
+  // ("grandfather", "son", "uncle"),
+  ("grandfather", "wife", "grandmother"),
+  ("wife", "daughter", "daughter"),
+  ("wife", "son", "son"),
+  ("wife", "father", "father-in-law"),
+  ("wife", "granddaughter", "granddaughter"),
+  ("wife", "mother", "mother-in-law"),
+  ("wife", "grandson", "grandson"),
+  ("wife", "son-in-law", "son-in-law"),
+  ("wife", "father-in-law", "father"),
+  ("wife", "daughter-in-law", "daughter-in-law"),
+  ("wife", "mother-in-law", "mother"),
+  ("grandmother", "husband", "grandfather"),
+  ("grandson", "sister", "granddaughter"),
+  // ("grandson", "father", "son"),
+  // ("grandson", "father", "son-in-law"),
+  ("grandson", "brother", "grandson"),
+}
+
+rel derived_kinship(p1, p2, rela) = kinship(p1, p2, rela)
+rel derived_kinship(p1, p3, r3) = p1 != p3 and derived_kinship(p1, p2, r1) and derived_kinship(p2, p3, r2) and composition(r2, r1, r3)
+rel result(r) = question(p1, p2) and derived_kinship(p1, p2, r)
