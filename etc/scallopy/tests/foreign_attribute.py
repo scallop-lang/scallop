@@ -39,7 +39,7 @@ def string_join(item, separator=","):
 
   # Generate the foreign predicate
   @scallopy.foreign_predicate(name=relation_decl.name.name, input_arg_types=arg_types[:-1], output_arg_types=arg_types[-1:])
-  def f(*args) -> scallopy.Generator[None, str]:
+  def f(*args) -> scallopy.Facts[None, str]:
     yield (separator.join(args),)
 
   # Return the foreign predicate to indicate that we need to remove the item and add a foreign predicate

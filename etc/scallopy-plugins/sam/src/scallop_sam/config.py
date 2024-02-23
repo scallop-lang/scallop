@@ -18,8 +18,8 @@ def setup_arg_parser(parser: ArgumentParser):
 def configure(args):
   global _CHECKPOINT
   try:
-    if args.sam_checkpoint is not None:
-      _CHECKPOINT = args.sam_checkpoint
+    if args["sam_checkpoint"] is not None:
+      _CHECKPOINT = args["sam_checkpoint"]
     else:
       _CHECKPOINT = os.getenv("SAM_CHECKPOINT")
     if _CHECKPOINT is None:

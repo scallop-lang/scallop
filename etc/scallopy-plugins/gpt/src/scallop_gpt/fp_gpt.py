@@ -8,7 +8,7 @@ from . import config
 STORAGE = {}
 
 @scallopy.foreign_predicate
-def gpt(s: str) -> scallopy.Generator[None, str]:
+def gpt(s: str) -> scallopy.Facts[None, str]:
   # Check if the storage already contains the response
   if s in STORAGE:
     response = STORAGE[s]

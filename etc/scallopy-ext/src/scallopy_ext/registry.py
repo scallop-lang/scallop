@@ -1,50 +1,137 @@
-from typing import List, Optional, Any
-from importlib.metadata import entry_points
+from typing import List, Optional, Any, Callable
+from importlib import metadata
 from argparse import ArgumentParser
 
 import scallopy
 
 from . import utils
+from . import constants
 
 class PluginRegistry:
-  def __init__(self):
-    self.setup_argparse_functions = utils.dedup(entry_points(group="scallop.plugin.setup_arg_parser"))
-    self.configure_functions = utils.dedup(entry_points(group="scallop.plugin.configure"))
-    self.loading_functions = utils.dedup(entry_points(group="scallop.plugin.load_into_context"))
-    self.unknown_args = {}
+  setup_argparse_functions: List[utils.EntryPoint]
+  configure_functions: List[utils.EntryPoint]
+  loading_functions: List[utils.EntryPoint]
+
+  def __init__(
+      self,
+      load_from_entry_points: bool = True,
+      filter: Optional[Callable[[str], bool]] = None
+  ):
+    """
+    Create a new plugin registry. Depending on the arguments, we either
+    load the registry from entry points, or we initialize an empty
+    registry.
+    """
+    self.setup_argparse_functions = []
+    self.configure_functions = []
+    self.loading_functions = []
+    self.filter = filter
+
+    # Load plugins
+    if load_from_entry_points: self.load_plugins_from_entry_points()
+
+    # The unknown arguments is set to empty by default
+    self.unknown_args = []
+
+  def load_plugin(
+      self,
+      name: str,
+      setup_arg_parser: Optional[Callable] = None,
+      configure: Optional[Callable] = None,
+      load_into_context: Optional[Callable] = None,
+  ):
+    """
+    Manually load a plugin, given its `name`, and `setup_arg_parser`,
+    `configure`, `load_into_context` functions.
+
+    Note: Calling this function will bypass the filter provided when
+    constructing the plugin registry.
+    """
+    if setup_arg_parser is not None:
+      self.setup_argparse_functions.append(utils.CustomEntryPoint(name, constants.SETUP_ARG_PARSER, setup_arg_parser))
+    if configure is not None:
+      self.configure_functions.append(utils.CustomEntryPoint(name, constants.CONFIGURE, configure))
+    if load_into_context is not None:
+      self.loading_functions.append(utils.CustomEntryPoint(name, constants.LOAD_INTO_CONTEXT, load_into_context))
+
+  def load_plugins_from_entry_points(self):
+    """
+    Load multiple plugins from entry points obtained by `importlib`
+    """
+    eps = metadata.entry_points()
+    utils._dedup_extend(self.setup_argparse_functions, utils._find_entry_points(eps, constants.SETUP_ARG_PARSER_GROUP, self.filter))
+    utils._dedup_extend(self.configure_functions, utils._find_entry_points(eps, constants.CONFIGURE_GROUP, self.filter))
+    utils._dedup_extend(self.loading_functions, utils._find_entry_points(eps, constants.LOAD_INTO_CONTEXT_GROUP, self.filter))
+
+  def remove_all_plugins(self):
+    """
+    Remove all the loaded plugins in this registry
+    """
+    self.setup_argparse_functions = []
+    self.configure_functions = []
+    self.loading_functions = []
 
   def loaded_plugins(self) -> List[str]:
+    """
+    Obtain the list of loaded plugins. Each plugin is represented
+    as a string of the form `{{plugin_name}}::{{function_name}}`.
+    """
     all_plugins = set()
     for setup_module in self.setup_argparse_functions:
-      all_plugins.add(f"{setup_module.name}::setup_arg_parser")
+      all_plugins.add(f"{setup_module.name}::{constants.SETUP_ARG_PARSER}")
     for config_module in self.configure_functions:
-      all_plugins.add(f"{config_module.name}::configure")
+      all_plugins.add(f"{config_module.name}::{constants.CONFIGURE}")
     for loading_module in self.loading_functions:
-      all_plugins.add(f"{loading_module.name}::load_into_context")
+      all_plugins.add(f"{loading_module.name}::{constants.LOAD_INTO_CONTEXT}")
     return list(all_plugins)
 
   def dump_loaded_plugins(self):
+    """
+    Print the list of loaded plugins
+    """
     print("[scallopy-ext] Loaded plugins:", ", ".join(self.loaded_plugins()))
 
   def setup_argument_parser(self, parser: ArgumentParser):
+    """
+    Apply the `setup_arg_parser` function from all plugins on a new
+    argument parser.
+    """
     for setup_module in self.setup_argparse_functions:
       setup_fn = setup_module.load()
       setup_fn(parser)
 
-  def configure(self, args, unknown_args):
+  def configure(self, args={}, unknown_args=[]):
+    """
+    Configure the plugins using the parsed arguments
+    """
+    # Preprocess arguments
+    args = utils._process_args(args)
+
+    # Configure the plugins
     self.unknown_args = unknown_args
     for configure_module in self.configure_functions:
       configure_fn = configure_module.load()
       configure_fn(args)
 
-  def load_into_ctx(self, ctx: scallopy.ScallopContext):
+  def load_into_ctx(self, ctx: scallopy.Context):
+    """
+    Apply the `load_into_context` function from all plugins on a newly
+    created scallopy context
+    """
+
+    # First register two built-in attributes
     self.register_cmd_arg_fa(ctx)
     self.register_py_eval_fa(ctx)
+
+    # Then load all the plugins
     for loader_module in self.loading_functions:
       loading_fn = loader_module.load()
       loading_fn(ctx)
 
-  def register_cmd_arg_fa(self, ctx: scallopy.ScallopContext):
+  def register_cmd_arg_fa(self, ctx: scallopy.Context):
+    """
+    Register a `@cmd_arg` foreign attribute to the Context
+    """
     unknown_args = self.unknown_args
 
     @scallopy.foreign_attribute
@@ -78,7 +165,11 @@ class PluginRegistry:
 
     ctx.register_foreign_attribute(cmd_arg)
 
-  def register_py_eval_fa(self, ctx: scallopy.ScallopContext):
+  def register_py_eval_fa(self, ctx: scallopy.Context):
+    """
+    Register a `@py_eval` foreign attribute to the Context
+    """
+
     @scallopy.foreign_attribute
     def py_eval(item, *, suppress_warning=True):
       # Check if the annotation is on function type decl

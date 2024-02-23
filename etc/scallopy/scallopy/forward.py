@@ -30,6 +30,7 @@ class ScallopForwardFunction(torch_importer.Module):
     k: int = 3,
     train_k: Optional[int] = None,
     test_k: Optional[int] = None,
+    wmc_with_disjunctions: Optional[bool] = None,
     early_discard: Optional[bool] = None,
     iter_limit: Optional[int] = None,
     retain_graph: bool = False,
@@ -43,13 +44,17 @@ class ScallopForwardFunction(torch_importer.Module):
     super(ScallopForwardFunction, self).__init__()
 
     # Setup the context
-    self.ctx = ScallopContext(
-      provenance=provenance,
-      custom_provenance=custom_provenance,
-      k=k,
-      train_k=train_k,
-      test_k=test_k,
-      monitors=monitors)
+    ctx_params = {
+      "provenance": provenance,
+      "custom_provenance": custom_provenance,
+      "k": k,
+      "train_k": train_k,
+      "test_k": test_k,
+      "wmc_with_disjunctions": wmc_with_disjunctions,
+      "monitors": monitors
+    }
+    ctx_params_non_null = {k: v for (k, v) in ctx_params.items() if v is not None}
+    self.ctx = ScallopContext(**ctx_params_non_null)
 
     # Import the file if specified
     if file is not None:
@@ -223,6 +228,8 @@ class InternalScallopForwardFunction(torch_importer.Module):
       return (False, [_mapping_tuple(t) for t in output_mapping])
     elif type(output_mapping) == tuple:
       return (True, [_mapping_tuple(output_mapping)])
+    elif type(output_mapping) == range:
+      return self._process_one_output_mapping(list(output_mapping))
     elif output_mapping is None:
       return None
     else:

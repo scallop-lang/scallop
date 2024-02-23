@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List, Any
+from typing import Optional, Union, Dict, List, Any
 
 from . import value_types
 
@@ -118,7 +118,7 @@ class AstTypeNode(AstNode):
       value_types.Entity: str,
     }[self._type_name]
 
-  def parse_value(self, text: str) -> float | int | bool | str:
+  def parse_value(self, text: str) -> Union[float, int, bool, str]:
     ty = self.to_python_type()
     if ty == bool:
       if text == "true" or text == "True": return True

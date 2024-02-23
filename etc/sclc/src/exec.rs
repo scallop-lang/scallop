@@ -160,9 +160,13 @@ fn main_body(opt: &Options) -> TokenStream {
       "bool" => quote! { run(boolean::BooleanProvenance::default()); },
       "minmaxprob" => quote! { run(min_max_prob::MinMaxProbProvenance::default()); },
       "addmultprob" => quote! { run(add_mult_prob::AddMultProbProvenance::default()); },
-      "topkproofs" => quote! { run(top_k_proofs::TopKProofsProvenance::<RcFamily>::new(#top_k, #wmc_with_disjunctions)); },
+      "topkproofs" => {
+        quote! { run(top_k_proofs::TopKProofsProvenance::<RcFamily>::new(#top_k, #wmc_with_disjunctions)); }
+      }
       "samplekproofs" => quote! { run(sample_k_proofs::SampleKProofsContext::new(#top_k)); },
-      "topbottomkclauses" => quote! { run(top_bottom_k_clauses::TopBottomKClausesContext::<RcFamily>::new(#top_k, #wmc_with_disjunctions)); },
+      "topbottomkclauses" => {
+        quote! { run(top_bottom_k_clauses::TopBottomKClausesContext::<RcFamily>::new(#top_k, #wmc_with_disjunctions)); }
+      }
       p => panic!("Unknown provenance `{}`. Aborting", p),
     }
   } else {

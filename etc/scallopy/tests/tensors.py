@@ -50,6 +50,7 @@ class TensorTests(unittest.TestCase):
 
   @unittest.skipIf(not scallopy.torch_tensor_enabled(), "not supported in this scallopy version")
   def test_tensor_backprop_4(self):
+    torch.manual_seed(1357)
     x = torch.randn(10, requires_grad=True)
     y = torch.randn(10)
     opt = torch.optim.Adam(params=[x], lr=0.01)

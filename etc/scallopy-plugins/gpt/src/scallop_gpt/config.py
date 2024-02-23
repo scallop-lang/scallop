@@ -50,14 +50,14 @@ def configure(args):
   openai.api_key = api_key
 
   # Set request limit
-  NUM_ALLOWED_REQUESTS = args.num_allowed_openai_request
+  NUM_ALLOWED_REQUESTS = args["num_allowed_openai_request"]
   NUM_PERFORMED_REQUESTS = 0
 
   # Set model
-  MODEL = args.openai_gpt_model
+  MODEL = args["openai_gpt_model"]
 
   # Set temperature
-  TEMPERATURE = args.openai_gpt_temperature
+  TEMPERATURE = args["openai_gpt_temperature"]
 
 
 def raise_unconfigured():

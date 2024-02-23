@@ -167,7 +167,10 @@ fn main() -> Result<(), String> {
       interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options)
     }
     "topbottomkclauses" => {
-      let ctx = provenance::top_bottom_k_clauses::TopBottomKClausesProvenance::<RcFamily>::new(opt.top_k, opt.wmc_with_disjunctions);
+      let ctx = provenance::top_bottom_k_clauses::TopBottomKClausesProvenance::<RcFamily>::new(
+        opt.top_k,
+        opt.wmc_with_disjunctions,
+      );
       interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options)
     }
     _ => Err(format!("Unknown provenance semiring `{}`", opt.provenance)),

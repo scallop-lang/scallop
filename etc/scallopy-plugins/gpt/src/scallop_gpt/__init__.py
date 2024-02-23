@@ -13,6 +13,7 @@ def load_into_context(ctx: scallopy.ScallopContext):
   ctx.register_foreign_attribute(fa_gpt.gpt)
   ctx.register_foreign_function(ff_gpt.gpt)
   ctx.register_foreign_predicate(fp_gpt.gpt)
+  fa_extract_info.reset_memo()
 
   if scallopy.torch_tensor_enabled():
     ctx.register_foreign_attribute(fa_encoder.gpt_encoder)

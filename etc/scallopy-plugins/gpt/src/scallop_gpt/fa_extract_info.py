@@ -222,3 +222,7 @@ def parse_response_json(response, expected_keys):
       raise Exception(f"{ERR_HEAD} Unexpected output json type {type(response_json)}")
   else:
     raise Exception(f"{ERR_HEAD} Unknown GPT response role: {role}")
+
+def reset_memo():
+    global _RESPONSE_STORAGE
+    _RESPONSE_STORAGE = {}

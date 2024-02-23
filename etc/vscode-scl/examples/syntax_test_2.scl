@@ -118,7 +118,8 @@ rel expr_to_string(e, $format("({} {} {})", op1_str, op_str, op2_str)) =
   expr_to_string(op1, op1_str) and expr_to_string(op2, op2_str) and op_to_string(op, op_str)
 
 // Rules with aggregation inside
-rel num_students(n) = n := count(a: student(p))
+rel num_students(n) = n := count(a: student(a))
+rel num_students = count(a: student(a))
 rel num_paths(n) = n := count!(a, b: path(a, b))
 rel my_rule(x) = _ := count(a, b: path(a, b) where c: color(c))
 rel my_rule_2() = forall(a, b: path(a, b) and path(a, b) implies edge(a, b))
@@ -137,6 +138,10 @@ rel sample_rule(x) = x := argmin!(a, c, d, b:
 rel sample_rule(x) = _ := min![x](s: score(x, s))
 rel sample_rule(x) = _ := sum[p](s: score(x, s))
 rel sample_rule(x) = _ := cross_entropy[i](y_pred, y: pred(i, y_pred) and ground_truth(i, y))
+rel joined_string(x) = _ := string_join<3, d"asdfasdf", true, all>(s: some_string(s))
+rel best_student = argmax(s: score(p, s))
+rel best_student = argmax[p](s: score(p, s))
+rel top_ranked = top<3>(s: score(p, s))
 
 // Nested aggregation
 rel nested_agg(x) = x := count(x: m := max(x: relation(x)))

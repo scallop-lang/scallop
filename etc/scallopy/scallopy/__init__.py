@@ -2,12 +2,12 @@ from .attribute import foreign_attribute, ForeignAttributeProcessor
 from .context import ScallopContext
 from .provenance import ScallopProvenance
 from .function import GenericTypeParameter, foreign_function, ForeignFunction
-from .predicate import Generator, foreign_predicate, ForeignPredicate
+from .predicate import Facts, foreign_predicate, ForeignPredicate
 from .value_types import *
 from .tag_types import *
 from .input_mapping import InputMapping
-from .scallopy import torch_tensor_enabled
 from .syntax import *
+from .scallopy import torch_tensor_enabled
 
 from . import input_output as io
 

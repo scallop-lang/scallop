@@ -105,7 +105,12 @@ class ScallopContext:
       self._test_k = test_k
       self._history_actions: List[HistoryAction] = []
       self._monitors = monitors
-      self._internal = InternalScallopContext(provenance=provenance, custom_provenance=custom_provenance, k=k)
+      self._internal = InternalScallopContext(
+        provenance=provenance,
+        custom_provenance=custom_provenance,
+        k=k,
+        wmc_with_disjunctions=wmc_with_disjunctions,
+      )
 
       # Load stdlib
       self._internal.enable_tensor_registry() # Always enable tensor registry for now
@@ -164,6 +169,7 @@ class ScallopContext:
     provenance: Optional[str] = None,
     k: Optional[int] = None,
     wmc_with_disjunctions: Optional[bool] = None,
+    monitors: Optional[List[str]] = None,
   ) -> ScallopContext:
     """
     Clone the current context. This is useful for incremental execution:
@@ -181,12 +187,11 @@ class ScallopContext:
     In this example, `ctx2` and `ctx3` will be executed independently,
     but both could inherit the computation already done on `ctx`.
     """
-    if provenance is None:
-      # No provenance specified; just return a new context
-      return ScallopContext(fork_from=self)
-    else:
-      # Create a new context
-      new_ctx = ScallopContext(fork_from=self)
+
+    # Create a new context
+    new_ctx = ScallopContext(fork_from=self)
+
+    if provenance is not None:
 
       # Clone internal context; this process may fail if the provenance is not compatible
       new_k = k if k is not None else self._k
@@ -197,8 +202,13 @@ class ScallopContext:
       new_ctx.provenance = provenance
       new_ctx._k = k
 
-      # Return
-      return new_ctx
+    if monitors is not None:
+      # Update parameters related to provenance
+      new_ctx._monitors = monitors
+      new_ctx._internal.load_monitors(monitors)
+
+    # Return
+    return new_ctx
 
   def set_debug_front(self, debug_front: bool = True):
     """
@@ -432,6 +442,8 @@ class ScallopContext:
         return "f32"
       elif type(ty) == str:
         return ty
+      elif isinstance(ty, TypeVar):
+        return ty.__name__
       else:
         raise Exception(f"Unknown type `{ty}`")
 
@@ -442,6 +454,9 @@ class ScallopContext:
     elif type(relation_types) == type or type(relation_types) == str:
       is_singleton_tuple = True
       relation_types_tuple = (relation_types,)
+    elif isinstance(relation_types, TypeVar):
+      is_singleton_tuple = True
+      relation_types_tuple = (relation_types.__name__,)
     else:
       raise Exception(f"Unknown relation types `{relation_types}`")
 

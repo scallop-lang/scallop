@@ -1,11 +1,11 @@
 from typing import *
 
 import scallopy
-from scallopy import foreign_predicate, Generator
+from scallopy import foreign_predicate, Facts
 
 
 @foreign_predicate
-def string_semantic_eq(s1: str, s2: str) -> Generator[float, Tuple]:
+def string_semantic_eq(s1: str, s2: str) -> Facts[float, Tuple]:
   if s1 == "mom" and s2 == "mother":
     yield (0.99, ())
   elif s1 == "mother" and s2 == "mother":

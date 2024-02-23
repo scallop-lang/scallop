@@ -110,14 +110,15 @@ def fill_prompt(
 
   for example in examples:
     few_shot_prompt = prompt
-    few_shot_json = []
+
+    few_shot_json = {}
     for (arg_pattern, fill) in zip(arg_patterns[:num_bounded], example[:num_bounded]):
       few_shot_prompt = few_shot_prompt.replace(arg_pattern, str(fill))
     for (arg_pattern, fill) in zip(arg_patterns[num_bounded:], example[num_bounded:]):
-      new_fill = str(fill).replace('"', '\\"')
-      few_shot_json.append(f"\"{arg_pattern[2:-2]}\": \"{new_fill}\"")
+      key = arg_pattern[2:-2]
+      few_shot_json[key] = str(fill)
 
-    few_shot_prompts.append(few_shot_prompt + '\n{' + ','.join(few_shot_json) + '}')
+    few_shot_prompts.append(few_shot_prompt + '\n' + json.dumps(few_shot_json))
 
   for (arg_pattern, fill) in zip(arg_patterns[:num_bounded], args):
     filled_prompt = filled_prompt.replace(arg_pattern, str(fill))

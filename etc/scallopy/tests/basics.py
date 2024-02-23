@@ -30,12 +30,23 @@ class BasicTests(unittest.TestCase):
 
   def test_digit_sum(self):
     ctx = scallopy.ScallopContext()
-    ctx.add_relation("digit", int)
-    ctx.add_facts("digit", [(i,) for i in range(10)])
-    ctx.add_facts("digit", [(i,) for i in range(10)])
-    ctx.add_rule("sum_2(a + b) = digit(a), digit(b)")
+    ctx.add_relation("digit1", int)
+    ctx.add_relation("digit2", int)
+    ctx.add_facts("digit1", [(i,) for i in range(10)])
+    ctx.add_facts("digit2", [(i,) for i in range(10)])
+    ctx.add_rule("sum_2(a + b) = digit1(a), digit2(b)")
     ctx.run()
     self.assertEqual(list(ctx.relation("sum_2")), [(i,) for i in range(19)])
+
+  def test_softmax(self):
+    ctx = scallopy.ScallopContext(provenance="minmaxprob")
+    ctx.add_relation("digit", int)
+    ctx.add_facts("digit", [(0.5, (i,)) for i in range(10)])
+    ctx.add_rule("softmax_digit(n) = n := softmax(d: digit(d))")
+    ctx.run()
+    for (i, (prob, (p_i,))) in enumerate(list(ctx.relation("softmax_digit"))):
+      self.assertAlmostEqual(prob, 0.1)
+      self.assertEqual(i, p_i)
 
   def test_rule_weight(self):
     ctx = scallopy.ScallopContext(provenance="minmaxprob")

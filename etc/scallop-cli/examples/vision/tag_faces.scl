@@ -1,6 +1,6 @@
-// Input; an image directory
-rel img_dir = {
-  "etc/scallop-cli/res/testing/images/face_example_3.jpg",
+// Input; an image url
+rel img_url = {
+  "https://m.media-amazon.com/images/M/MV5BOWFhYjE4NzMtOWJmZi00NzEyLTg5NTctYmIxMTU1ZDIxMDAyXkEyXkFqcGdeQXVyNTE1NjY5Mg@@._V1_.jpg",
 }
 
 // Input; a face tagging prompt
@@ -8,7 +8,7 @@ rel prompt = {
   "the 7 main characters of Star Trek: The Next Generation"
 }
 
-rel image($load_image(img_dir)) = img_dir(img_dir)
+rel image($load_image_url(img_url)) = img_url(img_url)
 
 // Use face detection model to extract faces from the image
 @face_detection(["cropped-image", "bbox-x", "bbox-y", "bbox-w", "bbox-h"], enlarge_face_factor=1.2, dump_image=false)
@@ -32,8 +32,11 @@ rel identity(id, name) = name := top<1>(name: face_name(img, list, name), face_i
 // Tag the faces
 rel tag_image(0, img) = image(img)
 rel tag_image(id + 1, $tag_image(img, x, y, w, h, name, "green", 10, 32)) = tag_image(id, img), identity(id, name), face_bbox(id, x, y, w, h)
-rel save_image($save_image(img)) = tag_image(n as u32, img), n := count!(id: identity(id, name))
+rel output_image_url($upload_imgur(img)) = tag_image(n as u32, img), n := count!(id: identity(id, name))
 
+// Upload the image (Scallop is lazy)
+query output_image_url
+
+// Inspect intermediate relations
 query identity
 query face_bbox
-query save_image

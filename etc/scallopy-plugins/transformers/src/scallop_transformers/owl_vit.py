@@ -143,7 +143,7 @@ def owl_vit(
     output_arg_types=arg_types[num_bounded:],
     tag_type=float,
   )
-  def owl_vit_search(*args) -> scallopy.Generator[float, Tuple[str]]:
+  def owl_vit_search(*args) -> scallopy.Facts[float, Tuple[str]]:
     # If object_queries is an arg, assume it's a semicolon-separated string
     if object_queries is None and input_obj_count:
       assert len(args) == 3

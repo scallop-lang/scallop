@@ -11,4 +11,4 @@ def setup_arg_parser(parser: ArgumentParser):
 
 def configure(args):
   global SAVE_IMAGE_PATH
-  SAVE_IMAGE_PATH = args.save_image_path
+  SAVE_IMAGE_PATH = args["save_image_path"]

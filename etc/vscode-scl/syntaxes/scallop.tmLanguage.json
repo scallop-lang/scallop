@@ -410,7 +410,8 @@
 				{ "include": "#basic_aggregation" },
 				{ "include": "#sample_aggregation" },
 				{ "include": "#arg_aggr_aggregation" },
-				{ "include": "#forall_exists_aggregation" }
+				{ "include": "#forall_exists_aggregation" },
+				{ "include": "#reduce_rule_sugar" }
 			]
 		},
 		"basic_aggregation": {
@@ -433,8 +434,8 @@
 			]
 		},
 		"sample_aggregation": {
-			"begin": "(:=)\\s*([a-zA-Z][a-zA-Z0-9_]*)(!?)(<)(\\d+)(>)\\(",
-			"end": ":",
+			"begin": "(:=)\\s*([a-zA-Z][a-zA-Z0-9_]*)(!?)(<)",
+			"end": "(>)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.operator.scallop"
@@ -447,17 +448,17 @@
 				},
 				"4": {
 					"name": "keyword.operator.scallop"
-				},
-				"5": {
-					"name": "constant.numeric.scallop"
-				},
-				"6": {
+				}
+			},
+			"endCaptures": {
+				"1": {
 					"name": "keyword.operator.scallop"
 				}
 			},
 			"patterns": [
 				{ "include": "#comment" },
-				{ "include": "#variable" }
+				{ "include": "#variable" },
+				{ "include": "#constants" }
 			]
 		},
 		"arg_aggr_aggregation": {
@@ -502,6 +503,26 @@
 				{ "include": "#comment" },
 				{ "include": "#variable" }
 			]
+		},
+		"reduce_rule_sugar": {
+			"match": "(rel)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s+(=|:-)\\s+([a-zA-Z][a-zA-Z0-9_]*)(!?)",
+			"captures": {
+				"1": {
+					"name": "keyword.control.scallop"
+				},
+				"2": {
+					"name": "entity.name.function.scallop"
+				},
+				"3": {
+					"name": "keyword.operator.scallop"
+				},
+				"4": {
+					"name": "keyword.other.scallop"
+				},
+				"5": {
+					"name": "keyword.operator.scallop"
+				}
+			}
 		},
 		"case_is": {
 			"begin": "(case)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s+(is)\\s+([a-zA-Z][a-zA-Z0-9_]*)\\s*\\(",
@@ -630,7 +651,7 @@
 			"name": "variable.parameter.scallop"
 		},
 		"keyword": {
-			"match": "\\b(import|type|const|rel|query)\\b",
+			"match": "\\b(import|extern|type|const|rel|query)\\b",
 			"captures": {
 				"1": {
 					"name": "keyword.control.scallop"

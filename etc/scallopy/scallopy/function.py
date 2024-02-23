@@ -15,24 +15,39 @@ class GenericTypeParameter:
 
   def __init__(self, type_family = "Any"):
     self.id = GenericTypeParameter.COUNTER
-    if type_family == "Any" or type_family == any or type_family == None:
+    if type_family == any or type_family == None:
       self.type_family = "Any"
-    elif type_family == "Number":
-      self.type_family = "Number"
-    elif type_family == "Integer" or type_family == int:
+    elif type_family == int:
       self.type_family = "Integer"
-    elif type_family == "SignedInteger":
-      self.type_family = "SignedInteger"
-    elif type_family == "UnsignedInteger":
-      self.type_family = "UnsignedInteger"
-    elif type_family == "Float" or type_family == float:
+    elif type_family == float:
       self.type_family = "Float"
+    elif isinstance(type_family, TypeVar):
+      self.type_family = GenericTypeParameter.sanitize_type_family(type_family.__name__)
+    elif isinstance(type_family, str):
+      self.type_family = GenericTypeParameter.sanitize_type_family(type_family)
     else:
       raise Exception(f"Unknown type family {type_family}")
     GenericTypeParameter.COUNTER += 1
 
   def __repr__(self):
     return f"T{self.id}({self.type_family})"
+
+  @staticmethod
+  def sanitize_type_family(tf: str) -> str:
+    if tf == "Any":
+      return "Any"
+    elif tf == "Number":
+      return "Number"
+    elif tf == "Integer":
+      return "Integer"
+    elif tf == "SignedInteger":
+      return "SignedInteger"
+    elif tf == "UnsignedInteger":
+      return "UnsignedInteger"
+    elif tf == "Float":
+      return "Float"
+    else:
+      raise Exception(f"Unknown type family {tf}")
 
 
 # Scallop Data Type
@@ -45,41 +60,26 @@ class Type:
     elif isinstance(value, syntax.AstTypeNode):
       self.kind = "base"
       self.type = value.name()
-    elif value == "Float" or value == float:
+    elif isinstance(value, TypeVar):
+      (self.kind, self.type) = Type.sanitize_type_str(value.__name__)
+    elif value == float:
       self.kind = "family"
       self.type_family = "Float"
-    elif value == "Integer" or value == int:
+    elif value == int:
       self.kind = "family"
       self.type_family = "Integer"
-    elif value == "UnsignedInteger":
-      self.kind = "family"
-      self.type_family = "UnsignedInteger"
-    elif value == "SignedInteger":
-      self.kind = "family"
-      self.type_family = "SignedInteger"
-    elif value == "Number":
-      self.kind = "family"
-      self.type_family = "Number"
-    elif value == "Any" or value == any or value == None:
+    elif value == any or value == None:
       self.kind = "family"
       self.type_family = "Any"
-    elif value == "char":
-      self.kind = "base"
-      self.type = "char"
-    elif value == "bool" or value == bool:
+    elif value == bool:
       self.kind = "base"
       self.type = "bool"
-    elif value == "String" or value == str:
+    elif value == str:
       self.kind = "base"
       self.type = "String"
-    elif value == "Tensor" or value == torch_importer.Tensor:
+    elif value == torch_importer.Tensor:
       self.kind = "base"
       self.type = "Tensor"
-    elif value == "i8" or value == "i16" or value == "i32" or value == "i64" or value == "i128" or value == "isize" or \
-      value == "u8" or value == "u16" or value == "u32" or value == "u64" or value == "u128" or value == "usize" or \
-      value == "f32" or value == "f64":
-      self.kind = "base"
-      self.type = value
     else:
       raise Exception(f"Unknown scallop function type annotation {value}")
 
@@ -92,6 +92,30 @@ class Type:
       return f"Generic({self.id}, {self.type_family})"
     else:
       raise Exception(f"Unknown parameter kind {self.kind}")
+
+  @staticmethod
+  def sanitize_type_str(value: str) -> Tuple[str, str]:
+    if value == "Float":
+      return ("family", "Float")
+    elif value == "Integer":
+      return ("family", "Integer")
+    elif value == "UnsignedInteger":
+      return ("family", "UnsignedInteger")
+    elif value == "SignedInteger":
+      return ("family", "SignedInteger")
+    elif value == "Number":
+      return ("family", "Number")
+    elif value == "Any":
+      return ("family", "Any")
+    elif value == "String":
+      return ("base", "String")
+    elif value == "Tensor":
+      return ("base", "Tensor")
+    elif value == "i8" or value == "i16" or value == "i32" or value == "i64" or value == "i128" or value == "isize" or \
+         value == "u8" or value == "u16" or value == "u32" or value == "u64" or value == "u128" or value == "usize" or \
+         value == "f32" or value == "f64" or value == "bool" or value == "char" or value == "String" or value == "Tensor" or \
+         value == "Symbol" or value == "Entity":
+      return ("base", value)
 
   def is_base(self):
     return self.kind == "base"

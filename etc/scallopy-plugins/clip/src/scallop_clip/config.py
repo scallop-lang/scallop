@@ -14,7 +14,7 @@ def setup_arg_parser(parser):
 
 def configure(args):
   global _CLIP_MODEL_CHECKPOINT
-  _CLIP_MODEL_CHECKPOINT = args.clip_model_checkpoint
+  _CLIP_MODEL_CHECKPOINT = args["clip_model_checkpoint"]
 
 
 def get_clip_model(debug=False):

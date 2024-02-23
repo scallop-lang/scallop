@@ -11,7 +11,7 @@ def setup_arg_parser(parser: ArgumentParser):
 
 
 def configure(args):
-  configure_device(args.cuda, args.gpu)
+  configure_device(args["cuda"], args["gpu"])
 
 
 def configure_device(use_cuda: bool = False, gpu: Optional[int] = None):

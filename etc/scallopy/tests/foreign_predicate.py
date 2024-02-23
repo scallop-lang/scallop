@@ -6,7 +6,7 @@ import scallopy
 class TestForeignPredicate(unittest.TestCase):
   def test_foreign_predicate_range(self):
     @scallopy.foreign_predicate
-    def my_range(a: int, b: int) -> scallopy.Generator[None, Tuple[int]]:
+    def my_range(a: int, b: int) -> scallopy.Facts[None, Tuple[int]]:
       for i in range(a, b):
         yield (i,)
 
@@ -18,7 +18,7 @@ class TestForeignPredicate(unittest.TestCase):
 
   def test_fp_entity(self):
     @scallopy.foreign_predicate
-    def my_dummy_semantic_parser(s: str) -> scallopy.Generator[None, Tuple[scallopy.Entity]]:
+    def my_dummy_semantic_parser(s: str) -> scallopy.Facts[None, Tuple[scallopy.Entity]]:
       if s == "If I have 3 apples and 2 pears, how many fruits do I have?":
         yield ("Add(Const(3), Const(2))",)
 
@@ -44,7 +44,7 @@ class TestForeignPredicate(unittest.TestCase):
 
   def test_fp_suppress_warning(self):
     @scallopy.foreign_predicate(suppress_warning=True)
-    def dummy(s: str) -> scallopy.Generator[None, str]:
+    def dummy(s: str) -> scallopy.Facts[None, str]:
       raise Exception("always false")
 
     ctx = scallopy.ScallopContext()

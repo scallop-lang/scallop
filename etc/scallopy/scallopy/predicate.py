@@ -1,4 +1,5 @@
-from typing import *
+import typing
+from typing import TypeVar, Generic, Union, Tuple, Callable, List, Optional, Any, ForwardRef, ClassVar
 import inspect
 
 from . import torch_importer
@@ -31,9 +32,13 @@ ALIASES = {
 class Type:
   def __init__(self, value):
     if isinstance(value, ForwardRef):
-      value = value.__forward_arg__
-    if isinstance(value, syntax.AstTypeNode):
+      self.type = Type.sanitize_type_str(value.__forward_arg__)
+    elif isinstance(value, syntax.AstTypeNode):
       self.type = value.name()
+    elif isinstance(value, TypeVar):
+      self.type = Type.sanitize_type_str(value.__name__)
+    elif isinstance(value, str):
+      self.type = Type.sanitize_type_str(value)
     elif value == float:
       self.type = "f32"
     elif value == int:
@@ -42,26 +47,40 @@ class Type:
       self.type = "bool"
     elif value == str:
       self.type = "String"
-    elif value == "Tensor" or value == torch_importer.Tensor:
+    elif value == torch_importer.Tensor:
       self.type = "Tensor"
-    elif value == "i8" or value == "i16" or value == "i32" or value == "i64" or value == "i128" or value == "isize" or \
-      value == "u8" or value == "u16" or value == "u32" or value == "u64" or value == "u128" or value == "usize" or \
-      value == "f32" or value == "f64" or \
-      value == "bool" or value == "char" or value == "String" or \
-      value == "DateTime" or value == "Duration" or value == "Entity":
-      self.type = value
-    elif value in ALIASES:
-      self.type = ALIASES[value]
     else:
       raise Exception(f"Unknown scallop predicate type annotation `{value}`")
 
   def __repr__(self):
     return self.type
 
+  @staticmethod
+  def sanitize_type_str(value):
+    if value == "i8" or value == "i16" or value == "i32" or value == "i64" or value == "i128" or value == "isize" or \
+      value == "u8" or value == "u16" or value == "u32" or value == "u64" or value == "u128" or value == "usize" or \
+      value == "f32" or value == "f64" or \
+      value == "bool" or value == "char" or value == "String" or value == "Symbol" or value == "Tensor" or \
+      value == "DateTime" or value == "Duration" or value == "Entity":
+      return value
+    elif value in ALIASES:
+      return ALIASES[value]
+    else:
+      raise Exception(f"Unknown scallop predicate type annotation `{value}`")
 
-class Generator(Generic[TypeVar("TagType"), TypeVar("TupleType")]):
-  pass
 
+TagType = TypeVar("TagType")
+
+TupleType = TypeVar("TupleType")
+
+Facts = ClassVar[typing.Generator[
+  Union[
+    Tuple[TagType, TupleType],
+    TupleType,
+  ],
+  None,
+  None,
+]]
 
 class ForeignPredicate:
   """
@@ -148,7 +167,7 @@ def foreign_predicate(
 
   ``` python
   @scallopy.foreign_function
-  def string_chars(s: str) -> scallopy.Generator[Tuple[int, char]]:
+  def string_chars(s: str) -> scallopy.Facts[Tuple[int, char]]:
     for (i, c) in enumerate(s):
       yield (i, c)
   ```
@@ -189,12 +208,16 @@ def foreign_predicate(
   if output_arg_types is None:
     if signature.return_annotation is None:
       raise Exception(f"Return type annotation not provided")
-    elif signature.return_annotation.__dict__["__origin__"] != Generator:
-      raise Exception(f"Return type must be Generator")
+    elif not str(signature.return_annotation).startswith("typing.ClassVar[typing.Generator[typing.Union[typing.Tuple["):
+      raise Exception(f"Return type must be Facts")
     else:
-      args = signature.return_annotation.__dict__["__args__"]
+      args = signature.return_annotation \
+        .__dict__["__args__"][0] \
+        .__dict__["__args__"][0] \
+        .__dict__["__args__"][0] \
+        .__dict__["__args__"]
       if len(args) != 2:
-        raise Exception(f"Generator must have 2 type arguments")
+        raise Exception(f"Facts must have 2 type arguments")
 
       # Produce return tag type
       return_tag_type = tag_types.get_tag_type(args[0])
