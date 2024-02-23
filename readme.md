@@ -1,5 +1,8 @@
 # Scallop
 
+| [Website](https://scallop-lang.github.io) | [Documentation](https://scallop-lang.github.io/doc) | [Playground](https://scallop.build) | [Download](https://github.com/scallop-lang/scallop/releases) | [Publications](https://www.scallop-lang.org/resources.html#section-3) |
+|---|---|---|---|---|
+
 <p align="center">
   <img width="240" height="240" src="res/icons/scallop-logo-ws-512.png" />
 </p>
