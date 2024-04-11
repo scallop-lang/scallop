@@ -32,7 +32,6 @@
   - [Provenance Library](probabilistic/library.md)
   - [Aggregation and Probability](probabilistic/aggregation.md)
   - [Sampling with Probability](probabilistic/sampling.md)
-  - [Debugging Proofs](probabilistic/debug.md)
 - [`scallopy`](scallopy/index.md)
   - [Getting Started](scallopy/getting_started.md)
   - [Scallop Context](scallopy/context.md)
@@ -44,6 +43,7 @@
   - [Foreign Functions](scallopy/foreign_function.md)
   - [Foreign Predicate](scallopy/foreign_predicate.md)
   - [Saving and Loading](scallopy/save_and_load.md)
+  - [Debugging Proofs](scallopy/debug_proofs.md)
 
 # Toolchain
 
