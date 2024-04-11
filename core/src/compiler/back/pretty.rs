@@ -29,7 +29,7 @@ impl Display for Program {
 impl Display for Relation {
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
     self.attributes.fmt(f)?;
-    f.write_fmt(format_args!("{}(", self.predicate))?;
+    f.write_fmt(format_args!(" {}(", self.predicate))?;
     for (i, arg) in self.arg_types.iter().enumerate() {
       arg.fmt(f)?;
       if i < self.arg_types.len() - 1 {

@@ -9,7 +9,7 @@
 
 Scallop is a language based on DataLog that supports differentiable logical and relational reasoning.
 Scallop program can be easily integrated in Python and even with a PyTorch learning module. You can also use it as another DataLog solver.
-Internally, Scallop is built on a generalized [Provenance Semiring](https://dl.acm.org/doi/10.1145/1265530.1265535) framework.
+Internally, Scallop is built on a generalized [Provenance Semiring](https://repository.upenn.edu/cgi/viewcontent.cgi?article=1022&context=db_research) framework.
 It allows arbitrary semirings to be configured, supporting Scallop to perform discrete logical reasoning, probabilistic reasoning, and differentiable reasoning.
 
 ## Example

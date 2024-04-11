@@ -66,6 +66,18 @@ fn range_join_4() {
 }
 
 #[test]
+fn range_dt_1() {
+  expect_interpret_empty_result(
+    r#"
+      type f(bound i: usize, bound j: usize)
+      rel f(i, j) = range<usize>(i + 1, j, k) and c(i, k) and f(k + 1, j)
+      type c(bound i: usize, bound j: usize)
+    "#,
+    "f",
+  )
+}
+
+#[test]
 fn string_chars_1() {
   expect_interpret_result(
     r#"

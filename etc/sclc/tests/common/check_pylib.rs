@@ -3,7 +3,6 @@ use std::io::prelude::*;
 use std::process::Command;
 
 use scallop_core::compiler::CompileOptions;
-use tempfile;
 
 use scallop_core::compiler;
 use sclc_core::pylib;

@@ -17,7 +17,7 @@ macro_rules! test_parse {
         parse($string),
         Ok(
           RelativeDuration::months($months)
-            .with_duration(Duration::seconds($seconds) + Duration::nanoseconds($nanoseconds))
+            .with_duration(Duration::try_seconds($seconds).unwrap() + Duration::nanoseconds($nanoseconds))
         )
       )
     }

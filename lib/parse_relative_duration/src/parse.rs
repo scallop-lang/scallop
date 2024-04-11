@@ -101,7 +101,9 @@ impl ProtoDuration {
     })?;
     let months = <BigInt as ToPrimitive>::to_i32(&months).ok_or_else(|| Error::OutOfBounds(months))?;
 
-    Ok(RelativeDuration::months(months).with_duration(Duration::seconds(seconds) + Duration::nanoseconds(nanoseconds)))
+    Ok(RelativeDuration::months(months).with_duration(
+      Duration::try_seconds(seconds).ok_or(Error::NoValueFound("".to_string()))? + Duration::nanoseconds(nanoseconds),
+    ))
   }
 }
 
@@ -189,9 +191,10 @@ pub fn parse(input: &str) -> Result<RelativeDuration, Error> {
     // Since the regex matched, the first group exists, so we can unwrap.
     let seconds = BigInt::parse_bytes(int.get(1).unwrap().as_str().as_bytes(), 10)
       .ok_or_else(|| Error::ParseInt(int.get(1).unwrap().as_str().to_owned()))?;
-    Ok(RelativeDuration::from(Duration::seconds(
-      seconds.to_i64().ok_or_else(|| Error::OutOfBounds(seconds))?,
-    )))
+    Ok(RelativeDuration::from(
+      Duration::try_seconds(seconds.to_i64().ok_or_else(|| Error::OutOfBounds(seconds))?)
+        .ok_or(Error::NoValueFound("".to_string()))?,
+    ))
   } else if DURATION_RE.is_match(input) {
     // This means we have at least one "unit" (or plain word) and one value.
     let mut duration = ProtoDuration::default();

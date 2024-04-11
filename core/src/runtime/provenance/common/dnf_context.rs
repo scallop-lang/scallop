@@ -3,7 +3,6 @@ use std::collections::*;
 use itertools::Itertools;
 use rand::distributions::WeightedIndex;
 use rand::prelude::*;
-use rand::rngs::StdRng;
 
 use super::{Clause, DNFFormula, Literal};
 

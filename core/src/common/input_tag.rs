@@ -10,6 +10,8 @@ pub enum DynamicInputTag {
   Natural(usize),
   Float(f64),
   ExclusiveFloat(f64, usize),
+  FloatWithID(usize, f64),
+  ExclusiveFloatWithID(usize, f64, usize),
   Tensor(DynamicExternalTensor),
 }
 
@@ -47,6 +49,8 @@ impl std::fmt::Display for DynamicInputTag {
       Self::Natural(n) => n.fmt(f),
       Self::Float(n) => n.fmt(f),
       Self::ExclusiveFloat(n, i) => f.write_str(&format!("{} [ME({})]", n, i)),
+      Self::FloatWithID(id, n) => f.write_str(&format!("{} [ID({})]", n, id)),
+      Self::ExclusiveFloatWithID(id, n, i) => f.write_str(&format!("{} [ID({}), ME({})]", n, id, i)),
       Self::Tensor(t) => t.fmt(f),
     }
   }

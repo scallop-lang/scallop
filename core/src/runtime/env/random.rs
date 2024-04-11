@@ -1,8 +1,6 @@
 use std::sync::*;
 
 use rand::prelude::*;
-use rand::rngs::SmallRng;
-use rand::SeedableRng;
 
 #[derive(Clone, Debug)]
 pub struct Random {

@@ -444,6 +444,9 @@ class InternalScallopForwardFunction(torch_importer.Module):
 
       # If the facts are provided as Tensor
       elif ty == torch_importer.torch.Tensor:
+        if self._has_debug_info():
+          raise Exception(f"scallopy.forward with debug provenance `{self.ctx.provenance}` does not accept tensor inputs. Consider passing lists instead")
+
         if rela not in self.ctx._input_mappings:
           raise Exception(f"scallopy.forward receives vectorized Tensor input. However there is no `input_mapping` provided for relation `{rela}`")
 
@@ -572,6 +575,8 @@ class InternalScallopForwardFunction(torch_importer.Module):
       return self._process_one_output(batch_size, input_tags, [r[rel_index] for r in output_results], False, None)
 
   def _process_one_output(self, batch_size, input_tags, output_results, single_element: bool, output_mapping: Optional[List[Tuple]]):
+    output_parts = []
+
     # If there is no given output mapping, try
     if output_mapping is not None:
       # Integrate the outputs
@@ -581,7 +586,11 @@ class InternalScallopForwardFunction(torch_importer.Module):
       v = v.view(-1) if single_element else v
 
       # Return the output
-      return v
+      output_parts.append(v)
+
+      # If has debug information
+      if self._has_debug_info():
+        output_parts.append(self._batched_debug_info(output_results))
     else:
       # Collect all possible outputs, make them into a list
       possible_outputs = set()
@@ -597,8 +606,13 @@ class InternalScallopForwardFunction(torch_importer.Module):
 
       # Check if there is no output result
       if len(possible_outputs) == 0:
-        # Return empty tensor
-        return ([], torch_importer.torch.zeros(batch_size, 0, requires_grad=self.training))
+        # Return empty mapping and empty tensor
+        output_parts.append([])
+        output_parts.append(torch_importer.torch.zeros(batch_size, 0, requires_grad=self.training))
+
+        # If has debug information
+        if self._has_debug_info():
+          output_parts.append([[] for _ in range(batch_size)])
       else:
         # Integrate the outputs based on all the output results
         v = self._batched_prob(post_output_results)
@@ -607,7 +621,17 @@ class InternalScallopForwardFunction(torch_importer.Module):
         v = v.view(-1) if single_element else v
 
         # Return
-        return (post_output_mapping, v)
+        output_parts.append(post_output_mapping)
+        output_parts.append(v)
+
+        # If has debug information
+        if self._has_debug_info():
+          output_parts.append(self._batched_debug_info(post_output_results))
+
+    if len(output_parts) == 1:
+      return output_parts[0]
+    else:
+      return tuple(output_parts)
 
   def _batched_prob(
     self,
@@ -640,13 +664,14 @@ class InternalScallopForwardFunction(torch_importer.Module):
          self.ctx.provenance == "diffnandminprob" or \
          self.ctx.provenance == "difftopkproofs" or \
          self.ctx.provenance == "diffsamplekproofs" or \
-         self.ctx.provenance == "difftopbottomkclauses":
+         self.ctx.provenance == "difftopbottomkclauses" or \
+         self.ctx.provenance == "difftopkproofsdebug":
       tensor_results = []
       for task_results in tasks:
         task_tensor_results = []
         for task_tup_result in task_results:
           if task_tup_result is not None:
-            (p, _) = task_tup_result
+            p = task_tup_result[0] # The 0-th element of the differentiable result is always a single probability
             task_tensor_results.append(torch_importer.torch.tensor(p, requires_grad=True))
           else:
             task_tensor_results.append(torch_importer.torch.tensor(0.0, requires_grad=True))
@@ -669,6 +694,11 @@ class InternalScallopForwardFunction(torch_importer.Module):
     elif self.ctx.provenance == "diffsamplekproofs": return True
     elif self.ctx.provenance == "difftopkproofs": return True
     elif self.ctx.provenance == "difftopbottomkclauses": return True
+    elif self.ctx.provenance == "difftopkproofsdebug": return True
+    else: return False
+
+  def _has_debug_info(self):
+    if self.ctx.provenance == "difftopkproofsdebug": return True
     else: return False
 
   def _batched_output_hook(
@@ -684,7 +714,8 @@ class InternalScallopForwardFunction(torch_importer.Module):
          self.ctx.provenance == "diffnandminprob" or \
          self.ctx.provenance == "difftopkproofs" or \
          self.ctx.provenance == "diffsamplekproofs" or \
-         self.ctx.provenance == "difftopbottomkclauses":
+         self.ctx.provenance == "difftopbottomkclauses" or \
+         self.ctx.provenance == "difftopkproofsdebug":
       return self._diff_proofs_batched_output_hook(input_tags, tasks)
     else:
       raise Exception("[Internal Error] Should not happen")
@@ -704,9 +735,12 @@ class InternalScallopForwardFunction(torch_importer.Module):
       def do_nothing_hook(): pass
       return do_nothing_hook
 
-    # mat_i: Input matrix
     def pad_input(l):
-      return l + [self._torch_tensor_apply(torch_importer.torch.tensor(0.0))] * (num_inputs - len(l)) if len(l) < num_inputs else l
+      preproc_l = [self._torch_tensor_apply(torch_importer.torch.tensor(0.0)) if e is None else e for e in l]
+      pad_zeros = [self._torch_tensor_apply(torch_importer.torch.tensor(0.0))] * (num_inputs - len(l)) if len(l) < num_inputs else []
+      return preproc_l + pad_zeros
+
+    # mat_i: Input matrix
     mat_i = torch_importer.torch.stack([torch_importer.torch.stack(pad_input(l)) for l in input_tags])
 
     # mat_w: Weight matrix
@@ -714,7 +748,7 @@ class InternalScallopForwardFunction(torch_importer.Module):
     for (batch_id, task_result) in enumerate(output_batch): # batch_size
       for (output_id, output_tag) in enumerate(task_result): # output_size
         if output_tag is not None:
-          (_, deriv) = output_tag
+          deriv = output_tag[1] # The 1-st element of the differentiable result is always the derivative
           for (input_id, weight) in deriv:
             mat_w[batch_id, output_id, input_id] = weight
 
@@ -726,3 +760,20 @@ class InternalScallopForwardFunction(torch_importer.Module):
         mat_i.backward(mat_f, retain_graph=retain_graph)
 
     return hook
+
+  def _batched_debug_info(
+    self,
+    output_results: List[List[Any]],
+  ) -> List[List[Any]]:
+    if self.ctx.provenance == "difftopkproofsdebug":
+      results = []
+      for task_results in output_results:
+        task_tensor_results = []
+        for task_tup_result in task_results:
+          if task_tup_result is not None:
+            proofs = task_tup_result[2] # The 2-th element of the difftopkproofsdebug result is the proofs
+            task_tensor_results.append(proofs)
+          else:
+            task_tensor_results.append([])
+        results.append(task_tensor_results)
+      return results

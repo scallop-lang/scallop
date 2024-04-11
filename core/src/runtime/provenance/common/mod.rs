@@ -13,6 +13,7 @@ mod fact_id;
 mod input_tags;
 mod literal;
 mod output_diff_prob;
+mod output_diff_prob_with_proofs;
 mod real;
 mod top_k_aggregation;
 
@@ -31,5 +32,6 @@ pub use fact_id::*;
 pub use input_tags::*;
 pub use literal::*;
 pub use output_diff_prob::*;
+pub use output_diff_prob_with_proofs::*;
 pub use real::*;
 pub use top_k_aggregation::*;

@@ -33,6 +33,11 @@ class ScallopCollection:
       for ((p, deriv), t) in self._internal:
         diff_prob = diff_proofs_prob(p, deriv, input_tags)
         yield (diff_prob, t)
+    elif self.provenance == "difftopkproofsdebug":
+      input_tags = self._internal.input_tags()
+      for ((p, deriv, proofs), t) in self._internal:
+        diff_prob = diff_proofs_prob(p, deriv, input_tags)
+        yield ((diff_prob, proofs), t)
     else:
       for t in self._internal:
         yield t

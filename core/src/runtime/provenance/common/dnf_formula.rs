@@ -1,7 +1,6 @@
 use itertools::iproduct;
 
 use super::super::*;
-use super::{AsBooleanFormula, Clause, Literal};
 
 #[derive(Clone, PartialEq, PartialOrd, Eq)]
 pub struct DNFFormula {

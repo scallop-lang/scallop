@@ -6,13 +6,17 @@ pub mod attribute;
 mod compile;
 mod error;
 mod f2b;
-mod grammar;
 pub mod parser;
 mod pretty;
 mod source;
 mod transform;
 pub mod transformations;
 mod utils;
+
+// Include grammar (generated file)
+// It is okay to have dead code in generated file
+#[allow(dead_code)]
+mod grammar;
 
 pub use analysis::*;
 pub use annotation::*;

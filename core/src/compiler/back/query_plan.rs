@@ -614,9 +614,12 @@ impl<'a> QueryPlanContext<'a> {
         };
 
         // Note: We always apply constraint first and then assigns
-        let node = self.try_apply_non_new_assigns(&mut applied_assigns, node);
-        let node = self.try_apply_constraint(&mut applied_constraints, node);
-        let node = self.try_apply_foreign_predicate_atom(&mut applied_foreign_predicates, node);
+        let node = self.try_apply(
+          node,
+          &mut applied_assigns,
+          &mut applied_constraints,
+          &mut applied_foreign_predicates,
+        );
         (node, 1)
       }
     } else {
@@ -642,9 +645,12 @@ impl<'a> QueryPlanContext<'a> {
       }
 
       // Note: We always apply constraint first and then assigns
-      let node = self.try_apply_non_new_assigns(&mut applied_assigns, node);
-      let node = self.try_apply_constraint(&mut applied_constraints, node);
-      let node = self.try_apply_foreign_predicate_atom(&mut applied_foreign_predicates, node);
+      let node = self.try_apply(
+        node,
+        &mut applied_assigns,
+        &mut applied_constraints,
+        &mut applied_foreign_predicates,
+      );
       (node, 0)
     };
 

@@ -1,5 +1,3 @@
-use std::iter::FromIterator;
-
 use super::batch::*;
 use super::*;
 use crate::runtime::provenance::*;

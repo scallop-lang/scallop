@@ -1,4 +1,4 @@
-use serde::ser::{Serialize, SerializeStruct, Serializer};
+use serde::ser::SerializeStruct;
 
 use crate::common::value_type::*;
 

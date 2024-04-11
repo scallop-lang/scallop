@@ -11,7 +11,9 @@ impl StaticInputTag for usize {
       DynamicInputTag::Natural(n) => Some(*n),
       DynamicInputTag::Bool(b) => Some(if *b { 1 } else { 0 }),
       DynamicInputTag::Float(f) => Some(if *f > 0.0 { 1 } else { 0 }),
-      DynamicInputTag::ExclusiveFloat(_, _) => Some(1),
+      DynamicInputTag::ExclusiveFloat(f, _) => Some(if *f > 0.0 { 1 } else { 0 }),
+      DynamicInputTag::FloatWithID(_, f) => Some(if *f > 0.0 { 1 } else { 0 }),
+      DynamicInputTag::ExclusiveFloatWithID(_, f, _) => Some(if *f > 0.0 { 1 } else { 0 }),
       DynamicInputTag::Tensor(_) => Some(1),
     }
   }

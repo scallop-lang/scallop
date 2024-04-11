@@ -340,6 +340,35 @@ impl PythonProvenance for diff_top_bottom_k_clauses::DiffTopBottomKClausesProven
   }
 }
 
+impl PythonProvenance for diff_top_k_proofs_debug::DiffTopKProofsDebugProvenance<ExtTag, ArcFamily> {
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
+    let tag_disj_id: (&PyAny, usize, Option<usize>) = tag.extract()?;
+    if let Some(prob) = tag_disj_id.0.extract()? {
+      let tag: ExtTag = tag_disj_id.0.into();
+      let id: usize = tag_disj_id.1.into();
+      Ok(Some(Self::InputTag {
+        prob,
+        id,
+        external_tag: Some(tag),
+        exclusion: tag_disj_id.2,
+      }))
+    } else {
+      Ok(None)
+    }
+  }
+
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, ctx: &Self) -> CollectionEnum<ArcFamily> {
+    CollectionEnum::DiffTopKProofsDebug {
+      collection: col,
+      tags: ctx.storage.clone_rc(),
+    }
+  }
+
+  fn to_output_py_tag(tag: &Self::OutputTag) -> Py<PyAny> {
+    Python::with_gil(|py| (tag.probability, tag.gradient.clone(), tag.proofs.clone()).to_object(py))
+  }
+}
+
 impl PythonProvenance for custom_tag::CustomProvenance {
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     let tag: Py<PyAny> = tag.into();

@@ -66,6 +66,10 @@ pub enum CollectionEnum<P: PointerFamily> {
     collection: P::Rc<DynamicOutputCollection<diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance<ExtTag, P>>>,
     tags: DiffProbStorage<ExtTag, P>,
   },
+  DiffTopKProofsDebug {
+    collection: P::Rc<DynamicOutputCollection<diff_top_k_proofs_debug::DiffTopKProofsDebugProvenance<ExtTag, P>>>,
+    tags: DiffProbStorage<ExtTag, P>,
+  },
   Custom {
     collection: P::Rc<DynamicOutputCollection<custom_tag::CustomProvenance>>,
   },
@@ -88,6 +92,7 @@ macro_rules! match_collection {
       CollectionEnum::DiffSampleKProofs { collection: $v, .. } => $e,
       CollectionEnum::DiffTopKProofs { collection: $v, .. } => $e,
       CollectionEnum::DiffTopBottomKClauses { collection: $v, .. } => $e,
+      CollectionEnum::DiffTopKProofsDebug { collection: $v, .. } => $e,
       CollectionEnum::Custom { collection: $v } => $e,
     }
   };
@@ -110,6 +115,7 @@ impl CollectionEnum<ArcFamily> {
       Self::DiffSampleKProofs { tags, .. } => Some(tags.num_input_tags()),
       Self::DiffTopKProofs { tags, .. } => Some(tags.num_input_tags()),
       Self::DiffTopBottomKClauses { tags, .. } => Some(tags.num_input_tags()),
+      Self::DiffTopKProofsDebug { tags, .. } => Some(tags.num_input_tags() + 1),
       Self::Custom { .. } => None,
     }
   }
@@ -130,6 +136,7 @@ impl CollectionEnum<ArcFamily> {
       Self::DiffSampleKProofs { tags, .. } => Some(tags.input_tags().into_vec()),
       Self::DiffTopKProofs { tags, .. } => Some(tags.input_tags().into_vec()),
       Self::DiffTopBottomKClauses { tags, .. } => Some(tags.input_tags().into_vec()),
+      Self::DiffTopKProofsDebug { tags, .. } => Some(tags.input_tags().into_none_prepended_vec()),
       Self::Custom { .. } => None,
     }
   }

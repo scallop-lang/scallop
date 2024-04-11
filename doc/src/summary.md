@@ -32,6 +32,7 @@
   - [Provenance Library](probabilistic/library.md)
   - [Aggregation and Probability](probabilistic/aggregation.md)
   - [Sampling with Probability](probabilistic/sampling.md)
+  - [Debugging Proofs](probabilistic/debug.md)
 - [`scallopy`](scallopy/index.md)
   - [Getting Started](scallopy/getting_started.md)
   - [Scallop Context](scallopy/context.md)

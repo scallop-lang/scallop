@@ -555,6 +555,8 @@ fn input_tag_to_rs_input_tag(tag: &DynamicInputTag) -> TokenStream {
     DynamicInputTag::Natural(n) => quote! { DynamicInputTag::Natural(#n) },
     DynamicInputTag::Float(f) => quote! { DynamicInputTag::Float(#f) },
     DynamicInputTag::ExclusiveFloat(f, u) => quote! { DynamicInputTag::ExclusiveFloat(#f, #u) },
+    DynamicInputTag::FloatWithID(id, f) => quote! { DynamicInputTag::Float(#id, #f) },
+    DynamicInputTag::ExclusiveFloatWithID(id, f, u) => quote! { DynamicInputTag::ExclusiveFloat(#id, #f, #u) },
     DynamicInputTag::Tensor(_) => unimplemented!(),
   }
 }

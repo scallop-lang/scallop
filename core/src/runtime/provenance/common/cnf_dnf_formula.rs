@@ -1,5 +1,4 @@
 use super::super::*;
-use super::{AsBooleanFormula, Clause, Literal};
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum FormulaKind {

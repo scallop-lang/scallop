@@ -14,6 +14,13 @@ impl<T: Clone, P: PointerFamily> DiffProbStorage<T, P> {
     }
   }
 
+  pub fn new_with_placeholder() -> Self {
+    Self {
+      storage: P::new_rc_cell(Vec::new()),
+      num_requires_grad: P::new_cell(1),
+    }
+  }
+
   /// Clone the internal storage
   pub fn clone_internal(&self) -> Self {
     Self {
@@ -44,6 +51,25 @@ impl<T: Clone, P: PointerFamily> DiffProbStorage<T, P> {
 
     // Return the id
     fact_id
+  }
+
+  pub fn add_prob_with_id(&self, prob: f64, external_tag: Option<T>, id: usize) -> usize {
+    // Increment the `num_requires_grad` if the external tag is provided
+    if external_tag.is_some() {
+      P::get_cell_mut(&self.num_requires_grad, |n| *n += 1);
+    }
+
+    // Add
+    P::get_rc_cell_mut(&self.storage, |s| {
+      if id >= s.len() {
+        s.extend(std::iter::repeat_n((0.0, None), id - s.len() + 1));
+      }
+
+      s[id] = (prob.clone(), external_tag.clone())
+    });
+
+    // Return the id
+    id
   }
 
   pub fn get_diff_prob(&self, id: &usize) -> (f64, Option<T>) {

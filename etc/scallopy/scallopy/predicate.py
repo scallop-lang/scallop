@@ -192,8 +192,8 @@ def foreign_predicate(
     # Find argument types
     for (arg_name, item) in signature.parameters.items():
       optional = item.default != inspect.Parameter.empty
-      if item.annotation is None:
-        raise Exception(f"Argument {arg_name} type annotation not provided")
+      if item.annotation is None or 'inspect._empty' in str(item.annotation):
+        raise Exception(f"Argument `{arg_name}`'s type annotation not provided in the foreign predicate `{func_name}`")
       if item.kind == inspect.Parameter.VAR_POSITIONAL:
         raise Exception(f"Cannot have variable arguments in foreign predicate")
       elif not optional:

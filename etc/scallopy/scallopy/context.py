@@ -353,7 +353,7 @@ class ScallopContext:
       raise Exception("`forward_function` cannot be called when there is no PyTorch")
 
     # Needs to be a differentiable context
-    if ("diff" in self.provenance or self.provenance == "custom") and not "debug" in self.provenance: pass
+    if "diff" in self.provenance or self.provenance == "custom": pass
     else: raise Exception("`forward_function` can only be called on context with differentiable provenance")
 
     # Forward function
@@ -738,6 +738,7 @@ class ScallopContext:
       "diffsamplekproofs",
       "difftopkproofs",
       "difftopbottomkclauses",
+      "difftopkproofsdebug",
     ])
     return self.provenance in PROVENANCE_SUPPORTING_DISJUNCTIONS
 
@@ -771,7 +772,10 @@ class ScallopContext:
         if fact_id not in visited_fact_ids:
           if self.requires_tag():
             (tag, tup) = fact
-            processed_elems[fact_id] = ((tag, None), tup)
+            if type(tag) == tuple:
+              processed_elems[fact_id] = ((*tag, None), tup)
+            else:
+              processed_elems[fact_id] = ((tag, None), tup)
           else:
             processed_elems[fact_id] = (None, fact)
 

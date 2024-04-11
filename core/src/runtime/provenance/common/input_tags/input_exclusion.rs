@@ -72,3 +72,12 @@ impl<T: FromTensor> ConvertFromInputTag<InputExclusiveDiffProb<T>> for Exclusion
     }
   }
 }
+
+impl<T: FromTensor> ConvertFromInputTag<InputExclusiveDiffProbWithID<T>> for Exclusion {
+  fn from_input_tag(t: InputExclusiveDiffProbWithID<T>) -> Option<Self> {
+    match &t.exclusion {
+      Some(e) => Some(Self::Exclusive(e.clone())),
+      None => Some(Self::Independent),
+    }
+  }
+}

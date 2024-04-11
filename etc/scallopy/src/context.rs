@@ -31,12 +31,17 @@ type AF = ArcFamily;
 
 #[derive(Clone)]
 pub enum ContextEnum {
+  // Basic
   Unit(IntegrateContext<unit::UnitProvenance, AF>),
   Proofs(IntegrateContext<proofs::ProofsProvenance<AF>, AF>),
+
+  // Probabilistic
   MinMaxProb(IntegrateContext<min_max_prob::MinMaxProbProvenance, AF>),
   AddMultProb(IntegrateContext<add_mult_prob::AddMultProbProvenance, AF>),
   TopKProofs(IntegrateContext<top_k_proofs::TopKProofsProvenance<AF>, AF>),
   TopBottomKClauses(IntegrateContext<top_bottom_k_clauses::TopBottomKClausesProvenance<AF>, AF>),
+
+  // Differentiable
   DiffMinMaxProb(IntegrateContext<diff_min_max_prob::DiffMinMaxProbProvenance<ExtTag, AF>, AF>),
   DiffAddMultProb(IntegrateContext<diff_add_mult_prob::DiffAddMultProbProvenance<ExtTag, AF>, AF>),
   DiffNandMultProb(IntegrateContext<diff_nand_mult_prob::DiffNandMultProbProvenance<ExtTag, AF>, AF>),
@@ -45,6 +50,11 @@ pub enum ContextEnum {
   DiffSampleKProofs(IntegrateContext<diff_sample_k_proofs::DiffSampleKProofsProvenance<ExtTag, AF>, AF>),
   DiffTopKProofs(IntegrateContext<diff_top_k_proofs::DiffTopKProofsProvenance<ExtTag, AF>, AF>),
   DiffTopBottomKClauses(IntegrateContext<diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance<ExtTag, AF>, AF>),
+
+  // Debug
+  DiffTopKProofsDebug(IntegrateContext<diff_top_k_proofs_debug::DiffTopKProofsDebugProvenance<ExtTag, AF>, AF>),
+
+  // Custom
   Custom(IntegrateContext<custom_tag::CustomProvenance, AF>),
 }
 
@@ -65,6 +75,7 @@ macro_rules! match_context {
       ContextEnum::DiffSampleKProofs($v) => $e,
       ContextEnum::DiffTopKProofs($v) => $e,
       ContextEnum::DiffTopBottomKClauses($v) => $e,
+      ContextEnum::DiffTopKProofsDebug($v) => $e,
       ContextEnum::Custom($v) => $e,
     }
   };
@@ -87,6 +98,7 @@ macro_rules! match_context_except_custom {
       ContextEnum::DiffSampleKProofs($v) => Ok($e),
       ContextEnum::DiffTopKProofs($v) => Ok($e),
       ContextEnum::DiffTopBottomKClauses($v) => Ok($e),
+      ContextEnum::DiffTopKProofsDebug($v) => Ok($e),
       ContextEnum::Custom(_) => Err(BindingError::CustomProvenanceUnsupported),
     }
   };
@@ -180,6 +192,11 @@ impl Context {
       "difftopbottomkclauses" => Ok(Self {
         ctx: ContextEnum::DiffTopBottomKClauses(IntegrateContext::new_incremental(
           diff_top_bottom_k_clauses::DiffTopBottomKClausesProvenance::new(k, wmc_with_disjunctions),
+        )),
+      }),
+      "difftopkproofsdebug" => Ok(Self {
+        ctx: ContextEnum::DiffTopKProofsDebug(IntegrateContext::new_incremental(
+          diff_top_k_proofs_debug::DiffTopKProofsDebugProvenance::new(k, wmc_with_disjunctions),
         )),
       }),
       "custom" => {
@@ -445,6 +462,7 @@ impl Context {
       ContextEnum::DiffSampleKProofs(c) => Some(c.provenance_context().input_tags().into_vec()),
       ContextEnum::DiffTopKProofs(c) => Some(c.provenance_context().input_tags().into_vec()),
       ContextEnum::DiffTopBottomKClauses(c) => Some(c.provenance_context().input_tags().into_vec()),
+      ContextEnum::DiffTopKProofsDebug(c) => Some(c.provenance_context().input_tags().into_none_prepended_vec()),
       ContextEnum::Custom(_) => None,
     }
   }
@@ -474,6 +492,9 @@ impl Context {
         c.provenance_context_mut().set_k(k);
       }
       ContextEnum::DiffTopBottomKClauses(c) => {
+        c.provenance_context_mut().set_k(k);
+      }
+      ContextEnum::DiffTopKProofsDebug(c) => {
         c.provenance_context_mut().set_k(k);
       }
       ContextEnum::Custom(_) => (),

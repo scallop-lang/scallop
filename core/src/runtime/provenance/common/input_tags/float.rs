@@ -66,3 +66,9 @@ impl<T: FromTensor> ConvertFromInputTag<InputExclusiveDiffProb<T>> for f64 {
     Some(t.prob)
   }
 }
+
+impl<T: FromTensor> ConvertFromInputTag<InputExclusiveDiffProbWithID<T>> for f64 {
+  fn from_input_tag(t: InputExclusiveDiffProbWithID<T>) -> Option<Self> {
+    Some(t.prob)
+  }
+}
