@@ -297,10 +297,18 @@ impl FrontContext {
     });
     ast.walk_mut(&mut dup_ctx.node_id_annotator);
 
+    // Clone the foreign registries (TODO: add other registries)
+    let mut cloned_fp_registry = dup_ctx.foreign_predicate_registry.clone();
+
     // Front analysis
     dup_ctx.analysis.modify(|analysis| {
+      // First do main traversal of analyzers
       analysis.process_items(&ast);
-      analysis.post_analysis();
+
+      // Do the post-traversal analysis (TODO: add other registries when they are required)
+      analysis.post_analysis(&mut cloned_fp_registry);
+
+      // Dump the errors to error context
       analysis.dump_errors(&mut error_ctx);
     });
     if error_ctx.has_error() {
@@ -312,8 +320,13 @@ impl FrontContext {
       error_ctx.report_warnings();
     }
 
-    // Update self if nothing goes wrong
+    // update the AST items
     dup_ctx.items.extend(ast);
+
+    // update the registries
+    dup_ctx.foreign_predicate_registry = cloned_fp_registry;
+
+    // Update self if nothing goes wrong
     *self = dup_ctx;
 
     // Pull out the last ast items

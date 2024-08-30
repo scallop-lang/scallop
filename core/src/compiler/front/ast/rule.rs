@@ -11,7 +11,7 @@ impl Into<Vec<Item>> for Rule {
   fn into(self) -> Vec<Item> {
     vec![Item::RelationDecl(RelationDecl::Rule(RuleDecl::new(
       Attributes::new(),
-      Tag::none(),
+      None,
       self,
     )))]
   }

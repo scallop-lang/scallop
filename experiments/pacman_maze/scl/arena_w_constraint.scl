@@ -1,3 +1,5 @@
+type Action = UP | RIGHT | DOWN | LEFT
+
 // Input from neural networks
 type grid_node(x: usize, y: usize)
 type curr_position(x: usize, y: usize)
@@ -6,10 +8,10 @@ type is_enemy(x: usize, y: usize)
 
 // Basic connectivity
 rel node(x, y) = grid_node(x, y), not is_enemy(x, y)
-rel edge(x, y, x, yp, 0) = node(x, y), node(x, yp), yp == y + 1 // Up
-rel edge(x, y, xp, y, 1) = node(x, y), node(xp, y), xp == x + 1 // Right
-rel edge(x, y, x, yp, 2) = node(x, y), node(x, yp), yp == y - 1 // Down
-rel edge(x, y, xp, y, 3) = node(x, y), node(xp, y), xp == x - 1 // Left
+rel edge(x, y, x, yp, UP) = node(x, y), node(x, yp), yp == y + 1 // Up
+rel edge(x, y, xp, y, RIGHT) = node(x, y), node(xp, y), xp == x + 1 // Right
+rel edge(x, y, x, yp, DOWN) = node(x, y), node(x, yp), yp == y - 1 // Down
+rel edge(x, y, xp, y, LEFT) = node(x, y), node(xp, y), xp == x - 1 // Left
 
 // Path for connectivity; will condition on no enemy on the path
 rel path(x, y, x, y) = node(x, y)

@@ -16,6 +16,8 @@ use crate::compiler::front::*;
 #[derive(Clone, Debug)]
 pub struct TransformForall;
 
+impl<'a> Transformation<'a> for TransformForall {}
+
 impl TransformForall {
   pub fn new() -> Self {
     Self

@@ -6,6 +6,8 @@ pub struct DesugarReduceRule {
   aggregate_types: AggregateTypeRegistry,
 }
 
+impl<'a> Transformation<'a> for DesugarReduceRule {}
+
 impl DesugarReduceRule {
   pub fn new(agg_ty_registry: &AggregateTypeRegistry) -> Self {
     Self {
@@ -57,7 +59,7 @@ impl DesugarReduceRule {
 
     // Generate the whole rule
     let rule = Rule::new(generated_head, Formula::Reduce(generated_aggregate));
-    let rule_decl = RuleDecl::new_with_loc(attrs.clone(), Tag::none(), rule, decl_loc.clone());
+    let rule_decl = RuleDecl::new_with_loc(attrs.clone(), None, rule, decl_loc.clone());
 
     // Return
     Some(rule_decl)

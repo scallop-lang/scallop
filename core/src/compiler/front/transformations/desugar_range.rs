@@ -16,6 +16,8 @@ use crate::compiler::front::*;
 #[derive(Clone, Debug)]
 pub struct DesugarRange;
 
+impl<'a> Transformation<'a> for DesugarRange {}
+
 impl DesugarRange {
   pub fn new() -> Self {
     Self

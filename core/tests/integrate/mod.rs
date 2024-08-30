@@ -12,4 +12,5 @@ mod io;
 mod iter;
 mod prob;
 mod sampling;
+mod tag;
 mod time;

@@ -16,6 +16,8 @@ use crate::compiler::front::*;
 #[derive(Clone, Debug)]
 pub struct DesugarForallExists;
 
+impl<'a> Transformation<'a> for DesugarForallExists {}
+
 impl DesugarForallExists {
   pub fn new() -> Self {
     Self

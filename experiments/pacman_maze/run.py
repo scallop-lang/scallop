@@ -343,7 +343,7 @@ if __name__ == "__main__":
   parser.add_argument("--show-run", action="store_true")
   parser.add_argument("--show-train-run", action="store_true")
   parser.add_argument("--show-test-run", action="store_true")
-  parser.add_argument("--show-run-interval", type=int, default=0.001)
+  parser.add_argument("--show-run-interval", type=float, default=0.001)
   parser.add_argument("--window-size", type=int, default=200)
   parser.add_argument("--overlay-prediction", action="store_true")
   parser.add_argument("--easy", action="store_true")

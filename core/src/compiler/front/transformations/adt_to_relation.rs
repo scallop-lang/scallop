@@ -6,6 +6,16 @@ pub struct TransformAlgebraicDataType<'a> {
   analysis: &'a mut AlgebraicDataTypeAnalysis,
 }
 
+impl<'a> Transformation<'a> for TransformAlgebraicDataType<'a> {
+  fn post_walking_removes_item(&self, item: &Item) -> bool {
+    !self.retain(item)
+  }
+
+  fn post_walking_generated_items(&mut self) -> Vec<Item> {
+    self.generate_items()
+  }
+}
+
 impl<'a> NodeVisitor<TypeDecl> for TransformAlgebraicDataType<'a> {
   fn visit_mut(&mut self, type_decl: &mut TypeDecl) {
     match type_decl {
@@ -25,7 +35,7 @@ impl<'a> TransformAlgebraicDataType<'a> {
     Self { analysis }
   }
 
-  pub fn generate_items(self) -> Vec<Item> {
+  pub fn generate_items(&mut self) -> Vec<Item> {
     let result = self
       .analysis
       .adt_variants

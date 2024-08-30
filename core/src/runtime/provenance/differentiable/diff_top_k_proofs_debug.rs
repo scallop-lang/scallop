@@ -112,11 +112,9 @@ impl<T: FromTensor, P: PointerFamily> Provenance for DiffTopKProofsDebugProvenan
       .map(|clause| {
         clause
           .iter()
-          .map(|literal| {
-            match literal {
-              Literal::Pos(id) => (true, *id),
-              Literal::Neg(id) => (false, *id),
-            }
+          .map(|literal| match literal {
+            Literal::Pos(id) => (true, *id),
+            Literal::Neg(id) => (false, *id),
           })
           .collect()
       })

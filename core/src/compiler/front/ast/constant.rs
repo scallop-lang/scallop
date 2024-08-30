@@ -1,25 +1,7 @@
-use crate::common::input_tag::DynamicInputTag;
 use crate::common::value::Value;
 use crate::common::value_type::ValueType;
 
 use super::*;
-
-/// A tag associated with a fact
-#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
-#[doc(hidden)]
-pub struct _Tag {
-  pub tag: DynamicInputTag,
-}
-
-impl Tag {
-  pub fn none() -> Self {
-    Self::new(DynamicInputTag::None)
-  }
-
-  pub fn is_some(&self) -> bool {
-    self.tag().is_some()
-  }
-}
 
 #[derive(Clone, Debug, PartialEq, Hash, Serialize, AstNode)]
 #[doc(hidden)]

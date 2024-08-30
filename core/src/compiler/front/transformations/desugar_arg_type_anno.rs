@@ -5,9 +5,11 @@ pub struct DesugarArgTypeAdornment {
   new_items: Vec<Item>,
 }
 
+impl<'a> Transformation<'a> for DesugarArgTypeAdornment {}
+
 impl DesugarArgTypeAdornment {
   pub fn new() -> Self {
-    Self { new_items: Vec::new() }
+    Self { new_items: vec![] }
   }
 
   pub fn generate_demand_attribute(rel_type: &RelationType) -> Attribute {

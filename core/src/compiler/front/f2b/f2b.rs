@@ -1,5 +1,6 @@
 use std::collections::*;
 
+use crate::common::input_tag::DynamicInputTag;
 use crate::common::output_option::OutputOption;
 use crate::common::value_type::ValueType;
 use crate::compiler::back;
@@ -120,8 +121,9 @@ impl FrontContext {
                   c.as_constant().unwrap().to_value(t)
                 })
                 .collect();
+              let tag = to_constant_dyn_input_tag(tuple.tag());
               back::Fact {
-                tag: tuple.tag().tag().clone(),
+                tag,
                 predicate: pred.clone(),
                 args,
               }
@@ -133,8 +135,9 @@ impl FrontContext {
           let pred = f.predicate_name();
           let tys = self.relation_arg_types(&pred).unwrap();
           let args = f.iter_constants().zip(tys.iter()).map(|(c, t)| c.to_value(t)).collect();
+          let tag = to_constant_dyn_input_tag(&f.tag().clone().and_then(|e| e.as_constant().cloned()));
           let back_fact = back::Fact {
-            tag: f.tag().tag().clone(),
+            tag: tag,
             predicate: pred.clone(),
             args,
           };
@@ -165,8 +168,9 @@ impl FrontContext {
                   c.as_constant().unwrap().to_value(t)
                 })
                 .collect();
+              let tag = to_constant_dyn_input_tag(tuple.tag());
               back::Fact {
-                tag: tuple.tag().tag().clone(),
+                tag,
                 predicate: pred.clone(),
                 args,
               }
@@ -609,5 +613,18 @@ impl FrontContext {
   fn back_vars(&self, src_rule_loc: &NodeLocation, var_names: Vec<String>) -> Vec<back::Variable> {
     let var_tys = self.type_inference().variable_types(src_rule_loc, var_names.iter());
     self.back_vars_with_types(var_names, var_tys)
+  }
+}
+
+fn to_constant_dyn_input_tag(constant: &Option<front::Constant>) -> DynamicInputTag {
+  if let Some(constant) = constant {
+    match constant {
+      front::Constant::Boolean(b) => DynamicInputTag::Bool(*b.value()),
+      front::Constant::Float(f) => DynamicInputTag::Float(*f.float()),
+      front::Constant::Integer(i) => DynamicInputTag::Float(*i.int() as f64),
+      _ => DynamicInputTag::None,
+    }
+  } else {
+    DynamicInputTag::None
   }
 }

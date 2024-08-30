@@ -216,7 +216,7 @@ impl NodeVisitor<FactDecl> for ConstantDeclAnalysis {
       for v in vars {
         if self.variables.contains_key(v.variable_name()) {
           self.variable_use.insert(v.location().clone(), v.name().to_string());
-        } else {
+        } else if !fact_decl.atom().iter_args().any(|arg| arg.is_destruct()) {
           self.errors.push(ConstantDeclError::UnknownConstantVariable {
             name: v.name().to_string(),
             loc: v.location().clone(),

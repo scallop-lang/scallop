@@ -40,29 +40,29 @@ impl Binding {
   }
 }
 
-/// The identifier of a foreign predicate in a registry
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct ForeignPredicateIdentifier {
-  identifier: String,
-  types: Box<[ValueType]>,
-  binding_pattern: BindingPattern,
-}
+// /// The identifier of a foreign predicate in a registry
+// #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+// pub struct ForeignPredicateIdentifier {
+//   identifier: String,
+//   types: Box<[ValueType]>,
+//   binding_pattern: BindingPattern,
+// }
 
-impl std::fmt::Display for ForeignPredicateIdentifier {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.write_fmt(format_args!(
-      "pred {}[{}]({})",
-      self.identifier,
-      self.binding_pattern,
-      self
-        .types
-        .iter()
-        .map(|t| format!("{}", t))
-        .collect::<Vec<_>>()
-        .join(", ")
-    ))
-  }
-}
+// impl std::fmt::Display for ForeignPredicateIdentifier {
+//   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//     f.write_fmt(format_args!(
+//       "pred {}[{}]({})",
+//       self.identifier,
+//       self.binding_pattern,
+//       self
+//         .types
+//         .iter()
+//         .map(|t| format!("{}", t))
+//         .collect::<Vec<_>>()
+//         .join(", ")
+//     ))
+//   }
+// }
 
 /// A binding pattern for a predicate, e.g. bbf
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]

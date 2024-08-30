@@ -1,3 +1,4 @@
+use super::*;
 use crate::compiler::front::*;
 
 #[derive(Clone, Debug)]
@@ -5,17 +6,23 @@ pub struct TransformAtomicQuery {
   pub to_add_rules: Vec<Rule>,
 }
 
+impl<'a> Transformation<'a> for TransformAtomicQuery {
+  fn post_walking_generated_items(&mut self) -> Vec<Item> {
+    self.drain_items()
+  }
+}
+
 impl TransformAtomicQuery {
   pub fn new() -> Self {
     Self { to_add_rules: vec![] }
   }
 
-  pub fn drain_items(self) -> Vec<Item> {
+  pub fn drain_items(&self) -> Vec<Item> {
     self
       .to_add_rules
       .iter()
       .map(|rule| {
-        let rule_decl = RuleDecl::new(vec![], Tag::none(), rule.clone());
+        let rule_decl = RuleDecl::new(vec![], None, rule.clone());
         let rel_decl = RelationDecl::Rule(rule_decl);
         let item = Item::RelationDecl(rel_decl);
         item

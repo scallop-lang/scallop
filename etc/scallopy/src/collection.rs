@@ -196,6 +196,10 @@ impl Collection {
     self.collection.len()
   }
 
+  fn __len__(slf: PyRef<Self>) -> usize {
+    slf.collection.len()
+  }
+
   fn __iter__(slf: PyRef<Self>) -> CollectionIterator {
     CollectionIterator {
       env: slf.env.clone(),

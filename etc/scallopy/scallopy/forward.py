@@ -39,6 +39,7 @@ class ScallopForwardFunction(torch_importer.Module):
     jit_name: str = "",
     jit_recompile: bool = False,
     dispatch: str = "parallel",
+    sparse_jacobian: bool = False,
     monitors: List[str] = [],
   ):
     super(ScallopForwardFunction, self).__init__()
@@ -111,6 +112,7 @@ class ScallopForwardFunction(torch_importer.Module):
       jit=jit,
       jit_name=jit_name,
       recompile=jit_recompile,
+      sparse_jacobian=sparse_jacobian,
     )
 
   def __call__(self, *pos_args, **kw_args):
@@ -137,6 +139,7 @@ class InternalScallopForwardFunction(torch_importer.Module):
     jit: bool = False,
     jit_name: str = "",
     recompile: bool = False,
+    sparse_jacobian: bool = False,
   ):
     super(InternalScallopForwardFunction, self).__init__()
 
@@ -148,6 +151,7 @@ class InternalScallopForwardFunction(torch_importer.Module):
     self.jit = jit
     self.jit_name = jit_name
     self.recompile = recompile
+    self.sparse_jacobian = sparse_jacobian
     self.fn_counter = self.FORWARD_FN_COUNTER
 
     # Preprocess the dispatch
@@ -278,15 +282,18 @@ class InternalScallopForwardFunction(torch_importer.Module):
     self,
     disjunctions: Dict[str, List[List[List[int]]]] = {},
     output_relations: Optional[List[Union[str, List[str]]]] = None,
+    output_mappings: Union[List, Dict[str, List]] = None,
     **input_facts: Dict[str, Union[torch_importer.Tensor, List]],
   ) -> Union[torch_importer.Tensor, Tuple[List[Tuple], torch_importer.Tensor]]:
     """
     Invoke the forward function with the given facts
 
-    The facts and disjunctions need to be batched
+    The `facts` and `disjunctions` need to be batched; and we assume the batch size
+    to be B
 
-    output_relations can be one of the following format
-    - None, if outputs are provided
+    `output_relations` can be one of the following format
+    - None, if outputs are provided when constructing the ForwardFunction
+    - [rela 1, rela 2, ..., rela B], if we want each data-point to produce different relations
     """
     if self.jit:
       return self._call_with_static_ctx(
@@ -296,6 +303,7 @@ class InternalScallopForwardFunction(torch_importer.Module):
       return self._call_with_dynamic_ctx(
         disjunctions=disjunctions,
         output_relations=output_relations,
+        output_mappings=output_mappings,
         input_facts=input_facts)
 
   def _call_with_static_ctx(
@@ -313,18 +321,18 @@ class InternalScallopForwardFunction(torch_importer.Module):
       # Execute static scallop program for each task from python
       input_tags, output_results = [], []
       for task_id in range(batch_size):
-        (task_input_tags, task_output_results) = self._run_single_static(task_id, all_inputs)
+        (task_input_tags, task_output_results) = self._run_single_static(task_id, all_inputs, self.output_mappings)
         input_tags.append(task_input_tags)
         output_results.append(task_output_results)
     elif self.dispatch == "parallel":
       # Directly dispatch all the inputs to rust, and execute with parallel
-      (input_tags, output_results) = self._run_batch_static(batch_size, all_inputs, parallel=True)
+      (input_tags, output_results) = self._run_batch_static(batch_size, all_inputs, self.output_mappings, parallel=True)
     else:
       # Directly dispatch all the inputs to rust
-      (input_tags, output_results) = self._run_batch_static(batch_size, all_inputs, parallel=False)
+      (input_tags, output_results) = self._run_batch_static(batch_size, all_inputs, self.output_mappings, parallel=False)
 
     # Process the output
-    return self._process_output(batch_size, input_tags, output_results)
+    return self._process_output(batch_size, input_tags, output_results, self.output_mappings)
 
   def _get_k(self):
     if self.ctx._train_k is not None or self.ctx._test_k is not None:
@@ -336,8 +344,9 @@ class InternalScallopForwardFunction(torch_importer.Module):
   def _call_with_dynamic_ctx(
     self,
     disjunctions: Optional[Dict],
-    output_relations: Optional[List[Union[str, List[str]]]],
+    output_relations: Optional[Union[str, List[Union[str, List[str]]]]],
     input_facts: Dict[str, Union[torch_importer.Tensor, List]],
+    output_mappings: Optional[Union[List, Dict[str, List]]] = None,
   ):
     self.ctx._refresh_training_eval_state(self.training) # Set train/eval
     self.ctx._internal.set_non_incremental()
@@ -350,12 +359,62 @@ class InternalScallopForwardFunction(torch_importer.Module):
     all_inputs = self._process_all_input_facts(batch_size, input_facts, disjunctions)
 
     # Process the output into a list of output relations
-    if output_relations is None: output_relations = [self.outputs] * batch_size
-    else: output_relations = [rs if type(rs) == list else [rs] for rs in output_relations]
-    if any([len(rs) == 0 for rs in output_relations]):
+    if output_relations is None:
+      current_output_relations = [self.outputs] * batch_size
+    elif type(output_relations) == str:
+      current_output_relations = [[output_relations]] * batch_size
+    elif type(output_relations) == list:
+      current_output_relations = [rs if type(rs) == list else [rs] for rs in output_relations]
+
+    # Making sure that output relations are well-formed
+    if any([len(rs) == 0 for rs in current_output_relations]):
       raise Exception(f"There exists a 0 output relations data-point")
-    if len(output_relations) != batch_size:
-      raise Exception(f"Number of output relations ({len(output_relations)}) does not match the batch size ({batch_size})")
+    if len(current_output_relations) != batch_size:
+      raise Exception(f"Number of output relations ({len(current_output_relations)}) does not match the batch size ({batch_size})")
+
+    # Process the output_mappings
+    # the set of output relations for the first data-point in the batch
+    first_output_relations = current_output_relations[0]
+    if output_mappings is not None:
+      # First initialize the `current_output_mappings` to be a deep copy of the existing output mapping
+      # Later on if there is new temporary output mapping provided that is specific to the batch, we will
+      # use the temporary output mapping to overwrite the mappings in the existing output mapping
+      current_output_mappings = {k: v for (k, v) in self.output_mappings.items()}
+
+      # Compute some statistics of output relations to make sure that the input is well-formed
+      set_of_output_relations = set([r for rs in current_output_relations for r in rs])
+      num_output_relations = len(set_of_output_relations)
+
+      # Check if there is only one single output relation
+      if num_output_relations == 1:
+        output_relation = first_output_relations[0]
+        if type(output_mappings) == list:
+          # the output mappings could be a single list, which would by default be the output mapping
+          # for the only output relation that is specified
+          assert len(output_mappings) > 0, f"Expect the `output_mappings` to be non-empty"
+          current_output_mappings[output_relation] = self._process_one_output_mapping(output_mappings)
+        elif type(output_mappings) == dict:
+          # the output_mappings struct could be a dictionary. In this case it could either be empty or contains
+          # exactly one output mapping which is for the only output relation.
+          for (rela_name, rela_output_mapping) in output_mappings.items():
+            assert rela_name in set_of_output_relations, f"The provided output mapping {rela_name} is not among the set of output relations"
+            assert len(rela_output_mapping) > 0, f"Expect the output mapping for the `{rela_name}` relation to be non-empty"
+            current_output_mappings[rela_name] = self._process_one_output_mapping(rela_output_mapping)
+        else:
+          assert False, f"Unknown format of `output_mappings` when calling Scallop forward. Expecting list or dict."
+      else:
+        # we make sure that this should be the same for every single data-point of the rest of the batch
+        is_uniform_output = all([rs == first_output_relations for rs in current_output_relations[1:]])
+        assert is_uniform_output, f"We expect that the output relations to be the same across all datapoints in a batch"
+
+        # we make sure that the output_mappings is provided for all
+        assert type(output_mappings) == dict, f"Expect the `output_mappings` variable to be a dict for the batch with multiple output relations"
+        for (rela_name, rela_output_mapping) in output_mappings.items():
+          assert rela_name in set_of_output_relations, f"The provided output mapping {rela_name} is not among the set of output relations"
+          assert len(rela_output_mapping) > 0, f"Expect the output mapping for the `{rela_name}` relation to be non-empty"
+          current_output_mappings[rela_name] = self._process_one_output_mapping(rela_output_mapping)
+    else:
+      current_output_mappings = self.output_mappings
 
     # Check task dispatcher
     if self.dispatch == "single":
@@ -363,20 +422,20 @@ class InternalScallopForwardFunction(torch_importer.Module):
       input_tags = []
       output_results = []
       for task_id in range(batch_size):
-        (task_input_tags, task_output_results) = self._run_single(task_id, all_inputs, output_relations[task_id])
+        (task_input_tags, task_output_results) = self._run_single(task_id, all_inputs, current_output_relations[task_id], current_output_mappings)
         input_tags.append(task_input_tags)
         output_results.append(task_output_results)
     elif self.dispatch == "serial":
       # Directly dispatch all the inputs to rust
-      (input_tags, output_results) = self._run_batch(batch_size, all_inputs, output_relations, parallel=False)
+      (input_tags, output_results) = self._run_batch(batch_size, all_inputs, current_output_relations, current_output_mappings, parallel=False)
     elif self.dispatch == "parallel":
       # Dispatch all the inputs to rust and call rayon as parallelism backend
-      (input_tags, output_results) = self._run_batch(batch_size, all_inputs, output_relations, parallel=True)
+      (input_tags, output_results) = self._run_batch(batch_size, all_inputs, current_output_relations, current_output_mappings, parallel=True)
     else:
       raise Exception(f"Unknown dispatch type `{self.dispatch}`")
 
     # Process the output
-    return self._process_output(batch_size, input_tags, output_results)
+    return self._process_output(batch_size, input_tags, output_results, current_output_mappings)
 
   def _compute_and_check_batch_size(self, inputs: Dict[str, Union[torch_importer.Tensor, List]]) -> int:
     """
@@ -458,7 +517,7 @@ class InternalScallopForwardFunction(torch_importer.Module):
       # Add the facts
       return facts
 
-  def _run_single(self, task_id, all_inputs, output_relations):
+  def _run_single(self, task_id, all_inputs, output_relations, output_mappings):
     """
     Run a single task (identified by `task_id`)
 
@@ -490,12 +549,12 @@ class InternalScallopForwardFunction(torch_importer.Module):
     else: cs = [temp_ctx._internal.relation(r) for r in output_relations]
 
     # Process the collection to get the output results
-    output_results = [self._process_single_output(output_relations[i], c) for (i, c) in enumerate(cs)]
+    output_results = [self._process_single_output(output_relations[i], c, output_mappings) for (i, c) in enumerate(cs)]
 
     # Return
     return (input_tags, output_results)
 
-  def _run_batch(self, batch_size, all_inputs, output_relations, parallel: bool):
+  def _run_batch(self, batch_size, all_inputs, output_relations, output_mappings, parallel: bool):
     """
     Run a batch of tasks
     """
@@ -503,10 +562,10 @@ class InternalScallopForwardFunction(torch_importer.Module):
     input_tags, output_results = [], []
     for task_id in range(batch_size):
       input_tags.append(results[task_id][0].input_tags())
-      output_results.append([self._process_single_output(output_relations[task_id][i], c) for (i, c) in enumerate(results[task_id])])
+      output_results.append([self._process_single_output(output_relations[task_id][i], c, output_mappings) for (i, c) in enumerate(results[task_id])])
     return (input_tags, output_results)
 
-  def _run_single_static(self, task_id, all_inputs):
+  def _run_single_static(self, task_id, all_inputs, output_mappings):
     """
     Run a batch of tasks using
     """
@@ -527,12 +586,12 @@ class InternalScallopForwardFunction(torch_importer.Module):
 
     # Get the collection for the target output
     collections = [temp_ctx.relation(rel_name) for rel_name in self.outputs]
-    output_results = [self._process_single_output(self.outputs[i], c) for (i, c) in enumerate(collections)]
+    output_results = [self._process_single_output(self.outputs[i], c, output_mappings) for (i, c) in enumerate(collections)]
 
     # Return
     return (input_tags, output_results)
 
-  def _run_batch_static(self, batch_size, all_inputs, parallel):
+  def _run_batch_static(self, batch_size, all_inputs, output_mappings, parallel):
     """
     Run a batch of tasks using statically compiled module
     """
@@ -547,29 +606,44 @@ class InternalScallopForwardFunction(torch_importer.Module):
     input_tags, output_results = [], []
     for task_id in range(batch_size):
       input_tags.append(result[task_id][0])
-      output_results.append([self._process_single_output(self.outputs[i], c) for (i, c) in enumerate(result[task_id][1])])
+      output_results.append([self._process_single_output(self.outputs[i], c, output_mappings) for (i, c) in enumerate(result[task_id][1])])
 
     # Return
     return (input_tags, output_results)
 
-  def _process_single_output(self, relation_name, internal_collection):
+  def _process_single_output(self, relation_name, internal_collection, output_mappings):
+    """
+    Given a raw output collection from internal Scallop module, process the output with a given output mapping
+    """
     internal_result_dict = { tup: tag for (tag, tup) in internal_collection }
-    if relation_name in self.output_mappings and self.output_mappings[relation_name] is not None:
-      return [internal_result_dict[t] if t in internal_result_dict else None for t in self.output_mappings[relation_name][1]]
+    if relation_name in output_mappings and output_mappings[relation_name] is not None:
+      return [internal_result_dict[t] if t in internal_result_dict else None for t in output_mappings[relation_name][1]]
     else:
       return internal_result_dict
 
-  def _process_output(self, batch_size, input_tags, output_results):
-    if len(self.outputs) == 1:
-      return self._process_one_output_wrapper(0, self.outputs[0], batch_size, input_tags, output_results)
-    elif len(self.outputs) > 1:
-      return {rel_name: self._process_one_output_wrapper(i, rel_name, batch_size, input_tags, output_results) for (i, rel_name) in enumerate(self.outputs)}
-    else:
-      []
+  def _process_output(self, batch_size, input_tags, output_results, output_mappings):
+    """
+    Given all the outputs from internal Scallop module, process the outputs
+    """
 
-  def _process_one_output_wrapper(self, rel_index, rel_name, batch_size, input_tags, output_results):
-    if self.output_mappings[rel_name] is not None:
-      (single_element, output_mapping) = self.output_mappings[rel_name]
+    # First make sure that the outputs are well-defined
+    if len(self.outputs) == 0:
+      outputs = list(output_mappings.keys())
+    else:
+      outputs = self.outputs
+    assert type(outputs) == list, f"Expect outputs to be a list"
+    assert len(outputs) > 0, f"Expect non-empty output from a forward function; however the current `outputs` is empty"
+    assert all(type(output_rel) == str for output_rel in outputs), f"Expect each element of output array to be a string (relation name)"
+
+    # Then depending on how many of the output relations, process the output for each output relation
+    if len(outputs) == 1:
+      return self._process_one_output_wrapper(0, outputs[0], batch_size, input_tags, output_results, output_mappings)
+    elif len(outputs) > 1:
+      return {rel_name: self._process_one_output_wrapper(i, rel_name, batch_size, input_tags, output_results, output_mappings) for (i, rel_name) in enumerate(outputs)}
+
+  def _process_one_output_wrapper(self, rel_index, rel_name, batch_size, input_tags, output_results, output_mappings):
+    if output_mappings[rel_name] is not None:
+      (single_element, output_mapping) = output_mappings[rel_name]
       return self._process_one_output(batch_size, input_tags, [r[rel_index] for r in output_results], single_element, output_mapping)
     else:
       return self._process_one_output(batch_size, input_tags, [r[rel_index] for r in output_results], False, None)
@@ -743,20 +817,50 @@ class InternalScallopForwardFunction(torch_importer.Module):
     # mat_i: Input matrix
     mat_i = torch_importer.torch.stack([torch_importer.torch.stack(pad_input(l)) for l in input_tags])
 
-    # mat_w: Weight matrix
-    mat_w = self._torch_tensor_apply((torch_importer.torch.zeros(batch_size, num_outputs, num_inputs)))
-    for (batch_id, task_result) in enumerate(output_batch): # batch_size
-      for (output_id, output_tag) in enumerate(task_result): # output_size
-        if output_tag is not None:
-          deriv = output_tag[1] # The 1-st element of the differentiable result is always the derivative
-          for (input_id, weight) in deriv:
-            mat_w[batch_id, output_id, input_id] = weight
+    # Check whether we want to use sparse jacobian
+    if self.sparse_jacobian:
+      # Populate the indices and values to later construct the sparse matrix
+      indices, values = [], []
+      for batch_id, task_result in enumerate(output_batch): # batch_size
+        for output_id, output_tag in enumerate(task_result): # output_size
+          if output_tag is not None:
+            deriv = output_tag[1] # The 1st element of the differentiable result is always the derivative
+            for (input_id, weight) in deriv:
+              indices.append([batch_id, output_id, input_id])
+              values.append(weight)
+
+      # Convert indices and values into tensors
+      indices = torch_importer.torch.tensor(indices).t() # Transpose to get the correct shape for sparse_coo_tensor
+      values = torch_importer.torch.tensor(values)
+
+      # Create the sparse tensor
+      mat_w = self._torch_tensor_apply( # making sure that the tensor is on the intended device
+        torch_importer.torch.sparse_coo_tensor(indices, values, (batch_size, num_outputs, num_inputs)))
+    else:
+      # mat_w: Weight matrix
+      mat_w = self._torch_tensor_apply(torch_importer.torch.zeros(batch_size, num_outputs, num_inputs))
+      for (batch_id, task_result) in enumerate(output_batch): # batch_size
+        for (output_id, output_tag) in enumerate(task_result): # output_size
+          if output_tag is not None:
+            deriv = output_tag[1] # The 1-st element of the differentiable result is always the derivative
+            for (input_id, weight) in deriv:
+              mat_w[batch_id, output_id, input_id] = weight
 
     # backward hook
     retain_graph = self.retain_graph
     def hook(grad):
       if mat_i.requires_grad:
-        mat_f = torch_importer.torch.einsum("ikj,ik->ij", mat_w, grad)
+        if self.sparse_jacobian:
+          # An equivalent operation to using einsum under sparse setting
+          grad_expanded = grad.unsqueeze(-1)
+          mult = mat_w * grad_expanded
+          mat_f_sparse = torch_importer.torch.sparse.sum(mult, dim=1)
+          mat_f = mat_f_sparse.to_dense()
+        else:
+          # Chain-rule: multiply the jacobian (mat_w) with the gradient that is back-propagated to Scallop module
+          mat_f = torch_importer.torch.einsum("ikj,ik->ij", mat_w, grad)
+
+        # Apply backward; potentially retaining graphs
         mat_i.backward(mat_f, retain_graph=retain_graph)
 
     return hook

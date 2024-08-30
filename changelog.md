@@ -1,3 +1,14 @@
+# v0.2.4, Aug 30, 2024
+
+- Rule tags can now be expressions with potential reference to local variables: `rel 1/n::head() = body(n)`
+- Allowing for sparse gradient computation inside Scallopy to minimize memory footprint
+- Allowing users to specify per-datapoint output mapping inside Scallopy
+- Adding destructor syntax so that ADTs can be used in a more idiomatic way
+- Unifying the behavior of integer overflow inside Scallop
+- Multiple bugs fixed
+
+# v0.2.3, Jun 23, 2024
+
 # v0.2.2, Oct 25, 2023
 
 - Adding `wmc_with_disjunctions` option for provenances that deal with boolean formulas for more accurate probability estimation

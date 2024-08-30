@@ -304,6 +304,7 @@ impl TypeInference {
           &self.foreign_predicate_type_registry,
           &self.foreign_aggregate_type_registry,
           &mut inferred_expr_types,
+          false,
         )?;
         ctx.propagate_variable_types(&mut inferred_var_expr, &mut inferred_expr_types)?;
         ctx.propagate_relation_types(
@@ -317,6 +318,25 @@ impl TypeInference {
     // Final step, iterate through each rule and their local context
     // and make sure everything is fine
     for ctx in &self.rule_local_contexts {
+      // Try unify one last time; this time using "strict" option
+      ctx.unify_expr_types(
+        &self.custom_types,
+        &self.constant_types,
+        &self.inferred_relation_types,
+        &self.foreign_function_type_registry,
+        &self.foreign_predicate_type_registry,
+        &self.foreign_aggregate_type_registry,
+        &mut inferred_expr_types,
+        true,
+      )?;
+      ctx.propagate_variable_types(&mut inferred_var_expr, &mut inferred_expr_types)?;
+      ctx.propagate_relation_types(
+        &inferred_relation_expr,
+        &inferred_expr_types,
+        &mut self.inferred_relation_types,
+      )?;
+
+      // Perform type cast and constraint checks
       ctx.check_type_cast(&self.custom_types, &inferred_expr_types)?;
       ctx.check_constraint(&inferred_expr_types)?;
 

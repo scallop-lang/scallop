@@ -4,6 +4,8 @@ use crate::compiler::front::*;
 #[derive(Clone, Debug)]
 pub struct TransformImplies;
 
+impl<'a> Transformation<'a> for TransformImplies {}
+
 impl NodeVisitor<Formula> for TransformImplies {
   fn visit_mut(&mut self, formula: &mut Formula) {
     match formula {

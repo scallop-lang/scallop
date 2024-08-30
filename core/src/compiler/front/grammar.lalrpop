@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use super::ast::*;
-use crate::common::input_tag::DynamicInputTag;
 
 grammar;
 
@@ -324,6 +323,72 @@ _ConstDecl: _ConstDecl = {
   }
 }
 
+/// ======================= ///
+/// ========= Tag ========= ///
+/// ======================= ///
+
+Tag: Expr = ExprTagTop;
+
+ExprTagTop: Expr = {
+  AndOrExprTag,
+}
+
+_AndOrBinaryExprTag: _BinaryExpr = {
+  <op1: AndOrExprTag> <op: AndOrBinaryOp> <op2: AddSubExprTag> => {
+    _BinaryExpr::new(op, op1, op2)
+  }
+}
+
+AndOrExprTag: Expr = {
+  Spanned<_AndOrBinaryExprTag> => Expr::binary(<>),
+  AddSubExprTag,
+}
+
+_AddSubBinaryExprTag: _BinaryExpr = {
+  <op1: AddSubExprTag> <op: AddSubBinaryOp> <op2: MulDivModExprTag> => {
+    _BinaryExpr::new(op, op1, op2)
+  }
+}
+
+AddSubExprTag: Expr = {
+  Spanned<_AddSubBinaryExprTag> => Expr::binary(<>),
+  MulDivModExprTag,
+}
+
+_MulDivModBinaryExprTag: _BinaryExpr = {
+  <op1: MulDivModExprTag> <op: MulDivModBinaryOp> <op2: UnaryExprTag> => {
+    _BinaryExpr::new(op, op1, op2)
+  }
+}
+
+MulDivModExprTag: Expr = {
+  Spanned<_MulDivModBinaryExprTag> => Expr::binary(<>),
+  UnaryExprTag,
+}
+
+_UnaryExprTag: _UnaryExpr = {
+  <op: UnaryOp> <op1: UnitExprTag> => _UnaryExpr::new(op, op1),
+  // <op1: UnitExpr> <op: TypeCastOp> => _UnaryExpr::new(op, op1),
+}
+
+UnaryExprTag: Expr = {
+  Spanned<_UnaryExprTag> => Expr::unary(<>),
+  UnitExprTag,
+}
+
+ComplexExprTag: Expr = {
+  Spanned<_AndOrBinaryExprTag> => Expr::binary(<>),
+  Spanned<_AddSubBinaryExprTag> => Expr::binary(<>),
+  Spanned<_MulDivModBinaryExprTag> => Expr::binary(<>),
+  Spanned<_UnaryExprTag> => Expr::unary(<>),
+}
+
+UnitExprTag: Expr = {
+  Constant => Expr::constant(<>),
+  Identifier => Expr::variable(Variable::new(<>)),
+  "(" <t: ComplexExprTag> ")" => t,
+}
+
 /// ======================================== ///
 /// ========= Relation Declaration ========= ///
 /// ======================================== ///
@@ -340,12 +405,6 @@ RelationDecl: RelationDecl = {
   FactDecl => RelationDecl::Fact(<>),
   RuleDecl => RelationDecl::Rule(<>),
   ReduceRuleDecl => RelationDecl::ReduceRule(<>),
-}
-
-Tag = Spanned<_Tag>;
-_Tag: _Tag = {
-  Float => _Tag::new(DynamicInputTag::Float(<>)),
-  Bool => _Tag::new(DynamicInputTag::Bool(<>)),
 }
 
 Constant: Constant = {
@@ -372,11 +431,11 @@ _ConstantTuple: _ConstantTuple = {
 
 ConstantSetTuple = Spanned<_ConstantSetTuple>;
 _ConstantSetTuple: _ConstantSetTuple = {
-  <tag: Tag> "::" <tuple: ConstantTuple> => {
-    _ConstantSetTuple::new(tag, tuple)
+  <tag: Constant> "::" <tuple: ConstantTuple> => {
+    _ConstantSetTuple::new(Some(tag), tuple)
   },
   <tuple: ConstantTuple> => {
-    _ConstantSetTuple::new(Tag::none(), tuple)
+    _ConstantSetTuple::new(None, tuple)
   }
 }
 
@@ -395,8 +454,8 @@ _ConstantSetDecl: _ConstantSetDecl = {
 
 FactDecl = Spanned<_FactDecl>;
 _FactDecl: _FactDecl = {
-  <attrs: Attributes> RelationKeyword <tag: Tag> "::" <a: Atom> => _FactDecl::new(attrs, tag, a),
-  <attrs: Attributes> RelationKeyword <a: Atom> => _FactDecl::new(attrs, Tag::none(), a),
+  <attrs: Attributes> RelationKeyword <tag: Tag> "::" <a: Atom> => _FactDecl::new(attrs, Some(tag), a),
+  <attrs: Attributes> RelationKeyword <a: Atom> => _FactDecl::new(attrs, None, a),
 }
 
 Wildcard = Spanned<_Wildcard>;
@@ -407,10 +466,10 @@ _Variable: _Variable = Identifier => _Variable::new(<>);
 
 Atom = Spanned<_Atom>;
 _Atom: _Atom = {
-  <predicate: Identifier> "(" <args: Separated<Expr, ",">> ")" => {
+  <predicate: Identifier> "(" <args: Separated<PossiblyDestructExpr, ",">> ")" => {
     _Atom::new(predicate, vec![], args)
   },
-  <n: SpecializedPredicate> "(" <args: Separated<Expr, ",">> ")" => {
+  <n: SpecializedPredicate> "(" <args: Separated<PossiblyDestructExpr, ",">> ")" => {
     let (predicate, type_arg_ids) = n;
     let type_args = type_arg_ids.into_iter().map(Type::from).collect();
     _Atom::new(predicate, type_args, args)
@@ -615,6 +674,18 @@ _VariableBinding: _VariableBinding = {
   "(" <name: Identifier> ":" <ty: Type> ")" => _VariableBinding::new(name, Some(ty)),
 }
 
+PossiblyDestructExpr: Expr = {
+  Expr,
+  <e: DestructExpr> => Expr::Destruct(e),
+}
+
+DestructExpr = Spanned<_DestructExpr>;
+_DestructExpr: _DestructExpr = {
+  <functor: Identifier> "(" <args: Separated<PossiblyDestructExpr, ",">> ")" => {
+    _DestructExpr::new(functor, args)
+  }
+}
+
 Expr: Expr = IfThenElseExpr;
 
 IfThenElseExpr: Expr = {
@@ -786,10 +857,10 @@ _Rule: _Rule = {
 RuleDecl = Spanned<_RuleDecl>;
 _RuleDecl: _RuleDecl = {
   <a: Attributes> RelationKeyword <tag: Tag> "::" <r: Rule> => {
-    _RuleDecl::new(a, tag, r)
+    _RuleDecl::new(a, Some(tag), r)
   },
   <a: Attributes> RelationKeyword <r: Rule> => {
-    _RuleDecl::new(a, Tag::none(), r)
+    _RuleDecl::new(a, None, r)
   },
 }
 

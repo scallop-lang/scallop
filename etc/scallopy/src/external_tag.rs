@@ -46,7 +46,9 @@ impl ExtTagVec for Vec<ExtTag> {
 
   fn into_none_prepended_vec(self) -> Vec<Py<PyAny>> {
     let none: Option<Py<PyAny>> = None;
-    std::iter::once(Python::with_gil(|py| none.to_object(py))).chain(self.into_iter().map(|v| v.tag)).collect()
+    std::iter::once(Python::with_gil(|py| none.to_object(py)))
+      .chain(self.into_iter().map(|v| v.tag))
+      .collect()
   }
 }
 

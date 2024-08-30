@@ -15,7 +15,7 @@ impl ConstantTuple {
 #[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
 pub struct _ConstantSetTuple {
-  pub tag: Tag,
+  pub tag: Option<Constant>,
   pub tuple: ConstantTuple,
 }
 
@@ -58,7 +58,7 @@ impl ConstantSetDecl {
 #[doc(hidden)]
 pub struct _FactDecl {
   pub attrs: Attributes,
-  pub tag: Tag,
+  pub tag: Option<Expr>,
   pub atom: Atom,
 }
 
@@ -78,17 +78,13 @@ impl FactDecl {
   pub fn iter_constants(&self) -> impl Iterator<Item = &Constant> {
     self.iter_args().filter_map(|expr| expr.as_constant())
   }
-
-  pub fn has_tag(&self) -> bool {
-    self.tag().is_some()
-  }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
 #[doc(hidden)]
 pub struct _RuleDecl {
   pub attrs: Attributes,
-  pub tag: Tag,
+  pub tag: Option<Expr>,
   pub rule: Rule,
 }
 

@@ -4,6 +4,8 @@ use crate::utils::IdAllocator;
 #[derive(Clone, Debug)]
 pub struct DesugarCaseIs;
 
+impl<'a> Transformation<'a> for DesugarCaseIs {}
+
 impl DesugarCaseIs {
   pub fn new() -> Self {
     Self
@@ -24,9 +26,7 @@ impl DesugarCaseIs {
       }
       Entity::Object(o) => {
         // If the entity is an object, the formula is a conjunction of atoms
-        let parent_id = case
-          .location_id()
-          .expect("Case location id is not populated prior to desugar case is transformation");
+        let parent_id = case.variable_name();
         let variable = case.variable().clone();
         let mut variable_counter = IdAllocator::new();
         let mut formulas = vec![];
@@ -44,7 +44,7 @@ impl DesugarCaseIs {
     &self,
     variable: Variable,
     object: &Object,
-    parent_id: usize,
+    parent_id: &String,
     variable_counter: &mut IdAllocator,
     formulas: &mut Vec<Formula>,
   ) {
@@ -60,7 +60,7 @@ impl DesugarCaseIs {
           let variable_id = variable_counter.alloc();
 
           // Create a variable from the variable id
-          let current_variable = Variable::new(Identifier::new(format!("adt#var#{parent_id}#{variable_id}")));
+          let current_variable = Variable::new(Identifier::new(format!("adt#var#({parent_id})#{variable_id}")));
 
           // Recurse on the object
           self.transform_object_to_formula_helper(current_variable.clone(), o, parent_id, variable_counter, formulas);

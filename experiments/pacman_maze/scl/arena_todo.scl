@@ -1,0 +1,49 @@
+// Static input facts
+type grid_node(x: usize, y: usize)
+
+// Input from neural networks
+type actor(x: usize, y: usize)
+type goal(x: usize, y: usize)
+type enemy(x: usize, y: usize)
+
+// Possible actions to take
+type Action = UP | RIGHT | DOWN | LEFT
+
+// =========== YOUR CODE START HERE ===========
+
+// ** Problem 1: safe_node **
+// (x, y) is a safe node if it is a grid node and does not contain an enemy
+type safe_node(x: usize, y: usize)
+/* YOUR CODE HERE */
+
+// ** Problem 2: edge **
+// There is an (safe) edge between safe nodes (x1, y1) and (x2, y2) if
+// taking the action `a` can move the actor from (x1, y1) to (x2, y2)
+type edge(x1: usize, y1: usize, x2: usize, y2: usize, a: Action)
+/* YOUR CODE HERE */
+
+// ** Problem 3: path **
+// There is a (safe) path between safe nodes (x1, y1) and (x2, y2) if
+// there is a series of safe edges connecting the two nodes.
+// Note that self-path is also a safe path.
+type path(x1: usize, y1: usize, x2: usize, y2: usize)
+/* YOUR CODE HERE */
+
+// ** Problem 4: next_position **
+// Given the current actor position, taking the action `a` would move the
+// actor to the position (x, y)
+type next_position(a: Action, x: usize, y: usize)
+/* YOUR CODE HERE */
+
+// ** Problem 5: next_position **
+// We pick the action `a` as the next action if, after moving to the next
+// position with `a`, we have a safe path from the next position to the goal
+type next_action(a: Action)
+/* YOUR CODE HERE */
+
+// =========== YOUR CODE END HERE ===========
+
+// Constraint violation; please keep these as is
+rel too_many_goal() = n := count(x, y: goal(x, y)), n > 1
+rel too_many_enemy() = n := count(x, y: enemy(x, y)), n > 5
+rel violation() = too_many_goal() or too_many_enemy()

@@ -73,7 +73,9 @@ pub enum Unification {
   },
 
   /// C, ops*, new C(ops*)
-  New(String, Vec<Loc>, Loc),
+  /// or
+  /// C, ops*, C(ops*)
+  Entity(String, Vec<Loc>, Loc),
 }
 
 impl Unification {
@@ -87,6 +89,7 @@ impl Unification {
     predicate_type_registry: &PredicateTypeRegistry,
     aggregate_type_registry: &AggregateTypeRegistry,
     inferred_expr_types: &mut HashMap<Loc, TypeSet>,
+    strict: bool,
   ) -> Result<(), Error> {
     match self {
       Self::IthArgOfRelation(e, p, i) => {
@@ -159,16 +162,16 @@ impl Unification {
         }
       }
       Self::Add(op1, op2, e) => {
-        unify_polymorphic_binary_expression(op1, op2, e, inferred_expr_types, &ADD_TYPING_RULES)
+        unify_polymorphic_binary_expression(op1, op2, e, inferred_expr_types, &ADD_TYPING_RULES, strict)
       }
       Self::Sub(op1, op2, e) => {
-        unify_polymorphic_binary_expression(op1, op2, e, inferred_expr_types, &SUB_TYPING_RULES)
+        unify_polymorphic_binary_expression(op1, op2, e, inferred_expr_types, &SUB_TYPING_RULES, strict)
       }
       Self::Mult(op1, op2, e) => {
-        unify_polymorphic_binary_expression(op1, op2, e, inferred_expr_types, &MULT_TYPING_RULES)
+        unify_polymorphic_binary_expression(op1, op2, e, inferred_expr_types, &MULT_TYPING_RULES, strict)
       }
       Self::Div(op1, op2, e) => {
-        unify_polymorphic_binary_expression(op1, op2, e, inferred_expr_types, &DIV_TYPING_RULES)
+        unify_polymorphic_binary_expression(op1, op2, e, inferred_expr_types, &DIV_TYPING_RULES, strict)
       }
       Self::Mod(op1, op2, e) => {
         let e_ty = inferred_expr_types
@@ -225,7 +228,7 @@ impl Unification {
         Ok(())
       }
       Self::LtLeqGtGeq(op1, op2, e) => {
-        unify_comparison_expression(op1, op2, e, inferred_expr_types, &COMPARE_TYPING_RULES)
+        unify_comparison_expression(op1, op2, e, inferred_expr_types, &COMPARE_TYPING_RULES, strict)
       }
       Self::PosNeg(op1, e) => {
         let e_ty = inferred_expr_types
@@ -537,7 +540,7 @@ impl Unification {
           )
         }
       }
-      Self::New(functor, args, e) => {
+      Self::Entity(functor, args, e) => {
         let adt_variant_relation_name = format!("adt#{functor}");
 
         // cond should be boolean
@@ -578,7 +581,7 @@ impl Unification {
 enum AppliedRules<T> {
   None,
   One(T),
-  Multiple,
+  Multiple(T, Vec<T>),
 }
 
 impl<T> AppliedRules<T> {
@@ -589,8 +592,8 @@ impl<T> AppliedRules<T> {
   fn add(self, rule: T) -> Self {
     match self {
       Self::None => Self::One(rule),
-      Self::One(_) => Self::Multiple,
-      Self::Multiple => Self::Multiple,
+      Self::One(f) => Self::Multiple(f, vec![]),
+      Self::Multiple(f, r) => Self::Multiple(f, r.into_iter().chain(std::iter::once(rule)).collect()),
     }
   }
 }
@@ -605,6 +608,7 @@ fn unify_polymorphic_binary_expression(
   e: &Loc,
   inferred_expr_types: &mut HashMap<Loc, TypeSet>,
   rules: &[(ValueType, ValueType, ValueType)],
+  strict: bool,
 ) -> Result<(), Error> {
   // First get the already inferred types of op1, op2, and e
   let op1_ty = unify_any(op1, inferred_expr_types).map_err(|e| e.into())?;
@@ -632,10 +636,18 @@ fn unify_polymorphic_binary_expression(
       unify_ty(e, TypeSet::BaseType(te, e.clone()), inferred_expr_types).map_err(|e| e.into())?;
       Ok(())
     }
-    AppliedRules::Multiple => {
-      // If ther are multiple rules that can be applied, we are not sure about the exact types,
-      // but the type inference is still successful
-      Ok(())
+    AppliedRules::Multiple((t1, t2, te), _) => {
+      if strict {
+        // If there is exactly one rule that can be applied, then unify them with the exact types
+        unify_ty(op1, TypeSet::BaseType(t1, e.clone()), inferred_expr_types).map_err(|e| e.into())?;
+        unify_ty(op2, TypeSet::BaseType(t2, e.clone()), inferred_expr_types).map_err(|e| e.into())?;
+        unify_ty(e, TypeSet::BaseType(te, e.clone()), inferred_expr_types).map_err(|e| e.into())?;
+        Ok(())
+      } else {
+        // If ther are multiple rules that can be applied, we are not sure about the exact types,
+        // but the type inference is still successful
+        Ok(())
+      }
     }
   }
 }
@@ -646,6 +658,7 @@ fn unify_comparison_expression(
   e: &Loc,
   inferred_expr_types: &mut HashMap<Loc, TypeSet>,
   rules: &[(ValueType, ValueType)],
+  strict: bool,
 ) -> Result<(), Error> {
   // The result should be a boolean
   let e_ty = unify_boolean(e, inferred_expr_types).map_err(|e| e.into())?;
@@ -674,10 +687,17 @@ fn unify_comparison_expression(
       unify_ty(op2, TypeSet::BaseType(t2, e.clone()), inferred_expr_types).map_err(|e| e.into())?;
       Ok(())
     }
-    AppliedRules::Multiple => {
-      // If ther are multiple rules that can be applied, we are not sure about the exact types,
-      // but the type inference is still successful
-      Ok(())
+    AppliedRules::Multiple((t1, t2), _) => {
+      if strict {
+        // Under strict mode, directly unify with the first matched rule
+        unify_ty(op1, TypeSet::BaseType(t1, e.clone()), inferred_expr_types).map_err(|e| e.into())?;
+        unify_ty(op2, TypeSet::BaseType(t2, e.clone()), inferred_expr_types).map_err(|e| e.into())?;
+        Ok(())
+      } else {
+        // If ther are multiple rules that can be applied, we are not sure about the exact types,
+        // but the type inference is still successful
+        Ok(())
+      }
     }
   }
 }

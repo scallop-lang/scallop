@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use pyo3::exceptions::*;
 use pyo3::prelude::*;
 use pyo3::types::*;
 
@@ -342,16 +343,22 @@ impl PythonProvenance for diff_top_bottom_k_clauses::DiffTopBottomKClausesProven
 
 impl PythonProvenance for diff_top_k_proofs_debug::DiffTopKProofsDebugProvenance<ExtTag, ArcFamily> {
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
-    let tag_disj_id: (&PyAny, usize, Option<usize>) = tag.extract()?;
-    if let Some(prob) = tag_disj_id.0.extract()? {
+    let tag_tuple: &PyTuple = tag.extract()?;
+    let prob: &PyAny = tag_tuple.get_item(0)?;
+    if let Some(prob) = prob.extract()? {
+      let tag_disj_id: (&PyAny, usize, Option<usize>) = tag.extract()?;
       let tag: ExtTag = tag_disj_id.0.into();
       let id: usize = tag_disj_id.1.into();
-      Ok(Some(Self::InputTag {
-        prob,
-        id,
-        external_tag: Some(tag),
-        exclusion: tag_disj_id.2,
-      }))
+      if id == 0 {
+        Err(PyErr::new::<PyValueError, _>("The input ID to the diff-top-k-proofs-debug provenance cannot be 0; consider changing it to starting from 1."))
+      } else {
+        Ok(Some(Self::InputTag {
+          prob,
+          id,
+          external_tag: Some(tag),
+          exclusion: tag_disj_id.2,
+        }))
+      }
     } else {
       Ok(None)
     }

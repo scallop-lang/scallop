@@ -170,3 +170,14 @@ fn adt_add_dynamic_entity_2() {
     vec![(1i32, 10i32), (2, 3)],
   );
 }
+
+#[test]
+fn parse_destructor_1() {
+  expect_compile(
+    r#"
+      type Expr = Const(i32) | Add(Expr, Expr)
+      rel eval(Const(i), i)
+      rel eval(Add(e1, e2), i1 + i2) = eval(e1, i1) and eval(e2, i2)
+    "#,
+  )
+}

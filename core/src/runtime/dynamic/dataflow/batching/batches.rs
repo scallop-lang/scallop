@@ -73,6 +73,7 @@ impl<'a, Prov: Provenance> Batches<'a, Prov> for SingleBatch<'a, Prov> {
   }
 }
 
+#[allow(unused)]
 #[derive(Clone)]
 pub struct DynamicBatchesOptional<'a, Prov: Provenance> {
   optional_batches: Option<DynamicBatches<'a, Prov>>,

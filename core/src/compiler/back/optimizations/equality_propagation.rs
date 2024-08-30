@@ -1,8 +1,10 @@
 use std::collections::*;
 
+use crate::common::foreign_predicate::*;
+
 use super::super::*;
 
-pub fn propagate_equality(rule: &mut Rule) {
+pub fn propagate_equality(rule: &mut Rule, foreign_predicate_registry: &ForeignPredicateRegistry) {
   let mut substitutions = HashMap::<_, Variable>::new();
   let mut ignore_literals = HashSet::new();
   let mut cannot_substitute = HashSet::<Variable>::new();
@@ -18,7 +20,7 @@ pub fn propagate_equality(rule: &mut Rule) {
   }
 
   // Find all the bounded variables by atom and assign
-  let bounded = bounded_by_atom_and_assign(rule);
+  let bounded = bounded_by_atom_and_assign(rule, foreign_predicate_registry);
 
   // Collect all substitutions
   for (i, literal) in rule.body_literals().enumerate() {
@@ -136,14 +138,26 @@ pub fn propagate_equality(rule: &mut Rule) {
     attributes: rule.attributes.clone(),
     head: new_head,
     body: Conjunction { args: new_literals },
-  }
+  };
 }
 
-fn bounded_by_atom_and_assign(rule: &Rule) -> HashSet<Variable> {
+fn bounded_by_atom_and_assign(rule: &Rule, foreign_predicate_registry: &ForeignPredicateRegistry) -> HashSet<Variable> {
   let mut bounded = rule
     .body_literals()
     .flat_map(|l| match l {
-      Literal::Atom(a) => a.variable_args().cloned().collect::<Vec<_>>(),
+      Literal::Atom(atom) => {
+        if let Some(fp) = foreign_predicate_registry.get(&atom.predicate) {
+          // If atom is on foreign predicate, only the variables that are free will be bounded
+          atom.args[fp.num_bounded()..fp.arity()]
+            .iter()
+            .filter_map(|term| term.as_variable())
+            .cloned()
+            .collect::<Vec<_>>()
+        } else {
+          // If atom is on a normal relation, all the variables will be bounded
+          atom.variable_args().cloned().collect::<Vec<_>>()
+        }
+      }
       _ => vec![],
     })
     .collect::<HashSet<_>>();

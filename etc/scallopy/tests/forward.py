@@ -78,6 +78,37 @@ class TestDigitForward(unittest.TestCase):
     self.assertEqual(sum_2.shape, (16, 19))
     self.assertEqual(mult_2.shape, (16, 100))
 
+  @unittest.expectedFailure
+  def test_forward_without_output_mapping(self):
+    forward = self.ctx.forward_function()
+    digit_1 = torch.softmax(torch.randn((16, 10)), dim=1)
+    digit_2 = torch.softmax(torch.randn((16, 10)), dim=1)
+    _ = forward(digit_1=digit_1, digit_2=digit_2)
+
+  def test_forward_with_output_mapping(self):
+    forward = self.ctx.forward_function("sum_2")
+    digit_1 = torch.softmax(torch.randn((16, 10)), dim=1)
+    digit_2 = torch.softmax(torch.randn((16, 10)), dim=1)
+    result_tensor = forward(
+      digit_1=digit_1, digit_2=digit_2,
+      output_mappings=[(i,) for i in range(19)])
+    self.assertEqual(result_tensor.shape, (16, 19))
+
+  def test_forward_with_output_mapping_2(self):
+    forward = self.ctx.forward_function()
+    digit_1 = torch.softmax(torch.randn((16, 10)), dim=1)
+    digit_2 = torch.softmax(torch.randn((16, 10)), dim=1)
+    results = forward(
+      digit_1=digit_1,
+      digit_2=digit_2,
+      output_relations=[["sum_2", "mult_2"]] * 16,
+      output_mappings={
+        "sum_2": [(i,) for i in range(19)],
+        "mult_2": [(i,) for i in range(82)],
+      })
+    self.assertEqual(results["sum_2"].shape, (16, 19))
+    self.assertEqual(results["mult_2"].shape, (16, 82))
+
   def test_multi_result_single_dispatch(self):
     forward = self.ctx.forward_function(output_mappings={"sum_2": list(range(19)), "mult_2": list(range(100))}, dispatch="single")
     digit_1 = torch.softmax(torch.randn((16, 10)), dim=1)

@@ -50,11 +50,14 @@ impl LocalTypeInferenceContext {
   pub fn unify_atom_arities(
     &self,
     predicate_registry: &PredicateTypeRegistry,
+    // ignore_relations: &HashSet<String>,
     inferred_relation_types: &mut HashMap<String, (Vec<TypeSet>, Loc)>,
   ) -> Result<(), Error> {
     for (pred, arities) in &self.atom_arities {
       // Skip foreign predicates
-      if predicate_registry.contains_predicate(pred) {
+      if predicate_registry.contains_predicate(pred)
+      /* || ignore_relations.contains(pred) */
+      {
         continue;
       }
 
@@ -122,6 +125,7 @@ impl LocalTypeInferenceContext {
     predicate_type_registry: &PredicateTypeRegistry,
     aggregate_type_registry: &AggregateTypeRegistry,
     inferred_expr_types: &mut HashMap<Loc, TypeSet>,
+    strict: bool,
   ) -> Result<(), Error> {
     for unif in &self.unifications {
       unif.unify(
@@ -132,6 +136,7 @@ impl LocalTypeInferenceContext {
         predicate_type_registry,
         aggregate_type_registry,
         inferred_expr_types,
+        strict,
       )?;
     }
     Ok(())
@@ -407,7 +412,18 @@ impl NodeVisitor<CallExpr> for LocalTypeInferenceContext {
 
 impl NodeVisitor<NewExpr> for LocalTypeInferenceContext {
   fn visit(&mut self, n: &NewExpr) {
-    let unif = Unification::New(
+    let unif = Unification::Entity(
+      n.functor_name().to_string(),
+      n.iter_args().map(|a| a.location().clone()).collect(),
+      n.location().clone(),
+    );
+    self.unifications.push(unif)
+  }
+}
+
+impl NodeVisitor<DestructExpr> for LocalTypeInferenceContext {
+  fn visit(&mut self, n: &DestructExpr) {
+    let unif = Unification::Entity(
       n.functor_name().to_string(),
       n.iter_args().map(|a| a.location().clone()).collect(),
       n.location().clone(),

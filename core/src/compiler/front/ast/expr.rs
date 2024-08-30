@@ -1,3 +1,5 @@
+use crate::common;
+
 use super::*;
 
 #[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
@@ -10,6 +12,7 @@ pub enum Expr {
   IfThenElse(IfThenElseExpr),
   Call(CallExpr),
   New(NewExpr),
+  Destruct(DestructExpr),
 }
 
 impl Expr {
@@ -31,6 +34,7 @@ impl Expr {
       Self::IfThenElse(i) => i.cond().has_variable() || i.then_br().has_variable() || i.else_br().has_variable(),
       Self::Call(c) => c.iter_args().any(|a| a.has_variable()),
       Self::New(n) => n.iter_args().any(|a| a.has_variable()),
+      Self::Destruct(n) => n.iter_args().any(|a| a.has_variable()),
     }
   }
 
@@ -69,6 +73,11 @@ impl Expr {
           a.collect_used_variables_helper(vars);
         }
       }
+      Self::Destruct(n) => {
+        for a in n.iter_args() {
+          a.collect_used_variables_helper(vars);
+        }
+      }
     }
   }
 
@@ -93,6 +102,14 @@ impl Expr {
         None
       }
       Expr::New(n) => {
+        for arg in n.iter_args() {
+          if let Some(loc) = arg.get_first_variable_location() {
+            return Some(loc);
+          }
+        }
+        None
+      }
+      Expr::Destruct(n) => {
         for arg in n.iter_args() {
           if let Some(loc) = arg.get_first_variable_location() {
             return Some(loc);
@@ -290,6 +307,17 @@ impl UnaryOp {
   pub fn is_pos_neg(&self) -> bool {
     self.is_pos() || self.is_neg()
   }
+
+  /// Cast the AST unary operator to Common unary operator.
+  /// The `TypeCast` operation will be discarded.
+  pub fn to_common_unary_op(&self) -> Option<common::unary_op::UnaryOp> {
+    match self._node {
+      _UnaryOp::Neg => Some(common::unary_op::UnaryOp::Neg),
+      _UnaryOp::Pos => Some(common::unary_op::UnaryOp::Pos),
+      _UnaryOp::Not => Some(common::unary_op::UnaryOp::Not),
+      _UnaryOp::TypeCast(_) => None,
+    }
+  }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
@@ -335,6 +363,19 @@ pub struct _NewExpr {
 }
 
 impl NewExpr {
+  pub fn functor_name(&self) -> &str {
+    self.functor().name()
+  }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, AstNode)]
+#[doc(hidden)]
+pub struct _DestructExpr {
+  pub functor: Identifier,
+  pub args: Vec<Expr>,
+}
+
+impl DestructExpr {
   pub fn functor_name(&self) -> &str {
     self.functor().name()
   }

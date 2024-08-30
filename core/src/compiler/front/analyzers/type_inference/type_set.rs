@@ -217,6 +217,20 @@ impl TypeSet {
     }
   }
 
+  pub fn is_base_type(&self) -> bool {
+    match self {
+      Self::BaseType(_, _) => true,
+      _ => false,
+    }
+  }
+
+  pub fn get_base_type(&self) -> Option<ValueType> {
+    match self {
+      Self::BaseType(vt, _) => Some(vt.clone()),
+      _ => None,
+    }
+  }
+
   pub fn is_boolean(&self) -> bool {
     match self {
       Self::BaseType(b, _) => b.is_boolean(),

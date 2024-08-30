@@ -305,6 +305,49 @@ impl Display for Identifier {
   }
 }
 
+impl Display for Tag {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    match self {
+      Tag::Constant(c) => c.fmt(f),
+      Tag::Expr(e) => e.fmt(f),
+    }
+  }
+}
+
+impl Display for ConstantTag {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    self.tag().fmt(f)
+  }
+}
+
+impl Display for ExprTag {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    match self {
+      Self::Variable(v) => v.fmt(f),
+      Self::Binary(b) => b.fmt(f),
+      Self::Unary(u) => u.fmt(f),
+    }
+  }
+}
+
+impl Display for VariableTag {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    self.variable().fmt(f)
+  }
+}
+
+impl Display for BinaryExprTag {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    f.write_fmt(format_args!("({} {} {})", self.op1(), self.op(), self.op2()))
+  }
+}
+
+impl Display for UnaryExprTag {
+  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    f.write_fmt(format_args!("({}{})", self.op(), self.op1()))
+  }
+}
+
 impl Display for ConstantSetDecl {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     for attr in self.attrs() {
@@ -328,8 +371,14 @@ impl Display for FactDecl {
     for attr in self.attrs() {
       f.write_fmt(format_args!("{} ", attr))?;
     }
+    let tag = if let Some(tag) = self.tag() {
+      format!("{}::", tag)
+    } else {
+      "".to_string()
+    };
     f.write_fmt(format_args!(
-      "rel {}({})",
+      "rel {}{}({})",
+      tag,
       self.predicate_name(),
       self
         .iter_args()
@@ -345,7 +394,11 @@ impl Display for RuleDecl {
     for attr in self.attrs() {
       f.write_fmt(format_args!("{} ", attr))?;
     }
-    f.write_fmt(format_args!("rel {}", self.rule()))
+    if let Some(tag) = self.tag() {
+      f.write_fmt(format_args!("rel {}::{}", tag, self.rule()))
+    } else {
+      f.write_fmt(format_args!("rel {}", self.rule()))
+    }
   }
 }
 
@@ -382,8 +435,8 @@ impl std::fmt::Display for Atom {
 
 impl Display for ConstantSetTuple {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    if self.tag().is_some() {
-      f.write_fmt(format_args!("{}::", self.tag().tag()))?;
+    if let Some(tag) = self.tag() {
+      f.write_fmt(format_args!("{}::", tag))?;
     }
     f.write_fmt(format_args!(
       "({})",
@@ -746,6 +799,11 @@ impl std::fmt::Display for Expr {
       )),
       Self::New(n) => f.write_fmt(format_args!(
         "new {}({})",
+        n.functor(),
+        n.iter_args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(", ")
+      )),
+      Self::Destruct(n) => f.write_fmt(format_args!(
+        "{}({})",
         n.functor(),
         n.iter_args().map(|a| format!("{}", a)).collect::<Vec<_>>().join(", ")
       )),

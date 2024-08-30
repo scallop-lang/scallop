@@ -9,7 +9,13 @@ impl std::fmt::Debug for OutputDiffProbWithProofs {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_tuple("")
       .field(&self.probability)
-      .field(&self.gradient.iter().map(|(id, weight)| (id, weight)).collect::<Vec<_>>())
+      .field(
+        &self
+          .gradient
+          .iter()
+          .map(|(id, weight)| (id, weight))
+          .collect::<Vec<_>>(),
+      )
       .finish()
   }
 }
@@ -18,7 +24,13 @@ impl std::fmt::Display for OutputDiffProbWithProofs {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_tuple("")
       .field(&self.probability)
-      .field(&self.gradient.iter().map(|(id, weight)| (id, weight)).collect::<Vec<_>>())
+      .field(
+        &self
+          .gradient
+          .iter()
+          .map(|(id, weight)| (id, weight))
+          .collect::<Vec<_>>(),
+      )
       .finish()
   }
 }

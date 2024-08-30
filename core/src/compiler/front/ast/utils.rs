@@ -192,6 +192,7 @@ pub trait AstNode: Clone {
   /// Obtain a mutable location of the AstNode
   fn location_mut(&mut self) -> &mut NodeLocation;
 
+  /// Clone with a given location
   fn clone_with_loc(&self, loc: NodeLocation) -> Self;
 }
 
@@ -235,10 +236,11 @@ impl<T: Clone> AstNode for AstNodeWrapper<T> {
   }
 }
 
+#[allow(unused)]
 pub trait NodeVisitor<N> {
-  fn visit(&mut self, node: &N);
+  fn visit(&mut self, node: &N) {}
 
-  fn visit_mut(&mut self, node: &mut N);
+  fn visit_mut(&mut self, node: &mut N) {}
 }
 
 #[allow(unused)]
@@ -246,6 +248,30 @@ impl<U, V> NodeVisitor<V> for U {
   default fn visit(&mut self, node: &V) {}
 
   default fn visit_mut(&mut self, node: &mut V) {}
+}
+
+impl<T, V> NodeVisitor<V> for Vec<T> {
+  fn visit(&mut self, node: &V) {
+    for elem in self {
+      elem.visit(node);
+    }
+  }
+
+  fn visit_mut(&mut self, node: &mut V) {
+    for elem in self {
+      elem.visit_mut(node);
+    }
+  }
+}
+
+impl<T, V> NodeVisitor<V> for Box<T> {
+  fn visit(&mut self, node: &V) {
+    (&**self).visit(node)
+  }
+
+  fn visit_mut(&mut self, node: &mut V) {
+    (&mut **self).visit_mut(node)
+  }
 }
 
 macro_rules! impl_node_visitor_tuple {

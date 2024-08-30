@@ -19,6 +19,20 @@ fn adt_arith_formula_eval_1() {
 }
 
 #[test]
+fn adt_arith_formula_eval_w_destruct_1() {
+  expect_interpret_result(
+    r#"
+      type Expr = Const(i32) | Add(Expr, Expr)
+      const MY_EXPR = Add(Const(5), Add(Const(3), Const(6)))
+      rel eval(Const(y), y)
+      rel eval(Add(x1, x2), y1 + y2) = eval(x1, y1) and eval(x2, y2)
+      rel result(y) = eval(MY_EXPR, y)
+    "#,
+    ("result", vec![(14i32,)]),
+  )
+}
+
+#[test]
 fn adt_list_1() {
   expect_interpret_result(
     r#"
@@ -32,6 +46,40 @@ fn adt_list_1() {
       rel result(y) = list_sum(MY_LIST, y)
     "#,
     ("result", vec![(6i32,)]),
+  )
+}
+
+#[test]
+fn adt_list_w_destruct_1() {
+  expect_interpret_result(
+    r#"
+      type List = Nil() | Cons(i32, List)
+
+      const MY_LIST = Cons(1, Cons(2, Cons(3, Nil())))
+
+      rel list_sum(Nil(), 0)
+      rel list_sum(Cons(hd, tl), hd + s) = list_sum(tl, s)
+
+      rel result(y) = list_sum(MY_LIST, y)
+    "#,
+    ("result", vec![(6i32,)]),
+  )
+}
+
+#[test]
+fn destruct_in_body_atom_1() {
+  expect_interpret_result(
+    r#"
+      type List = Nil() | Cons(i32, List)
+
+      const EMPTY = Nil()
+
+      rel print(Nil(), "[]")
+      rel print(Cons(x, Nil()), $format("[{}]", x))
+
+      rel empty_array_string(x) = print(Nil(), x)
+    "#,
+    ("empty_array_string", vec![("[]".to_string(),)]),
   )
 }
 
@@ -53,6 +101,23 @@ fn adt_binary_tree_1() {
   )
 }
 
+#[test]
+fn adt_binary_tree_w_destruct_1() {
+  expect_interpret_result(
+    r#"
+      type Tree = Nil() | Node(i32, Tree, Tree)
+
+      rel tree_depth(Nil(), 0)
+      rel tree_depth(Node(_, lt, rt), $max(ld, rd) + 1) = tree_depth(lt, ld) and tree_depth(rt, rd)
+
+      const MY_TREE = Node(1, Node(2, Nil(), Node(3, Nil(), Nil())), Node(4, Nil(), Nil()))
+
+      rel result(y) = tree_depth(MY_TREE, y)
+    "#,
+    ("result", vec![(3i32,)]),
+  )
+}
+
 const RE_PROGRAM: &'static str = r#"
   type RE = Char(char) | Nil() | Con(RE, RE) | Or(RE, RE) | Star(RE)
 
@@ -64,6 +129,19 @@ const RE_PROGRAM: &'static str = r#"
   rel match(r, i, i)     = case r is Star(r1), string_chars(s, i, _), input_string(s)
   rel match(r, s, e)     = case r is Star(r1), match(r1, s, e)
   rel match(r, s, e)     = case r is Star(r1), match(r1, s, m), match(r, m, e)
+"#;
+
+const RE_PROGRAM_W_DESTRUCT: &'static str = r#"
+  type RE = Char(char) | Nil() | Con(RE, RE) | Or(RE, RE) | Star(RE)
+
+  rel match(Nil(), i, i)       = string_chars(s, i, _), input_string(s)
+  rel match(Char(c), i, i + 1) = input_string(s), string_chars(s, i, c)
+  rel match(Con(r1, r2), s, e) = match(r1, s, m), match(r2, m, e)
+  rel match(Or(r1, r2), s, e)  = match(r1, s, e)
+  rel match(Or(r1, r2), s, e)  = match(r2, s, e)
+  rel match(Star(r1), i, i)    = string_chars(s, i, _), input_string(s)
+  rel match(Star(r1), s, e)    = match(r1, s, e)
+  rel match(Star(r2), s, e)    = match(r1, s, m), match(r, m, e)
 "#;
 
 #[test]
@@ -96,15 +174,45 @@ fn adt_regex_2() {
   )
 }
 
+#[test]
+fn adt_regex_w_destruct_1() {
+  expect_interpret_result(
+    &format!(
+      "{RE_PROGRAM_W_DESTRUCT}\n{}",
+      r#"
+        const MY_RE = Con(Char('a'), Char('b'))
+        rel input_string("ab")
+        rel result() = match(MY_RE, 0, 2)
+      "#,
+    ),
+    ("result", vec![()]),
+  )
+}
+
+#[test]
+fn adt_regex_w_destruct_2() {
+  expect_interpret_result(
+    &format!(
+      "{RE_PROGRAM_W_DESTRUCT}\n{}",
+      r#"
+        const MY_RE = Con(Star(Char('a')), Char('b'))
+        rel input_string("aaaaaaaab")
+        rel result() = match(MY_RE, 0, 9)
+      "#,
+    ),
+    ("result", vec![()]),
+  )
+}
+
 const CLEVR_PROGRAM: &'static str = r#"
   type Color = RED | GREEN | BLUE
   type Size = LARGE | SMALL
   type SpatialRela = LEFT | RIGHT
   type Expr = Scene() | Color(Color, Expr) | Size(Size, Expr) | Rela(SpatialRela, Expr, Expr) | RelaInv(SpatialRela, Expr, Expr)
 
-  rel eval(e, output_obj) = case e is Scene(), input_obj_ids(output_obj)
-  rel eval(e, output_obj) = case e is Color(c, e1), eval(e1, output_obj), input_obj_color(output_obj, c)
-  rel eval(e, output_obj) = case e is Size(s, e1), eval(e1, output_obj), input_obj_size(output_obj, s)
+  rel eval(e, o) = case e is Scene(), input_obj_ids(o)
+  rel eval(e, o) = case e is Color(c, e1), eval(e1, o), input_obj_color(o, c)
+  rel eval(e, o) = case e is Size(s, e1), eval(e1, o), input_obj_size(o, s)
   rel eval(e, o2) = case e is Rela(r, e1, e2), eval(e1, o1), eval(e2, o2), input_obj_rela(r, o1, o2)
   rel eval(e, o1) = case e is RelaInv(r, e1, e2), eval(e1, o1), eval(e2, o2), input_obj_rela(r, o1, o2)
 "#;
@@ -136,9 +244,9 @@ const EQSAT_1_PROGRAM: &'static str = r#"
             | Add(Expr, Expr)
 
   // A relation `to_string` for visualizing
-  rel to_string(p, i as String) = case p is Const(i)
-  rel to_string(p, v) = case p is Var(v)
-  rel to_string(p, $format("({} + {})", s1, s2)) = case p is Add(p1, p2) and to_string(p1, s1) and to_string(p2, s2)
+  rel to_string(Const(i), i as String)
+  rel to_string(Var(v), v)
+  rel to_string(Add(p1, p2), $format("({} + {})", s1, s2)) = to_string(p1, s1) and to_string(p2, s2)
 
   // Relation for expression
   rel expr(p) = case p is Const(_) or case p is Var(_) or case p is Add(_, _)
@@ -152,9 +260,9 @@ const EQSAT_1_PROGRAM: &'static str = r#"
   rel equivalent(p, p1) = case p is Add(p1, Const(0))
 
   // Definition of weight
-  rel weight(p, 1) = case p is Const(_)
-  rel weight(p, 1) = case p is Var(_)
-  rel weight(p, w1 + w2 + 1) = case p is Add(p1, p2) and weight(p1, w1) and weight(p2, w2)
+  rel weight(Const(_), 1)
+  rel weight(Var(_), 1)
+  rel weight(Add(p1, p2), w1 + w2 + 1) = weight(p1, w1) and weight(p2, w2)
 
   // Compute equivalent programs
   rel equiv_programs(sp) = input_program(p) and equivalent(p, sp)

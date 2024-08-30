@@ -10,6 +10,7 @@ pub mod input_files;
 pub mod invalid_constant;
 pub mod invalid_wildcard;
 pub mod output_files;
+pub mod tagged_rule;
 pub mod type_inference;
 
 pub use aggregation::AggregationAnalysis;
@@ -24,6 +25,7 @@ pub use input_files::InputFilesAnalysis;
 pub use invalid_constant::InvalidConstantAnalyzer;
 pub use invalid_wildcard::InvalidWildcardAnalyzer;
 pub use output_files::OutputFilesAnalysis;
+pub use tagged_rule::TaggedRuleAnalysis;
 pub use type_inference::TypeInference;
 
 pub mod errors {

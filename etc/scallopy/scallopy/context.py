@@ -330,6 +330,7 @@ class ScallopContext:
     jit: bool = False,
     jit_name: str = "",
     recompile: bool = False,
+    sparse_jacobian: bool = False,
   ) -> Callable:
     """
     Generate a forward function for PyTorch module.
@@ -357,7 +358,18 @@ class ScallopContext:
     else: raise Exception("`forward_function` can only be called on context with differentiable provenance")
 
     # Forward function
-    return InternalScallopForwardFunction(self, output, output_mapping, output_mappings, dispatch, debug_provenance, retain_graph, jit, jit_name, recompile)
+    return InternalScallopForwardFunction(
+      self,
+      output,
+      output_mapping,
+      output_mappings,
+      dispatch,
+      debug_provenance,
+      retain_graph,
+      jit,
+      jit_name,
+      recompile,
+      sparse_jacobian,)
 
   def _refresh_training_eval_state(self, training):
     if self._train_k is not None or self._test_k is not None:

@@ -18,6 +18,7 @@ pub struct Analysis {
   pub constant_decl_analysis: ConstantDeclAnalysis,
   pub adt_analysis: AlgebraicDataTypeAnalysis,
   pub head_relation_analysis: HeadRelationAnalysis,
+  pub tagged_rule_analysis: TaggedRuleAnalysis,
   pub type_inference: TypeInference,
   pub boundness_analysis: BoundnessAnalysis,
   pub demand_attr_analysis: DemandAttributeAnalysis,
@@ -41,6 +42,7 @@ impl Analysis {
       constant_decl_analysis: ConstantDeclAnalysis::new(),
       adt_analysis: AlgebraicDataTypeAnalysis::new(),
       head_relation_analysis: HeadRelationAnalysis::new(predicate_registry),
+      tagged_rule_analysis: TaggedRuleAnalysis::new(),
       type_inference: TypeInference::new(function_registry, predicate_registry, aggregate_registry),
       boundness_analysis: BoundnessAnalysis::new(predicate_registry),
       demand_attr_analysis: DemandAttributeAnalysis::new(),
@@ -78,12 +80,15 @@ impl Analysis {
     items.walk(&mut analyzers);
   }
 
-  pub fn post_analysis(&mut self) {
+  pub fn post_analysis(&mut self, foreign_predicate_registry: &mut ForeignPredicateRegistry) {
     self.head_relation_analysis.compute_errors();
     self.type_inference.check_query_predicates();
     self.type_inference.infer_types();
     self.demand_attr_analysis.check_arity(&self.type_inference);
     self.boundness_analysis.check_boundness(&self.demand_attr_analysis);
+    self
+      .tagged_rule_analysis
+      .register_predicates(&self.type_inference, foreign_predicate_registry);
   }
 
   pub fn dump_errors(&mut self, error_ctx: &mut FrontCompileError) {
@@ -98,5 +103,6 @@ impl Analysis {
     error_ctx.extend(&mut self.type_inference.errors);
     error_ctx.extend(&mut self.boundness_analysis.errors);
     error_ctx.extend(&mut self.demand_attr_analysis.errors);
+    error_ctx.extend(&mut self.tagged_rule_analysis.errors);
   }
 }

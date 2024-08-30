@@ -17,7 +17,7 @@ impl Program {
     // Perform rule level optimizations
     for rule in &mut self.rules {
       // First propagate equality
-      optimizations::propagate_equality(rule);
+      optimizations::propagate_equality(rule, &self.predicate_registry);
 
       // Enter the loop of constant folding/propagation
       loop {

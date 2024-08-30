@@ -5,6 +5,12 @@ pub struct TransformConjunctiveHead {
   to_add_items: Vec<Item>,
 }
 
+impl<'a> Transformation<'a> for TransformConjunctiveHead {
+  fn post_walking_generated_items(&mut self) -> Vec<Item> {
+    self.to_add_items.clone()
+  }
+}
+
 impl TransformConjunctiveHead {
   pub fn new() -> Self {
     Self { to_add_items: vec![] }
@@ -37,7 +43,7 @@ impl NodeVisitor<Rule> for TransformConjunctiveHead {
             .to_add_items
             .push(Item::RelationDecl(RelationDecl::Rule(RuleDecl::new(
               Attributes::new(),
-              Tag::none(),
+              None,
               Rule::new_with_loc(
                 RuleHead::atom(atom.clone()),
                 rule.body().clone(),
