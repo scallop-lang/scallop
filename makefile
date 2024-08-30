@@ -56,7 +56,7 @@ develop-scallopy-ext: develop-scallopy
 install-scallop-cli: install-scallopy-ext
 	make -C etc/scallop-cli install
 
-build-scallop-cli:
+build-scallop-cli: build-scallopy-ext
 	make -C etc/scallop-cli build
 
 develop-scallop-cli: develop-scallopy-ext

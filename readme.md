@@ -387,7 +387,7 @@ It is possible to define a relation is an input relation that can be loaded from
 
 ```
 @file("example/input_csv/edge.csv")
-input edge(usize, usize)
+type edge(usize, usize)
 ```
 
 Note that in this case it is essential to define the type of the relation.

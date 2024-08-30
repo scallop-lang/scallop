@@ -1,3 +1,5 @@
+.PHONY: build install develop
+
 build:
 	python -m build
 
