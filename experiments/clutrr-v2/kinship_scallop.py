@@ -1,4 +1,3 @@
-import openai
 import json
 from tqdm import tqdm
 from io import StringIO
@@ -24,6 +23,12 @@ class Args:
 
 def test_kinship(range=range(N)):
     out = {"score": 0, "data": [], "logs": []}
+    
+    plugins = scallopy_ext.PluginRegistry()
+    parser = argparse.ArgumentParser()
+    plugins.setup_argument_parser(parser)
+    known_args, unknown_args = parser.parse_known_args()
+    plugins.configure(known_args, unknown_args)
 
     for i in tqdm(range):
         (ctx, query), ans = TASK[i]
@@ -33,14 +38,7 @@ def test_kinship(range=range(N)):
         sys.stdout = buffer
         try:
             ctx = scallopy.ScallopContext(provenance="unit")
-            plugins = scallopy_ext.PluginRegistry()
-
-            parser = argparse.ArgumentParser()
-            plugins.setup_argument_parser(parser)
-            known_args, unknown_args = parser.parse_known_args()
-            plugins.configure(known_args, unknown_args)
             plugins.load_into_ctx(ctx)
-
             ctx.import_file(SCALLOP_FILE)
             ctx.add_facts("context", [(input,)])
             ctx.run()
