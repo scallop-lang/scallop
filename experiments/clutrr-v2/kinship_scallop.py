@@ -3,6 +3,7 @@ import json
 from tqdm import tqdm
 from io import StringIO
 import sys
+import argparse
 
 import scallopy
 import scallopy_ext
@@ -32,8 +33,14 @@ def test_kinship(range=range(N)):
         sys.stdout = buffer
         try:
             ctx = scallopy.ScallopContext(provenance="unit")
-            scallopy_ext.config.configure(Args(), [])
-            scallopy_ext.extlib.load_extlib(ctx)
+            plugins = scallopy_ext.PluginRegistry()
+
+            parser = argparse.ArgumentParser()
+            plugins.setup_argument_parser(parser)
+            known_args, unknown_args = parser.parse_known_args()
+            plugins.configure(known_args, unknown_args)
+            plugins.load_into_ctx(ctx)
+
             ctx.import_file(SCALLOP_FILE)
             ctx.add_facts("context", [(input,)])
             ctx.run()
