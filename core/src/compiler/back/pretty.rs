@@ -1,3 +1,5 @@
+use crate::runtime::env::Scheduler;
+
 use super::*;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
@@ -57,6 +59,8 @@ impl Display for Attribute {
       Self::Demand(d) => d.fmt(f),
       Self::MagicSet(d) => d.fmt(f),
       Self::InputFile(i) => i.fmt(f),
+      Self::Goal(g) => g.fmt(f),
+      Self::Scheduler(s) => s.fmt(f),
     }
   }
 }
@@ -94,6 +98,25 @@ impl Display for MagicSetAttribute {
 impl Display for InputFileAttribute {
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
     f.write_fmt(format_args!("@file({:?})", self.input_file))
+  }
+}
+
+impl Display for GoalAttribute {
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    f.write_str("@goal")
+  }
+}
+
+impl Display for SchedulerAttribute {
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    f.write_str("@scheduler(")?;
+    match &self.scheduler {
+      Scheduler::LFP => f.write_str("\"lfp\"")?,
+      Scheduler::AStar => f.write_str("\"a-star\"")?,
+      Scheduler::DFS => f.write_str("\"dfs\"")?,
+      Scheduler::Beam { beam_size } => f.write_fmt(format_args!("\"beam\", beam_size = {beam_size}"))?,
+    }
+    f.write_str(")")
   }
 }
 

@@ -22,6 +22,9 @@ pub enum CollectionEnum<P: PointerFamily> {
   Proofs {
     collection: P::Rc<DynamicOutputCollection<proofs::ProofsProvenance<P>>>,
   },
+  Tropical {
+    collection: P::Rc<DynamicOutputCollection<tropical::TropicalProvenance>>,
+  },
   MinMaxProb {
     collection: P::Rc<DynamicOutputCollection<min_max_prob::MinMaxProbProvenance>>,
   },
@@ -80,6 +83,7 @@ macro_rules! match_collection {
     match $ctx {
       CollectionEnum::Unit { collection: $v } => $e,
       CollectionEnum::Proofs { collection: $v } => $e,
+      CollectionEnum::Tropical { collection: $v } => $e,
       CollectionEnum::MinMaxProb { collection: $v } => $e,
       CollectionEnum::AddMultProb { collection: $v } => $e,
       CollectionEnum::TopKProofs { collection: $v, .. } => $e,
@@ -103,6 +107,7 @@ impl CollectionEnum<ArcFamily> {
     match self {
       Self::Unit { .. } => None,
       Self::Proofs { .. } => None,
+      Self::Tropical { .. } => None,
       Self::MinMaxProb { .. } => None,
       Self::AddMultProb { .. } => None,
       Self::TopKProofs { .. } => None,
@@ -124,6 +129,7 @@ impl CollectionEnum<ArcFamily> {
     match self {
       Self::Unit { .. } => None,
       Self::Proofs { .. } => None,
+      Self::Tropical { .. } => None,
       Self::MinMaxProb { .. } => None,
       Self::AddMultProb { .. } => None,
       Self::TopKProofs { .. } => None,

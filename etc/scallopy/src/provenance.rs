@@ -103,6 +103,20 @@ impl PythonProvenance for proofs::ProofsProvenance<ArcFamily> {
   }
 }
 
+impl PythonProvenance for tropical::TropicalProvenance {
+  fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
+    tag.extract().map(Some)
+  }
+
+  fn to_collection_enum(col: Arc<DynamicOutputCollection<Self>>, _: &Self) -> CollectionEnum<ArcFamily> {
+    CollectionEnum::Tropical { collection: col }
+  }
+
+  fn to_output_py_tag(tag: &Self::OutputTag) -> Py<PyAny> {
+    Python::with_gil(|py| tag.to_object(py))
+  }
+}
+
 impl PythonProvenance for min_max_prob::MinMaxProbProvenance {
   fn process_py_tag(tag: &PyAny) -> PyResult<Option<Self::InputTag>> {
     tag.extract().map(Some)

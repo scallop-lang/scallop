@@ -34,6 +34,7 @@ pub enum ContextEnum {
   // Basic
   Unit(IntegrateContext<unit::UnitProvenance, AF>),
   Proofs(IntegrateContext<proofs::ProofsProvenance<AF>, AF>),
+  Tropical(IntegrateContext<tropical::TropicalProvenance, AF>),
 
   // Probabilistic
   MinMaxProb(IntegrateContext<min_max_prob::MinMaxProbProvenance, AF>),
@@ -63,6 +64,7 @@ macro_rules! match_context {
     match $ctx {
       ContextEnum::Unit($v) => $e,
       ContextEnum::Proofs($v) => $e,
+      ContextEnum::Tropical($v) => $e,
       ContextEnum::MinMaxProb($v) => $e,
       ContextEnum::AddMultProb($v) => $e,
       ContextEnum::TopKProofs($v) => $e,
@@ -86,6 +88,7 @@ macro_rules! match_context_except_custom {
     match $ctx {
       ContextEnum::Unit($v) => Ok($e),
       ContextEnum::Proofs($v) => Ok($e),
+      ContextEnum::Tropical($v) => Ok($e),
       ContextEnum::MinMaxProb($v) => Ok($e),
       ContextEnum::AddMultProb($v) => Ok($e),
       ContextEnum::TopKProofs($v) => Ok($e),
@@ -133,6 +136,11 @@ impl Context {
       }),
       "proofs" => Ok(Self {
         ctx: ContextEnum::Proofs(IntegrateContext::new_incremental(proofs::ProofsProvenance::default())),
+      }),
+      "tropical" => Ok(Self {
+        ctx: ContextEnum::Tropical(IntegrateContext::new_incremental(
+          tropical::TropicalProvenance::default(),
+        )),
       }),
       "minmaxprob" => Ok(Self {
         ctx: ContextEnum::MinMaxProb(IntegrateContext::new_incremental(
@@ -450,6 +458,7 @@ impl Context {
     match &self.ctx {
       ContextEnum::Unit(_) => None,
       ContextEnum::Proofs(_) => None,
+      ContextEnum::Tropical(_) => None,
       ContextEnum::MinMaxProb(_) => None,
       ContextEnum::AddMultProb(_) => None,
       ContextEnum::TopKProofs(_) => None,
@@ -472,6 +481,7 @@ impl Context {
     match &mut self.ctx {
       ContextEnum::Unit(_) => (),
       ContextEnum::Proofs(_) => (),
+      ContextEnum::Tropical(_) => (),
       ContextEnum::MinMaxProb(_) => (),
       ContextEnum::AddMultProb(_) => (),
       ContextEnum::TopKProofs(c) => {

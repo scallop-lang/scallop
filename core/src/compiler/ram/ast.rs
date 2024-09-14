@@ -12,6 +12,8 @@ use crate::common::tuple::{AsTuple, Tuple};
 use crate::common::tuple_type::TupleType;
 use crate::common::value::Value;
 
+use crate::runtime::env::Scheduler;
+
 #[derive(Debug, Clone)]
 pub struct Program {
   pub strata: Vec<Stratum>,
@@ -137,6 +139,12 @@ pub struct Relation {
   /// The output option; whether it is hidden or returned or piped to a file
   pub output: OutputOption,
 
+  /// Whether the relation is a goal
+  pub is_goal: bool,
+
+  /// The scheduler for this specific scheduler
+  pub scheduler: Option<Scheduler>,
+
   /// Whether the relation is immutable, i.e., not being populated by any rule
   pub immutable: bool,
 }
@@ -150,6 +158,8 @@ impl Relation {
       input_file: None,
       facts: vec![],
       output: OutputOption::Hidden,
+      is_goal: false,
+      scheduler: None,
       immutable: false,
     }
   }
@@ -338,6 +348,48 @@ impl Dataflow {
       Self::ForeignPredicateGround(_, _) | Self::UntaggedVec(_) => HashSet::new(),
     }
   }
+
+  pub fn substitute_relation(&mut self, source: &str, target: &str) -> bool {
+    let mut has_update = false;
+    match self {
+      Self::Unit(_) => false,
+      Self::Union(d1, d2)
+      | Self::Join(d1, d2)
+      | Self::Intersect(d1, d2)
+      | Self::Product(d1, d2)
+      | Self::Antijoin(d1, d2)
+      | Self::Difference(d1, d2) => {
+        has_update |= d1.substitute_relation(source, target);
+        has_update |= d2.substitute_relation(source, target);
+        has_update
+      }
+      Self::Project(d, _)
+      | Self::Filter(d, _)
+      | Self::Find(d, _)
+      | Self::OverwriteOne(d)
+      | Self::ForeignPredicateConstraint(d, _, _)
+      | Self::ForeignPredicateJoin(d, _, _)
+      | Self::Exclusion(d, _) => {
+        has_update |= d.substitute_relation(source, target);
+        has_update
+      }
+      Self::Reduce(r) => {
+        has_update |= r.substitute_relation(source, target);
+        has_update
+      }
+      Self::Relation(r) => {
+        if r == source {
+          *r = target.to_string();
+          true
+        } else {
+          false
+        }
+      }
+      Self::ForeignPredicateGround(_, _) | Self::UntaggedVec(_) => {
+        false
+      },
+    }
+  }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -359,6 +411,22 @@ impl ReduceGroupByType {
   pub fn join<S: ToString>(s: S) -> Self {
     Self::Join(s.to_string())
   }
+
+  pub fn substitute_relation(&mut self, source: &str, target: &str) -> bool {
+    match self {
+      Self::None | Self::Implicit => {
+        false
+      }
+      Self::Join(s) => {
+        if s == source {
+          *s = target.to_string();
+          true
+        } else {
+          false
+        }
+      }
+    }
+  }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -372,5 +440,17 @@ pub struct Reduce {
 impl Reduce {
   pub fn source_relation(&self) -> &String {
     &self.predicate
+  }
+
+  pub fn substitute_relation(&mut self, source: &str, target: &str) -> bool {
+    let mut has_update = false;
+    if &self.predicate == source {
+      self.predicate = target.to_string();
+      has_update = true;
+    }
+
+    has_update |= self.group_by.substitute_relation(source, target);
+
+    has_update
   }
 }

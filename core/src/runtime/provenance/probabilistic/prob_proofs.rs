@@ -129,8 +129,8 @@ impl<P: PointerFamily> Provenance for ProbProofsProvenance<P> {
 
   type OutputTag = f64;
 
-  fn name() -> &'static str {
-    "prob-proofs"
+  fn name(&self) -> String {
+    format!("prob-proofs")
   }
 
   fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {

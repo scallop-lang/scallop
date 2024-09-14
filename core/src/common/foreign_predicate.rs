@@ -331,6 +331,9 @@ impl ForeignPredicateRegistry {
     // Tensor
     reg.register(fps::TensorShape::new()).unwrap();
 
+    // Provenance
+    reg.register(fps::NewTagVariable::new()).unwrap();
+
     reg
   }
 

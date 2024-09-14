@@ -470,7 +470,6 @@ fn foreign_predicate_dynamic_adt_1() {
     }
 
     fn evaluate(&self, args: &[Value]) -> Vec<(DynamicInputTag, Vec<Value>)> {
-      println!("{:?}", args);
       match args[0].as_str() {
         "prompt_1" => vec![(
           DynamicInputTag::None,

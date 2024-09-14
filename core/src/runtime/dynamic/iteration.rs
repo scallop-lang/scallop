@@ -13,6 +13,8 @@ pub struct DynamicIteration<'a, Prov: Provenance> {
   pub input_dynamic_collections: HashMap<String, &'a DynamicCollection<Prov>>,
   pub dynamic_relations: HashMap<String, DynamicRelation<Prov>>,
   pub output_relations: Vec<String>,
+  pub goal_relations: Vec<String>,
+  pub relation_schedulers: HashMap<String, Scheduler>,
   pub updates: Vec<ram::Update>,
 }
 
@@ -23,6 +25,8 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
       input_dynamic_collections: HashMap::new(),
       dynamic_relations: HashMap::new(),
       output_relations: Vec::new(),
+      goal_relations: Vec::new(),
+      relation_schedulers: HashMap::new(),
       updates: Vec::new(),
     }
   }
@@ -53,11 +57,11 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     self.dynamic_relations.contains_key(name)
   }
 
-  pub fn get_dynamic_relation<'c>(&'c mut self, name: &str) -> Option<&'c DynamicRelation<Prov>> {
+  pub fn get_dynamic_relation<'c>(&'c self, name: &str) -> Option<&'c DynamicRelation<Prov>> {
     self.dynamic_relations.get(name).map(|r| r)
   }
 
-  pub fn get_dynamic_relation_unsafe<'c>(&'c mut self, name: &str) -> &'c DynamicRelation<Prov> {
+  pub fn get_dynamic_relation_unsafe<'c>(&'c self, name: &str) -> &'c DynamicRelation<Prov> {
     self.dynamic_relations.get(name).map(|r| r).unwrap()
   }
 
@@ -76,9 +80,19 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     self.output_relations.push(name.to_string())
   }
 
+  pub fn add_goal_relation(&mut self, name: &str) {
+    self.goal_relations.push(name.to_string())
+  }
+
+  pub fn add_relation_scheduler(&mut self, relation_name: &str, scheduler: Scheduler) {
+    self.relation_schedulers.insert(relation_name.to_string(), scheduler);
+  }
+
+  /// Run the main iteration, which iterates until a stopping criteria (provided in the runtime environment)
+  /// is reached.
   pub fn run(&'a mut self, ctx: &Prov, runtime: &RuntimeEnvironment) -> HashMap<String, DynamicCollection<Prov>> {
     // Iterate until fixpoint
-    while self.need_to_iterate(ctx, &runtime.iter_limit) {
+    while self.need_to_iterate(ctx, runtime) {
       // Perform updates
       for update in &self.updates {
         let dyn_update = self.build_dynamic_update(runtime, ctx, update);
@@ -103,6 +117,9 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     result
   }
 
+  /// Move the dynamic entities that are temporarily stored in the runtime into the actual relations.
+  ///
+  /// Note: dynamic entities are the outcome of side effects during the execution of the program.
   fn drain_dynamic_entities(&mut self, ctx: &Prov, runtime: &RuntimeEnvironment) {
     let drained_entity_facts = runtime.drain_new_entities(|r| self.has_dynamic_relation(r));
     for (relation, tuples) in drained_entity_facts {
@@ -117,13 +134,22 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     }
   }
 
-  fn need_to_iterate(&mut self, ctx: &Prov, iter_limit: &Option<usize>) -> bool {
+  /// Check if we need to continue the iteration
+  fn need_to_iterate(&mut self, ctx: &Prov, runtime: &RuntimeEnvironment) -> bool {
     // Check if it has been changed
-    if self.changed(ctx) || self.is_first_iteration() {
+    if self.changed(ctx, runtime) || self.is_first_iteration() {
       // Check iter count; if reaching limit then we need to stop
-      if let Some(iter_limit) = iter_limit {
-        if self.iter_num > *iter_limit {
-          self.changed(ctx);
+      if let Some(iter_limit) = runtime.stopping_criteria.get_iter_limit() {
+        if self.iter_num > iter_limit {
+          self.changed(ctx, runtime);
+          return false;
+        }
+      }
+
+      // Check if we have reached a goal
+      if runtime.stopping_criteria.stop_when_goal_relation_non_empty() {
+        if self.derived_non_empty_goal_relation() {
+          self.changed(ctx, runtime);
           return false;
         }
       }
@@ -133,8 +159,8 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     }
 
     // If it is no longer changing, but we are still less than expected iter limit, continue
-    if let Some(iter_limit) = iter_limit {
-      if self.iter_num < *iter_limit {
+    if let Some(iter_limit) = runtime.stopping_criteria.get_iter_limit() {
+      if self.iter_num < iter_limit {
         return true;
       }
     }
@@ -153,12 +179,13 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     M: Monitor<Prov>,
   {
     // Iterate until fixpoint
-    while self.need_to_iterate_with_monitor(ctx, &runtime.iter_limit, m) {
+    while self.need_to_iterate_with_monitor(ctx, runtime, m) {
       // !SPECIAL MONITORING!
       m.observe_stratum_iteration(self.iter_num);
 
       // Perform updates
       for update in &self.updates {
+        println!("    [Iteration #{}: Updating {}...]", self.iter_num, update.target);
         let dyn_update = self.build_dynamic_update(runtime, ctx, update);
         dyn_update
           .target
@@ -178,19 +205,30 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     result
   }
 
-  fn need_to_iterate_with_monitor<M>(&mut self, ctx: &Prov, iter_limit: &Option<usize>, m: &M) -> bool
+  fn need_to_iterate_with_monitor<M>(&mut self, ctx: &Prov, runtime: &RuntimeEnvironment, m: &M) -> bool
   where
     M: Monitor<Prov>,
   {
     // Check if it has been changed
-    if self.changed(ctx) || self.is_first_iteration() {
+    if self.changed(ctx, runtime) || self.is_first_iteration() {
       // Check iter count; if reaching limit then we need to stop
-      if let Some(iter_limit) = iter_limit {
-        if self.iter_num > *iter_limit {
+      if let Some(iter_limit) = runtime.stopping_criteria.get_iter_limit() {
+        if self.iter_num > iter_limit {
           // !SPECIAL MONITORING!
           m.observe_hitting_iteration_limit();
 
-          self.changed(ctx);
+          self.changed(ctx, runtime);
+          return false;
+        }
+      }
+
+      // Check if we have reached a goal
+      if runtime.stopping_criteria.stop_when_goal_relation_non_empty() {
+        if self.derived_non_empty_goal_relation() {
+          // !SPECIAL MONITORING!
+          m.observe_deriving_goal_relation();
+
+          self.changed(ctx, runtime);
           return false;
         }
       }
@@ -200,8 +238,8 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     }
 
     // If it is no longer changing, but we are still less than expected iter limit, continue
-    if let Some(iter_limit) = iter_limit {
-      if self.iter_num < *iter_limit {
+    if let Some(iter_limit) = runtime.stopping_criteria.get_iter_limit() {
+      if self.iter_num < iter_limit {
         return true;
       }
     }
@@ -213,10 +251,29 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     return false;
   }
 
-  fn changed(&mut self, ctx: &Prov) -> bool {
+  fn derived_non_empty_goal_relation(&self) -> bool {
+    if self.goal_relations.is_empty() {
+      false
+    } else {
+      self
+        .goal_relations
+        .iter()
+        .all(|r| self.get_dynamic_relation_unsafe(r).num_recent() > 0)
+    }
+  }
+
+  fn changed(&mut self, ctx: &Prov, runtime: &RuntimeEnvironment) -> bool {
     let mut changed = false;
-    for (_, relation) in &mut self.dynamic_relations {
-      if relation.changed(ctx) {
+    for (relation_name, relation) in &mut self.dynamic_relations {
+      // Get scheduler from current relation specific scheduling or from a scheduler manager
+      let scheduler = if let Some(scheduler) = self.relation_schedulers.get(relation_name) {
+        scheduler
+      } else {
+        runtime.scheduler_manager.get_default_scheduler()
+      };
+
+      // Check if the relation has changed
+      if relation.changed(ctx, scheduler) {
         changed = true;
       }
     }

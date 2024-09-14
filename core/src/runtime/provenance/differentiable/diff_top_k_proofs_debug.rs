@@ -57,8 +57,8 @@ impl<T: FromTensor, P: PointerFamily> Provenance for DiffTopKProofsDebugProvenan
 
   type OutputTag = OutputDiffProbWithProofs;
 
-  fn name() -> &'static str {
-    "diff-top-k-proofs"
+  fn name(&self) -> String {
+    format!("diff-top-k-proofs")
   }
 
   fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {

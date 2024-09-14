@@ -1,20 +1,15 @@
 [project]
 name = "scallop-opencv"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
   "opencv-python",
   "imgurpython",
   "torch",
+  "requests"
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[project.entry-points."scallop.plugin.setup_arg_parser"]
-opencv = "scallop_opencv:setup_arg_parser"
-
-[project.entry-points."scallop.plugin.configure"]
-opencv = "scallop_opencv:configure"
-
-[project.entry-points."scallop.plugin.load_into_context"]
-opencv = "scallop_opencv:load_into_context"
+[project.entry-points."scallop.plugin"]
+opencv = "scallop_opencv:ScallopOpenCVPlugin"

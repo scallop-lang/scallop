@@ -247,6 +247,21 @@ impl Program {
       // Collect the head predicate
       let head_predicate = rule.head_predicate();
 
+      // Step 1. Deal with the dependencies between goal predicate and its dependencies
+      if let Some(head_relation) = self.relation_of_predicate(head_predicate) {
+        if head_relation.attributes.goal_attr().is_some() {
+          for atom in rule.body_literals() {
+            match atom {
+              Literal::Atom(a) if !self.predicate_registry.contains(&a.predicate) => {
+                graph.add_dependency(&a.predicate, head_predicate, E::Positive);
+              }
+              _ => {}
+            }
+          }
+        }
+      }
+
+      // Step 2. Deal with dependencies related to Entity and Functors
       // Collect all the related functor predicates
       let does_create_dyn_ent = rule.needs_dynamically_parse_entity(&self.function_registry, &self.predicate_registry);
       let functor_predicates: Vec<_> = if does_create_dyn_ent {
@@ -278,17 +293,11 @@ impl Program {
       };
       for atom in rule.body_literals() {
         match atom {
-          Literal::Atom(a) => {
-            let atom_predicate = &a.predicate;
-            if !self.predicate_registry.contains(atom_predicate) {
-              record_dependency(atom_predicate, E::Positive);
-            }
+          Literal::Atom(a) if !self.predicate_registry.contains(&a.predicate) => {
+            record_dependency(&a.predicate, E::Positive);
           }
-          Literal::NegAtom(a) => {
-            let atom_predicate = &a.atom.predicate;
-            if !self.predicate_registry.contains(atom_predicate) {
-              record_dependency(atom_predicate, E::Negative);
-            }
+          Literal::NegAtom(a) if !self.predicate_registry.contains(&a.atom.predicate) => {
+            record_dependency(&a.atom.predicate, E::Negative);
           }
           Literal::Reduce(r) => {
             let reduce_predicate = &r.body_formula.predicate;

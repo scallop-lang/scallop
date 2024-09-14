@@ -6,6 +6,7 @@ from .predicate import Facts, foreign_predicate, ForeignPredicate
 from .value_types import *
 from .tag_types import *
 from .input_mapping import InputMapping
+from .plugin import PluginRegistry, Plugin
 from .syntax import *
 from .scallopy import torch_tensor_enabled
 

@@ -30,7 +30,7 @@ fn test_dynamic_group_and_count_1() {
   );
 
   // Iterate until fixpoint
-  while color.changed(&ctx) || rev_color.changed(&ctx) {
+  while color.changed(&ctx, rt.get_default_scheduler()) || rev_color.changed(&ctx, rt.get_default_scheduler()) {
     rev_color.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::project(
@@ -48,7 +48,7 @@ fn test_dynamic_group_and_count_1() {
   // Group and aggregate
   let mut first_time = true;
   let mut color_count = DynamicRelation::<unit::UnitProvenance>::new();
-  while color_count.changed(&ctx) || first_time {
+  while color_count.changed(&ctx, rt.get_default_scheduler()) || first_time {
     color_count.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::new(DynamicAggregationImplicitGroupDataflow::new(
@@ -96,7 +96,7 @@ fn test_dynamic_group_count_max_1() {
   );
 
   // Iterate until fixpoint
-  while color.changed(&ctx) || rev_color.changed(&ctx) {
+  while color.changed(&ctx, rt.get_default_scheduler()) || rev_color.changed(&ctx, rt.get_default_scheduler()) {
     rev_color.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::project(
@@ -114,7 +114,7 @@ fn test_dynamic_group_count_max_1() {
   // Group and aggregate
   let mut iter_1_first_time = true;
   let mut color_count = DynamicRelation::<unit::UnitProvenance>::new();
-  while color_count.changed(&ctx) || iter_1_first_time {
+  while color_count.changed(&ctx, rt.get_default_scheduler()) || iter_1_first_time {
     color_count.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::new(DynamicAggregationImplicitGroupDataflow::new(
@@ -139,7 +139,7 @@ fn test_dynamic_group_count_max_1() {
   // Find Max
   let mut iter_2_first_time = true;
   let mut max_count_color = DynamicRelation::<unit::UnitProvenance>::new();
-  while max_count_color.changed(&ctx) || iter_2_first_time {
+  while max_count_color.changed(&ctx, rt.get_default_scheduler()) || iter_2_first_time {
     max_count_color.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::new(DynamicAggregationSingleGroupDataflow::new(

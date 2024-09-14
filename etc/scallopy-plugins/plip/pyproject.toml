@@ -1,6 +1,6 @@
 [project]
 name = "scallop-plip"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
   "transformers",
   "torch",
@@ -9,11 +9,5 @@ dependencies = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[project.entry-points."scallop.plugin.setup_arg_parser"]
-plip = "scallop_plip:setup_arg_parser"
-
-[project.entry-points."scallop.plugin.configure"]
-plip = "scallop_plip:configure"
-
-[project.entry-points."scallop.plugin.load_into_context"]
-plip = "scallop_plip:load_into_context"
+[project.entry-points."scallop.plugin"]
+plip = "scallop_plip:ScallopPLIPPlugin"

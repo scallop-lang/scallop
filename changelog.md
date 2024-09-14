@@ -3,6 +3,7 @@
 - Rule tags can now be expressions with potential reference to local variables: `rel 1/n::head() = body(n)`
 - Allowing for sparse gradient computation inside Scallopy to minimize memory footprint
 - Allowing users to specify per-datapoint output mapping inside Scallopy
+- Adding `topkproofsdebug` provenance for obtaining the top-k proofs in Scallopy
 - Adding destructor syntax so that ADTs can be used in a more idiomatic way
 - Unifying the behavior of integer overflow inside Scallop
 - Multiple bugs fixed

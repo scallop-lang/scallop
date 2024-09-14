@@ -12,8 +12,8 @@ impl Provenance for NaturalProvenance {
 
   type OutputTag = usize;
 
-  fn name() -> &'static str {
-    "natural"
+  fn name(&self) -> String {
+    format!("natural")
   }
 
   fn tagging_fn(&self, t: Self::InputTag) -> Self::Tag {

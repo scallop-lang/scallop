@@ -52,6 +52,14 @@ fn main() -> std::io::Result<()> {
       let ctx = runtime::provenance::boolean::BooleanProvenance::default();
       run(cmd_args, ctx)
     }
+    "tropical" => {
+      let ctx = runtime::provenance::tropical::TropicalProvenance::default();
+      run(cmd_args, ctx)
+    }
+    "realtropical" => {
+      let ctx = runtime::provenance::real_tropical::RealTropicalProvenance::default();
+      run(cmd_args, ctx)
+    }
     "minmaxprob" => {
       let ctx = runtime::provenance::min_max_prob::MinMaxProbProvenance::default();
       run(cmd_args, ctx)

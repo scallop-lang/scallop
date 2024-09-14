@@ -11,6 +11,18 @@ class BasicTests(unittest.TestCase):
     ctx.run()
     self.assertEqual(list(ctx.relation("path")), [(1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)])
 
+  def test_tropical_edge_path(self):
+    ctx = scallopy.ScallopContext(provenance="tropical")
+    ctx.add_relation("edge", (int, int))
+    ctx.add_facts("edge", [(1, (1, 2)), (1, (2, 3)), (1, (3, 4)), (1, (1, 4))])
+    ctx.add_rule("path(a, c) = edge(a, c) or (path(a, b) and edge(b, c))")
+    ctx.run()
+    self.assertEqual(list(ctx.relation("path")), [
+      (1, (1, 2)), (2, (1, 3)), (1, (1, 4)),
+      (1, (2, 3)), (2, (2, 4)),
+      (1, (3, 4)),
+    ])
+
   def test_fibonacci(self):
     ctx = scallopy.ScallopContext()
     ctx.add_relation("fib", (int, int))

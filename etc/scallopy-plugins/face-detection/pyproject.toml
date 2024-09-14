@@ -1,6 +1,6 @@
 [project]
 name = "scallop-face-detection"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
   "face_detection",
   "torch",
@@ -9,5 +9,5 @@ dependencies = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[project.entry-points."scallop.plugin.load_into_context"]
-face-detection = "scallop_face_detection:load_into_context"
+[project.entry-points."scallop.plugin"]
+face-detection = "scallop_face_detection:ScallopFaceDetectionPlugin"

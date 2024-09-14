@@ -132,3 +132,38 @@ fn test_expr_tag_cannot_be_datetime() {
     },
   )
 }
+
+#[test]
+fn test_tropical_min_path_length() {
+  const A: usize = 0;
+  const B: usize = 1;
+  const C: usize = 2;
+  const D: usize = 3;
+
+  use provenance::tropical::*;
+  let prov_ctx = TropicalSemiring::default();
+  expect_interpret_result_with_tag(
+    r#"
+      type Node = A | B | C | D
+      rel edge = {
+        1::(A, B), 1::(B, C), 1::(C, D),
+        1::(A, D),
+      }
+      rel path(x, y) = edge(x, y) or path(x, z) and edge(z, y)
+      query path
+    "#,
+    prov_ctx,
+    (
+      "path",
+      vec![
+        (1, (A, B)),
+        (1, (B, C)),
+        (1, (C, D)),
+        (2, (A, C)),
+        (2, (B, D)),
+        (1, (A, D)),
+      ],
+    ),
+    usize::eq,
+  )
+}

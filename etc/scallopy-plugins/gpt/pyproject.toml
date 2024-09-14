@@ -1,6 +1,6 @@
 [project]
 name = "scallop-gpt"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
   "openai == 0.28",
   "torch",
@@ -9,11 +9,5 @@ dependencies = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[project.entry-points."scallop.plugin.setup_arg_parser"]
-gpt = "scallop_gpt:setup_arg_parser"
-
-[project.entry-points."scallop.plugin.configure"]
-gpt = "scallop_gpt:configure"
-
-[project.entry-points."scallop.plugin.load_into_context"]
-gpt = "scallop_gpt:load_into_context"
+[project.entry-points."scallop.plugin"]
+gpt = "scallop_gpt:ScallopGPTPlugin"

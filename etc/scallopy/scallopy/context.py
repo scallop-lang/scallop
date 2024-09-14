@@ -14,7 +14,7 @@ from .input_mapping import InputMapping
 from .function import ForeignFunction
 from .predicate import ForeignPredicate
 from .attribute import ForeignAttributeProcessor
-from .history import HistoryAction, record_history
+from .utils import HistoryAction, record_history
 from .sample_type import SAMPLE_TYPE_TOP_K
 from .stdlib import STDLIB
 from .utils import Counter, _map_entity_tuple_to_str_tuple
@@ -34,6 +34,7 @@ class ScallopContext:
   Default to "unit", and can be any value from the following
   - `"unit"`, no provenance information associated
   - `"proofs"`, collect proofs
+  - `"tropical"`, positive integer with +inf; min-add semiring
   - `"minmaxprob"`, min-max probability
   - `"addmultprob"`, add-mult probability
   - `"topkproofs"`, top-k proofs. It is possible to supply a `k` value for this
@@ -732,6 +733,9 @@ class ScallopContext:
       return False
 
   def is_probabilistic(self) -> bool:
+    """
+    Check if the current context supports probabilistic reasoning
+    """
     PROVENANCE_SUPPORTING_PROBABILITY = set([
       "probproofs",
       "topkproofs",
@@ -743,6 +747,9 @@ class ScallopContext:
     return self.provenance in PROVENANCE_SUPPORTING_PROBABILITY
 
   def supports_disjunctions(self) -> bool:
+    """
+    Check if the current context supports fact disjunctions
+    """
     PROVENANCE_SUPPORTING_DISJUNCTIONS = set([
       "proofs",
       "topkproofs",

@@ -5,5 +5,6 @@ pub fn optimize_ram(ram: &mut Program) {
   while can_optimize {
     can_optimize = false;
     can_optimize |= project_cascade(ram);
+    can_optimize |= deduplicate(ram);
   }
 }

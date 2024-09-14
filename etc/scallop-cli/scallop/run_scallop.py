@@ -9,7 +9,6 @@ from tabulate import tabulate
 
 # Scallop modules
 import scallopy
-import scallopy_ext
 
 
 TABLE_FMT = "rounded_outline"
@@ -17,7 +16,7 @@ MULTILINE_TABLE_FMT = "fancy_grid"
 MAX_COL_WIDTH = 120
 
 
-def argument_parser(plugin_registry: scallopy_ext.PluginRegistry):
+def argument_parser(plugin_registry: scallopy.PluginRegistry):
   parser = argparse.ArgumentParser("scallop", description="Scallop language command line interface")
   parser.add_argument("file", nargs="?", default=None, help="The file to execute")
   parser.add_argument("-p", "--provenance", type=str, default="unit", help="The provenance to pick")
@@ -36,15 +35,15 @@ def argument_parser(plugin_registry: scallopy_ext.PluginRegistry):
 
   # Setup using plugin registry
   if not base_args.no_plugin:
+    plugin_registry.load_stdlib()
+    plugin_registry.load_plugins_from_entry_points()
     plugin_registry.setup_argument_parser(parser)
-  else:
-    plugin_registry.remove_all_plugins()
 
   # Return the final parser
   return parser
 
 
-def cmd_args(plugin_registry: scallopy_ext.PluginRegistry):
+def cmd_args(plugin_registry: scallopy.PluginRegistry):
   parser = argument_parser(plugin_registry)
   return parser.parse_known_args()
 
@@ -147,7 +146,7 @@ def setup_context(ctx: scallopy.ScallopContext, args):
 
 
 def main():
-  plugin_registry = scallopy_ext.PluginRegistry()
+  plugin_registry = scallopy.PluginRegistry()
 
   # Parse command line arguments
   args, unknown_args = cmd_args(plugin_registry)

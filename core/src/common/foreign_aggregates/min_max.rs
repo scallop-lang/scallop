@@ -270,12 +270,9 @@ impl MinMaxAggregator {
         let i = if self.is_min { i } else { batch.len() - 1 - i };
         let Tagged { tuple, tag } = &batch[i];
         let and_true_tag = prov.mult(&accumulated_false_tag, tag);
-        println!("and true tag: {and_true_tag:?}");
         result.push(DynamicElement::<P>::new(tuple.clone(), and_true_tag));
         if let Some(f) = prov.negate(tag).map(|neg| prov.mult(&accumulated_false_tag, &neg)) {
-          println!("?????");
           accumulated_false_tag = f;
-          println!("{accumulated_false_tag:?}");
         }
       }
 

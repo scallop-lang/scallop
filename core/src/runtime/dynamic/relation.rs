@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::collections::*;
 use std::rc::Rc;
 
 use super::dataflow::*;
@@ -9,13 +8,21 @@ use crate::common::tuple::Tuple;
 use crate::runtime::env::*;
 use crate::runtime::monitor::*;
 use crate::runtime::provenance::*;
-use crate::runtime::utils::*;
 
 #[derive(Clone)]
 pub struct DynamicRelation<Prov: Provenance> {
+  /// The facts derived
   pub stable: Rc<RefCell<Vec<DynamicCollection<Prov>>>>,
+
+  /// The facts derived in the previous iteration
   pub recent: Rc<RefCell<DynamicCollection<Prov>>>,
+
+  /// The batches of facts to be added in the next iteration
   to_add: Rc<RefCell<Vec<DynamicCollection<Prov>>>>,
+
+  /// The waitlisted facts.
+  /// The order of the facts corresponds to the order where the fact is derived.
+  pub waitlist: Rc<RefCell<Vec<DynamicElement<Prov>>>>,
 }
 
 impl<Prov: Provenance> DynamicRelation<Prov> {
@@ -24,6 +31,7 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
       stable: Rc::new(RefCell::new(Vec::new())),
       recent: Rc::new(RefCell::new(DynamicCollection::empty())),
       to_add: Rc::new(RefCell::new(Vec::new())),
+      waitlist: Rc::new(RefCell::new(Vec::new())),
     }
   }
 
@@ -137,7 +145,15 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     self.recent.borrow().len()
   }
 
-  pub fn changed(&mut self, ctx: &Prov) -> bool {
+  pub fn num_to_add(&self) -> usize {
+    self.to_add.borrow().iter().fold(0, |a, rela| a + rela.len())
+  }
+
+  pub fn clear_stable(&mut self) {
+    self.stable.borrow_mut().clear()
+  }
+
+  pub fn changed(&mut self, ctx: &Prov, scheduler: &Scheduler) -> bool {
     // 1. Merge self.recent into self.stable.
     if !self.recent.borrow().is_empty() {
       let mut recent = ::std::mem::replace(&mut (*self.recent.borrow_mut()), DynamicCollection::empty());
@@ -148,82 +164,28 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
       self.stable.borrow_mut().push(recent);
     }
 
-    // 2. Move self.to_add into self.recent.
-    let to_add = self.to_add.borrow_mut().pop();
-    if let Some(mut to_add) = to_add {
-      let mut to_remove_to_add_indices = HashSet::new();
-      while let Some(to_add_more) = self.to_add.borrow_mut().pop() {
+    // 2. Condense self.to_add
+    let mut to_add_batches = self.to_add.borrow_mut();
+    let mut to_add = if let Some(mut to_add) = to_add_batches.pop() {
+      while let Some(to_add_more) = to_add_batches.pop() {
         to_add = to_add.merge(to_add_more, ctx);
       }
+      to_add
+    } else {
+      DynamicCollection::empty()
+    };
 
-      // Make sure that there is no duplicates; if there is, merge the tag back to the stable
-      for stable_batch in self.stable.borrow_mut().iter_mut() {
-        let mut index = 0;
+    // 3. Move all the waitlist into to-add for global
+    // Note: This operation is very sub-optimal. We should find better algorithm
+    scheduler.schedule(
+      &mut to_add,
+      &mut self.waitlist.borrow_mut(),
+      &mut self.stable.borrow_mut(),
+      ctx,
+    );
+    *self.recent.borrow_mut() = to_add;
 
-        // Helper function to compute whether to retain a given stable element
-        let compute_stable_retain =
-          |index: usize,
-           to_add: &mut DynamicCollection<Prov>,
-           stable_elem: &mut DynamicElement<Prov>,
-           to_remove_to_add_indices: &mut HashSet<usize>| {
-            // If going over to_add, then the stable element does not exist in to_add. Therefore we retain the stable element
-            if index >= to_add.len() {
-              return true;
-            }
-
-            // Otherwise, we can safely access the index in to_add collection
-            let to_add_elem = &mut to_add[index];
-            if &to_add_elem.tuple != &stable_elem.tuple {
-              // If the two elements are not equal, we retain the element in stable batch
-              true
-            } else {
-              // If the two elements are equal, then we need to compute a new tag, while deciding where
-              // to put the new element: stable or recent
-              let new_tag = ctx.add(&stable_elem.tag, &to_add_elem.tag);
-              let saturated = ctx.saturated(&stable_elem.tag, &new_tag);
-              if saturated {
-                // If we put the new element in stable, then we retain the stable element and update
-                // the tag of that element. Additionally, we will remove the element in the `to_add`
-                // collection.
-                stable_elem.tag = new_tag;
-                to_remove_to_add_indices.insert(index.clone());
-                true
-              } else {
-                // If we put the new element in recent, then we will not retain the stable element,
-                // while updating tag of the element in `to_add`
-                to_add_elem.tag = new_tag;
-                false
-              }
-            }
-          };
-
-        // Go over the stable batch and retain the related elements
-        if to_add.len() > 4 * stable_batch.len() {
-          stable_batch.elements.retain_mut(|x| {
-            index = gallop_index(&to_add, index, |y| y < x);
-            compute_stable_retain(index, &mut to_add, x, &mut to_remove_to_add_indices)
-          });
-        } else {
-          stable_batch.elements.retain_mut(|x| {
-            while index < to_add.len() && &to_add[index] < x {
-              index += 1;
-            }
-            compute_stable_retain(index, &mut to_add, x, &mut to_remove_to_add_indices)
-          });
-        }
-      }
-
-      // Remove the elements in `to_add` that we deem not needed
-      to_add.elements = to_add
-        .elements
-        .into_iter()
-        .enumerate()
-        .filter(|(i, _)| !to_remove_to_add_indices.contains(i))
-        .map(|(_, e)| e)
-        .collect();
-      *self.recent.borrow_mut() = to_add;
-    }
-
+    // 4. Finally, we decide whether there is a change by looking at whether recent is non-empty
     !self.recent.borrow().is_empty()
   }
 

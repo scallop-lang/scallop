@@ -32,8 +32,8 @@ impl provenance::Provenance for CustomProvenance {
 
   type OutputTag = Py<PyAny>;
 
-  fn name() -> &'static str {
-    "scallopy-custom"
+  fn name(&self) -> String {
+    Python::with_gil(|py| self.0.call_method(py, "name", (), None).unwrap().to_string())
   }
 
   /// Invoking the provenance's tagging function on the input tag

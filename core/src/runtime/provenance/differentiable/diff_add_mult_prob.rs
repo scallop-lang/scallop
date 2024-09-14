@@ -56,8 +56,8 @@ impl<T: FromTensor, P: PointerFamily> Provenance for DiffAddMultProbProvenance<T
 
   type OutputTag = OutputDiffProb;
 
-  fn name() -> &'static str {
-    "diffaddmultprob"
+  fn name(&self) -> String {
+    format!("diffaddmultprob")
   }
 
   fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {

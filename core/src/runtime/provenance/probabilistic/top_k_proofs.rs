@@ -70,8 +70,8 @@ impl<P: PointerFamily> Provenance for TopKProofsProvenance<P> {
 
   type OutputTag = f64;
 
-  fn name() -> &'static str {
-    "top-k-proofs"
+  fn name(&self) -> String {
+    format!("top-k-proofs")
   }
 
   fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {

@@ -40,37 +40,26 @@ build-scallopy:
 develop-scallopy:
 	cd etc/scallopy; maturin develop --release
 
-## Scallopy Extension Lib
-
-install-scallopy-ext: install-scallopy
-	make -C etc/scallopy-ext install
-
-build-scallopy-ext: develop-scallopy
-	make -C etc/scallopy-ext build
-
-develop-scallopy-ext: develop-scallopy
-	make -C etc/scallopy-ext develop
-
 ## Scallop CLI
 
-install-scallop-cli: install-scallopy-ext
+install-scallop-cli:
 	make -C etc/scallop-cli install
 
-build-scallop-cli: build-scallopy-ext
+build-scallop-cli:
 	make -C etc/scallop-cli build
 
-develop-scallop-cli: develop-scallopy-ext
+develop-scallop-cli:
 	make -C etc/scallop-cli develop
 
 ## Scallopy Plugins
 
-install-scallopy-plugins: install-scallopy-ext
+install-scallopy-plugins:
 	make -C etc/scallopy-plugins install
 
-build-scallopy-plugins: build-scallopy-ext
+build-scallopy-plugins:
 	make -C etc/scallopy-plugins build
 
-develop-scallopy-plugins: develop-scallopy-ext
+develop-scallopy-plugins:
 	make -C etc/scallopy-plugins develop
 
 # =================================================

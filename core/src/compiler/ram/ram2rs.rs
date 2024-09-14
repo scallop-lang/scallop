@@ -550,6 +550,7 @@ fn expr_to_rs_expr(expr: &Expr) -> TokenStream {
 fn input_tag_to_rs_input_tag(tag: &DynamicInputTag) -> TokenStream {
   match tag {
     DynamicInputTag::None => quote! { DynamicInputTag::None },
+    DynamicInputTag::NewVariable => quote! { DynamicInputTag::NewVariable },
     DynamicInputTag::Exclusive(i) => quote! { DynamicInputTag::Exclusive(#i) },
     DynamicInputTag::Bool(b) => quote! { DynamicInputTag::Bool(#b) },
     DynamicInputTag::Natural(n) => quote! { DynamicInputTag::Natural(#n) },

@@ -63,8 +63,8 @@ impl<T: FromTensor, P: PointerFamily> Provenance for DiffSampleKProofsProvenance
 
   type OutputTag = OutputDiffProb;
 
-  fn name() -> &'static str {
-    "diff-sample-k-proofs"
+  fn name(&self) -> String {
+    format!("diff-sample-k-proofs")
   }
 
   fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {

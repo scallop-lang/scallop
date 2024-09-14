@@ -59,6 +59,7 @@ impl<T: FromTensor> StaticInputTag for InputExclusiveDiffProbWithID<T> {
   fn from_dynamic_input_tag(t: &DynamicInputTag) -> Option<Self> {
     match t {
       DynamicInputTag::None => None,
+      DynamicInputTag::NewVariable => None,
       DynamicInputTag::Exclusive(_) => None,
       DynamicInputTag::Bool(_) => None,
       DynamicInputTag::Natural(_) => None,

@@ -17,7 +17,9 @@ pub struct Analysis {
   pub character_literal_analysis: CharacterLiteralAnalysis,
   pub constant_decl_analysis: ConstantDeclAnalysis,
   pub adt_analysis: AlgebraicDataTypeAnalysis,
+  pub goal_relation_analysis: GoalRelationAnalysis,
   pub head_relation_analysis: HeadRelationAnalysis,
+  pub scheduler_attr_analysis: SchedulerAttributeAnalysis,
   pub tagged_rule_analysis: TaggedRuleAnalysis,
   pub type_inference: TypeInference,
   pub boundness_analysis: BoundnessAnalysis,
@@ -42,6 +44,8 @@ impl Analysis {
       constant_decl_analysis: ConstantDeclAnalysis::new(),
       adt_analysis: AlgebraicDataTypeAnalysis::new(),
       head_relation_analysis: HeadRelationAnalysis::new(predicate_registry),
+      goal_relation_analysis: GoalRelationAnalysis::new(),
+      scheduler_attr_analysis: SchedulerAttributeAnalysis::new(),
       tagged_rule_analysis: TaggedRuleAnalysis::new(),
       type_inference: TypeInference::new(function_registry, predicate_registry, aggregate_registry),
       boundness_analysis: BoundnessAnalysis::new(predicate_registry),
@@ -60,6 +64,7 @@ impl Analysis {
       &mut self.adt_analysis,
       &mut self.invalid_constant,
       &mut self.invalid_wildcard,
+      &mut self.scheduler_attr_analysis,
     );
     items.walk(&mut analyzers);
   }
@@ -72,6 +77,7 @@ impl Analysis {
 
     // Create the analyzers and walk the items
     let mut analyzers = (
+      &mut self.goal_relation_analysis,
       &mut self.head_relation_analysis,
       &mut self.type_inference,
       &mut self.demand_attr_analysis,
@@ -81,6 +87,7 @@ impl Analysis {
   }
 
   pub fn post_analysis(&mut self, foreign_predicate_registry: &mut ForeignPredicateRegistry) {
+    self.goal_relation_analysis.compute_errors();
     self.head_relation_analysis.compute_errors();
     self.type_inference.check_query_predicates();
     self.type_inference.infer_types();
@@ -99,7 +106,9 @@ impl Analysis {
     error_ctx.extend(&mut self.character_literal_analysis.errors);
     error_ctx.extend(&mut self.constant_decl_analysis.errors);
     error_ctx.extend(&mut self.adt_analysis.errors);
+    error_ctx.extend(&mut self.goal_relation_analysis.errors);
     error_ctx.extend(&mut self.head_relation_analysis.errors);
+    error_ctx.extend(&mut self.scheduler_attr_analysis.errors);
     error_ctx.extend(&mut self.type_inference.errors);
     error_ctx.extend(&mut self.boundness_analysis.errors);
     error_ctx.extend(&mut self.demand_attr_analysis.errors);

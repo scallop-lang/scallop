@@ -37,8 +37,8 @@ impl Provenance for MinMaxProbProvenance {
 
   type OutputTag = f64;
 
-  fn name() -> &'static str {
-    "minmaxprob"
+  fn name(&self) -> String {
+    "minmaxprob".to_string()
   }
 
   fn tagging_fn(&self, p: Self::InputTag) -> Self::Tag {

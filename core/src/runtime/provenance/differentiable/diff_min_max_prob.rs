@@ -113,8 +113,8 @@ impl<T: FromTensor, P: PointerFamily> Provenance for DiffMinMaxProbProvenance<T,
 
   type OutputTag = OutputDiffProb<T>;
 
-  fn name() -> &'static str {
-    "diffminmaxprob"
+  fn name(&self) -> String {
+    format!("diffminmaxprob")
   }
 
   fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {

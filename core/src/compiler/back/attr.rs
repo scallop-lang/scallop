@@ -72,6 +72,26 @@ impl Attributes {
     }
     None
   }
+
+  pub fn goal_attr(&self) -> Option<&GoalAttribute> {
+    for attr in &self.attrs {
+      match attr {
+        Attribute::Goal(g) => return Some(g),
+        _ => {}
+      }
+    }
+    None
+  }
+
+  pub fn scheduler_attr(&self) -> Option<&SchedulerAttribute> {
+    for attr in &self.attrs {
+      match attr {
+        Attribute::Scheduler(s) => return Some(s),
+        _ => {}
+      }
+    }
+    None
+  }
 }
 
 impl<I> From<I> for Attributes
@@ -92,6 +112,8 @@ pub enum Attribute {
   Demand(DemandAttribute),
   MagicSet(MagicSetAttribute),
   InputFile(InputFileAttribute),
+  Goal(GoalAttribute),
+  Scheduler(SchedulerAttribute),
 }
 
 impl Attribute {
@@ -181,4 +203,12 @@ pub struct MagicSetAttribute;
 #[derive(Clone, Debug, PartialEq)]
 pub struct InputFileAttribute {
   pub input_file: InputFile,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct GoalAttribute;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SchedulerAttribute {
+  pub scheduler: crate::runtime::env::Scheduler,
 }

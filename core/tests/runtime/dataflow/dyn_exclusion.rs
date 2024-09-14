@@ -20,7 +20,10 @@ fn test_dynamic_exclusion_1() {
 
   // Iterate until fixpoint
   let mut first_time = true;
-  while source.changed(&ctx) || target.changed(&ctx) || first_time {
+  while source.changed(&ctx, rt.get_default_scheduler())
+    || target.changed(&ctx, rt.get_default_scheduler())
+    || first_time
+  {
     target.insert_dataflow_recent(
       &ctx,
       &dataflow::DynamicDataflow::dynamic_relation(&source)

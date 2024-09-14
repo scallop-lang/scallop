@@ -16,6 +16,10 @@ pub trait Monitor<Prov: Provenance>: dyn_clone::DynClone + 'static {
   #[allow(unused_variables)]
   fn observe_hitting_iteration_limit(&self) {}
 
+  /// Observe deriving goal relation
+  #[allow(unused_variables)]
+  fn observe_deriving_goal_relation(&self) {}
+
   /// Observe converging
   #[allow(unused_variables)]
   fn observe_converging(&self) {}

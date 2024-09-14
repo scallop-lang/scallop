@@ -8,7 +8,7 @@ import shutil
 from .sample_type import *
 from .context import ScallopContext
 from .provenance import ScallopProvenance
-from .utils import _mapping_tuple, _map_entity_tuple_to_str_tuple
+from .utils import _mapping_tuple, get_backward_proxy
 
 from . import torch_importer
 
@@ -656,7 +656,7 @@ class InternalScallopForwardFunction(torch_importer.Module):
       # Integrate the outputs
       v = self._batched_prob(output_results)
       if self._has_output_hook() and v.requires_grad:
-        v.register_hook(self._batched_output_hook(input_tags, output_results))
+        v = self._batched_proxy_output(v, input_tags, output_results)
       v = v.view(-1) if single_element else v
 
       # Return the output
@@ -691,7 +691,8 @@ class InternalScallopForwardFunction(torch_importer.Module):
         # Integrate the outputs based on all the output results
         v = self._batched_prob(post_output_results)
         if self._has_output_hook() and v.requires_grad:
-          v.register_hook(self._batched_output_hook(input_tags, post_output_results))
+          # Original: v.register_hook(self._batched_output_hook(input_tags, post_output_results))
+          v = self._batched_proxy_output(v, input_tags, post_output_results)
         v = v.view(-1) if single_element else v
 
         # Return
@@ -775,13 +776,14 @@ class InternalScallopForwardFunction(torch_importer.Module):
     if self.ctx.provenance == "difftopkproofsdebug": return True
     else: return False
 
-  def _batched_output_hook(
+  def _batched_proxy_output(
     self,
+    output_tensor, # torch.Tensor
     input_tags: Optional[List[List[Any]]],
     tasks: List[List[Any]],
   ) -> Callable:
     if self.ctx.provenance == "diffminmaxprob":
-      raise Exception("`diffminmaxprob` does not implement batched output hook")
+      return output_tensor
     elif self.ctx.provenance == "diffaddmultprob" or \
          self.ctx.provenance == "diffnandmultprob" or \
          self.ctx.provenance == "diffmaxmultprob" or \
@@ -790,12 +792,13 @@ class InternalScallopForwardFunction(torch_importer.Module):
          self.ctx.provenance == "diffsamplekproofs" or \
          self.ctx.provenance == "difftopbottomkclauses" or \
          self.ctx.provenance == "difftopkproofsdebug":
-      return self._diff_proofs_batched_output_hook(input_tags, tasks)
+      return self._diff_proofs_batched_proxy_output(output_tensor, input_tags, tasks)
     else:
       raise Exception("[Internal Error] Should not happen")
 
-  def _diff_proofs_batched_output_hook(
+  def _diff_proofs_batched_proxy_output(
     self,
+    output_tensor, # torch.Tensor
     input_tags: List[List[Any]],
     output_batch: List[List[Any]],
   ) -> Callable:
@@ -806,8 +809,7 @@ class InternalScallopForwardFunction(torch_importer.Module):
 
     # Check if there is no input
     if num_inputs == 0:
-      def do_nothing_hook(): pass
-      return do_nothing_hook
+      return output_tensor
 
     def pad_input(l):
       preproc_l = [self._torch_tensor_apply(torch_importer.torch.tensor(0.0)) if e is None else e for e in l]
@@ -847,23 +849,13 @@ class InternalScallopForwardFunction(torch_importer.Module):
               mat_w[batch_id, output_id, input_id] = weight
 
     # backward hook
-    retain_graph = self.retain_graph
-    def hook(grad):
-      if mat_i.requires_grad:
-        if self.sparse_jacobian:
-          # An equivalent operation to using einsum under sparse setting
-          grad_expanded = grad.unsqueeze(-1)
-          mult = mat_w * grad_expanded
-          mat_f_sparse = torch_importer.torch.sparse.sum(mult, dim=1)
-          mat_f = mat_f_sparse.to_dense()
-        else:
-          # Chain-rule: multiply the jacobian (mat_w) with the gradient that is back-propagated to Scallop module
-          mat_f = torch_importer.torch.einsum("ikj,ik->ij", mat_w, grad)
-
-        # Apply backward; potentially retaining graphs
-        mat_i.backward(mat_f, retain_graph=retain_graph)
-
-    return hook
+    BackwardProxy = get_backward_proxy()
+    proxied_output = BackwardProxy.apply(
+      mat_i,
+      output_tensor,
+      mat_w,
+      self.sparse_jacobian)
+    return proxied_output
 
   def _batched_debug_info(
     self,

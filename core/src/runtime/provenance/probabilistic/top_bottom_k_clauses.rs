@@ -54,8 +54,8 @@ impl<P: PointerFamily> Provenance for TopBottomKClausesProvenance<P> {
 
   type OutputTag = f64;
 
-  fn name() -> &'static str {
-    "top-bottom-k-clauses"
+  fn name(&self) -> String {
+    format!("top-bottom-k-clauses")
   }
 
   fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {

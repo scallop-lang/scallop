@@ -1,28 +1,32 @@
 import openai
 import scallopy
 
-from . import config
+from . import ScallopGPTPlugin
 
-# For memoization
-STORAGE = {}
+def get_gpt(plugin: ScallopGPTPlugin):
+  # For memoization
+  STORAGE = {}
 
-
-@scallopy.foreign_function
-def gpt(s: str) -> str:
-    if s in STORAGE:
-        return STORAGE[s]
+  @scallopy.foreign_function
+  def gpt(prompt: str) -> str:
+    if prompt in STORAGE:
+      return STORAGE[prompt]
     else:
-        # Make sure that we can do so
-        config.assert_can_request()
+      # Make sure that we can do so
+      plugin.assert_can_request()
 
-        # Add performed requests
-        config.NUM_PERFORMED_REQUESTS += 1
-        response = openai.ChatCompletion.create(
-            model=config.MODEL,
-            messages=[{"role": "user", "content": s}],
-            temperature=config.TEMPERATURE,
-        )
-        choice = response["choices"][0]
-        result = choice["message"]["content"].strip()
-        STORAGE[s] = result
-        return result
+      # Add performed requests
+      plugin.increment_num_performed_request()
+      response = openai.ChatCompletion.create(
+        model=plugin.model(),
+        messages=[{"role": "user", "content": prompt}],
+        temperature=plugin.temperature(),
+      )
+      choice = response["choices"][0]
+      result = choice["message"]["content"].strip()
+
+      # Store in the storage
+      STORAGE[prompt] = result
+      return result
+
+  return gpt

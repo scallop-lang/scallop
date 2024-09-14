@@ -19,6 +19,18 @@ impl FrontContext {
       }));
     }
 
+    // Check goal predicates
+    if self.analysis.borrow().goal_relation_analysis.is_goal(relation) {
+      attrs.add_attribute(back::Attribute::Goal(back::GoalAttribute));
+    }
+
+    // Check scheduler predicates
+    if let Some(scheduler) = self.analysis.borrow().scheduler_attr_analysis.get_scheduler(relation) {
+      attrs.add_attribute(back::Attribute::Scheduler(back::SchedulerAttribute {
+        scheduler: scheduler.clone(),
+      }));
+    }
+
     attrs
   }
 }

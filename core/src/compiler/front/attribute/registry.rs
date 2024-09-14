@@ -5,7 +5,7 @@ use crate::compiler::front::FrontContext;
 use super::super::ast;
 use super::*;
 
-const RESERVED_ATTRIBUTES: [&'static str; 4] = ["hidden", "file", "demand", "tagged"];
+const RESERVED_ATTRIBUTES: [&'static str; 6] = ["hidden", "file", "demand", "tagged", "goal", "scheduler"];
 
 #[derive(Clone, Debug)]
 pub struct AttributeProcessorRegistry {

@@ -145,14 +145,16 @@ impl<'a> QueryPlanContext<'a> {
   }
 
   fn pos_atom_arcs(&self, beam_size: usize) -> State {
+    let atom_relations = self.pos_atoms.iter().enumerate().map(|(i, atom)| (i, atom.predicate.clone())).collect();
+
     // If there is no positive atom, return an empty state
     if self.pos_atoms.is_empty() {
-      return State::new();
+      return State::new(atom_relations);
     }
 
     // Maintain a priority queue of searching states
     let mut priority_queue = BinaryHeap::new();
-    priority_queue.push(State::new());
+    priority_queue.push(State::new(atom_relations));
 
     // Maintain a set of final states
     let mut final_states = BinaryHeap::new();
@@ -750,6 +752,7 @@ fn term_is_bounded(bounded_vars: &HashSet<Variable>, term: &Term) -> bool {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct State {
+  atom_relations: HashMap<usize, String>,
   visited_atoms: Vec<usize>,
   arcs: Vec<Arc>,
 }
@@ -767,8 +770,12 @@ impl std::cmp::Ord for State {
 }
 
 impl State {
-  pub fn new() -> Self {
-    Self::default()
+  pub fn new(atom_relations: HashMap<usize, String>) -> Self {
+    Self {
+      atom_relations,
+      visited_atoms: vec![],
+      arcs: vec![],
+    }
   }
 
   pub fn aggregated_weight(&self) -> i32 {
@@ -797,10 +804,12 @@ impl State {
           let arc = Arc {
             left: set.iter().map(|i| **i).collect::<Vec<_>>(),
             right: id,
+            left_relations: set.iter().map(|id| self.atom_relations[id].clone()).collect(),
             bounded_vars,
             is_edb,
           };
           next_states.push(State {
+            atom_relations: self.atom_relations.clone(),
             visited_atoms: vec![self.visited_atoms.clone(), vec![id]].concat(),
             arcs: vec![self.arcs.clone(), vec![arc]].concat(),
           });
@@ -820,15 +829,17 @@ impl State {
 struct Arc {
   left: Vec<usize>,
   right: usize,
+  left_relations: Vec<String>,
   bounded_vars: HashSet<Variable>,
   is_edb: bool,
 }
 
 impl Arc {
   pub fn weight(&self) -> i32 {
+    let demand_weight = self.left_relations.iter().filter(|r| r.starts_with("d#")).count() as i32;
     let num_bounded_vars = self.bounded_vars.len() as i32;
     let edb_weight = if self.left.is_empty() && self.is_edb { 1 } else { 0 };
-    num_bounded_vars + edb_weight
+    demand_weight + num_bounded_vars + edb_weight
   }
 }
 

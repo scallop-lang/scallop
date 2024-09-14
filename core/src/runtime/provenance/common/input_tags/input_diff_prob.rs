@@ -31,6 +31,7 @@ impl<T: FromTensor> StaticInputTag for InputDiffProb<T> {
   fn from_dynamic_input_tag(t: &DynamicInputTag) -> Option<Self> {
     match t {
       DynamicInputTag::None => None,
+      DynamicInputTag::NewVariable => None,
       DynamicInputTag::Bool(b) => Some(Self(if *b { 1.0 } else { 0.0 }, None)),
       DynamicInputTag::Natural(n) => Some(Self(if *n > 0 { 1.0 } else { 0.0 }, None)),
       DynamicInputTag::Exclusive(_) => None,

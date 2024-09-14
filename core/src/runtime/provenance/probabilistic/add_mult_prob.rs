@@ -29,8 +29,8 @@ impl Provenance for AddMultProbProvenance {
 
   type OutputTag = f64;
 
-  fn name() -> &'static str {
-    "addmultprob"
+  fn name(&self) -> String {
+    "addmultprob".to_string()
   }
 
   fn tagging_fn(&self, p: Self::InputTag) -> Self::Tag {

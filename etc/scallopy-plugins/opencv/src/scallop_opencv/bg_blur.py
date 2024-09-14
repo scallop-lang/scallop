@@ -1,6 +1,7 @@
 import scallopy
 
 """Code adapted from https://github.com/allenai/visprog.git"""
+
 @scallopy.foreign_function
 def bg_blur(img_tensor: scallopy.Tensor, mask_tensor: scallopy.Tensor) -> scallopy.Tensor:
   from PIL import Image, ImageFilter

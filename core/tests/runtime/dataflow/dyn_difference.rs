@@ -31,11 +31,11 @@ where
   source_2.insert_untagged(&mut ctx, vec![(1i8, 1i8), (1i8, 2i8)]);
 
   // To allow source_2 for computation, we need it to be a collection
-  while source_2.changed(&ctx) {}
+  while source_2.changed(&ctx, rt.get_default_scheduler()) {}
   let source_2_coll = source_2.complete(&ctx);
 
   // Iterate until fixpoint
-  while source_1.changed(&ctx) || target.changed(&ctx) {
+  while source_1.changed(&ctx, rt.get_default_scheduler()) || target.changed(&ctx, rt.get_default_scheduler()) {
     target.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::dynamic_relation(&source_1)

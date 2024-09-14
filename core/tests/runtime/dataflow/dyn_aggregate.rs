@@ -21,7 +21,10 @@ fn test_dynamic_aggregate_count_1() {
   source_2.insert_untagged(&ctx, vec![(1i8, 1i8), (1i8, 2i8), (3i8, 5i8)]);
 
   // Iterate until fixpoint
-  while source_1.changed(&ctx) || source_2.changed(&ctx) || target.changed(&ctx) {
+  while source_1.changed(&ctx, rt.get_default_scheduler())
+    || source_2.changed(&ctx, rt.get_default_scheduler())
+    || target.changed(&ctx, rt.get_default_scheduler())
+  {
     target.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::dynamic_relation(&source_1).intersect(DynamicDataflow::dynamic_relation(&source_2), &ctx),
@@ -33,7 +36,7 @@ fn test_dynamic_aggregate_count_1() {
 
   let mut first_time = true;
   let mut agg = DynamicRelation::<unit::UnitProvenance>::new();
-  while agg.changed(&ctx) || first_time {
+  while agg.changed(&ctx, rt.get_default_scheduler()) || first_time {
     agg.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::new(DynamicAggregationSingleGroupDataflow::new(

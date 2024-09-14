@@ -5,91 +5,95 @@ import json
 import openai
 import scallopy
 
-from . import config
+from . import ScallopGPTPlugin
 
 FA_NAME = "gpt"
 ERR_HEAD = f"[@{FA_NAME}]"
 
-@scallopy.foreign_attribute
-def gpt(
-  item,
-  prompt: str,
-  *,
-  header: str = "",
-  examples: List[List[str]] = [],
-  model: Optional[str] = None,
-  debug: bool = False,
-):
-  # Needs to be a relation declaration, and can have only one relation
-  assert item.is_relation_decl(), f"{ERR_HEAD} has to be an attribute of a relation type declaration"
-  assert len(item.relation_decls()) == 1, f"{ERR_HEAD} cannot be an attribute on multiple relations]"
+def get_gpt(plugin: ScallopGPTPlugin):
 
-  # Get the argument names, argument types, and adornment pattern
-  relation_decl = item.relation_decl(0)
-  arg_names = [ab.name.name for ab in relation_decl.arg_bindings]
-  arg_types = [ab.ty for ab in relation_decl.arg_bindings]
-  pattern = "".join([get_boundness(ab.adornment) for ab in relation_decl.arg_bindings])
+  @scallopy.foreign_attribute
+  def gpt(
+    item,
+    prompt: str,
+    *,
+    header: str = "",
+    examples: List[List[str]] = [],
+    model: Optional[str] = None,
+    debug: bool = False,
+  ):
+    # Needs to be a relation declaration, and can have only one relation
+    assert item.is_relation_decl(), f"{ERR_HEAD} has to be an attribute of a relation type declaration"
+    assert len(item.relation_decls()) == 1, f"{ERR_HEAD} cannot be an attribute on multiple relations]"
 
-  # Compute the number of `b`ounds and the number of `f`rees.
-  regex_match = re.match("^(b*)(f+)$", pattern)
-  assert regex_match is not None, f"{ERR_HEAD} pattern must start with b (optional) and ending with f (required)"
-  num_bounded, num_free = len(regex_match[1]), len(regex_match[2])
+    # Get the argument names, argument types, and adornment pattern
+    relation_decl = item.relation_decl(0)
+    arg_names = [ab.name.name for ab in relation_decl.arg_bindings]
+    arg_types = [ab.ty for ab in relation_decl.arg_bindings]
+    pattern = "".join([get_boundness(ab.adornment) for ab in relation_decl.arg_bindings])
 
-  # Make sure that the types are good
-  assert all([at.is_string() for at in arg_types[:num_bounded]]), f"{ERR_HEAD} annotation requires all input arguments to have `String` type"
+    # Compute the number of `b`ounds and the number of `f`rees.
+    regex_match = re.match("^(b*)(f+)$", pattern)
+    assert regex_match is not None, f"{ERR_HEAD} pattern must start with b (optional) and ending with f (required)"
+    num_bounded, num_free = len(regex_match[1]), len(regex_match[2])
 
-  # The storage is special per foreign predicate
-  STORAGE = {}
+    # Make sure that the types are good
+    assert all([at.is_string() for at in arg_types[:num_bounded]]), f"{ERR_HEAD} annotation requires all input arguments to have `String` type"
 
-  # Generate the foreign predicate
-  @scallopy.foreign_predicate(
-    name=relation_decl.name.name,
-    input_arg_types=arg_types[:num_bounded],
-    output_arg_types=arg_types[num_bounded:],
-    tag_type=None,
-  )
-  def invoke_gpt(*args):
-    assert len(args) == num_bounded
+    # The storage is special per foreign predicate
+    STORAGE = {}
 
-    if model is None:
-      local_model = config.MODEL
-    else:
-      local_model = model
+    # Generate the foreign predicate
+    @scallopy.foreign_predicate(
+      name=relation_decl.name.name,
+      input_arg_types=arg_types[:num_bounded],
+      output_arg_types=arg_types[num_bounded:],
+      tag_type=None,
+    )
+    def invoke_gpt(*args):
+      assert len(args) == num_bounded
 
-    # Deal with STORAGE; check if the response is memoized
-    storage_key = tuple(args)
-    if storage_key in STORAGE:
-      responses = STORAGE[storage_key]
+      if model is None:
+        local_model = plugin.model()
+      else:
+        local_model = model
 
-    # Need to do a new request
-    else:
-      # Make sure that we can do so
-      config.assert_can_request()
+      # Deal with STORAGE; check if the response is memoized
+      storage_key = tuple(args)
+      if storage_key in STORAGE:
+        responses = STORAGE[storage_key]
 
-      # Fill the prompt with the inputs; replace free variables with the BLANK
-      filled_prompt = fill_prompt(header, prompt, examples, args, arg_names, num_bounded)
+      # Need to do a new request
+      else:
+        # Make sure that we can do so
+        plugin.assert_can_request()
 
-      # Create a request to openai gpt
-      config.NUM_PERFORMED_REQUESTS += 1
-      system_ctx, messages = fill_template([filled_prompt])
-      _, current_conversation = query_gpt_completion(system_ctx, messages, local_model)
-      responses = extract_responses(current_conversation)
+        # Fill the prompt with the inputs; replace free variables with the BLANK
+        filled_prompt = fill_prompt(header, prompt, examples, args, arg_names, num_bounded)
 
-      # Debug print
-      if debug:
-        print(f"Prompt: {messages}")
-        print(f"Responses: {responses}")
+        # Create a request to openai gpt
+        plugin.increment_num_performed_request()
+        system_ctx, messages = fill_template([filled_prompt])
+        _, current_conversation = query_gpt_completion(system_ctx, messages, local_model)
+        responses = extract_responses(current_conversation)
 
-      # Store the response
-      STORAGE[storage_key] = responses
+        # Debug print
+        if debug:
+          print(f"Prompt: {messages}")
+          print(f"Responses: {responses}")
 
-    # Return choices
-    for response in responses:
-      tup = parse_choice_text(response.strip(), arg_names, arg_types, num_bounded)
-      yield tup
+        # Store the response
+        STORAGE[storage_key] = responses
 
-  # Remove the item and register a foreign predicate
-  return invoke_gpt
+      # Return choices
+      for response in responses:
+        tup = parse_choice_text(response.strip(), arg_names, arg_types, num_bounded)
+        yield tup
+
+    # Remove the item and register a foreign predicate
+    return invoke_gpt
+
+  return gpt
 
 
 def get_boundness(adornment) -> str:

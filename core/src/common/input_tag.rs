@@ -5,6 +5,7 @@ use super::foreign_tensor::DynamicExternalTensor;
 #[derive(Clone, Debug, PartialEq, PartialOrd, Serialize)]
 pub enum DynamicInputTag {
   None,
+  NewVariable,
   Exclusive(usize),
   Bool(bool),
   Natural(usize),
@@ -44,7 +45,8 @@ impl std::fmt::Display for DynamicInputTag {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
       Self::None => Ok(()),
-      Self::Exclusive(i) => f.write_str(&format!("[ME({})]", i)),
+      Self::NewVariable => f.write_str("new Var"),
+      Self::Exclusive(i) => f.write_fmt(format_args!("[ME({})]", i)),
       Self::Bool(b) => b.fmt(f),
       Self::Natural(n) => n.fmt(f),
       Self::Float(n) => n.fmt(f),

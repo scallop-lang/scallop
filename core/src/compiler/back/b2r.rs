@@ -307,6 +307,8 @@ impl Program {
       facts: vec![facts, disjunctive_facts].concat(),
       input_file,
       output,
+      is_goal: rel.attributes.goal_attr().is_some(),
+      scheduler: rel.attributes.scheduler_attr().map(|sa| sa.scheduler.clone()),
       immutable,
     };
 

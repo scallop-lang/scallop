@@ -4,6 +4,7 @@ use super::*;
 use crate::common::tuple::Tuple;
 use crate::runtime::monitor::Monitor;
 use crate::runtime::provenance::*;
+use crate::runtime::utils::gallop_index;
 
 #[derive(Clone)]
 pub struct DynamicCollection<Prov: Provenance> {
@@ -96,6 +97,50 @@ impl<Prov: Provenance> DynamicCollection<Prov> {
     self.elements.drain(..)
   }
 
+  /// Retain only the elements which the `retain_fn` returns true.
+  ///
+  /// Note that retain_fn takes in both element index and the tagged-element itself.
+  /// This is an O(n) algorithm that preserves the ordering.
+  pub fn retain<F>(&mut self, mut retain_fn: F)
+  where
+    F: FnMut(usize, &DynamicElement<Prov>) -> bool,
+  {
+    // Keep track of the number of items that we have kept, essentially the number of elements
+    // for which the retain_fn returns true
+    let mut num_to_keep = 0;
+
+    // Keep track of the index of element that can be removed.
+    // This index will be later filled with elements to be kept
+    let mut maybe_last_empty_id: Option<usize> = None;
+
+    // Iterate from the front to the back
+    for i in 0..self.elements.len() {
+      // Check if we want to keep element i
+      if retain_fn(i, &self.elements[i]) {
+        num_to_keep += 1;
+
+        // If there is a prior element that can be removed, then we swap it with this element
+        // We ensure that the current element is the first to-keep element encountered after
+        // that to-remove element.
+        if let Some(last_empty_id) = maybe_last_empty_id {
+          self.elements.swap(i, last_empty_id);
+
+          // Then the next slot will be empty as well
+          maybe_last_empty_id = Some(last_empty_id + 1);
+        }
+      } else {
+        // If there is an element to be removed, we note that index down and allow further to-keep
+        // element to be swapped into this slot. We only do this upon first encounter.
+        if maybe_last_empty_id.is_none() {
+          maybe_last_empty_id = Some(i);
+        }
+      }
+    }
+
+    // Finally, truncate the elements array
+    self.elements.truncate(num_to_keep);
+  }
+
   pub fn apply_recover_fn<F, S>(self, mut f: F) -> impl Iterator<Item = (S, Tuple)>
   where
     F: FnMut(Prov::Tag) -> S,
@@ -121,6 +166,31 @@ impl<Prov: Provenance> DynamicCollection<Prov> {
       m.observe_recover(&elem.tuple, &elem.tag, &output_tag);
       (output_tag, elem.tuple)
     }))
+  }
+
+  /// Insert the element into the collection
+  pub fn insert(&mut self, elem: DynamicElement<Prov>, ctx: &Prov) {
+    let to_insert_index = gallop_index(&self.elements, 0, |e| &e.tuple < &elem.tuple);
+    if let Some(next_elem) = self.elements.get(to_insert_index) {
+      if &next_elem.tuple != &elem.tuple {
+        // If the tuple is not the same, we insert our new element
+        self.elements.insert(to_insert_index, elem);
+      } else {
+        // If the tuple is the same, we update its tag
+        self.elements[to_insert_index].tag = ctx.add(&elem.tag, &next_elem.tag);
+      }
+    } else {
+      // If there does not exist an element that is greater than the element,
+      // we push the element to the end
+      self.elements.push(elem);
+    }
+  }
+
+  /// Insert the element into the collection with the assumption that the element
+  /// does not pre-exist in the collection.
+  pub fn insert_unchecked(&mut self, elem: DynamicElement<Prov>) {
+    let to_insert_index = gallop_index(&self.elements, 0, |e| &e.tuple < &elem.tuple);
+    self.elements.insert(to_insert_index, elem);
   }
 
   pub fn merge(self, other: Self, ctx: &Prov) -> Self {

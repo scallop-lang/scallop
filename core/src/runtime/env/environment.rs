@@ -26,8 +26,11 @@ pub struct RuntimeEnvironment {
   /// Whether we want to early discard 0-tagged facts
   pub early_discard: bool,
 
-  /// Iteration count
-  pub iter_limit: Option<usize>,
+  /// Stopping Criteria
+  pub stopping_criteria: StoppingCriteria,
+
+  /// Scheduling
+  pub scheduler_manager: SchedulerManager,
 
   /// Foreign function registry
   pub function_registry: ForeignFunctionRegistry,
@@ -63,7 +66,8 @@ impl RuntimeEnvironment {
       random_seed: DEFAULT_RANDOM_SEED,
       random: Random::new(DEFAULT_RANDOM_SEED),
       early_discard: true,
-      iter_limit: None,
+      stopping_criteria: StoppingCriteria::default(),
+      scheduler_manager: SchedulerManager::default(),
       function_registry: ForeignFunctionRegistry::std(),
       predicate_registry: ForeignPredicateRegistry::std(),
       aggregate_registry: AggregateRegistry::std(),
@@ -79,7 +83,8 @@ impl RuntimeEnvironment {
       random_seed: seed,
       random: Random::new(seed),
       early_discard: true,
-      iter_limit: None,
+      stopping_criteria: StoppingCriteria::default(),
+      scheduler_manager: SchedulerManager::default(),
       function_registry: ForeignFunctionRegistry::std(),
       predicate_registry: ForeignPredicateRegistry::std(),
       aggregate_registry: AggregateRegistry::std(),
@@ -95,7 +100,8 @@ impl RuntimeEnvironment {
       random_seed: DEFAULT_RANDOM_SEED,
       random: Random::new(DEFAULT_RANDOM_SEED),
       early_discard: true,
-      iter_limit: None,
+      stopping_criteria: StoppingCriteria::default(),
+      scheduler_manager: SchedulerManager::default(),
       function_registry: ffr,
       predicate_registry: fpr,
       aggregate_registry: far,
@@ -111,7 +117,8 @@ impl RuntimeEnvironment {
       random_seed: DEFAULT_RANDOM_SEED,
       random: Random::new(DEFAULT_RANDOM_SEED),
       early_discard: true,
-      iter_limit: None,
+      stopping_criteria: StoppingCriteria::default(),
+      scheduler_manager: SchedulerManager::default(),
       function_registry: ffr,
       predicate_registry: ForeignPredicateRegistry::std(),
       aggregate_registry: AggregateRegistry::std(),
@@ -123,11 +130,20 @@ impl RuntimeEnvironment {
   }
 
   pub fn new_from_options(options: RuntimeEnvironmentOptions) -> Self {
+    let stopping_criteria = StoppingCriteria::default()
+      .with_iter_limit(&options.iter_limit)
+      .with_stop_when_goal_non_empty(options.stop_when_goal_non_empty);
+    let scheduler_manager = if let Some(sche) = &options.default_scheduler {
+      SchedulerManager::new_with_default_scheduler(sche.clone())
+    } else {
+      SchedulerManager::default()
+    };
     Self {
       random_seed: options.random_seed,
       random: Random::new(options.random_seed),
       early_discard: options.early_discard,
-      iter_limit: options.iter_limit,
+      stopping_criteria,
+      scheduler_manager,
       function_registry: ForeignFunctionRegistry::std(),
       predicate_registry: ForeignPredicateRegistry::std(),
       aggregate_registry: AggregateRegistry::std(),
@@ -143,11 +159,19 @@ impl RuntimeEnvironment {
   }
 
   pub fn set_iter_limit(&mut self, k: usize) {
-    self.iter_limit = Some(k);
+    self.stopping_criteria.set_iter_limit(k);
   }
 
   pub fn remove_iter_limit(&mut self) {
-    self.iter_limit = None;
+    self.stopping_criteria.remove_iter_limit();
+  }
+
+  pub fn get_default_scheduler(&self) -> &Scheduler {
+    self.scheduler_manager.get_default_scheduler()
+  }
+
+  pub fn get_scheduler(&self, name: &String) -> &Scheduler {
+    self.scheduler_manager.get_scheduler(name)
   }
 
   pub fn allocate_new_exclusion_id(&self) -> usize {
@@ -275,18 +299,18 @@ impl RuntimeEnvironment {
     // Compute result
     let result = match (&expr.op, lhs_v, rhs_v) {
       // Addition
-      (Add, Tuple::Value(I8(i1)), Tuple::Value(I8(i2))) => Tuple::Value(I8(i1.wrapping_add(i2))),
-      (Add, Tuple::Value(I16(i1)), Tuple::Value(I16(i2))) => Tuple::Value(I16(i1.wrapping_add(i2))),
-      (Add, Tuple::Value(I32(i1)), Tuple::Value(I32(i2))) => Tuple::Value(I32(i1.wrapping_add(i2))),
-      (Add, Tuple::Value(I64(i1)), Tuple::Value(I64(i2))) => Tuple::Value(I64(i1.wrapping_add(i2))),
-      (Add, Tuple::Value(I128(i1)), Tuple::Value(I128(i2))) => Tuple::Value(I128(i1.wrapping_add(i2))),
-      (Add, Tuple::Value(ISize(i1)), Tuple::Value(ISize(i2))) => Tuple::Value(ISize(i1.wrapping_add(i2))),
-      (Add, Tuple::Value(U8(i1)), Tuple::Value(U8(i2))) => Tuple::Value(U8(i1.wrapping_add(i2))),
-      (Add, Tuple::Value(U16(i1)), Tuple::Value(U16(i2))) => Tuple::Value(U16(i1.wrapping_add(i2))),
-      (Add, Tuple::Value(U32(i1)), Tuple::Value(U32(i2))) => Tuple::Value(U32(i1.wrapping_add(i2))),
-      (Add, Tuple::Value(U64(i1)), Tuple::Value(U64(i2))) => Tuple::Value(U64(i1.wrapping_add(i2))),
-      (Add, Tuple::Value(U128(i1)), Tuple::Value(U128(i2))) => Tuple::Value(U128(i1.wrapping_add(i2))),
-      (Add, Tuple::Value(USize(i1)), Tuple::Value(USize(i2))) => Tuple::Value(USize(i1.wrapping_add(i2))),
+      (Add, Tuple::Value(I8(i1)), Tuple::Value(I8(i2))) => Tuple::Value(I8(i1.saturating_add(i2))),
+      (Add, Tuple::Value(I16(i1)), Tuple::Value(I16(i2))) => Tuple::Value(I16(i1.saturating_add(i2))),
+      (Add, Tuple::Value(I32(i1)), Tuple::Value(I32(i2))) => Tuple::Value(I32(i1.saturating_add(i2))),
+      (Add, Tuple::Value(I64(i1)), Tuple::Value(I64(i2))) => Tuple::Value(I64(i1.saturating_add(i2))),
+      (Add, Tuple::Value(I128(i1)), Tuple::Value(I128(i2))) => Tuple::Value(I128(i1.saturating_add(i2))),
+      (Add, Tuple::Value(ISize(i1)), Tuple::Value(ISize(i2))) => Tuple::Value(ISize(i1.saturating_add(i2))),
+      (Add, Tuple::Value(U8(i1)), Tuple::Value(U8(i2))) => Tuple::Value(U8(i1.saturating_add(i2))),
+      (Add, Tuple::Value(U16(i1)), Tuple::Value(U16(i2))) => Tuple::Value(U16(i1.saturating_add(i2))),
+      (Add, Tuple::Value(U32(i1)), Tuple::Value(U32(i2))) => Tuple::Value(U32(i1.saturating_add(i2))),
+      (Add, Tuple::Value(U64(i1)), Tuple::Value(U64(i2))) => Tuple::Value(U64(i1.saturating_add(i2))),
+      (Add, Tuple::Value(U128(i1)), Tuple::Value(U128(i2))) => Tuple::Value(U128(i1.saturating_add(i2))),
+      (Add, Tuple::Value(USize(i1)), Tuple::Value(USize(i2))) => Tuple::Value(USize(i1.saturating_add(i2))),
       (Add, Tuple::Value(F32(i1)), Tuple::Value(F32(i2))) => Tuple::Value(F32(i1 + i2)),
       (Add, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => Tuple::Value(F64(i1 + i2)),
       (Add, Tuple::Value(String(s1)), Tuple::Value(String(s2))) => Tuple::Value(String(format!("{}{}", s1, s2))),
@@ -305,18 +329,18 @@ impl RuntimeEnvironment {
       (Add, b1, b2) => panic!("Cannot perform ADD on {:?} and {:?}", b1, b2),
 
       // Subtraction
-      (Sub, Tuple::Value(I8(i1)), Tuple::Value(I8(i2))) => Tuple::Value(I8(i1.wrapping_sub(i2))),
-      (Sub, Tuple::Value(I16(i1)), Tuple::Value(I16(i2))) => Tuple::Value(I16(i1.wrapping_sub(i2))),
-      (Sub, Tuple::Value(I32(i1)), Tuple::Value(I32(i2))) => Tuple::Value(I32(i1.wrapping_sub(i2))),
-      (Sub, Tuple::Value(I64(i1)), Tuple::Value(I64(i2))) => Tuple::Value(I64(i1.wrapping_sub(i2))),
-      (Sub, Tuple::Value(I128(i1)), Tuple::Value(I128(i2))) => Tuple::Value(I128(i1.wrapping_sub(i2))),
-      (Sub, Tuple::Value(ISize(i1)), Tuple::Value(ISize(i2))) => Tuple::Value(ISize(i1.wrapping_sub(i2))),
-      (Sub, Tuple::Value(U8(i1)), Tuple::Value(U8(i2))) => Tuple::Value(U8(i1.wrapping_sub(i2))),
-      (Sub, Tuple::Value(U16(i1)), Tuple::Value(U16(i2))) => Tuple::Value(U16(i1.wrapping_sub(i2))),
-      (Sub, Tuple::Value(U32(i1)), Tuple::Value(U32(i2))) => Tuple::Value(U32(i1.wrapping_sub(i2))),
-      (Sub, Tuple::Value(U64(i1)), Tuple::Value(U64(i2))) => Tuple::Value(U64(i1.wrapping_sub(i2))),
-      (Sub, Tuple::Value(U128(i1)), Tuple::Value(U128(i2))) => Tuple::Value(U128(i1.wrapping_sub(i2))),
-      (Sub, Tuple::Value(USize(i1)), Tuple::Value(USize(i2))) => Tuple::Value(USize(i1.wrapping_sub(i2))),
+      (Sub, Tuple::Value(I8(i1)), Tuple::Value(I8(i2))) => Tuple::Value(I8(i1.saturating_sub(i2))),
+      (Sub, Tuple::Value(I16(i1)), Tuple::Value(I16(i2))) => Tuple::Value(I16(i1.saturating_sub(i2))),
+      (Sub, Tuple::Value(I32(i1)), Tuple::Value(I32(i2))) => Tuple::Value(I32(i1.saturating_sub(i2))),
+      (Sub, Tuple::Value(I64(i1)), Tuple::Value(I64(i2))) => Tuple::Value(I64(i1.saturating_sub(i2))),
+      (Sub, Tuple::Value(I128(i1)), Tuple::Value(I128(i2))) => Tuple::Value(I128(i1.saturating_sub(i2))),
+      (Sub, Tuple::Value(ISize(i1)), Tuple::Value(ISize(i2))) => Tuple::Value(ISize(i1.saturating_sub(i2))),
+      (Sub, Tuple::Value(U8(i1)), Tuple::Value(U8(i2))) => Tuple::Value(U8(i1.saturating_sub(i2))),
+      (Sub, Tuple::Value(U16(i1)), Tuple::Value(U16(i2))) => Tuple::Value(U16(i1.saturating_sub(i2))),
+      (Sub, Tuple::Value(U32(i1)), Tuple::Value(U32(i2))) => Tuple::Value(U32(i1.saturating_sub(i2))),
+      (Sub, Tuple::Value(U64(i1)), Tuple::Value(U64(i2))) => Tuple::Value(U64(i1.saturating_sub(i2))),
+      (Sub, Tuple::Value(U128(i1)), Tuple::Value(U128(i2))) => Tuple::Value(U128(i1.saturating_sub(i2))),
+      (Sub, Tuple::Value(USize(i1)), Tuple::Value(USize(i2))) => Tuple::Value(USize(i1.saturating_sub(i2))),
       (Sub, Tuple::Value(F32(i1)), Tuple::Value(F32(i2))) => Tuple::Value(F32(i1 - i2)),
       (Sub, Tuple::Value(F64(i1)), Tuple::Value(F64(i2))) => Tuple::Value(F64(i1 - i2)),
       (Sub, Tuple::Value(DateTime(i1)), Tuple::Value(Duration(i2))) => Tuple::Value(DateTime(i1 - i2)),

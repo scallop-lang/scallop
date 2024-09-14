@@ -14,23 +14,40 @@ use scallop_core::utils::*;
 #[derive(Debug, StructOpt)]
 #[structopt(name = "scli", about = "Scallop Interpreter")]
 struct Options {
+  /// The input Scallop file (.scl)
   #[structopt(parse(from_os_str))]
   input: PathBuf,
 
+  /// The provenance to use for evaluating the Scallop program
   #[structopt(short, long, default_value = "unit")]
   provenance: String,
 
+  /// The `k` value for provenances such as top-k proofs
   #[structopt(short = "k", long, default_value = "3")]
   top_k: usize,
 
+  /// Whether we perform weighted model counting (WMC) with disjunctions
   #[structopt(long)]
   wmc_with_disjunctions: bool,
 
+  /// The name of the relation that we want to query for
   #[structopt(short = "q", long)]
   query: Option<String>,
 
+  /// The iteration limit of the execution
   #[structopt(long)]
   iter_limit: Option<usize>,
+
+  /// Whether we want to terminate when a goal relation has been derived
+  #[structopt(long)]
+  stop_at_goal: bool,
+
+  /// The default scheduler for the execution
+  #[structopt(long)]
+  scheduler: Option<String>,
+
+  #[structopt(long)]
+  beam_size: Option<usize>,
 
   #[structopt(long)]
   seed: Option<u64>,
@@ -108,6 +125,7 @@ fn main() -> Result<(), String> {
   let opt = Options::from_args();
 
   // Integration options
+  let default_scheduler = env::Scheduler::from_args(opt.scheduler.clone(), opt.beam_size.clone())?;
   let integrate_opt = integrate::IntegrateOptions {
     compiler_options: compiler::CompileOptions {
       debug: opt.debug,
@@ -127,6 +145,8 @@ fn main() -> Result<(), String> {
       random_seed: opt.seed.unwrap_or(DEFAULT_RANDOM_SEED),
       early_discard: !opt.no_early_discard,
       iter_limit: opt.iter_limit,
+      stop_when_goal_non_empty: opt.stop_at_goal,
+      default_scheduler,
     },
   };
 
@@ -152,6 +172,14 @@ fn main() -> Result<(), String> {
     }
     "proofs" => {
       let ctx = provenance::proofs::ProofsProvenance::<RcFamily>::default();
+      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options)
+    }
+    "tropical" => {
+      let ctx = provenance::tropical::TropicalProvenance::default();
+      interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options)
+    }
+    "realtropical" => {
+      let ctx = provenance::real_tropical::RealTropicalProvenance::default();
       interpret(ctx, &opt.input, integrate_opt, predicate_set, monitor_options)
     }
     "minmaxprob" => {

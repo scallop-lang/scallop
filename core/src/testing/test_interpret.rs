@@ -1,6 +1,9 @@
 use crate::common::tuple::Tuple;
+use crate::compiler::*;
 use crate::integrate::*;
 use crate::runtime::database::*;
+use crate::runtime::dynamic::*;
+use crate::runtime::env::*;
 use crate::runtime::error::*;
 use crate::runtime::monitor;
 use crate::runtime::provenance::*;
@@ -11,6 +14,23 @@ use super::*;
 pub fn expect_interpret_result<T: Into<Tuple> + Clone>(s: &str, (p, e): (&str, Vec<T>)) {
   let actual = interpret_string(s.to_string()).expect("Compile Error");
   expect_output_collection(p, actual.get_output_collection_ref(p).unwrap(), e);
+}
+
+pub fn expect_interpret_result_with_runtime_option<T>(s: &str, o: RuntimeEnvironmentOptions, (p, e): (&str, Vec<T>))
+where
+  T: Into<Tuple> + Clone,
+{
+  let prov = unit::UnitProvenance::default();
+  let opt = IntegrateOptions {
+    compiler_options: CompileOptions::default(),
+    execution_options: ExecutionOptions::default(),
+    runtime_environment_options: o,
+  };
+  let mut interpret_ctx =
+    InterpretContext::<_, RcFamily>::new_with_options(s.to_string(), prov, opt).expect("Compilation error");
+  interpret_ctx.run().expect("Runtime error");
+  let idb = interpret_ctx.idb();
+  expect_output_collection(p, idb.get_output_collection_ref(p).unwrap(), e);
 }
 
 pub fn expect_interpret_result_with_setup<T, F>(s: &str, f: F, (p, e): (&str, Vec<T>))
@@ -68,7 +88,29 @@ pub fn expect_interpret_within_iter_limit(s: &str, iter_limit: usize) {
   interpret_string_with_ctx_and_monitor(s.to_string(), prov, &monitor).expect("Interpret Error");
 }
 
-pub fn expect_interpret_failure<F>(s: &str) {
+/// Expect the given program to be executed within a given iteration limit.
+/// It panics if the program uses an iteration count more than the limit.
+pub fn expect_interpret_within_iter_limit_with_ctx_and_runtime_options<Prov: Provenance, Ptr: PointerFamily>(
+  s: &str,
+  iter_limit: usize,
+  prov: Prov,
+  runtime_environment_options: RuntimeEnvironmentOptions,
+) {
+  let monitor = monitor::IterationCheckingMonitor::new(iter_limit);
+  let mut interpret_ctx = InterpretContext::<Prov, Ptr>::new_with_options(
+    s.to_string(),
+    prov,
+    IntegrateOptions {
+      compiler_options: CompileOptions::default(),
+      execution_options: ExecutionOptions::default(),
+      runtime_environment_options,
+    },
+  )
+  .expect("Compile Error");
+  interpret_ctx.run_with_monitor(&monitor).expect("Interpret Error");
+}
+
+pub fn expect_interpret_failure(s: &str) {
   let result = interpret_string(s.to_string());
   match result {
     Ok(_) => panic!("Interpreting succeeded instead of expected failure"),

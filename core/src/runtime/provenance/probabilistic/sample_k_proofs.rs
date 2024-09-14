@@ -60,8 +60,8 @@ impl<P: PointerFamily> Provenance for SampleKProofsProvenance<P> {
 
   type OutputTag = f64;
 
-  fn name() -> &'static str {
-    "sample-k-proofs"
+  fn name(&self) -> String {
+    format!("sample-k-proofs")
   }
 
   fn tagging_fn(&self, input_tag: Self::InputTag) -> Self::Tag {

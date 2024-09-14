@@ -8,6 +8,7 @@ from debug import *
 from entity import *
 from failure import *
 from forward import *
+from plugins import *
 from sparse_forward import *
 from foreign_attribute import *
 from foreign_function import *

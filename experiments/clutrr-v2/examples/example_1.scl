@@ -1,0 +1,10 @@
+import "../kinship.scl"
+
+rel context("""
+Haru wants to play with his sister Sora.
+But their parents Ichiro and Nadeko don't want them to play togther.
+Who is Sora to Ichiro?
+""")
+
+query derived_kinship
+query result

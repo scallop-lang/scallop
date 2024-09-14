@@ -291,6 +291,16 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
         iter.add_output_relation(rela);
       }
 
+      // Check if we need it to be a goal
+      if ram_program.relation(rela).unwrap().is_goal {
+        iter.add_goal_relation(rela);
+      }
+
+      // Add relation specific scheduler
+      if let Some(scheduler) = &ram_program.relation(rela).unwrap().scheduler {
+        iter.add_relation_scheduler(rela, scheduler.clone());
+      }
+
       // Load external facts
       if let Some(facts) = self.edb.get_dynamic_collection(rela) {
         // Mutable relations need their EDB facts to go into dynamic relation
@@ -563,6 +573,11 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
         iter.add_output_relation(rela);
       }
 
+      // Check if we need it to be a goal
+      if ram_program.relation(rela).unwrap().is_goal {
+        iter.add_goal_relation(rela);
+      }
+
       // Load external facts
       if let Some(facts) = self.edb.get_dynamic_collection(rela) {
         // !SPECIAL MONITOR!
@@ -705,18 +720,3 @@ fn stratum_inputs_outputs(ram: &ram::Program) -> StrataInformation {
     relation_lifespan,
   }
 }
-
-// impl StrataInformation {
-//   pub fn is_input(&self, stratum_id: usize, rel: &str) -> bool {
-//     if let Some(stratum_input) = self.stratum_inputs.get(&stratum_id) {
-//       for (r, _) in stratum_input {
-//         if r == rel {
-//           return true
-//         }
-//       }
-//       false
-//     } else {
-//       false
-//     }
-//   }
-// }

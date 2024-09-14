@@ -18,7 +18,7 @@ fn test_dyn_project_1() {
   source.insert_untagged(&mut ctx, vec![(0i8, 1i8), (1i8, 2i8)]);
 
   // Iterate until fixpoint
-  while source.changed(&ctx) || target.changed(&ctx) {
+  while source.changed(&ctx, rt.get_default_scheduler()) || target.changed(&ctx, rt.get_default_scheduler()) {
     target.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::project(

@@ -6,8 +6,9 @@ use super::*;
 impl StaticInputTag for usize {
   fn from_dynamic_input_tag(t: &DynamicInputTag) -> Option<Self> {
     match t {
-      DynamicInputTag::None => Some(1),
-      DynamicInputTag::Exclusive(_) => Some(1),
+      DynamicInputTag::None => None,
+      DynamicInputTag::NewVariable => None,
+      DynamicInputTag::Exclusive(_) => None,
       DynamicInputTag::Natural(n) => Some(*n),
       DynamicInputTag::Bool(b) => Some(if *b { 1 } else { 0 }),
       DynamicInputTag::Float(f) => Some(if *f > 0.0 { 1 } else { 0 }),
@@ -37,6 +38,12 @@ impl ConvertFromInputTag<usize> for usize {
   }
 }
 
+impl ConvertFromInputTag<Exclusion> for usize {
+  fn from_input_tag(_: Exclusion) -> Option<Self> {
+    None
+  }
+}
+
 impl ConvertFromInputTag<f32> for usize {
   fn from_input_tag(t: f32) -> Option<Self> {
     Some(if t > 0.0 { 1 } else { 0 })
@@ -46,6 +53,12 @@ impl ConvertFromInputTag<f32> for usize {
 impl ConvertFromInputTag<f64> for usize {
   fn from_input_tag(t: f64) -> Option<Self> {
     Some(if t > 0.0 { 1 } else { 0 })
+  }
+}
+
+impl ConvertFromInputTag<InputExclusiveProb> for usize {
+  fn from_input_tag(t: InputExclusiveProb) -> Option<Self> {
+    Some(if t.prob > 0.0 { 1 } else { 0 })
   }
 }
 

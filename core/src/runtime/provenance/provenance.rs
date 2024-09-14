@@ -14,7 +14,7 @@ pub trait Provenance: Clone + 'static {
   type OutputTag: Clone + Debug + Display;
 
   /// The name of the provenance
-  fn name() -> &'static str;
+  fn name(&self) -> String;
 
   /// Converting input tag to internal tag
   fn tagging_fn(&self, ext_tag: Self::InputTag) -> Self::Tag;

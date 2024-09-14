@@ -14,6 +14,9 @@ class ScallopProvenance:
   - `saturate`
   """
 
+  def name(self):
+    return "custom-provenance"
+
   def tagging_fn(self, input_tag):
     """
     Given the input tags, generate an internal tag for the tuple.

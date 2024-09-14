@@ -1,6 +1,6 @@
 [project]
 name = "scallop-transformers"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
   "transformers",
   "opencv-python",
@@ -10,5 +10,5 @@ dependencies = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[project.entry-points."scallop.plugin.load_into_context"]
-transformers = "scallop_transformers:load_into_context"
+[project.entry-points."scallop.plugin"]
+transformers = "scallop_transformers:ScallopTransformersPlugin"

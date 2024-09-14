@@ -13,14 +13,8 @@ dependencies = []
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[project.entry-points."scallop.plugin.setup_arg_parser"]
-{dashed_name} = "scallop_{underscore_name}:setup_arg_parser"
-
-[project.entry-points."scallop.plugin.configure"]
-{dashed_name} = "scallop_{underscore_name}:configure"
-
-[project.entry-points."scallop.plugin.load_into_context"]
-{dashed_name} = "scallop_{underscore_name}:load_into_context"
+[project.entry-points."scallop.plugin"]
+{dashed_name} = "scallop_{underscore_name}:{plugin_name}"
 """
 
 
@@ -49,14 +43,18 @@ INIT_SRC = """\
 import argparse
 import scallopy
 
-def setup_arg_parser(parser: argparse.ArgumentParser):
-  pass
+class {plugin_name}(scallopy.Plugin):
+  def __init__(self):
+    super().__init__()
 
-def configure(args):
-  pass
+  def setup_argparse(self, parser: argparse.ArgumentParser):
+    pass
 
-def load_into_context(ctx: scallopy.Context):
-  pass
+  def configure(self, args={{}}, unknown_args=[]):
+    pass
+
+  def load_into_ctx(self, ctx: scallopy.ScallopContext):
+    pass
 """
 
 
@@ -152,7 +150,8 @@ def main():
 
   # Create pyproject.toml
   underscore_name = name.replace("-", "_")
-  py_project_src = PY_PROJECT_SRC.format(dashed_name=name, underscore_name=underscore_name, version=version)
+  plugin_name = "".join([part.title() for part in name.split("-")])
+  py_project_src = PY_PROJECT_SRC.format(dashed_name=name, underscore_name=underscore_name, plugin_name=plugin_name, version=version)
   with open(os.path.join(cwd, "pyproject.toml"), "w") as pyproject_file:
     pyproject_file.write(py_project_src)
 
@@ -163,7 +162,7 @@ def main():
   # Create folders
   subprocess.run(["mkdir", "-p", f"src/scallop_{name}"], cwd=cwd)
   with open(os.path.join(cwd, "src", f"scallop_{name}", "__init__.py"), "w") as init_file:
-    init_file.write(INIT_SRC)
+    init_file.write(INIT_SRC.format(plugin_name=plugin_name))
 
   # Final prints
   print(DONE_PRINT.format(path=os.path.abspath(os.path.join(cwd))))
