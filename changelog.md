@@ -1,3 +1,16 @@
+# v0.2.5, Sep 14, 2024
+
+- Adding `@goal` and `@scheduler` to Scallop: now we have multiple semantics driven by scheduling strategies (BFS, DFS, A-Star, Beam, etc.) and stopping criteria.
+- Removing the package `scallopy_ext`; moving everything into `scallopy` and simplifying installation.
+- Refactoring Scallopy Plugins. All the existing plugins under `etc/scallopy-plugins` are updated to the new API. Instead of having individual entry-points, now Plugins are programed as a Python class inheriting `scallopy.Plugin`.
+
+Lower Level:
+- Improving query planning by prioritizing over demand predicates
+- Optimizing RAM by introducing deduplication of update rules
+- Adding new provenances, including various tropical semirings for discrete and real-number reasoning modes
+- Adding optimizations to Scallop runtime join algorithms
+- Multiple bugs fixed
+
 # v0.2.4, Aug 30, 2024
 
 - Rule tags can now be expressions with potential reference to local variables: `rel 1/n::head() = body(n)`
