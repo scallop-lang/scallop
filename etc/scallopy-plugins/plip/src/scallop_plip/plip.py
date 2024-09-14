@@ -40,7 +40,7 @@ def plip(
     assert args[2].ty.is_string() and (args[2].adornment is None or args[2].adornment.is_free()), f"{ERR_HEAD} third argument has to be of free type `String`"
 
   @scallopy.foreign_predicate(name=relation_decl.name.name)
-  def plip_classify(img: scallopy.Tensor) -> scallopy.Generator[float, Tuple[str]]:
+  def plip_classify(img: scallopy.Tensor) -> scallopy.Facts[float, Tuple[str]]:
     device = get_device()
     maybe_plip_model = get_plip_model(debug=debug)
     if maybe_plip_model is None:
@@ -64,7 +64,7 @@ def plip(
 
   # Generate the foreign predicate for dynamic labels
   @scallopy.foreign_predicate(name=relation_decl.name.name)
-  def plip_classify_with_labels(img: scallopy.Tensor, list: scallopy.String) -> scallopy.Generator[float, Tuple[str]]:
+  def plip_classify_with_labels(img: scallopy.Tensor, list: scallopy.String) -> scallopy.Facts[float, Tuple[str]]:
     nonlocal labels
     labels = [item.strip() for item in list.split(DELIMITER)]
     return plip_classify(img)

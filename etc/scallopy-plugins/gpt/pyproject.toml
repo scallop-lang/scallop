@@ -2,7 +2,7 @@
 name = "scallop-gpt"
 version = "0.0.1"
 dependencies = [
-  "openai",
+  "openai == 0.28",
   "torch",
 ]
 
