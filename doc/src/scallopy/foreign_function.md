@@ -5,10 +5,13 @@ While there are existing [foreign functions](../language/foreign_functions.md) s
 Here is an example defining a custom `$sum` function in Python which is later used in Scallop:
 
 ``` py
+import scallopy
+from scallopy import i8
+
 # Create a new foreign function by annotating an existing function with `@scallopy.foreign_function`
 # Note that this function has variable arguments!
 @scallopy.foreign_function
-def my_sum(*args: int) -> int:
+def my_sum(*args: int) -> i8:
   s = 0
   for x in args:
     s += x
