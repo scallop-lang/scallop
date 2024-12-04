@@ -2,6 +2,7 @@
 #![feature(extract_if)]
 #![feature(hash_extract_if)]
 #![feature(proc_macro_span)]
+#![feature(iter_repeat_n)]
 
 pub mod common;
 pub mod compiler;
