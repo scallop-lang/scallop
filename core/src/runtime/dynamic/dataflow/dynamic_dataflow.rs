@@ -1,3 +1,5 @@
+use join_indexed_vec::DynamicJoinIndexedVecDataflow;
+
 use crate::common::expr::*;
 use crate::common::tuple::*;
 use crate::common::tuple_type::*;
@@ -55,7 +57,7 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
     Self::new(DynamicStableUnitDataflow::new(ctx, tuple_type))
   }
 
-  pub fn dynamic_collection(col: &'a DynamicCollection<Prov>, recent: bool) -> Self {
+  pub fn dynamic_collection(col: DynamicCollectionRef<'a, Prov>, recent: bool) -> Self {
     if recent {
       Self::dynamic_recent_collection(col)
     } else {
@@ -63,12 +65,28 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
     }
   }
 
-  pub fn dynamic_stable_collection(col: &'a DynamicCollection<Prov>) -> Self {
+  pub fn dynamic_recent_collection(col: DynamicCollectionRef<'a, Prov>) -> Self {
+    Self::new(DynamicRecentCollectionDataflow(col))
+  }
+
+  pub fn dynamic_stable_collection(col: DynamicCollectionRef<'a, Prov>) -> Self {
     Self::new(DynamicStableCollectionDataflow(col))
   }
 
-  pub fn dynamic_recent_collection(col: &'a DynamicCollection<Prov>) -> Self {
-    Self::new(DynamicRecentCollectionDataflow(col))
+  pub fn dynamic_sorted_collection(col: &'a DynamicSortedCollection<Prov>, recent: bool) -> Self {
+    if recent {
+      Self::dynamic_recent_sorted_collection(col)
+    } else {
+      Self::dynamic_stable_sorted_collection(col)
+    }
+  }
+
+  pub fn dynamic_stable_sorted_collection(col: &'a DynamicSortedCollection<Prov>) -> Self {
+    Self::new(DynamicStableSortedCollectionDataflow(col))
+  }
+
+  pub fn dynamic_recent_sorted_collection(col: &'a DynamicSortedCollection<Prov>) -> Self {
+    Self::new(DynamicRecentSortedCollectionDataflow(col))
   }
 
   pub fn dynamic_relation(rela: &'a DynamicRelation<Prov>) -> Self {
@@ -99,6 +117,10 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
     Self::new(DynamicFindDataflow { source: self, key })
   }
 
+  pub fn sorted(self) -> Self {
+    Self::new(DynamicSortedDataflow { source: self })
+  }
+
   pub fn intersect(self, d2: Self, ctx: &'a Prov) -> Self {
     Self::new(DynamicIntersectDataflow { d1: self, d2, ctx })
   }
@@ -121,6 +143,10 @@ impl<'a, Prov: Provenance> DynamicDataflow<'a, Prov> {
 
   pub fn antijoin(self, d2: Self, ctx: &'a Prov) -> Self {
     Self::new(DynamicAntijoinDataflow { d1: self, d2, ctx })
+  }
+
+  pub fn join_indexed_vec(self, indexed_vec: &'a DynamicIndexedVecCollection<Prov>, ctx: &'a Prov) -> Self {
+    Self::new(DynamicJoinIndexedVecDataflow { d1: self, indexed_vec, ctx })
   }
 
   pub fn foreign_predicate_ground(

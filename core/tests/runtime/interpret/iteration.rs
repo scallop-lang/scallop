@@ -39,8 +39,8 @@ where
   );
 
   // Specify output relations
-  iter.add_output_relation("path");
-  iter.add_output_relation("edge");
+  iter.add_output_relation_with_default_storage("path");
+  iter.add_output_relation_with_default_storage("edge");
 
   // Run the iteration
   let mut result = iter.run(&ctx, &rt);
@@ -94,14 +94,14 @@ where
       "_color_rev",
       Dataflow::relation("color").project((Expr::access(1), Expr::access(0))),
     );
-    strata_1.add_output_relation("_color_rev");
+    strata_1.add_output_relation_with_default_storage("_color_rev");
     strata_1.run(&ctx, &rt)
   };
 
   let result_2 = {
     let mut strata_2 = DynamicIteration::<Prov>::new();
     strata_2.create_dynamic_relation("color_count");
-    strata_2.add_input_dynamic_collection("_color_rev", &result_1["_color_rev"]);
+    strata_2.add_input_dynamic_collection("_color_rev", result_1["_color_rev"].as_ref());
     strata_2.add_update_dataflow(
       "color_count",
       Dataflow::reduce(
@@ -111,14 +111,14 @@ where
         ReduceGroupByType::Implicit,
       ),
     );
-    strata_2.add_output_relation("color_count");
+    strata_2.add_output_relation_with_default_storage("color_count");
     strata_2.run(&ctx, &rt)
   };
 
   let mut result_3 = {
     let mut strata_3 = DynamicIteration::<Prov>::new();
     strata_3.create_dynamic_relation("max_color_count");
-    strata_3.add_input_dynamic_collection("color_count", &result_2["color_count"]);
+    strata_3.add_input_dynamic_collection("color_count", result_2["color_count"].as_ref());
     strata_3.add_update_dataflow(
       "max_color_count",
       Dataflow::reduce(
@@ -130,7 +130,7 @@ where
         ReduceGroupByType::None,
       ),
     );
-    strata_3.add_output_relation("max_color_count");
+    strata_3.add_output_relation_with_default_storage("max_color_count");
     strata_3.run(&ctx, &rt)
   };
 

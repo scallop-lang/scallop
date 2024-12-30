@@ -1,6 +1,7 @@
 use std::collections::*;
 
 use crate::runtime::database::extensional::*;
+use crate::runtime::database::StorageMetadata;
 use crate::runtime::dynamic::*;
 use crate::runtime::env::*;
 use crate::runtime::monitor::*;
@@ -82,11 +83,14 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalDatabase<Prov, Ptr> {
     ctx: &Prov,
     edb_relation: &ExtensionalRelation<Prov>,
   ) {
+    let metadata = StorageMetadata::default();
+    let internal_facts = metadata.create_empty_storage();
     self.intentional_relations.insert(
       relation.to_string(),
       IntentionalRelation {
+        metadata,
         recovered: true,
-        internal_facts: DynamicCollection::empty(),
+        internal_facts,
         recovered_facts: Ptr::new_rc(DynamicOutputCollection::from(edb_relation.internal.iter().filter_map(
           |elem| {
             let tag = ctx.recover_fn(&elem.tag);
@@ -123,8 +127,8 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalDatabase<Prov, Ptr> {
   }
 
   /// Get internal collection
-  pub fn get_internal_collection(&self, relation: &str) -> Option<&DynamicCollection<Prov>> {
-    self.intentional_relations.get(relation).map(|r| &r.internal_facts)
+  pub fn get_internal_collection(&self, relation: &str) -> Option<DynamicCollectionRef<Prov>> {
+    self.intentional_relations.get(relation).map(|r| r.internal_facts.as_ref())
   }
 
   /// Get recovered collection

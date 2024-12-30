@@ -22,5 +22,5 @@ fn simple_relation_dataflow() {
     target.insert_dataflow_recent(&ctx, &DynamicDataflow::dynamic_relation(&source), &mut rt);
   }
 
-  expect_collection(&target.complete(&ctx), vec![(0usize, 1usize), (1usize, 2usize)]);
+  expect_collection(&target.complete(&ctx).into(), vec![(0usize, 1usize), (1usize, 2usize)]);
 }

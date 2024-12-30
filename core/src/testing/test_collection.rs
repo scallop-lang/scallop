@@ -85,7 +85,7 @@ where
   }
 
   // Then check everything in actual is in expected
-  for elem in &actual.elements {
+  for elem in actual.iter() {
     let pos = expected
       .elements
       .iter()
@@ -130,6 +130,28 @@ where
       "Tuple {:?} is derived in collection `{}` but not found in expected set",
       elem,
       name,
+    )
+  }
+}
+
+pub fn expect_contains_output_collection<Prov, C>(name: &str, actual: &DynamicOutputCollection<Prov>, expected: C)
+where
+  Prov: Provenance,
+  Prov::Tag: std::fmt::Debug,
+  C: Into<TestCollection>,
+{
+  let expected = Into::<TestCollection>::into(expected);
+
+  // First check everything in expected is in actual
+  for e in &expected.elements {
+    let te = e.clone().into();
+    let pos = actual.iter().position(|(_, tuple)| test_equals(&tuple, &te));
+    assert!(
+      pos.is_some(),
+      "Tuple {:?} not found in `{}` collection {:?}",
+      te,
+      name,
+      actual
     )
   }
 }

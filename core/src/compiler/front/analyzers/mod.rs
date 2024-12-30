@@ -12,6 +12,7 @@ pub mod invalid_constant;
 pub mod invalid_wildcard;
 pub mod output_files;
 pub mod scheduler_attr;
+pub mod storage_attr;
 pub mod tagged_rule;
 pub mod type_inference;
 
@@ -29,6 +30,7 @@ pub use invalid_constant::InvalidConstantAnalyzer;
 pub use invalid_wildcard::InvalidWildcardAnalyzer;
 pub use output_files::OutputFilesAnalysis;
 pub use scheduler_attr::SchedulerAttributeAnalysis;
+pub use storage_attr::StorageAttributeAnalysis;
 pub use tagged_rule::TaggedRuleAnalysis;
 pub use type_inference::TypeInference;
 

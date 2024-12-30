@@ -196,14 +196,25 @@ impl FrontContext {
 
   fn rule_decl_to_back_rules(&self, rd: &front::RuleDecl, temp_relations: &mut Vec<back::Relation>) -> Vec<back::Rule> {
     let rule_loc = rd.rule().location();
+    let rule_attrs = rd.attrs().iter().filter_map(|attr| self.attr_to_back_attr(attr)).collect();
     match rd.rule().head() {
-      front::RuleHead::Atom(head) => self.atomic_rule_decl_to_back_rules(rule_loc, head, temp_relations),
+      front::RuleHead::Atom(head) => {
+        self.atomic_rule_decl_to_back_rules(rule_loc, head, rule_attrs, temp_relations)
+      },
       front::RuleHead::Conjunction(_) => {
         panic!("[Internal Error] Conjunction should be flattened and de-sugared. This is probably a bug.")
       }
       front::RuleHead::Disjunction(head_atoms) => {
-        self.disjunctive_rule_decl_to_back_rules(rule_loc, head_atoms.atoms(), temp_relations)
+        self.disjunctive_rule_decl_to_back_rules(rule_loc, head_atoms.atoms(), rule_attrs, temp_relations)
       }
+    }
+  }
+
+  fn attr_to_back_attr(&self, attr: &front::Attribute) -> Option<back::Attribute> {
+    if attr.name().name() == "no_temp_relation" {
+      Some(back::attributes::NoTemporaryRelationAttribute.into())
+    } else {
+      None
     }
   }
 
@@ -211,13 +222,14 @@ impl FrontContext {
     &self,
     rule_loc: &NodeLocation,
     head: &front::Atom,
+    rule_attrs: Vec<back::Attribute>,
     temp_relations: &mut Vec<back::Relation>,
   ) -> Vec<back::Rule> {
     let analysis = self.analysis.borrow();
 
     // Basic information
     let pred = head.predicate();
-    let attributes = back::Attributes::new();
+    let attributes = back::Attributes::from(rule_attrs);
 
     // Collect information for flattening
     let mut flatten_expr = FlattenExprContext::new(&analysis.type_inference, &self.foreign_predicate_registry);
@@ -253,13 +265,14 @@ impl FrontContext {
     &self,
     rule_loc: &NodeLocation,
     head_atoms: &[front::Atom],
+    rule_attrs: Vec<back::Attribute>,
     temp_relations: &mut Vec<back::Relation>,
   ) -> Vec<back::Rule> {
     let analysis = self.analysis.borrow();
 
     // Basic information
     let pred = head_atoms[0].predicate();
-    let attributes = back::Attributes::new();
+    let attributes = back::Attributes::from(rule_attrs);
 
     // Collect information for flattening
     let mut flatten_expr = FlattenExprContext::new(&analysis.type_inference, &self.foreign_predicate_registry);
@@ -416,10 +429,9 @@ impl FrontContext {
       let group_by_terms = self.back_terms_with_types(group_by_vars, group_by_types.clone());
 
       // Create a temporary relation for group_by
-      let group_by_relation_attr = back::AggregateGroupByAttribute::new(joined_vars.len(), other_group_by_vars.len());
-      let group_by_relation_attrs = back::Attributes::singleton(group_by_relation_attr);
+      let group_by_relation_attr = back::attributes::AggregateGroupByAttribute::new(joined_vars.len(), other_group_by_vars.len());
       let group_by_relation = back::Relation::new_with_attrs(
-        group_by_relation_attrs,
+        group_by_relation_attr.into(),
         group_by_predicate.clone(),
         group_by_types.clone(),
       );
@@ -548,9 +560,8 @@ impl FrontContext {
 
     // Get the body to-aggregate relation
     let body_attr =
-      back::AggregateBodyAttribute::new(op.clone(), group_by_vars.len(), arg_vars.len(), to_agg_vars.len());
-    let body_attrs = back::Attributes::singleton(body_attr);
-    let body_relation = back::Relation::new_with_attrs(body_attrs, body_predicate.clone(), body_arg_tys.clone());
+      back::attributes::AggregateBodyAttribute::new(op.clone(), group_by_vars.len(), arg_vars.len(), to_agg_vars.len());
+    let body_relation = back::Relation::new_with_attrs(body_attr.into(), body_predicate.clone(), body_arg_tys.clone());
     temp_relations.push(body_relation);
 
     // Get the rules for body

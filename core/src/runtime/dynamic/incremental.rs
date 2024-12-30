@@ -190,7 +190,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
           if let Some(edb_collection) = self.edb.get_dynamic_collection(&relation.predicate) {
             self
               .idb
-              .insert_dynamic_collection(relation.predicate.clone(), edb_collection.clone());
+              .insert_dynamic_collection(relation.predicate.clone(), edb_collection.clone_internal());
           }
         } else {
           if let Some(edb_collection) = self.edb.pop_dynamic_collection(&relation.predicate) {
@@ -242,11 +242,11 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
     if self.options.incremental_maintain {
       for (rel, col) in &self.edb.extensional_relations {
         if ram_program.relation(rel).map(|r| r.immutable).unwrap_or(false) {
-          iter.add_input_dynamic_collection(&rel, &col.internal);
+          iter.add_input_dynamic_collection(&rel, col.internal.as_ref());
         }
       }
       for (rel, col) in current_idb {
-        iter.add_input_dynamic_collection(&rel, &col.internal_facts);
+        iter.add_input_dynamic_collection(&rel, col.internal_facts.as_ref());
       }
     } else {
       // Non-incremental version:
@@ -288,7 +288,8 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
           .map_or(false, |o| o.contains(rela))
         || ram_program.relation_unchecked(rela).output.is_not_hidden()
       {
-        iter.add_output_relation(rela);
+        let storage = &ram_program.relation_unchecked(rela).storage;
+        iter.add_output_relation(rela, storage);
       }
 
       // Check if we need it to be a goal
@@ -448,7 +449,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
           if let Some(edb_collection) = self.edb.get_dynamic_collection(&relation.predicate) {
             self
               .idb
-              .insert_dynamic_collection(relation.predicate.clone(), edb_collection.clone());
+              .insert_dynamic_collection(relation.predicate.clone(), edb_collection.clone_internal());
           }
         } else {
           if let Some(edb_collection) = self.edb.pop_dynamic_collection(&relation.predicate) {
@@ -511,7 +512,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
           m.observe_loading_relation(rel);
           m.observe_loading_relation_from_edb(rel);
 
-          iter.add_input_dynamic_collection(&rel, &col.internal);
+          iter.add_input_dynamic_collection(&rel, col.internal.as_ref());
         }
       }
       for (rel, col) in current_idb {
@@ -519,7 +520,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
         m.observe_loading_relation(rel);
         m.observe_loading_relation_from_idb(rel);
 
-        iter.add_input_dynamic_collection(&rel, &col.internal_facts);
+        iter.add_input_dynamic_collection(&rel, col.internal_facts.as_ref());
       }
     } else {
       // Non-incremental version:
@@ -570,7 +571,8 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
         || strata_info.stratum_outputs[&stratum_id].contains(rela)
         || ram_program.relation_unchecked(rela).output.is_not_hidden()
       {
-        iter.add_output_relation(rela);
+        let storage = &ram_program.relation_unchecked(rela).storage;
+        iter.add_output_relation(rela, storage);
       }
 
       // Check if we need it to be a goal
@@ -621,7 +623,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
     self.edb.add_static_input_facts(relation, facts)
   }
 
-  pub fn internal_relation(&self, r: &str) -> Option<&DynamicCollection<Prov>> {
+  pub fn internal_relation(&self, r: &str) -> Option<DynamicCollectionRef<Prov>> {
     self.idb.get_internal_collection(r)
   }
 

@@ -30,14 +30,14 @@ fn test_simple_probability_count() {
       "_color_rev",
       Dataflow::relation("color").project((Expr::access(1), Expr::access(0))),
     );
-    strata_1.add_output_relation("_color_rev");
+    strata_1.add_output_relation_with_default_storage("_color_rev");
     strata_1.run(&ctx, &rt)
   };
 
   let result_2 = {
     let mut strata_2 = DynamicIteration::<min_max_prob::MinMaxProbProvenance>::new();
     strata_2.create_dynamic_relation("color_count");
-    strata_2.add_input_dynamic_collection("_color_rev", &result_1["_color_rev"]);
+    strata_2.add_input_dynamic_collection("_color_rev", result_1["_color_rev"].as_ref());
     strata_2.add_update_dataflow(
       "color_count",
       Dataflow::reduce(
@@ -49,7 +49,7 @@ fn test_simple_probability_count() {
         ReduceGroupByType::Implicit,
       ),
     );
-    strata_2.add_output_relation("color_count");
+    strata_2.add_output_relation_with_default_storage("color_count");
     strata_2.run(&ctx, &rt)
   };
 
@@ -80,14 +80,14 @@ fn test_min_max_prob_count_max() {
       "_color_rev",
       Dataflow::relation("color").project((Expr::access(1), Expr::access(0))),
     );
-    strata_1.add_output_relation("_color_rev");
+    strata_1.add_output_relation_with_default_storage("_color_rev");
     strata_1.run(&ctx, &rt)
   };
 
   let result_2 = {
     let mut strata_2 = DynamicIteration::<min_max_prob::MinMaxProbProvenance>::new();
     strata_2.create_dynamic_relation("color_count");
-    strata_2.add_input_dynamic_collection("_color_rev", &result_1["_color_rev"]);
+    strata_2.add_input_dynamic_collection("_color_rev", result_1["_color_rev"].as_ref());
     strata_2.add_update_dataflow(
       "color_count",
       Dataflow::reduce(
@@ -97,7 +97,7 @@ fn test_min_max_prob_count_max() {
         ReduceGroupByType::Implicit,
       ),
     );
-    strata_2.add_output_relation("color_count");
+    strata_2.add_output_relation_with_default_storage("color_count");
     strata_2.run(&ctx, &rt)
   };
 
@@ -106,7 +106,7 @@ fn test_min_max_prob_count_max() {
   let result_3 = {
     let mut strata_3 = DynamicIteration::<min_max_prob::MinMaxProbProvenance>::new();
     strata_3.create_dynamic_relation("max_color");
-    strata_3.add_input_dynamic_collection("color_count", &result_2["color_count"]);
+    strata_3.add_input_dynamic_collection("color_count", result_2["color_count"].as_ref());
     strata_3.add_update_dataflow(
       "max_color",
       Dataflow::reduce(
@@ -118,7 +118,7 @@ fn test_min_max_prob_count_max() {
         ReduceGroupByType::None,
       ),
     );
-    strata_3.add_output_relation("max_color");
+    strata_3.add_output_relation_with_default_storage("max_color");
     strata_3.run(&ctx, &rt)
   };
 

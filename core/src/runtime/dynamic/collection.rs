@@ -1,282 +1,191 @@
-use std::cmp::Ordering;
-
 use super::*;
-use crate::common::tuple::Tuple;
-use crate::runtime::monitor::Monitor;
+use crate::runtime::database::*;
 use crate::runtime::provenance::*;
-use crate::runtime::utils::gallop_index;
 
 #[derive(Clone)]
-pub struct DynamicCollection<Prov: Provenance> {
-  pub elements: Vec<DynamicElement<Prov>>,
-}
-
-impl<Prov: Provenance> std::fmt::Debug for DynamicCollection<Prov>
-where
-  Prov::Tag: std::fmt::Debug,
-{
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.debug_set().entries(&self.elements).finish()
-  }
+pub enum DynamicCollection<Prov: Provenance> {
+  Sorted(DynamicSortedCollection<Prov>),
+  IndexedVec(DynamicIndexedVecCollection<Prov>),
+  DenseMatrix(DynamicDenseMatrixCollection<Prov>),
 }
 
 impl<Prov: Provenance> std::fmt::Display for DynamicCollection<Prov>
 where
-  DynamicElement<Prov>: std::fmt::Display,
+  DynamicElement<Prov>: std::fmt::Display
 {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.write_str("{")?;
-    for (i, elem) in self.elements.iter().enumerate() {
-      if i > 0 {
-        f.write_str(", ")?;
-      }
-      std::fmt::Display::fmt(elem, f)?;
+    match self {
+      Self::Sorted(s) => s.fmt(f),
+      Self::IndexedVec(s) => s.fmt(f),
+      Self::DenseMatrix(s) => s.fmt(f),
     }
-    f.write_str("}")
+  }
+}
+
+impl<Prov: Provenance> std::fmt::Debug for DynamicCollection<Prov>
+where
+  DynamicElement<Prov>: std::fmt::Debug
+{
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Self::Sorted(s) => s.fmt(f),
+      Self::IndexedVec(s) => s.fmt(f),
+      Self::DenseMatrix(s) => s.fmt(f),
+    }
   }
 }
 
 impl<Prov: Provenance> DynamicCollection<Prov> {
-  pub fn empty() -> Self {
-    Self { elements: vec![] }
+  pub fn default_empty() -> Self {
+    Self::Sorted(DynamicSortedCollection::empty())
   }
 
-  pub fn from_vec_unchecked(elements: Vec<DynamicElement<Prov>>) -> Self {
-    Self { elements }
-  }
-
-  pub fn from_vec(mut elements: Vec<DynamicElement<Prov>>, ctx: &Prov) -> Self {
-    elements.sort();
-
-    let mut index = 0;
-    let mut to_keep = 0;
-    if elements.len() > 1 {
-      let mut last_index = index;
-      to_keep += 1;
-      index += 1;
-      while index < elements.len() {
-        if &elements[index].tuple == &elements[last_index].tuple {
-          let new_tag = ctx.add(&elements[last_index].tag, &elements[index].tag);
-          elements[last_index].tag = new_tag;
-        } else {
-          if to_keep < index {
-            elements.swap(to_keep, index);
-          }
-          last_index = to_keep;
-          to_keep += 1;
-        }
-        index += 1;
-      }
-      elements.truncate(to_keep);
+  pub fn clone_empty_with_new_prov<Prov2: Provenance>(&self) -> DynamicCollection<Prov2> {
+    match self {
+      Self::Sorted(_) => DynamicCollection::Sorted(DynamicSortedCollection::empty()),
+      Self::IndexedVec(_) => DynamicCollection::IndexedVec(DynamicIndexedVecCollection::empty()),
+      Self::DenseMatrix(_) => DynamicCollection::DenseMatrix(DynamicDenseMatrixCollection::empty()),
     }
+  }
 
-    Self { elements }
+  pub fn get_metadata(&self) -> StorageMetadata {
+    match self {
+      Self::Sorted(_) => StorageMetadata::Sorted,
+      Self::IndexedVec(_) => StorageMetadata::IndexedVec,
+      Self::DenseMatrix(_) => StorageMetadata::DenseMatrix,
+    }
   }
 
   pub fn len(&self) -> usize {
-    self.elements.len()
+    match self {
+      Self::Sorted(s) => s.len(),
+      Self::IndexedVec(s) => s.len(),
+      Self::DenseMatrix(s) => s.len(),
+    }
   }
 
   pub fn is_empty(&self) -> bool {
-    self.elements.is_empty()
-  }
-
-  pub fn ith(&self, i: usize) -> Option<&DynamicElement<Prov>> {
-    self.elements.get(i)
-  }
-
-  pub fn iter(&self) -> impl Iterator<Item = &DynamicElement<Prov>> {
-    self.elements.iter()
-  }
-
-  pub fn into_iter(self) -> impl IntoIterator<Item = DynamicElement<Prov>> {
-    self.elements.into_iter()
-  }
-
-  pub fn drain<'a>(&'a mut self) -> impl 'a + Iterator<Item = DynamicElement<Prov>> {
-    self.elements.drain(..)
-  }
-
-  /// Retain only the elements which the `retain_fn` returns true.
-  ///
-  /// Note that retain_fn takes in both element index and the tagged-element itself.
-  /// This is an O(n) algorithm that preserves the ordering.
-  pub fn retain<F>(&mut self, mut retain_fn: F)
-  where
-    F: FnMut(usize, &DynamicElement<Prov>) -> bool,
-  {
-    // Keep track of the number of items that we have kept, essentially the number of elements
-    // for which the retain_fn returns true
-    let mut num_to_keep = 0;
-
-    // Keep track of the index of element that can be removed.
-    // This index will be later filled with elements to be kept
-    let mut maybe_last_empty_id: Option<usize> = None;
-
-    // Iterate from the front to the back
-    for i in 0..self.elements.len() {
-      // Check if we want to keep element i
-      if retain_fn(i, &self.elements[i]) {
-        num_to_keep += 1;
-
-        // If there is a prior element that can be removed, then we swap it with this element
-        // We ensure that the current element is the first to-keep element encountered after
-        // that to-remove element.
-        if let Some(last_empty_id) = maybe_last_empty_id {
-          self.elements.swap(i, last_empty_id);
-
-          // Then the next slot will be empty as well
-          maybe_last_empty_id = Some(last_empty_id + 1);
-        }
-      } else {
-        // If there is an element to be removed, we note that index down and allow further to-keep
-        // element to be swapped into this slot. We only do this upon first encounter.
-        if maybe_last_empty_id.is_none() {
-          maybe_last_empty_id = Some(i);
-        }
-      }
-    }
-
-    // Finally, truncate the elements array
-    self.elements.truncate(num_to_keep);
-  }
-
-  pub fn apply_recover_fn<F, S>(self, mut f: F) -> impl Iterator<Item = (S, Tuple)>
-  where
-    F: FnMut(Prov::Tag) -> S,
-  {
-    self.elements.into_iter().map(move |elem| (f(elem.tag), elem.tuple))
-  }
-
-  pub fn recover(self, ctx: &Prov) -> DynamicOutputCollection<Prov> {
-    DynamicOutputCollection::from(
-      self
-        .elements
-        .into_iter()
-        .map(move |elem| (ctx.recover_fn(&elem.tag), elem.tuple)),
-    )
-  }
-
-  pub fn recover_with_monitor<M>(self, ctx: &Prov, m: &M) -> DynamicOutputCollection<Prov>
-  where
-    M: Monitor<Prov>,
-  {
-    DynamicOutputCollection::from(self.elements.into_iter().map(move |elem| {
-      let output_tag = ctx.recover_fn(&elem.tag);
-      m.observe_recover(&elem.tuple, &elem.tag, &output_tag);
-      (output_tag, elem.tuple)
-    }))
-  }
-
-  /// Insert the element into the collection
-  pub fn insert(&mut self, elem: DynamicElement<Prov>, ctx: &Prov) {
-    let to_insert_index = gallop_index(&self.elements, 0, |e| &e.tuple < &elem.tuple);
-    if let Some(next_elem) = self.elements.get(to_insert_index) {
-      if &next_elem.tuple != &elem.tuple {
-        // If the tuple is not the same, we insert our new element
-        self.elements.insert(to_insert_index, elem);
-      } else {
-        // If the tuple is the same, we update its tag
-        self.elements[to_insert_index].tag = ctx.add(&elem.tag, &next_elem.tag);
-      }
-    } else {
-      // If there does not exist an element that is greater than the element,
-      // we push the element to the end
-      self.elements.push(elem);
+    match self {
+      Self::Sorted(s) => s.is_empty(),
+      Self::IndexedVec(s) => s.is_empty(),
+      Self::DenseMatrix(s) => s.is_empty(),
     }
   }
 
-  /// Insert the element into the collection with the assumption that the element
-  /// does not pre-exist in the collection.
-  pub fn insert_unchecked(&mut self, elem: DynamicElement<Prov>) {
-    let to_insert_index = gallop_index(&self.elements, 0, |e| &e.tuple < &elem.tuple);
-    self.elements.insert(to_insert_index, elem);
+  pub fn as_ref<'a>(&'a self) -> DynamicCollectionRef<'a, Prov> {
+    match self {
+      Self::Sorted(s) => DynamicCollectionRef::Sorted(&s),
+      Self::IndexedVec(s) => DynamicCollectionRef::IndexedVec(&s),
+      Self::DenseMatrix(s) => DynamicCollectionRef::DenseMatrix(&s),
+    }
   }
 
-  pub fn merge(self, other: Self, ctx: &Prov) -> Self {
-    let Self {
-      elements: mut elements1,
-    } = self;
-    let Self {
-      elements: mut elements2,
-    } = other;
-
-    // If one of the element lists is zero-length, we don't need to do any work
-    if elements1.is_empty() {
-      return Self { elements: elements2 };
+  pub fn iter<'a>(&'a self) -> DynamicCollectionIter<'a, Prov> {
+    match self {
+      Self::Sorted(s) => DynamicCollectionIter::Sorted(s.iter()),
+      Self::IndexedVec(s) => DynamicCollectionIter::IndexedVec(s.iter()),
+      Self::DenseMatrix(s) => DynamicCollectionIter::DenseMatrix(s.iter()),
     }
+  }
 
-    if elements2.is_empty() {
-      return Self { elements: elements1 };
+  pub fn drain<'a>(&'a mut self) -> DynamicCollectionDrainer<'a, Prov> {
+    match self {
+      Self::Sorted(s) => DynamicCollectionDrainer::Sorted(s.drain()),
+      Self::IndexedVec(s) => DynamicCollectionDrainer::IndexedVec(s.drain()),
+      Self::DenseMatrix(s) => DynamicCollectionDrainer::DenseMatrix(s.drain()),
     }
-
-    // Make sure that elements1 starts with the lower element
-    // Will not panic since both collections must have at least 1 element at this point
-    if elements1[0] > elements2[0] {
-      std::mem::swap(&mut elements1, &mut elements2);
-    }
-
-    // Fast path for when all the new elements are after the exiting ones
-    if elements1[elements1.len() - 1] < elements2[0] {
-      elements1.extend(elements2.into_iter());
-      return Self { elements: elements1 };
-    }
-
-    let mut elements = Vec::with_capacity(elements1.len() + elements2.len());
-    let mut elements1 = elements1.drain(..);
-    let mut elements2 = elements2.drain(..).peekable();
-
-    elements.push(elements1.next().unwrap());
-    if elements.first() == elements2.peek() {
-      let e2 = elements2.next().unwrap();
-      elements[0].tag = ctx.add(&elements[0].tag, &e2.tag);
-    }
-
-    for mut elem in elements1 {
-      while elements2.peek().map(|x| x.cmp(&elem)) == Some(Ordering::Less) {
-        elements.push(elements2.next().unwrap());
-      }
-      if elements2.peek().map(|x| x.cmp(&elem)) == Some(Ordering::Equal) {
-        // Merge the tags
-        let e2 = elements2.peek().unwrap();
-        elem.tag = ctx.add(&elem.tag, &e2.tag);
-
-        elements2.next();
-      }
-      elements.push(elem);
-    }
-
-    // Finish draining second list
-    elements.extend(elements2);
-
-    Self { elements }
   }
 }
 
-impl<Prov: Provenance> std::ops::Deref for DynamicCollection<Prov> {
-  type Target = [DynamicElement<Prov>];
+#[derive(Clone, Debug)]
+pub enum DynamicCollectionRef<'a, Prov: Provenance> {
+  Sorted(&'a DynamicSortedCollection<Prov>),
+  IndexedVec(&'a DynamicIndexedVecCollection<Prov>),
+  DenseMatrix(&'a DynamicDenseMatrixCollection<Prov>),
+}
 
-  fn deref(&self) -> &Self::Target {
-    &self.elements[..]
+impl<'a, Prov: Provenance> DynamicCollectionRef<'a, Prov> {
+  pub fn clone_internal(&self) -> DynamicCollection<Prov> {
+    match self {
+      Self::Sorted(s) => DynamicCollection::Sorted((*s).clone()),
+      Self::IndexedVec(s) => DynamicCollection::IndexedVec((*s).clone()),
+      Self::DenseMatrix(s) => DynamicCollection::DenseMatrix((*s).clone()),
+    }
   }
 }
 
-impl<Prov: Provenance> std::ops::DerefMut for DynamicCollection<Prov> {
-  fn deref_mut(&mut self) -> &mut Self::Target {
-    &mut self.elements[..]
+impl<'a, Prov: Provenance> std::fmt::Display for DynamicCollectionRef<'a, Prov>
+where
+  DynamicElement<Prov>: std::fmt::Display
+{
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Self::Sorted(s) => s.fmt(f),
+      Self::IndexedVec(s) => s.fmt(f),
+      Self::DenseMatrix(s) => s.fmt(f),
+    }
   }
 }
 
-impl<Prov: Provenance> std::ops::Index<usize> for DynamicCollection<Prov> {
-  type Output = DynamicElement<Prov>;
+impl<'a, Prov: Provenance> DynamicCollectionRef<'a, Prov> {
+  pub fn len(&self) -> usize {
+    match self {
+      Self::Sorted(s) => s.len(),
+      Self::IndexedVec(s) => s.len(),
+      Self::DenseMatrix(s) => s.len(),
+    }
+  }
 
-  fn index(&self, index: usize) -> &Self::Output {
-    &self.elements[index]
+  pub fn is_empty(&self) -> bool {
+    match self {
+      Self::Sorted(s) => s.is_empty(),
+      Self::IndexedVec(s) => s.is_empty(),
+      Self::DenseMatrix(s) => s.is_empty(),
+    }
+  }
+
+  pub fn iter(&self) -> DynamicCollectionIter<'a, Prov> {
+    match self {
+      Self::Sorted(s) => DynamicCollectionIter::Sorted(s.iter()),
+      Self::IndexedVec(s) => DynamicCollectionIter::IndexedVec(s.iter()),
+      Self::DenseMatrix(s) => DynamicCollectionIter::DenseMatrix(s.iter()),
+    }
   }
 }
 
-impl<Prov: Provenance> std::ops::IndexMut<usize> for DynamicCollection<Prov> {
-  fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-    &mut self.elements[index]
+#[derive(Clone)]
+pub enum DynamicCollectionIter<'a, Prov: Provenance> {
+  Sorted(DynamicSortedCollectionIter<'a, Prov>),
+  IndexedVec(DynamicIndexedVecCollectionIter<'a, Prov>),
+  DenseMatrix(DynamicDenseMatrixCollectionIter<'a, Prov>),
+}
+
+impl<'a, Prov: Provenance> Iterator for DynamicCollectionIter<'a, Prov> {
+  type Item = DynamicElement<Prov>;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    match self {
+      Self::Sorted(s) => s.next(),
+      Self::IndexedVec(s) => s.next(),
+      Self::DenseMatrix(s) => s.next(),
+    }
+  }
+}
+
+pub enum DynamicCollectionDrainer<'a, Prov: Provenance> {
+  Sorted(DynamicSortedCollectionDrainer<'a, Prov>),
+  IndexedVec(DynamicIndexedVecCollectionDrainer<'a, Prov>),
+  DenseMatrix(DynamicDenseMatrixCollectionDrainer<'a, Prov>),
+}
+
+impl<'a, Prov: Provenance> Iterator for DynamicCollectionDrainer<'a, Prov> {
+  type Item = DynamicElement<Prov>;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    match self {
+      Self::Sorted(s) => s.next(),
+      Self::IndexedVec(s) => s.next(),
+      Self::DenseMatrix(s) => s.next(),
+    }
   }
 }

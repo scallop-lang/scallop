@@ -5,7 +5,7 @@ use crate::runtime::provenance::*;
 
 pub fn compute_stable_retain<Prov: Provenance>(
   index: usize,
-  to_add: &mut DynamicCollection<Prov>,
+  to_add: &mut DynamicSortedCollection<Prov>,
   stable_elem: &mut DynamicElement<Prov>,
   to_remove_to_add_indices: &mut HashSet<usize>,
   ctx: &Prov,

@@ -139,7 +139,10 @@ def fill_prompt(
 
 
 def parse_choice_text(text: str, arg_names: List[str], arg_types: List, num_bounded: int):
-  answers_json = json.loads(text)
+  try:
+    answers_json = json.loads(text)
+  except:
+    raise Exception(f"{ERR_HEAD} error when parsing JSON from GPT outputs. GPT output:\n{text}") from None
   answer = []
   for (arg_name, arg_type) in zip(arg_names[num_bounded:], arg_types[num_bounded:]):
     if arg_name not in answers_json:

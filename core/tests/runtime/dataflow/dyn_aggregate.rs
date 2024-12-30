@@ -46,7 +46,7 @@ fn test_dynamic_aggregate_count_1() {
             AggregateInfo::default().with_input_var_types(vec![ValueType::I8, ValueType::I8]),
           )
           .unwrap(),
-        DynamicDataflow::dynamic_collection(&completed_target, first_time),
+        DynamicDataflow::dynamic_sorted_collection(&completed_target, first_time),
         &ctx,
         &rt,
       )),
@@ -55,5 +55,5 @@ fn test_dynamic_aggregate_count_1() {
     first_time = false;
   }
 
-  expect_collection(&agg.complete(&ctx), vec![2usize]);
+  expect_collection(&agg.complete(&ctx).into(), vec![2usize]);
 }

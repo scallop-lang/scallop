@@ -1,5 +1,7 @@
 use std::collections::*;
 
+use attributes::{DemandAttribute, MagicSetAttribute};
+
 use crate::common::value_type::ValueType;
 
 use super::super::*;
@@ -21,7 +23,7 @@ impl Program {
     // Update relations
     for (_, adornment) in adornments {
       self.relations.push(Relation {
-        attributes: vec![Attribute::magic_set()].into(),
+        attributes: MagicSetAttribute.into(),
         predicate: adornment.demand_predicate.clone(),
         arg_types: adornment.demand_relation_types(),
       });
@@ -35,7 +37,7 @@ impl Program {
 fn collect_adornments(relations: &Vec<Relation>) -> Result<HashMap<String, Adornment>, DemandTransformError> {
   let mut adornments = HashMap::new();
   for relation in relations {
-    if let Some(demand_attr) = relation.attributes.demand_attr() {
+    if let Some(demand_attr) = relation.attributes.get::<DemandAttribute>() {
       let p = Pattern::from_str(&demand_attr.pattern);
       let p = p.ok_or_else(|| DemandTransformError::InvalidPattern {
         pattern: demand_attr.pattern.clone(),

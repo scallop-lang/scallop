@@ -10,6 +10,7 @@ mod join;
 mod product;
 mod project;
 mod relation;
+mod sorted;
 mod union;
 mod unit;
 mod utils;
@@ -26,6 +27,7 @@ pub use join::*;
 pub use product::*;
 pub use project::*;
 pub use relation::*;
+pub use sorted::*;
 pub use union::*;
 pub use unit::*;
 

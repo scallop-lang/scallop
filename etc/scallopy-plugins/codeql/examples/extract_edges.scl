@@ -1,0 +1,10 @@
+@codeql_database
+type get_local_dataflow_edge(source_id: usize, sink_id: usize),
+     get_dataflow_node(id: usize, node: String, enclosing_method_id: usize),
+     get_method_definition(id: usize, method_name: String, class_name: String)
+
+rel node(node_id, node) = get_dataflow_node(node_id, node, method_id) and get_method_definition(method_id, "doPost", "BenchmarkTest00180")
+rel edge(x, src, y, snk) = get_local_dataflow_edge(x, y) and node(x, src) and node(y, snk)
+
+rel path(x, y) = edge(x, _, y, _)
+rel path(x, z) = path(x, y) and edge(y, _, z, _)

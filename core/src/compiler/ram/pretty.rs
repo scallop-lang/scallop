@@ -92,6 +92,10 @@ impl Dataflow {
         f.write_fmt(format_args!("Find[{}]\n{}", tuple, padding))?;
         d.pretty_print(f, next_indent, indent_size)
       }
+      Self::Sorted(d) => {
+        f.write_fmt(format_args!("Sorted\n{}", padding))?;
+        d.pretty_print(f, next_indent, indent_size)
+      }
 
       // Binary operations
       Self::Union(d1, d2) => {
@@ -129,6 +133,13 @@ impl Dataflow {
         d1.pretty_print(f, next_indent, indent_size)?;
         f.write_fmt(format_args!("\n{}", padding))?;
         d2.pretty_print(f, next_indent, indent_size)
+      }
+
+      // Specialized binary operations
+      Self::JoinIndexedVec(d1, s) => {
+        f.write_fmt(format_args!("JoinIndexedVec\n{}", padding))?;
+        d1.pretty_print(f, next_indent, indent_size)?;
+        f.write_fmt(format_args!("\n{}{}", padding, s))
       }
 
       // Aggregation

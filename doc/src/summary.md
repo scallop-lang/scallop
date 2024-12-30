@@ -32,6 +32,9 @@
   - [Provenance Library](probabilistic/library.md)
   - [Aggregation and Probability](probabilistic/aggregation.md)
   - [Sampling with Probability](probabilistic/sampling.md)
+
+# Scallop with Python
+
 - [`scallopy`](scallopy/index.md)
   - [Getting Started](scallopy/getting_started.md)
   - [Scallop Context](scallopy/context.md)
@@ -44,6 +47,21 @@
   - [Foreign Predicate](scallopy/foreign_predicate.md)
   - [Saving and Loading](scallopy/save_and_load.md)
   - [Debugging Proofs](scallopy/debug_proofs.md)
+
+# Foundation Models
+
+- [Scallop with Foundation Models](foundation_models/foundation_models.md)
+  - [Installation](foundation_models/installation.md)
+  - [OpenAI GPT](foundation_models/openai_gpt.md)
+  - [Text Embeddings](foundation_models/text_embeddings.md)
+  - [Processing Image Data](foundation_models/processing_images.md)
+  - [Vision Models](foundation_models/vision_models.md)
+- [Scallop Plugins](foundation_models/scallop_plugins.md)
+  - [Create Your Own Plugin](foundation_models/create_your_own_plugin.md)
+  - [Foreign Functions](foundation_models/foreign_functions.md)
+  - [Foreign Predicates](foundation_models/foreign_predicates.md)
+  - [Foreign Attributes](foundation_models/foreign_attributes.md)
+  - [References](foundation_models/references.md)
 
 # Toolchain
 

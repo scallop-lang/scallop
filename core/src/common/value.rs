@@ -63,6 +63,24 @@ impl Value {
     }
   }
 
+  pub fn cast_to_usize(&self) -> usize {
+    match self {
+      Self::I8(i) => *i as usize,
+      Self::I16(i) => *i as usize,
+      Self::I32(i) => *i as usize,
+      Self::I64(i) => *i as usize,
+      Self::I128(i) => *i as usize,
+      Self::ISize(i) => *i as usize,
+      Self::U8(i) => *i as usize,
+      Self::U16(i) => *i as usize,
+      Self::U32(i) => *i as usize,
+      Self::U64(i) => *i as usize,
+      Self::U128(i) => *i as usize,
+      Self::USize(u) => *u,
+      _ => panic!("Cannot cast value {} as usize", self),
+    }
+  }
+
   pub fn as_bool(&self) -> bool {
     match self {
       Self::Bool(s) => *s,

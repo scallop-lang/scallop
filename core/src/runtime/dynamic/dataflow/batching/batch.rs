@@ -61,6 +61,14 @@ impl<'a, Prov: Provenance> DynamicBatch<'a, Prov> {
       filter_fn: f,
     }))
   }
+
+  pub fn collect_vec(&mut self) -> Vec<DynamicElement<Prov>> {
+    let mut result = vec![];
+    while let Some(elem) = self.next_elem() {
+      result.push(elem);
+    }
+    result
+  }
 }
 
 impl<'a, Prov: Provenance> Iterator for DynamicBatch<'a, Prov> {
@@ -130,5 +138,15 @@ impl<'a, Prov: Provenance, F: Fn(&DynamicElement<Prov>) -> bool + Clone> Batch<'
       }
     }
     None
+  }
+}
+
+impl<'a, Prov: Provenance> Batch<'a, Prov> for DynamicCollectionIter<'a, Prov> {
+  fn next_elem(&mut self) -> Option<DynamicElement<Prov>> {
+    match self {
+      Self::Sorted(s) => s.next(),
+      Self::IndexedVec(s) => s.next(),
+      Self::DenseMatrix(s) => s.next(),
+    }
   }
 }

@@ -6,6 +6,8 @@ use petgraph::{
 };
 use std::collections::*;
 
+use crate::compiler::back::attributes::GoalAttribute;
+
 use super::{ast::*, BackCompileError};
 
 /// The type of a dependency graph edge: positive, negative, or aggregation
@@ -249,7 +251,7 @@ impl Program {
 
       // Step 1. Deal with the dependencies between goal predicate and its dependencies
       if let Some(head_relation) = self.relation_of_predicate(head_predicate) {
-        if head_relation.attributes.goal_attr().is_some() {
+        if head_relation.attributes.get::<GoalAttribute>().is_some() {
           for atom in rule.body_literals() {
             match atom {
               Literal::Atom(a) if !self.predicate_registry.contains(&a.predicate) => {

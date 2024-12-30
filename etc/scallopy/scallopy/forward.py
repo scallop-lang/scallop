@@ -33,7 +33,6 @@ class ScallopForwardFunction(torch_importer.Module):
     wmc_with_disjunctions: Optional[bool] = None,
     early_discard: Optional[bool] = None,
     iter_limit: Optional[int] = None,
-    retain_graph: bool = False,
     retain_topk: Optional[Dict[str, int]] = None,
     jit: bool = False,
     jit_name: str = "",
@@ -108,7 +107,6 @@ class ScallopForwardFunction(torch_importer.Module):
       output_mapping=output_mapping,
       output_mappings=output_mappings,
       dispatch=dispatch,
-      retain_graph=retain_graph,
       jit=jit,
       jit_name=jit_name,
       recompile=jit_recompile,
@@ -135,7 +133,6 @@ class InternalScallopForwardFunction(torch_importer.Module):
     output_mappings: Optional[Dict[str, List[Tuple]]] = None,
     dispatch: str = "parallel",
     debug_provenance: bool = False,
-    retain_graph: bool = False,
     jit: bool = False,
     jit_name: str = "",
     recompile: bool = False,
@@ -147,7 +144,6 @@ class InternalScallopForwardFunction(torch_importer.Module):
     self.ctx = ctx
     self.dispatch = dispatch
     self.debug_provenance = debug_provenance
-    self.retain_graph = retain_graph
     self.jit = jit
     self.jit_name = jit_name
     self.recompile = recompile

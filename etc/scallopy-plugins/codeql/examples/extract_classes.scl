@@ -1,0 +1,4 @@
+@codeql_database
+type get_class_definition(id: usize, class_name: String)
+
+rel class_def = top<3>(id, class_name: get_class_definition(id, class_name))

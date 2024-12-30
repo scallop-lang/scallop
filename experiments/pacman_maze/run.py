@@ -121,8 +121,7 @@ class PolicyNet(nn.Module):
       facts={"grid_node": [(torch.tensor(args.attenuation, requires_grad=False), c) for c in self.cells]},
       input_mappings={"actor": self.cells, "goal": self.cells, "enemy": self.cells},
       retain_topk={"actor": 3, "goal": 3, "enemy": 7},
-      output_mappings={"next_action": list(range(4)), "violation": ()},
-      retain_graph=True)
+      output_mappings={"next_action": list(range(4)), "violation": ()})
 
   def forward(self, x):
     actor, goal, enemy = self.extract_entity(x)

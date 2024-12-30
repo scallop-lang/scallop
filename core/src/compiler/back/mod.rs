@@ -1,5 +1,6 @@
 mod ast;
 mod attr;
+pub mod attributes;
 mod b2r;
 mod compile;
 mod error;

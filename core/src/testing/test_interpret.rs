@@ -33,6 +33,23 @@ where
   expect_output_collection(p, idb.get_output_collection_ref(p).unwrap(), e);
 }
 
+pub fn expect_contains_interpret_result_with_runtime_option<T>(s: &str, o: RuntimeEnvironmentOptions, (p, e): (&str, Vec<T>))
+where
+  T: Into<Tuple> + Clone,
+{
+  let prov = unit::UnitProvenance::default();
+  let opt = IntegrateOptions {
+    compiler_options: CompileOptions::default(),
+    execution_options: ExecutionOptions::default(),
+    runtime_environment_options: o,
+  };
+  let mut interpret_ctx =
+    InterpretContext::<_, RcFamily>::new_with_options(s.to_string(), prov, opt).expect("Compilation error");
+  interpret_ctx.run().expect("Runtime error");
+  let idb = interpret_ctx.idb();
+  expect_contains_output_collection(p, idb.get_output_collection_ref(p).unwrap(), e);
+}
+
 pub fn expect_interpret_result_with_setup<T, F>(s: &str, f: F, (p, e): (&str, Vec<T>))
 where
   T: Into<Tuple> + Clone,

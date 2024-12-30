@@ -58,7 +58,7 @@ fn test_dynamic_group_and_count_1() {
             AggregateInfo::default().with_input_var_types(vec![ValueType::USize]),
           )
           .unwrap(),
-        DynamicDataflow::dynamic_collection(&completed_rev_color, first_time),
+        DynamicDataflow::dynamic_sorted_collection(&completed_rev_color, first_time),
         &ctx,
         &rt,
       )),
@@ -68,7 +68,7 @@ fn test_dynamic_group_and_count_1() {
   }
 
   expect_collection(
-    &color_count.complete(&ctx),
+    &color_count.complete(&ctx).into(),
     vec![("red", 2usize), ("green", 3usize), ("blue", 1usize)],
   );
 }
@@ -124,7 +124,7 @@ fn test_dynamic_group_count_max_1() {
             AggregateInfo::default().with_input_var_types(vec![ValueType::USize]),
           )
           .unwrap(),
-        DynamicDataflow::dynamic_collection(&completed_rev_color, iter_1_first_time),
+        DynamicDataflow::dynamic_sorted_collection(&completed_rev_color, iter_1_first_time),
         &ctx,
         &rt,
       )),
@@ -151,7 +151,7 @@ fn test_dynamic_group_count_max_1() {
               .with_input_var_types(vec![ValueType::USize]),
           )
           .unwrap(),
-        DynamicDataflow::dynamic_collection(&completed_color_count, iter_2_first_time),
+        DynamicDataflow::dynamic_sorted_collection(&completed_color_count, iter_2_first_time),
         &ctx,
         &rt,
       )),
@@ -160,5 +160,5 @@ fn test_dynamic_group_count_max_1() {
     iter_2_first_time = false;
   }
 
-  expect_collection(&max_count_color.complete(&ctx), vec![("green", 3usize)]);
+  expect_collection(&max_count_color.complete(&ctx).into(), vec![("green", 3usize)]);
 }

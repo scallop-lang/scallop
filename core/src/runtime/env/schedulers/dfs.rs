@@ -7,9 +7,9 @@ use crate::runtime::utils::*;
 use super::utils::{compute_saturation_and_update_tag, compute_stable_retain};
 
 pub fn schedule_dfs<'a, Prov: Provenance>(
-  to_add: &'a mut DynamicCollection<Prov>,
+  to_add: &'a mut DynamicSortedCollection<Prov>,
   waitlist: &'a mut Vec<DynamicElement<Prov>>,
-  stable: &'a mut Vec<DynamicCollection<Prov>>,
+  stable: &'a mut Vec<DynamicSortedCollection<Prov>>,
   ctx: &'a Prov,
 ) {
   // First go over the to_add set

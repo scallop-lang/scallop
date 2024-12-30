@@ -7,28 +7,27 @@ impl FrontContext {
 
     // Check demand attributes
     if let Some(pattern) = self.analysis.borrow().demand_attr_analysis.demand_pattern(relation) {
-      attrs.add_attribute(back::Attribute::Demand(back::DemandAttribute {
-        pattern: pattern.clone(),
-      }));
+      attrs.insert(back::attributes::DemandAttribute::new(pattern.clone()));
     }
 
     // Check input files
     if let Some(input_file) = self.analysis.borrow().input_files_analysis.input_file(relation) {
-      attrs.add_attribute(back::Attribute::InputFile(back::InputFileAttribute {
-        input_file: input_file.clone(),
-      }));
+      attrs.insert(back::attributes::InputFileAttribute::new(input_file.clone()));
     }
 
     // Check goal predicates
     if self.analysis.borrow().goal_relation_analysis.is_goal(relation) {
-      attrs.add_attribute(back::Attribute::Goal(back::GoalAttribute));
+      attrs.insert(back::attributes::GoalAttribute);
     }
 
     // Check scheduler predicates
     if let Some(scheduler) = self.analysis.borrow().scheduler_attr_analysis.get_scheduler(relation) {
-      attrs.add_attribute(back::Attribute::Scheduler(back::SchedulerAttribute {
-        scheduler: scheduler.clone(),
-      }));
+      attrs.insert(back::attributes::SchedulerAttribute::new(scheduler.clone()));
+    }
+
+    // Check storage predicates
+    if let Some(storage) = self.analysis.borrow().storage_attr_analysis.get_storage(relation) {
+      attrs.insert(back::attributes::StorageAttribute::new(storage.clone()));
     }
 
     attrs

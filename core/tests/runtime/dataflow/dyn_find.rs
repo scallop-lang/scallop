@@ -25,6 +25,6 @@ fn test_dynamic_find_1() {
     )
   }
 
-  expect_collection(&source.complete(&ctx), vec![(0i8, 1i8), (1i8, 2i8)]);
-  expect_collection(&target.complete(&ctx), vec![(1i8, 2i8)]);
+  expect_collection(&source.complete(&ctx).into(), vec![(0i8, 1i8), (1i8, 2i8)]);
+  expect_collection(&target.complete(&ctx).into(), vec![(1i8, 2i8)]);
 }

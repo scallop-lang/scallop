@@ -31,7 +31,7 @@ fn test_dynamic_product_1() {
   }
 
   expect_collection(
-    &target.complete(&ctx),
+    &target.complete(&ctx).into(),
     vec![
       ((0i8, 1i8), (0i8, 2i8)),
       ((0i8, 1i8), (1i8, 5i8)),

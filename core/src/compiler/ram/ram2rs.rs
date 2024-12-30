@@ -339,6 +339,10 @@ impl ast::Dataflow {
         let rs_tuple = tuple_to_rs_tuple(tuple);
         quote! { dataflow::find(#rs_d1, #rs_tuple) }
       }
+      Self::Sorted(d1) => {
+        let rs_d1 = d1.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
+        quote! { dataflow::sorted(#rs_d1) }
+      }
       Self::Union(d1, d2) => {
         let rs_d1 = d1.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
         let rs_d2 = d2.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
@@ -347,6 +351,22 @@ impl ast::Dataflow {
       Self::Join(d1, d2) => {
         let rs_d1 = d1.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
         let rs_d2 = d2.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
+        quote! { iter.join(#rs_d1, #rs_d2) }
+      }
+      Self::JoinIndexedVec(d1, r) => {
+        // TODO: implement this
+        // NOTE: current implementation falls back to join
+
+        // Get left
+        let rs_d1 = d1.to_rs_dataflow(curr_strat_id, rel_to_strat_map);
+
+        // Get right relation
+        let rel_ident = relation_name_to_rs_field_name(r);
+        let stratum_id = rel_to_strat_map[r];
+        let stratum_result = format_ident!("stratum_{}_result", stratum_id);
+        let rs_d2 = quote! { dataflow::collection(&#stratum_result.#rel_ident, iter.is_first_iteration()) };
+
+        // Join the two relations
         quote! { iter.join(#rs_d1, #rs_d2) }
       }
       Self::Intersect(d1, d2) => {

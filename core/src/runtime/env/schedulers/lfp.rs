@@ -7,9 +7,9 @@ use crate::runtime::utils::*;
 use super::utils::compute_stable_retain;
 
 pub fn schedule_lfp<'a, Prov: Provenance>(
-  to_add: &'a mut DynamicCollection<Prov>,
+  to_add: &'a mut DynamicSortedCollection<Prov>,
   #[allow(unused)] waitlist: &'a mut Vec<DynamicElement<Prov>>,
-  stable: &'a mut Vec<DynamicCollection<Prov>>,
+  stable: &'a mut Vec<DynamicSortedCollection<Prov>>,
   ctx: &'a Prov,
 ) {
   if to_add.len() > 0 {

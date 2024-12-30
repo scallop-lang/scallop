@@ -131,6 +131,24 @@ impl ValueType {
     }
   }
 
+  pub fn value_from_usize(&self, i: usize) -> Option<Value> {
+    match self {
+      Self::I8 => Some(Value::I8(i as i8)),
+      Self::I16 => Some(Value::I16(i as i16)),
+      Self::I32 => Some(Value::I32(i as i32)),
+      Self::I64 => Some(Value::I64(i as i64)),
+      Self::I128 => Some(Value::I128(i as i128)),
+      Self::ISize => Some(Value::ISize(i as isize)),
+      Self::U8 => Some(Value::U8(i as u8)),
+      Self::U16 => Some(Value::U16(i as u16)),
+      Self::U32 => Some(Value::U32(i as u32)),
+      Self::U64 => Some(Value::U64(i as u64)),
+      Self::U128 => Some(Value::U128(i as u128)),
+      Self::USize => Some(Value::USize(i as usize)),
+      _ => None,
+    }
+  }
+
   pub fn is_signed_integer(&self) -> bool {
     match self {
       Self::I8 | Self::I16 | Self::I32 | Self::I64 | Self::I128 | Self::ISize => true,

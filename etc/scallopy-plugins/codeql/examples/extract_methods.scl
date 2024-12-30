@@ -1,0 +1,4 @@
+@codeql_database
+type get_method_definition(id: usize, method_name: String, class_id: usize, class_name: String)
+
+rel func_def = top<3>(id, method_name, class_id, class_name: get_method_definition(id, method_name, class_id, class_name))

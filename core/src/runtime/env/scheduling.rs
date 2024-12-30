@@ -85,9 +85,9 @@ impl Scheduler {
 
   pub fn schedule<'a, Prov: Provenance>(
     &self,
-    delta: &'a mut DynamicCollection<Prov>,
+    delta: &'a mut DynamicSortedCollection<Prov>,
     waitlist: &'a mut Vec<DynamicElement<Prov>>,
-    stable: &'a mut Vec<DynamicCollection<Prov>>,
+    stable: &'a mut Vec<DynamicSortedCollection<Prov>>,
     ctx: &'a Prov,
   ) {
     match self {

@@ -39,11 +39,11 @@ where
     target.insert_dataflow_recent(
       &ctx,
       &DynamicDataflow::dynamic_relation(&source_1)
-        .difference(DynamicDataflow::dynamic_recent_collection(&source_2_coll), &ctx),
+        .difference(DynamicDataflow::dynamic_recent_sorted_collection(&source_2_coll), &ctx),
       &mut rt,
     )
   }
 
-  let result = target.complete(&ctx);
+  let result = target.complete(&ctx).into();
   expect_collection(&result, vec![(0i8, 1i8)]);
 }

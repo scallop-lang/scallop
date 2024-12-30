@@ -76,7 +76,6 @@ distribute:
 
 	@echo "==> Copy wheels..."
 	cp target/wheels/*.whl $(distr_dir)
-	cp etc/scallopy-ext/dist/*.whl $(distr_dir)
 	cp etc/scallop-cli/dist/*.whl $(distr_dir)
 	cp -r etc/scallopy-plugins/**/dist/*.whl $(distr_dir)
 
@@ -112,7 +111,6 @@ vscode-plugin:
 clean:
 	cargo clean
 	make -C etc/scallopy clean
-	make -C etc/scallopy-ext clean
 	make -C etc/scallopy-plugins clean
 	make -C etc/scallop-cli clean
 	make -C etc/scallop-wasm clean
@@ -125,16 +123,12 @@ test:
 	@make test-cargo
 	@echo "[Info] Performing scallopy test..."
 	@make test-scallopy
-	@echo "[Info] Performing scallopy-ext test..."
-	@make test-scallopy-ext
 
 test-all: test
 	@echo "[Info] Performing cargo test [ignored]..."
 	@make test-cargo-ignored
 	@echo "[Info] Performing scallopy test..."
 	@make test-scallopy
-	@echo "[Info] Performing scallopy-ext test..."
-	@make test-scallopy-ext
 
 test-cargo:
 	cargo test --workspace
@@ -144,9 +138,6 @@ test-cargo-ignored:
 
 test-scallopy: develop-scallopy
 	python3 etc/scallopy/tests/test.py
-
-test-scallopy-ext: develop-scallopy-ext
-	python3 etc/scallopy-ext/tests/test.py
 
 # ======================
 # === Documentations ===

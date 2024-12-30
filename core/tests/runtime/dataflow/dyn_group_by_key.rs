@@ -34,16 +34,16 @@ where
       "_colors_key",
       Dataflow::relation("colors".to_string()).project((Expr::access(0), ())),
     );
-    strata_1.add_output_relation("_color_rev");
-    strata_1.add_output_relation("_colors_key");
+    strata_1.add_output_relation_with_default_storage("_color_rev");
+    strata_1.add_output_relation_with_default_storage("_colors_key");
     strata_1.run(&ctx, &rt)
   };
 
   let mut result_2 = {
     let mut strata_2 = DynamicIteration::<Prov>::new();
     strata_2.create_dynamic_relation("color_count");
-    strata_2.add_input_dynamic_collection("_color_rev", &result_1["_color_rev"]);
-    strata_2.add_input_dynamic_collection("_colors_key", &result_1["_colors_key"]);
+    strata_2.add_input_dynamic_collection("_color_rev", result_1["_color_rev"].as_ref());
+    strata_2.add_input_dynamic_collection("_colors_key", result_1["_colors_key"].as_ref());
     strata_2.add_update_dataflow(
       "color_count",
       Dataflow::reduce(
@@ -54,7 +54,7 @@ where
       )
       .project((Expr::access(0), Expr::access(2))),
     );
-    strata_2.add_output_relation("color_count");
+    strata_2.add_output_relation_with_default_storage("color_count");
     strata_2.run(&ctx, &rt)
   };
 

@@ -136,6 +136,15 @@ impl RelationDecl {
       RelationDecl::ReduceRule(r) => r.attrs_mut(),
     }
   }
+
+  pub fn head_predicates(&self) -> Vec<String> {
+    match self {
+      RelationDecl::Set(s) => vec![s.predicate_name().clone()],
+      RelationDecl::Fact(f) => vec![f.predicate_name().clone()],
+      RelationDecl::Rule(r) => r.rule().head().iter_predicates(),
+      RelationDecl::ReduceRule(r) => vec![r.rule().head().name().clone()],
+    }
+  }
 }
 
 impl From<RelationDecl> for Item {

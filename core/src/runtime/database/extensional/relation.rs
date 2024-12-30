@@ -17,6 +17,9 @@ use super::*;
 
 #[derive(Clone, Debug)]
 pub struct ExtensionalRelation<Prov: Provenance> {
+  /// The metadata for the storage
+  pub metadata: StorageMetadata,
+
   /// The facts from the program
   program_facts: Vec<(DynamicInputTag, Tuple)>,
 
@@ -48,13 +51,19 @@ impl<Prov: Provenance> Default for ExtensionalRelation<Prov> {
 
 impl<Prov: Provenance> ExtensionalRelation<Prov> {
   pub fn new() -> Self {
+    Self::new_with_metadata(StorageMetadata::default())
+  }
+
+  pub fn new_with_metadata(metadata: StorageMetadata) -> Self {
+    let internal_storage = metadata.create_empty_storage();
     Self {
+      metadata,
       program_facts: vec![],
       internalized_program_facts: false,
       loaded_files: BTreeSet::new(),
       dynamic_input: vec![],
       static_input: vec![],
-      internal: DynamicCollection::empty(),
+      internal: internal_storage,
       internalized: false,
     }
   }
@@ -64,6 +73,7 @@ impl<Prov: Provenance> ExtensionalRelation<Prov> {
     Prov2::InputTag: ConvertFromInputTag<Prov::InputTag>,
   {
     ExtensionalRelation {
+      metadata: self.metadata.clone(),
       program_facts: self.program_facts.clone(),
       internalized_program_facts: false,
       loaded_files: BTreeSet::new(),
@@ -78,7 +88,7 @@ impl<Prov: Provenance> ExtensionalRelation<Prov> {
           (new_tag, tuple.clone())
         })
         .collect(),
-      internal: DynamicCollection::empty(),
+      internal: self.metadata.create_empty_storage(),
       internalized: false,
     }
   }
@@ -178,10 +188,10 @@ impl<Prov: Provenance> ExtensionalRelation<Prov> {
     }));
 
     // Add existed facts
-    elems.extend(self.internal.elements.drain(..));
+    elems.extend(self.internal.iter());
 
     // Finally sort the internal facts; note that we need to merge possibly duplicated tags
-    self.internal = DynamicCollection::from_vec(elems, ctx);
+    self.internal = self.metadata.from_vec(elems, ctx);
     self.internalized = true;
   }
 
@@ -230,10 +240,10 @@ impl<Prov: Provenance> ExtensionalRelation<Prov> {
     }));
 
     // Add existed facts
-    elems.extend(self.internal.elements.drain(..));
+    elems.extend(self.internal.iter());
 
     // Finally sort the internal facts; note that we need to merge possibly duplicated tags
-    self.internal = DynamicCollection::from_vec(elems, ctx);
+    self.internal = self.metadata.from_vec(elems, ctx);
     self.internalized = true;
   }
 }

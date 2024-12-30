@@ -26,7 +26,7 @@ impl<'a, Prov: Provenance> Dataflow<'a, Prov> for DynamicRelationDataflow<'a, Pr
 }
 
 pub struct DynamicRelationStableBatches<'a, Prov: Provenance> {
-  pub collections: Ref<'a, Vec<DynamicCollection<Prov>>>,
+  pub collections: Ref<'a, Vec<DynamicSortedCollection<Prov>>>,
   pub rela_id: usize,
 }
 
@@ -56,7 +56,7 @@ impl<'a, Prov: Provenance> Batches<'a, Prov> for DynamicRelationStableBatches<'a
 }
 
 pub struct DynamicRelationStableBatch<'a, Prov: Provenance> {
-  pub collections: Ref<'a, Vec<DynamicCollection<Prov>>>,
+  pub collections: Ref<'a, Vec<DynamicSortedCollection<Prov>>>,
   pub rela_id: usize,
   pub elem_id: usize,
 }
@@ -107,7 +107,7 @@ impl<'a, Prov: Provenance> Batch<'a, Prov> for DynamicRelationStableBatch<'a, Pr
 }
 
 pub struct DynamicRelationRecentBatch<'a, Prov: Provenance> {
-  pub collection: Ref<'a, DynamicCollection<Prov>>,
+  pub collection: Ref<'a, DynamicSortedCollection<Prov>>,
   pub elem_id: usize,
 }
 
@@ -152,7 +152,7 @@ impl<'a, Prov: Provenance> Batch<'a, Prov> for DynamicRelationRecentBatch<'a, Pr
   }
 }
 
-fn search_ahead_variable_helper<Prov, F>(collection: &DynamicCollection<Prov>, elem_id: &mut usize, mut cmp: F) -> bool
+fn search_ahead_variable_helper<Prov, F>(collection: &DynamicSortedCollection<Prov>, elem_id: &mut usize, mut cmp: F) -> bool
 where
   Prov: Provenance,
   F: FnMut(&Tuple) -> bool,

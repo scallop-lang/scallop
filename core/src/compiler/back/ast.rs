@@ -10,6 +10,8 @@ use crate::common::value_type::*;
 
 use crate::compiler::front;
 
+use super::attributes::DemandAttribute;
+use super::attributes::MagicSetAttribute;
 use super::Attributes;
 
 pub type Type = crate::common::value_type::ValueType;
@@ -41,13 +43,13 @@ impl Program {
   pub fn is_demand_predicate(&self, pred: &String) -> Option<bool> {
     self
       .relation_of_predicate(pred)
-      .map(|r| r.attributes.demand_attr().is_some())
+      .map(|r| r.attributes.get::<DemandAttribute>().is_some())
   }
 
   pub fn is_magic_set_predicate(&self, pred: &String) -> Option<bool> {
     self
       .relation_of_predicate(pred)
-      .map(|r| r.attributes.magic_set_attr().is_some())
+      .map(|r| r.attributes.get::<MagicSetAttribute>().is_some())
   }
 
   pub fn set_output_relations(&mut self, outputs: Vec<&str>) {

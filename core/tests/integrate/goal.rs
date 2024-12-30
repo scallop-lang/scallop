@@ -2,7 +2,7 @@ use scallop_core::{runtime::env::RuntimeEnvironmentOptions, testing::*};
 
 #[test]
 fn simple_edge_path_with_goal() {
-  expect_interpret_result_with_runtime_option(
+  expect_contains_interpret_result_with_runtime_option(
     r#"
       rel edge = {(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6)}
       @demand("bf")
@@ -17,7 +17,7 @@ fn simple_edge_path_with_goal() {
 
 #[test]
 fn simple_edge_path_with_disjunctive_goal() {
-  expect_interpret_result_with_runtime_option(
+  expect_contains_interpret_result_with_runtime_option(
     r#"
       rel edge = {(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6)}
       @demand("bf")

@@ -1,5 +1,6 @@
 use std::collections::*;
 
+use attributes::*;
 use itertools::Itertools;
 
 use super::*;
@@ -13,6 +14,7 @@ use crate::common::tuple_access::TupleAccessor;
 use crate::common::tuple_type::TupleType;
 use crate::common::unary_op::UnaryOp;
 use crate::compiler::ram::{self, ReduceGroupByType};
+use crate::runtime::database::StorageMetadata;
 use crate::utils::IdAllocator;
 
 struct B2RContext<'a> {
@@ -41,38 +43,48 @@ struct NegativeDataflow {
 }
 
 /// Property of a dataflow
-#[derive(Default, Clone)]
+#[derive(Default, Debug, Clone, Copy)]
 struct DataflowProp {
   /// Whether the dataflow needs to be sorted
   need_sorted: bool,
 
   /// Whether the dataflow is negative
   is_negative: bool,
-}
 
-impl From<(bool, bool)> for DataflowProp {
-  fn from((need_sorted, is_negative): (bool, bool)) -> Self {
-    Self {
-      need_sorted,
-      is_negative,
-    }
-  }
-}
-
-impl From<bool> for DataflowProp {
-  fn from(need_sorted: bool) -> Self {
-    Self {
-      need_sorted,
-      is_negative: false,
-    }
-  }
+  /// Prefer in-place sorting rather than creating temporary relations?
+  prefer_in_place_sorting: bool,
 }
 
 impl DataflowProp {
+  fn new(need_sorted: bool) -> Self {
+    Self {
+      need_sorted,
+      is_negative: false,
+      prefer_in_place_sorting: false,
+    }
+  }
+
   fn with_need_sorted(&self, need_sorted: bool) -> Self {
     Self {
       need_sorted,
       is_negative: self.is_negative,
+      prefer_in_place_sorting: self.prefer_in_place_sorting,
+    }
+  }
+
+  fn with_is_negative(&self, is_negative: bool) -> Self {
+    Self {
+      need_sorted: self.need_sorted,
+      is_negative,
+      prefer_in_place_sorting: self.prefer_in_place_sorting,
+    }
+  }
+
+  fn with_prefer_in_place_sorting(&self, prefer_in_place_sorting: bool) -> Self {
+    Self {
+      need_sorted: self.need_sorted,
+      is_negative: self.is_negative,
+      prefer_in_place_sorting,
     }
   }
 }
@@ -138,7 +150,7 @@ impl Program {
 
       // Get the negative dataflows that can be computed at this stratum
       let curr_neg_dfs = negative_dataflows
-        .extract_if(|ndf| ndf.sources.is_subset(&accumulated_sources))
+        .extract_if(.., |ndf| ndf.sources.is_subset(&accumulated_sources))
         .collect::<Vec<_>>();
 
       // Add the negative dataflow into the stratum
@@ -184,9 +196,10 @@ impl Program {
     // All the updates
     for predicate in &stratum.predicates {
       for rule in self.rules_of_predicate(predicate.clone()) {
+        let prefer_in_place = rule.attributes.get::<NoTemporaryRelationAttribute>().is_some();
         let ctx = QueryPlanContext::from_rule(stratum, &self.predicate_registry, rule);
         let plan = ctx.query_plan();
-        updates.push(self.plan_to_ram_update(&mut b2r_context, &rule.head, &plan));
+        updates.push(self.plan_to_ram_update(&mut b2r_context, &rule.head, &plan, prefer_in_place));
       }
     }
 
@@ -211,7 +224,7 @@ impl Program {
     let rel = self.relation_of_predicate(pred).unwrap();
 
     // Get tuple type
-    let tuple_type = if let Some(agg_body_attr) = rel.attributes.aggregate_body_attr() {
+    let tuple_type = if let Some(agg_body_attr) = rel.attributes.get::<AggregateBodyAttribute>() {
       let num_group_by = agg_body_attr.num_group_by_vars;
       let num_args = agg_body_attr.num_arg_vars;
 
@@ -235,7 +248,7 @@ impl Program {
       } else {
         TupleType::Tuple(elems.into())
       }
-    } else if let Some(agg_group_by_attr) = rel.attributes.aggregate_group_by_attr() {
+    } else if let Some(agg_group_by_attr) = rel.attributes.get::<AggregateGroupByAttribute>() {
       let num_group_by = agg_group_by_attr.num_join_group_by_vars;
 
       // Compute the items for aggregation group by
@@ -281,7 +294,7 @@ impl Program {
       .collect::<Vec<_>>();
 
     // Check input file
-    let input_file = if let Some(input_file_attr) = rel.attributes.input_file_attr() {
+    let input_file = if let Some(input_file_attr) = rel.attributes.get::<InputFileAttribute>() {
       Some(input_file_attr.input_file.clone())
     } else {
       None
@@ -307,8 +320,9 @@ impl Program {
       facts: vec![facts, disjunctive_facts].concat(),
       input_file,
       output,
-      is_goal: rel.attributes.goal_attr().is_some(),
-      scheduler: rel.attributes.scheduler_attr().map(|sa| sa.scheduler.clone()),
+      is_goal: rel.attributes.get::<GoalAttribute>().is_some(),
+      scheduler: rel.attributes.get::<SchedulerAttribute>().map(|sa| sa.scheduler.clone()),
+      storage: rel.attributes.get::<StorageAttribute>().map(|attr| attr.metadata.clone()).unwrap_or(StorageMetadata::default()),
       immutable,
     };
 
@@ -329,7 +343,13 @@ impl Program {
     }
   }
 
-  fn plan_to_ram_update(&self, ctx: &mut B2RContext, head: &Head, plan: &Plan) -> ram::Update {
+  fn plan_to_ram_update(
+    &self,
+    ctx: &mut B2RContext,
+    head: &Head,
+    plan: &Plan,
+    prefer_in_place: bool,
+  ) -> ram::Update {
     // Check if the dataflow needs projection and update the dataflow
     let dataflow = match head {
       Head::Atom(head_atom) => {
@@ -337,7 +357,8 @@ impl Program {
         let subgoal = head_goal.dedup();
 
         // Generate the dataflow
-        let dataflow = self.plan_to_ram_dataflow(ctx, &subgoal, plan, false.into());
+        let property = DataflowProp::new(false).with_prefer_in_place_sorting(prefer_in_place);
+        let dataflow = self.plan_to_ram_dataflow(ctx, &subgoal, plan, property);
 
         // Project the dataflow if needed
         let dataflow = if need_projection {
@@ -363,7 +384,8 @@ impl Program {
           let head_var_goal = VariableTuple::from_vars(head_atoms[0].variable_args().cloned(), false);
 
           // Generate the sub-dataflow
-          let sub_dataflow = self.plan_to_ram_dataflow(ctx, &head_var_goal, plan, false.into());
+          let property = DataflowProp::new(false).with_prefer_in_place_sorting(prefer_in_place);
+          let sub_dataflow = self.plan_to_ram_dataflow(ctx, &head_var_goal, plan, property);
 
           // Get all the constants in the head atoms
           let constants: Vec<_> = head_atoms
@@ -461,12 +483,13 @@ impl Program {
       .collect::<Vec<_>>();
 
     // Create an atom
+    let sub_prop = prop.with_need_sorted(false);
     let sub_atom = Atom {
       predicate: atom.predicate.clone(),
       args: sub_vars.iter().map(|v| Term::Variable(v.clone())).collect(),
     };
     let sub_goal = VariableTuple::from_vars(sub_vars.iter().cloned(), true);
-    let sub_dataflow = self.ground_plan_to_ram_dataflow(ctx, &sub_goal, &sub_atom, prop.with_need_sorted(false));
+    let sub_dataflow = self.ground_plan_to_ram_dataflow(ctx, &sub_goal, &sub_atom, sub_prop);
 
     // Get the filters
     let mut filter_exprs = atom.args.iter().enumerate().filter_map(|(i, t)| match t {
@@ -637,7 +660,7 @@ impl Program {
         .iter()
         .flat_map(|c| c.unique_variable_args().into_iter().cloned()),
     );
-    let sub_dataflow = self.plan_to_ram_dataflow(ctx, &sub_goal, subplan, prop.clone());
+    let sub_dataflow = self.plan_to_ram_dataflow(ctx, &sub_goal, subplan, prop);
     let filter = self.constraints_to_ram_filter(&sub_goal, filters);
     let project = ram::Dataflow::project(ram::Dataflow::filter(sub_dataflow, filter), sub_goal.projection(goal));
     // TODO: Optimize the case where sub_goal to goal preserves ordering
@@ -715,11 +738,11 @@ impl Program {
   ) -> ram::Dataflow {
     // 1. Select the variables from the goal that comes from the left
     let sub_goal_1 = self.sub_tuple(goal, d1);
-    let sub_dataflow_1 = self.plan_to_ram_dataflow(ctx, &sub_goal_1, d1, true.into());
+    let sub_dataflow_1 = self.plan_to_ram_dataflow(ctx, &sub_goal_1, d1, prop.with_need_sorted(true).with_is_negative(false));
 
     // 2. Select the variables from the goal that comes from the right
     let sub_goal_2 = self.sub_tuple(goal, d2);
-    let sub_dataflow_2 = self.plan_to_ram_dataflow(ctx, &sub_goal_2, d2, true.into());
+    let sub_dataflow_2 = self.plan_to_ram_dataflow(ctx, &sub_goal_2, d2, prop.with_need_sorted(true).with_is_negative(false));
 
     // 3. Join the two dataflows
     let joint_sub_goal = VariableTuple::from((sub_goal_1, sub_goal_2));
@@ -748,8 +771,9 @@ impl Program {
     };
 
     // 2. Create two dataflows
-    let dataflow_1 = self.plan_to_ram_dataflow(ctx, &sub_goal, d1, true.into());
-    let dataflow_2 = self.plan_to_ram_dataflow(ctx, &sub_goal, d2, true.into());
+    let sub_prop = prop.with_need_sorted(true).with_is_negative(false);
+    let dataflow_1 = self.plan_to_ram_dataflow(ctx, &sub_goal, d1, sub_prop);
+    let dataflow_2 = self.plan_to_ram_dataflow(ctx, &sub_goal, d2, sub_prop);
 
     // 3. Intersect them together
     let itsct_dataflow = ram::Dataflow::intersect(dataflow_1, dataflow_2);
@@ -777,6 +801,7 @@ impl Program {
     let joint_var_tuple = VariableTuple::from_vars(sorted_joint_vars.into_iter().cloned(), true);
 
     // 2. Construct the d1 subgoal
+    let d1_prop = prop.with_need_sorted(true).with_is_negative(false);
     let d1_vars_set = goal
       .variables_set()
       .intersection(&d1.bounded_vars)
@@ -785,9 +810,10 @@ impl Program {
     let d1_vars = d1_vars_set.difference(&join_vars).sorted().collect::<Vec<_>>();
     let d1_var_tuple = VariableTuple::from_vars(d1_vars.into_iter().cloned(), true);
     let d1_sub_goal = VariableTuple::from((joint_var_tuple.clone(), d1_var_tuple.clone()));
-    let d1_dataflow = self.plan_to_ram_dataflow(ctx, &d1_sub_goal, d1, true.into());
+    let d1_dataflow = self.plan_to_ram_dataflow(ctx, &d1_sub_goal, d1, d1_prop);
 
     // 3. Construct the d2 subgoal
+    let d2_prop = prop.with_need_sorted(true).with_is_negative(false);
     let d2_vars_set = goal
       .variables_set()
       .intersection(&d2.bounded_vars)
@@ -796,15 +822,28 @@ impl Program {
     let d2_vars = d2_vars_set.difference(&join_vars).sorted().collect::<Vec<_>>();
     let d2_var_tuple = VariableTuple::from_vars(d2_vars.into_iter().cloned(), true);
     let d2_sub_goal = VariableTuple::from((joint_var_tuple.clone(), d2_var_tuple.clone()));
-    let d2_dataflow = self.plan_to_ram_dataflow(ctx, &d2_sub_goal, d2, true.into());
+    let d2_dataflow = self.plan_to_ram_dataflow(ctx, &d2_sub_goal, d2, d2_prop);
 
-    // 4. Join them
+    // 4. Prepare information for join
     let joint_sub_goal = VariableTuple::from((joint_var_tuple.clone(), d1_var_tuple.clone(), d2_var_tuple.clone()));
-    let joint_dataflow = ram::Dataflow::join(d1_dataflow, d2_dataflow);
-    let projected_joint_dataflow = ram::Dataflow::project(joint_dataflow, joint_sub_goal.projection(goal));
 
-    // 5. Create temporary relation if needed to be sorted
-    Self::process_dataflow(ctx, goal, projected_joint_dataflow, prop)
+    // Specialize for different optimizations
+    if let Some(d2_rel) = self.get_right_join_indexed_vec(&d2_dataflow) {
+      // 5.1 Join indexed vector
+      let joint_dataflow = ram::Dataflow::join_indexed_vec(d1_dataflow, d2_rel);
+      let projected_joint_dataflow = ram::Dataflow::project(joint_dataflow, joint_sub_goal.projection(goal));
+
+      // 6.1 Create temporary relation if needed to be sorted
+      Self::process_dataflow(ctx, goal, projected_joint_dataflow, prop)
+    } else {
+      // 5.2 Join normally
+      let joint_sub_goal = VariableTuple::from((joint_var_tuple.clone(), d1_var_tuple.clone(), d2_var_tuple.clone()));
+      let joint_dataflow = ram::Dataflow::join(d1_dataflow, d2_dataflow);
+      let projected_joint_dataflow = ram::Dataflow::project(joint_dataflow, joint_sub_goal.projection(goal));
+
+      // 6.2 Create temporary relation if needed to be sorted
+      Self::process_dataflow(ctx, goal, projected_joint_dataflow, prop)
+    }
   }
 
   fn antijoin_plan_to_ram_dataflow(
@@ -844,6 +883,7 @@ impl Program {
     let joint_var_tuple = VariableTuple::from_vars(sorted_joint_vars.into_iter().cloned(), true);
 
     // 2. Positive part contains two parts, joint and others
+    let d1_prop = prop.with_need_sorted(true).with_is_negative(false);
     let d1_vars_set = goal
       .variables_set()
       .intersection(&d1.bounded_vars)
@@ -852,10 +892,11 @@ impl Program {
     let d1_vars = d1_vars_set.difference(&join_vars).sorted().collect::<Vec<_>>();
     let d1_var_tuple = VariableTuple::from_vars(d1_vars.into_iter().cloned(), true);
     let d1_sub_goal = VariableTuple::from((joint_var_tuple.clone(), d1_var_tuple.clone()));
-    let d1_dataflow = self.plan_to_ram_dataflow(ctx, &d1_sub_goal, d1, true.into());
+    let d1_dataflow = self.plan_to_ram_dataflow(ctx, &d1_sub_goal, d1, d1_prop);
 
     // 3. Negative part is just the joint part
-    let d2_dataflow = self.plan_to_ram_dataflow(ctx, &joint_var_tuple, d2, (true, true).into());
+    let d2_prop = prop.with_need_sorted(true).with_is_negative(true);
+    let d2_dataflow = self.plan_to_ram_dataflow(ctx, &joint_var_tuple, d2, d2_prop);
 
     // 4. Construct the dataflow, which will be of form d1_sub_goal
     let dataflow = ram::Dataflow::project(
@@ -883,8 +924,10 @@ impl Program {
     };
 
     // 2. Create two dataflows
-    let dataflow_1 = self.plan_to_ram_dataflow(ctx, &sub_goal, d1, true.into());
-    let dataflow_2 = self.plan_to_ram_dataflow(ctx, &sub_goal, d2, (true, true).into());
+    let d1_prop = prop.with_need_sorted(true).with_is_negative(false);
+    let dataflow_1 = self.plan_to_ram_dataflow(ctx, &sub_goal, d1, d1_prop);
+    let d2_prop = prop.with_need_sorted(true).with_is_negative(true);
+    let dataflow_2 = self.plan_to_ram_dataflow(ctx, &sub_goal, d2, d2_prop);
 
     // 3. Construct Difference
     let diff_dataflow = ram::Dataflow::difference(dataflow_1, dataflow_2);
@@ -1073,7 +1116,11 @@ impl Program {
       if prop.is_negative {
         Self::create_negative_temp_relation(ctx, goal, dataflow)
       } else {
-        Self::create_temp_relation(ctx, goal, dataflow)
+        if prop.prefer_in_place_sorting {
+          dataflow.sorted()
+        } else {
+          Self::create_temp_relation(ctx, goal, dataflow)
+        }
       }
     } else {
       dataflow
@@ -1082,7 +1129,7 @@ impl Program {
 
   fn head_atom_variable_tuple(&self, head: &Atom) -> (VariableTuple, bool) {
     let rel = self.relation_of_predicate(&head.predicate).unwrap();
-    if let Some(agg_attr) = rel.attributes.aggregate_body_attr() {
+    if let Some(agg_attr) = rel.attributes.get::<AggregateBodyAttribute>() {
       // For an aggregate sub-relation
       let head_args = head.variable_args().into_iter().cloned().collect::<Vec<_>>();
       let num_group_by = agg_attr.num_group_by_vars;
@@ -1105,7 +1152,7 @@ impl Program {
 
       // Aggregate relation does not need projection, as there is no constant in the head
       (var_tuple, false)
-    } else if let Some(agg_group_by_attr) = rel.attributes.aggregate_group_by_attr() {
+    } else if let Some(agg_group_by_attr) = rel.attributes.get::<AggregateGroupByAttribute>() {
       let num_group_by = agg_group_by_attr.num_join_group_by_vars;
       let var_args = head.variable_args().into_iter().cloned().collect::<Vec<_>>();
       let joined = VariableTuple::from_vars((&var_args[..num_group_by]).into_iter().cloned(), true);
@@ -1255,6 +1302,26 @@ impl Program {
         expr = Expr::binary(BinaryOp::And, expr, eq_expr(eq_vars[i]));
       }
       Some(expr)
+    }
+  }
+
+  fn get_right_join_indexed_vec(&self, dataflow: &ram::Dataflow) -> Option<String> {
+    match dataflow {
+      ram::Dataflow::Relation(rel_name) => {
+        if let Some(rel) = self.relation_of_predicate(rel_name) {
+          if let Some(storage_attr) = rel.attributes.get::<StorageAttribute>() {
+            match &storage_attr.metadata {
+              StorageMetadata::IndexedVec => Some(rel_name.clone()),
+              _ => None
+            }
+          } else {
+            None
+          }
+        } else {
+          None
+        }
+      }
+      _ => None
     }
   }
 

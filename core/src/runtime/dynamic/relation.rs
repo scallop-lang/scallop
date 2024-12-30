@@ -12,13 +12,13 @@ use crate::runtime::provenance::*;
 #[derive(Clone)]
 pub struct DynamicRelation<Prov: Provenance> {
   /// The facts derived
-  pub stable: Rc<RefCell<Vec<DynamicCollection<Prov>>>>,
+  pub stable: Rc<RefCell<Vec<DynamicSortedCollection<Prov>>>>,
 
   /// The facts derived in the previous iteration
-  pub recent: Rc<RefCell<DynamicCollection<Prov>>>,
+  pub recent: Rc<RefCell<DynamicSortedCollection<Prov>>>,
 
   /// The batches of facts to be added in the next iteration
-  to_add: Rc<RefCell<Vec<DynamicCollection<Prov>>>>,
+  to_add: Rc<RefCell<Vec<DynamicSortedCollection<Prov>>>>,
 
   /// The waitlisted facts.
   /// The order of the facts corresponds to the order where the fact is derived.
@@ -29,7 +29,7 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
   pub fn new() -> Self {
     Self {
       stable: Rc::new(RefCell::new(Vec::new())),
-      recent: Rc::new(RefCell::new(DynamicCollection::empty())),
+      recent: Rc::new(RefCell::new(DynamicSortedCollection::empty())),
       to_add: Rc::new(RefCell::new(Vec::new())),
       waitlist: Rc::new(RefCell::new(Vec::new())),
     }
@@ -113,7 +113,7 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     self
       .to_add
       .borrow_mut()
-      .push(DynamicCollection::from_vec(elements, ctx));
+      .push(DynamicSortedCollection::from_vec(elements, ctx));
   }
 
   pub fn insert_tagged_with_monitor<Tup, M>(&self, ctx: &Prov, data: Vec<(Option<InputTagOf<Prov>>, Tup)>, m: &M)
@@ -134,7 +134,7 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
     self
       .to_add
       .borrow_mut()
-      .push(DynamicCollection::from_vec(elements, ctx));
+      .push(DynamicSortedCollection::from_vec(elements, ctx));
   }
 
   pub fn num_stable(&self) -> usize {
@@ -156,7 +156,7 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
   pub fn changed(&mut self, ctx: &Prov, scheduler: &Scheduler) -> bool {
     // 1. Merge self.recent into self.stable.
     if !self.recent.borrow().is_empty() {
-      let mut recent = ::std::mem::replace(&mut (*self.recent.borrow_mut()), DynamicCollection::empty());
+      let mut recent = ::std::mem::replace(&mut (*self.recent.borrow_mut()), DynamicSortedCollection::empty());
       while self.stable.borrow().last().map(|x| x.len() <= 2 * recent.len()) == Some(true) {
         let last = self.stable.borrow_mut().pop().unwrap();
         recent = recent.merge(last, ctx);
@@ -172,7 +172,7 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
       }
       to_add
     } else {
-      DynamicCollection::empty()
+      DynamicSortedCollection::empty()
     };
 
     // 3. Move all the waitlist into to-add for global
@@ -201,7 +201,7 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
       } else {
         batch.collect::<Vec<_>>()
       };
-      self.to_add.borrow_mut().push(DynamicCollection::from_vec(data, ctx));
+      self.to_add.borrow_mut().push(DynamicSortedCollection::from_vec(data, ctx));
     }
   }
 
@@ -217,14 +217,14 @@ impl<Prov: Provenance> DynamicRelation<Prov> {
       } else {
         batch.collect::<Vec<_>>()
       };
-      self.to_add.borrow_mut().push(DynamicCollection::from_vec(data, ctx));
+      self.to_add.borrow_mut().push(DynamicSortedCollection::from_vec(data, ctx));
     }
   }
 
-  pub fn complete(&self, ctx: &Prov) -> DynamicCollection<Prov> {
+  pub fn complete(&self, ctx: &Prov) -> DynamicSortedCollection<Prov> {
     assert!(self.recent.borrow().is_empty());
     assert!(self.to_add.borrow().is_empty());
-    let mut result = DynamicCollection::empty();
+    let mut result = DynamicSortedCollection::empty();
     while let Some(batch) = self.stable.borrow_mut().pop() {
       result = result.merge(batch, ctx);
     }

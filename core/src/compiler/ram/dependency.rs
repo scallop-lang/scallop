@@ -84,6 +84,9 @@ impl Dataflow {
       Self::Exclusion(d, _) => {
         d.collect_dependency(preds);
       }
+      Self::Sorted(d) => {
+        d.collect_dependency(preds);
+      }
       Self::Find(d, _) => {
         d.collect_dependency(preds);
       }
@@ -116,6 +119,10 @@ impl Dataflow {
       Self::Union(d1, d2) => {
         d1.collect_dependency(preds);
         d2.collect_dependency(preds);
+      }
+      Self::JoinIndexedVec(d, s) => {
+        d.collect_dependency(preds);
+        preds.insert(s.clone());
       }
       Self::ForeignPredicateGround(_, _) => {}
       Self::ForeignPredicateConstraint(d, _, _) => {

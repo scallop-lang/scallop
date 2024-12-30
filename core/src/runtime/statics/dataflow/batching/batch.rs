@@ -20,6 +20,14 @@ where
   {
     self.next()
   }
+
+  fn collect_vec(&mut self) -> Vec<StaticElement<Tup, Prov>> {
+    let mut result = vec![];
+    while let Some(elem) = self.next() {
+      result.push(elem);
+    }
+    result
+  }
 }
 
 impl<Tup, Prov> Batch<Tup, Prov> for std::iter::Empty<StaticElement<Tup, Prov>>

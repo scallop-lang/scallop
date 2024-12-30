@@ -1,5 +1,13 @@
 # `scallopy`, the Python binding for Scallop
 
+## Quick Start
+
+This can be quickly installed using the following command through Github
+
+``` bash
+pip install "git+https://github.com/scallop-lang/scallop.git#egg=scallopy&subdirectory=etc/scallopy"
+```
+
 ## Sample usage
 
 ``` python

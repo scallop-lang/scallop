@@ -54,8 +54,10 @@ fn project_cascade_on_dataflow(d0: &mut Dataflow) -> bool {
       }
       _ => project_cascade_on_dataflow(d1),
     },
+    Dataflow::JoinIndexedVec(d, _) => project_cascade_on_dataflow(&mut **d),
     Dataflow::Filter(d, _) => project_cascade_on_dataflow(&mut **d),
     Dataflow::Find(d, _) => project_cascade_on_dataflow(&mut **d),
+    Dataflow::Sorted(d) => project_cascade_on_dataflow(&mut **d),
     Dataflow::OverwriteOne(d) => project_cascade_on_dataflow(&mut **d),
     Dataflow::Exclusion(d, _) => project_cascade_on_dataflow(&mut **d),
     Dataflow::ForeignPredicateConstraint(d, _, _) => project_cascade_on_dataflow(&mut **d),

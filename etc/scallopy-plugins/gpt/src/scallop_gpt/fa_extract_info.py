@@ -21,7 +21,7 @@ def get_gpt_extract_info(plugin: ScallopGPTPlugin):
     *,
     header: str = "",
     prompts: List[str],
-    examples: List[Tuple[List[str], List[List[Tuple[str, ...]]]]],
+    examples: List[Tuple[List[str], List[List[Tuple[str, ...]]]]] = [],
     model: str = None,
     cot: List[bool] = None,
     error_retry_limit: int = 1,
@@ -169,7 +169,8 @@ def get_gpt_extract_info(plugin: ScallopGPTPlugin):
         curr_response = openai.ChatCompletion.create(
           model=local_model,
           messages=current_messages,
-          temperature=plugin.temperature())
+          temperature=plugin.temperature(),
+          response_format={"type": "json_object"})
         curr_response_message = curr_response["choices"][0]["message"]
         if debug: print(f"> Obtained response: {curr_response_message}")
         current_messages.append(curr_response_message)

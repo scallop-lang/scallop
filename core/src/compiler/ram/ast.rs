@@ -12,6 +12,7 @@ use crate::common::tuple::{AsTuple, Tuple};
 use crate::common::tuple_type::TupleType;
 use crate::common::value::Value;
 
+use crate::runtime::database::StorageMetadata;
 use crate::runtime::env::Scheduler;
 
 #[derive(Debug, Clone)]
@@ -145,6 +146,9 @@ pub struct Relation {
   /// The scheduler for this specific scheduler
   pub scheduler: Option<Scheduler>,
 
+  /// Storage of the relation
+  pub storage: StorageMetadata,
+
   /// Whether the relation is immutable, i.e., not being populated by any rule
   pub immutable: bool,
 }
@@ -160,8 +164,13 @@ impl Relation {
       output: OutputOption::Hidden,
       is_goal: false,
       scheduler: None,
+      storage: StorageMetadata::default(),
       immutable: false,
     }
+  }
+
+  pub fn populates_edb(&self) -> bool {
+    !self.facts.is_empty() || self.input_file.is_some()
   }
 }
 
@@ -226,6 +235,7 @@ pub enum Dataflow {
   Project(Box<Dataflow>, Expr),
   Filter(Box<Dataflow>, Expr),
   Find(Box<Dataflow>, Tuple),
+  Sorted(Box<Dataflow>),
 
   // Binary operations
   Union(Box<Dataflow>, Box<Dataflow>),
@@ -234,6 +244,9 @@ pub enum Dataflow {
   Product(Box<Dataflow>, Box<Dataflow>),
   Antijoin(Box<Dataflow>, Box<Dataflow>),
   Difference(Box<Dataflow>, Box<Dataflow>),
+
+  // Specialized binary operations
+  JoinIndexedVec(Box<Dataflow>, String),
 
   // Aggregation
   Reduce(Reduce),
@@ -264,6 +277,11 @@ impl Dataflow {
     Self::Join(Box::new(self), Box::new(d2))
   }
 
+  /// Create a right indexed-vec join
+  pub fn join_indexed_vec(self, d2: String) -> Self {
+    Self::JoinIndexedVec(Box::new(self), d2)
+  }
+
   /// Create an intersection dataflow from two dataflows
   pub fn intersect(self, d2: Dataflow) -> Self {
     Self::Intersect(Box::new(self), Box::new(d2))
@@ -291,6 +309,10 @@ impl Dataflow {
 
   pub fn find<T: AsTuple<Tuple>>(self, t: T) -> Self {
     Self::Find(Box::new(self), AsTuple::as_tuple(&t))
+  }
+
+  pub fn sorted(self) -> Self {
+    Self::Sorted(Box::new(self))
   }
 
   pub fn overwrite_one(self) -> Self {
@@ -339,10 +361,12 @@ impl Dataflow {
       Self::Project(d, _)
       | Self::Filter(d, _)
       | Self::Find(d, _)
+      | Self::Sorted(d)
       | Self::OverwriteOne(d)
       | Self::ForeignPredicateConstraint(d, _, _)
       | Self::ForeignPredicateJoin(d, _, _)
       | Self::Exclusion(d, _) => d.source_relations(),
+      Self::JoinIndexedVec(d, s) => std::iter::once(s).chain(d.source_relations().into_iter()).collect(),
       Self::Reduce(r) => std::iter::once(r.source_relation()).collect(),
       Self::Relation(r) => std::iter::once(r).collect(),
       Self::ForeignPredicateGround(_, _) | Self::UntaggedVec(_) => HashSet::new(),
@@ -366,11 +390,20 @@ impl Dataflow {
       Self::Project(d, _)
       | Self::Filter(d, _)
       | Self::Find(d, _)
+      | Self::Sorted(d)
       | Self::OverwriteOne(d)
       | Self::ForeignPredicateConstraint(d, _, _)
       | Self::ForeignPredicateJoin(d, _, _)
       | Self::Exclusion(d, _) => {
         has_update |= d.substitute_relation(source, target);
+        has_update
+      }
+      Self::JoinIndexedVec(d, s) => {
+        has_update |= d.substitute_relation(source, target);
+        if s == source {
+          *s = target.to_string();
+          has_update |= true;
+        }
         has_update
       }
       Self::Reduce(r) => {

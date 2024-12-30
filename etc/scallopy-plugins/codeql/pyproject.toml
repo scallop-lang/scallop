@@ -1,0 +1,12 @@
+[project]
+name = "scallop-codeql"
+version = "0.0.1"
+dependencies = [
+
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.entry-points."scallop.plugin"]
+gpt = "scallop_codeql:ScallopCodeQLPlugin"

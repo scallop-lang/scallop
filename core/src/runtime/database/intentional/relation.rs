@@ -1,3 +1,4 @@
+use crate::runtime::database::StorageMetadata;
 use crate::runtime::dynamic::*;
 use crate::runtime::env::*;
 use crate::runtime::monitor::*;
@@ -5,6 +6,9 @@ use crate::runtime::provenance::*;
 use crate::utils::PointerFamily;
 
 pub struct IntentionalRelation<Prov: Provenance, Ptr: PointerFamily> {
+  /// The metadata for the storage
+  pub metadata: StorageMetadata,
+
   /// Recovered
   pub recovered: bool,
 
@@ -24,6 +28,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> Default for IntentionalRelation<Prov,
 impl<Prov: Provenance, Ptr: PointerFamily> Clone for IntentionalRelation<Prov, Ptr> {
   fn clone(&self) -> Self {
     Self {
+      metadata: self.metadata.clone(),
       recovered: self.recovered,
       internal_facts: self.internal_facts.clone(),
       recovered_facts: Ptr::clone_rc(&self.recovered_facts),
@@ -48,15 +53,19 @@ impl<Prov: Provenance, Ptr: PointerFamily> std::fmt::Display for IntentionalRela
 
 impl<Prov: Provenance, Ptr: PointerFamily> IntentionalRelation<Prov, Ptr> {
   pub fn new() -> Self {
+    let metadata = StorageMetadata::default();
+    let internal_facts = metadata.create_empty_storage();
     Self {
+      metadata,
       recovered: false,
-      internal_facts: DynamicCollection::empty(),
+      internal_facts,
       recovered_facts: Ptr::new_rc(DynamicOutputCollection::empty()),
     }
   }
 
   pub fn from_dynamic_collection(collection: DynamicCollection<Prov>) -> Self {
     Self {
+      metadata: collection.get_metadata(),
       recovered: false,
       internal_facts: collection,
       recovered_facts: Ptr::new_rc(DynamicOutputCollection::empty()),
@@ -64,9 +73,12 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalRelation<Prov, Ptr> {
   }
 
   pub fn from_dynamic_output_collection(collection: DynamicOutputCollection<Prov>) -> Self {
+    let metadata = StorageMetadata::default();
+    let internal_facts = metadata.create_empty_storage();
     Self {
+      metadata,
       recovered: true,
-      internal_facts: DynamicCollection::empty(),
+      internal_facts,
       recovered_facts: Ptr::new_rc(collection),
     }
   }

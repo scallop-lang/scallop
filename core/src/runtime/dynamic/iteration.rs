@@ -4,15 +4,16 @@ use crate::compiler::ram;
 use crate::runtime::env::*;
 use crate::runtime::monitor::*;
 use crate::runtime::provenance::*;
+use crate::runtime::database::*;
 
 use super::dataflow::*;
 use super::*;
 
 pub struct DynamicIteration<'a, Prov: Provenance> {
   pub iter_num: usize,
-  pub input_dynamic_collections: HashMap<String, &'a DynamicCollection<Prov>>,
+  pub input_dynamic_collections: HashMap<String, DynamicCollectionRef<'a, Prov>>,
   pub dynamic_relations: HashMap<String, DynamicRelation<Prov>>,
-  pub output_relations: Vec<String>,
+  pub output_relations: Vec<(String, StorageMetadata)>,
   pub goal_relations: Vec<String>,
   pub relation_schedulers: HashMap<String, Scheduler>,
   pub updates: Vec<ram::Update>,
@@ -39,7 +40,7 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     self.iter_num += 1;
   }
 
-  pub fn add_input_dynamic_collection(&mut self, name: &str, col: &'a DynamicCollection<Prov>) {
+  pub fn add_input_dynamic_collection(&mut self, name: &str, col: DynamicCollectionRef<'a, Prov>) {
     self.input_dynamic_collections.insert(name.to_string(), col);
   }
 
@@ -76,8 +77,12 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     self.updates.push(update)
   }
 
-  pub fn add_output_relation(&mut self, name: &str) {
-    self.output_relations.push(name.to_string())
+  pub fn add_output_relation_with_default_storage(&mut self, name: &str) {
+    self.output_relations.push((name.to_string(), StorageMetadata::default()))
+  }
+
+  pub fn add_output_relation(&mut self, name: &str, metadata: &StorageMetadata) {
+    self.output_relations.push((name.to_string(), metadata.clone()))
   }
 
   pub fn add_goal_relation(&mut self, name: &str) {
@@ -110,9 +115,9 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
 
     // Generate result
     let mut result = HashMap::new();
-    for name in &self.output_relations {
+    for (name, metadata) in &self.output_relations {
       let col = self.dynamic_relations.remove(name).unwrap().complete(ctx);
-      result.insert(name.clone(), col);
+      result.insert(name.clone(), metadata.from_vec(col.elements, ctx));
     }
     result
   }
@@ -198,9 +203,9 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
 
     // Generate result
     let mut result = HashMap::new();
-    for name in &self.output_relations {
+    for (name, metadata) in &self.output_relations {
       let col = self.dynamic_relations.remove(name).unwrap().complete(ctx);
-      result.insert(name.clone(), col);
+      result.insert(name.clone(), metadata.from_vec(col.elements, ctx));
     }
     result
   }
@@ -280,19 +285,26 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     changed
   }
 
-  fn unsafe_get_dynamic_relation(&'a self, name: &str) -> &'a DynamicRelation<Prov> {
-    if self.dynamic_relations.contains_key(name) {
-      &self.dynamic_relations[name]
+  fn unsafe_get_dynamic_relation<'b>(&'b self, name: &str) -> &'b DynamicRelation<Prov> {
+    if let Some(rel) = self.dynamic_relations.get(name) {
+      rel
     } else {
       panic!("Cannot find dynamic relation `{}`", name)
     }
   }
 
-  fn unsafe_get_input_dynamic_collection(&'a self, name: &str) -> &'a DynamicCollection<Prov> {
-    if self.input_dynamic_collections.contains_key(name) {
-      self.input_dynamic_collections[name]
+  fn unsafe_get_input_dynamic_collection(&self, name: &str) -> DynamicCollectionRef<'a, Prov> {
+    if let Some(rel) = self.input_dynamic_collections.get(name) {
+      rel.clone()
     } else {
       panic!("Cannot find input dynamic collection `{}`", name)
+    }
+  }
+
+  fn unsafe_get_input_dynamic_index_vec_collection(&self, name: &str) -> &'a DynamicIndexedVecCollection<Prov> {
+    match self.unsafe_get_input_dynamic_collection(name) {
+      DynamicCollectionRef::IndexedVec(i) => i,
+      _ => panic!("Relation `{}` is not stored as indexed vector; aborting", name)
     }
   }
 
@@ -369,6 +381,9 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
           .build_dynamic_dataflow(env, ctx, d1)
           .dynamic_exclusion(self.build_dynamic_dataflow(env, ctx, d2), ctx, env)
       }
+      ram::Dataflow::Sorted(d) => {
+        self.build_dynamic_dataflow(env, ctx, d).sorted()
+      }
       ram::Dataflow::Filter(d, e) => {
         let internal_filter = env
           .internalize_expr(e)
@@ -416,6 +431,11 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
         let r1 = self.build_dynamic_dataflow(env, ctx, d1);
         let r2 = self.build_dynamic_dataflow(env, ctx, d2);
         r1.antijoin(r2, ctx)
+      }
+      ram::Dataflow::JoinIndexedVec(d1, s) => {
+        let r1 = self.build_dynamic_dataflow(env, ctx, d1);
+        let r2 = self.unsafe_get_input_dynamic_index_vec_collection(s);
+        r1.join_indexed_vec(r2, ctx)
       }
       ram::Dataflow::Reduce(a) => {
         let op = env

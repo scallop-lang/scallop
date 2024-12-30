@@ -7,11 +7,11 @@ use crate::runtime::utils::*;
 
 use super::utils::compute_stable_retain;
 
-/// Assumption: waitlist is sorted by weight from small to large
+/// Invariant: waitlist is sorted by weight from small to large
 pub fn schedule_beam<'a, Prov: Provenance>(
-  to_add: &'a mut DynamicCollection<Prov>,
+  to_add: &'a mut DynamicSortedCollection<Prov>,
   waitlist: &'a mut Vec<DynamicElement<Prov>>,
-  stable: &'a mut Vec<DynamicCollection<Prov>>,
+  stable: &'a mut Vec<DynamicSortedCollection<Prov>>,
   ctx: &'a Prov,
   beam_size: usize,
 ) {

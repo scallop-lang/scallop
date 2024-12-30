@@ -20,6 +20,7 @@ pub struct Analysis {
   pub goal_relation_analysis: GoalRelationAnalysis,
   pub head_relation_analysis: HeadRelationAnalysis,
   pub scheduler_attr_analysis: SchedulerAttributeAnalysis,
+  pub storage_attr_analysis: StorageAttributeAnalysis,
   pub tagged_rule_analysis: TaggedRuleAnalysis,
   pub type_inference: TypeInference,
   pub boundness_analysis: BoundnessAnalysis,
@@ -46,6 +47,7 @@ impl Analysis {
       head_relation_analysis: HeadRelationAnalysis::new(predicate_registry),
       goal_relation_analysis: GoalRelationAnalysis::new(),
       scheduler_attr_analysis: SchedulerAttributeAnalysis::new(),
+      storage_attr_analysis: StorageAttributeAnalysis::new(),
       tagged_rule_analysis: TaggedRuleAnalysis::new(),
       type_inference: TypeInference::new(function_registry, predicate_registry, aggregate_registry),
       boundness_analysis: BoundnessAnalysis::new(predicate_registry),
@@ -65,6 +67,7 @@ impl Analysis {
       &mut self.invalid_constant,
       &mut self.invalid_wildcard,
       &mut self.scheduler_attr_analysis,
+      &mut self.storage_attr_analysis,
     );
     items.walk(&mut analyzers);
   }
@@ -109,6 +112,7 @@ impl Analysis {
     error_ctx.extend(&mut self.goal_relation_analysis.errors);
     error_ctx.extend(&mut self.head_relation_analysis.errors);
     error_ctx.extend(&mut self.scheduler_attr_analysis.errors);
+    error_ctx.extend(&mut self.storage_attr_analysis.errors);
     error_ctx.extend(&mut self.type_inference.errors);
     error_ctx.extend(&mut self.boundness_analysis.errors);
     error_ctx.extend(&mut self.demand_attr_analysis.errors);

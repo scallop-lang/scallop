@@ -179,8 +179,8 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
     Ok(())
   }
 
-  pub fn get_dynamic_collection(&self, relation: &str) -> Option<&DynamicCollection<Prov>> {
-    self.extensional_relations.get(relation).map(|r| &r.internal)
+  pub fn get_dynamic_collection(&self, relation: &str) -> Option<DynamicCollectionRef<Prov>> {
+    self.extensional_relations.get(relation).map(|r| r.internal.as_ref())
   }
 
   pub fn pop_dynamic_collection(&mut self, relation: &str) -> Option<DynamicCollection<Prov>> {
@@ -194,7 +194,8 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
   {
     if let Some(extensional_relation) = self.extensional_relations.get(relation) {
       if !extensional_relation.internal.is_empty() {
-        rela.insert_dynamic_elements_ref(ctx, &extensional_relation.internal.elements);
+        let data = extensional_relation.internal.iter().collect();
+        rela.insert_dynamic_elements_ref(ctx, &data);
       }
     }
   }
@@ -209,9 +210,17 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
 
     // Iterate through all relations declared in the program
     for relation in program.relations() {
+      // Create a relation in the EDB if the relation is populating EDB
+      if relation.populates_edb() {
+        self.create_relation(relation);
+      }
+
       // Check if we need to load the relation facts
       if !relation.facts.is_empty() {
-        let edb_relation = self.get_or_insert_relation(&relation.predicate);
+        // Create the relation if not
+        let edb_relation = self.extensional_relations.get_mut(&relation.predicate).unwrap(); // unwrap is okay since the relation is definitely created
+
+        // Check if we have internalized
         if edb_relation.internalized_program_facts
           && edb_relation.has_program_facts()
           && edb_relation.num_program_facts() < relation.facts.len()
@@ -226,11 +235,8 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
 
       // Check if we need to load external facts (from files or databases)
       if let Some(input_file_config) = &relation.input_file {
-        let edb_relation = self
-          .extensional_relations
-          .entry(relation.predicate.to_string())
-          .or_default();
         let loaded_file_content = self.input_file_registry.get(input_file_config.file_path()).unwrap(); // unwrap since this has to be populated before
+        let edb_relation = self.extensional_relations.get_mut(&relation.predicate).unwrap(); // unwrap is okay since the relation is definitely created
         edb_relation.load_from_file(env, input_file_config, loaded_file_content, &relation.tuple_type)?;
       }
     }
@@ -298,8 +304,10 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
     }
   }
 
-  fn get_or_insert_relation(&mut self, relation: &str) -> &mut ExtensionalRelation<Prov> {
-    self.extensional_relations.entry(relation.to_string()).or_default()
+  fn create_relation(&mut self, relation: &ram::Relation) {
+    self.extensional_relations.entry(relation.predicate.clone()).or_insert_with(|| {
+      ExtensionalRelation::new_with_metadata(relation.storage.clone())
+    });
   }
 }
 

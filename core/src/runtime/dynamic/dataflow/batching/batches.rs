@@ -30,8 +30,12 @@ impl<'a, Prov: Provenance> DynamicBatches<'a, Prov> {
     Self::new(DynamicBatchesChain::new(bs))
   }
 
-  pub fn binary<Op: BatchBinaryOp<'a, Prov>>(b1: Self, b2: Self, op: Op) -> Self {
-    Self::new(DynamicBatchesBinary::new(b1, b2, op))
+  pub fn binary<Op: BatchBinaryOp<'a, Prov>>(self, b2: Self, op: Op) -> Self {
+    Self::new(DynamicBatchesBinary::new(self, b2, op))
+  }
+
+  pub fn unary<Op: BatchUnaryOp<'a, Prov>>(self, op: Op) -> Self {
+    Self::new(DynamicBatchesUnary::new(self, op))
   }
 }
 
@@ -157,5 +161,26 @@ impl<'a, Prov: Provenance> Batches<'a, Prov> for DynamicBatchesBinary<'a, Prov> 
         None => return None,
       }
     }
+  }
+}
+
+#[derive(Clone)]
+pub struct DynamicBatchesUnary<'a, Prov: Provenance> {
+  batches: DynamicBatches<'a, Prov>,
+  op: DynamicBatchUnaryOp<'a, Prov>,
+}
+
+impl<'a, Prov: Provenance> DynamicBatchesUnary<'a, Prov> {
+  pub fn new<Op: BatchUnaryOp<'a, Prov>>(b: DynamicBatches<'a, Prov>, op: Op) -> Self {
+    Self {
+      batches: b,
+      op: DynamicBatchUnaryOp::new(op),
+    }
+  }
+}
+
+impl<'a, Prov: Provenance> Batches<'a, Prov> for DynamicBatchesUnary<'a, Prov> {
+  fn next_batch(&mut self) -> Option<DynamicBatch<'a, Prov>> {
+    self.batches.next_batch().map(|b| self.op.apply(b))
   }
 }

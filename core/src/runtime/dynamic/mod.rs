@@ -5,8 +5,10 @@ mod incremental;
 mod iteration;
 mod output_collection;
 mod relation;
+mod collections;
 
 pub use collection::*;
+pub use collections::*;
 pub use element::*;
 pub use incremental::*;
 pub use iteration::*;

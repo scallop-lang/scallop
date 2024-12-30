@@ -36,7 +36,7 @@ fn test_dynamic_exclusion_1() {
 
   // Inspect the result
   expect_collection(
-    &target.complete(&ctx),
+    &target.complete(&ctx).into(),
     vec![
       (0, "red".to_string()),
       (0, "blue".to_string()),

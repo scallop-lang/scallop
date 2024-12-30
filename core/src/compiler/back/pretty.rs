@@ -1,5 +1,3 @@
-use crate::runtime::env::Scheduler;
-
 use super::*;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
@@ -31,7 +29,7 @@ impl Display for Program {
 impl Display for Relation {
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
     self.attributes.fmt(f)?;
-    f.write_fmt(format_args!(" {}(", self.predicate))?;
+    f.write_fmt(format_args!("{}(", self.predicate))?;
     for (i, arg) in self.arg_types.iter().enumerate() {
       arg.fmt(f)?;
       if i < self.arg_types.len() - 1 {
@@ -44,79 +42,11 @@ impl Display for Relation {
 
 impl Display for Attributes {
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-    for attr in &self.attrs {
+    for attr in self.iter() {
       attr.fmt(f)?;
+      f.write_str(" ")?;
     }
     Ok(())
-  }
-}
-
-impl Display for Attribute {
-  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-    match self {
-      Self::AggregateBody(a) => a.fmt(f),
-      Self::AggregateGroupBy(a) => a.fmt(f),
-      Self::Demand(d) => d.fmt(f),
-      Self::MagicSet(d) => d.fmt(f),
-      Self::InputFile(i) => i.fmt(f),
-      Self::Goal(g) => g.fmt(f),
-      Self::Scheduler(s) => s.fmt(f),
-    }
-  }
-}
-
-impl Display for AggregateBodyAttribute {
-  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-    f.write_fmt(format_args!(
-      "@aggregate_body(num_group_by = {}, num_arg = {}, num_key: {}) ",
-      self.num_group_by_vars, self.num_arg_vars, self.num_key_vars
-    ))
-  }
-}
-
-impl Display for AggregateGroupByAttribute {
-  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-    f.write_fmt(format_args!(
-      "@aggregate_group_by(num_joined = {}, num_other = {})",
-      self.num_join_group_by_vars, self.num_other_group_by_vars,
-    ))
-  }
-}
-
-impl Display for DemandAttribute {
-  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-    f.write_fmt(format_args!("@demand({:?})", self.pattern))
-  }
-}
-
-impl Display for MagicSetAttribute {
-  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-    f.write_str("@magic_set")
-  }
-}
-
-impl Display for InputFileAttribute {
-  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-    f.write_fmt(format_args!("@file({:?})", self.input_file))
-  }
-}
-
-impl Display for GoalAttribute {
-  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-    f.write_str("@goal")
-  }
-}
-
-impl Display for SchedulerAttribute {
-  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-    f.write_str("@scheduler(")?;
-    match &self.scheduler {
-      Scheduler::LFP => f.write_str("\"lfp\"")?,
-      Scheduler::AStar => f.write_str("\"a-star\"")?,
-      Scheduler::DFS => f.write_str("\"dfs\"")?,
-      Scheduler::Beam { beam_size } => f.write_fmt(format_args!("\"beam\", beam_size = {beam_size}"))?,
-    }
-    f.write_str(")")
   }
 }
 
@@ -138,7 +68,7 @@ impl Display for Fact {
 
 impl Display for Rule {
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-    f.write_fmt(format_args!("{} :- {}", self.head, self.body))
+    f.write_fmt(format_args!("{}{} :- {}", self.attributes, self.head, self.body))
   }
 }
 

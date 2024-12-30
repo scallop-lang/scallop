@@ -48,6 +48,7 @@ class AstTypeNode(AstNode):
     if ty == bool:
       if text == "true" or text == "True": return True
       elif text == "false" or text == "False": return False
+      elif isinstance(text, bool): return text
       else: return False
     elif ty == int:
       return int(float(text))

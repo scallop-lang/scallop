@@ -2,6 +2,7 @@
 
 use super::generic_tuple::GenericTuple;
 use super::tuple_type::TupleType;
+use super::value_type::ValueType;
 use super::value::Value;
 
 pub type Tuple = GenericTuple<Value>;
@@ -9,6 +10,10 @@ pub type Tuple = GenericTuple<Value>;
 impl Tuple {
   pub fn tuple_type(&self) -> TupleType {
     TupleType::type_of(self)
+  }
+
+  pub fn value_type(&self) -> Option<ValueType> {
+    self.tuple_type().get_value().cloned()
   }
 
   pub fn tuple<I: Iterator<Item = Self>>(i: I) -> Self {
@@ -47,6 +52,19 @@ impl Tuple {
           _ => panic!("Not a value"),
         })
         .collect(),
+    }
+  }
+
+  pub fn in_order_values(&self) -> Vec<Value> {
+    match self {
+      Self::Value(v) => vec![v.clone()],
+      Self::Tuple(t) => {
+        let mut all = vec![];
+        for elem in t.iter() {
+          all.extend(elem.in_order_values().into_iter())
+        }
+        all
+      },
     }
   }
 
