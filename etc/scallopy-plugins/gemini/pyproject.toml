@@ -1,0 +1,13 @@
+[project]
+name = "scallop-gemini"
+version = "0.0.2"
+dependencies = [
+  "genai",
+  "torch",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.entry-points."scallop.plugin"]
+gemini = "scallop_gemini:ScallopGeminiPlugin"
