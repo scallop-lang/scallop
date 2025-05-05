@@ -6,7 +6,7 @@ The following instructions assume you have access to the Scallop source code and
 
 ## Requirements
 
-- Rust - nightly 2023-03-07 (please visit [here](https://rust-lang.github.io/rustup/concepts/channels.html) to learn more about Rust nightly and how to install them)
+- Rust - nightly (please visit [here](https://rust-lang.github.io/rustup/concepts/channels.html) to learn more about Rust nightly and how to install them)
 - Python 3.7+ (for connecting Scallop with Python and [PyTorch](https://pytorch.org))
 
 ## Scallop Interpreter
