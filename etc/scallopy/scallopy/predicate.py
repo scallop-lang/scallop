@@ -1,5 +1,20 @@
-import typing
-from typing import TypeVar, Generic, Union, Tuple, Callable, List, Optional, Any, ForwardRef, ClassVar
+from collections.abc import Generator
+from typing import (
+  TypeVar,
+  Union,
+  Tuple,
+  Callable,
+  List,
+  Optional,
+  Any,
+  ForwardRef,
+  ClassVar,
+  get_origin,
+  get_args,
+  get_type_hints,
+  TypeAlias,
+)
+from types import NoneType
 import inspect
 
 from . import torch_importer
@@ -50,42 +65,65 @@ class Type:
     elif value == torch_importer.Tensor:
       self.type = "Tensor"
     else:
-      raise Exception(f"Unknown scallop predicate type annotation `{value}`")
+      raise TypeError(f"Unknown scallop predicate type annotation `{value}`")
 
   def __repr__(self):
     return self.type
 
   @staticmethod
   def sanitize_type_str(value):
-    if value == "i8" or value == "i16" or value == "i32" or value == "i64" or value == "i128" or value == "isize" or \
-      value == "u8" or value == "u16" or value == "u32" or value == "u64" or value == "u128" or value == "usize" or \
-      value == "f32" or value == "f64" or \
-      value == "bool" or value == "char" or value == "String" or value == "Symbol" or value == "Tensor" or \
-      value == "DateTime" or value == "Duration" or value == "Entity":
+    if (
+      value == "i8"
+      or value == "i16"
+      or value == "i32"
+      or value == "i64"
+      or value == "i128"
+      or value == "isize"
+      or value == "u8"
+      or value == "u16"
+      or value == "u32"
+      or value == "u64"
+      or value == "u128"
+      or value == "usize"
+      or value == "f32"
+      or value == "f64"
+      or value == "bool"
+      or value == "char"
+      or value == "String"
+      or value == "Symbol"
+      or value == "Tensor"
+      or value == "DateTime"
+      or value == "Duration"
+      or value == "Entity"
+    ):
       return value
     elif value in ALIASES:
       return ALIASES[value]
     else:
-      raise Exception(f"Unknown scallop predicate type annotation `{value}`")
+      raise TypeError(f"Unknown scallop predicate type annotation `{value}`")
 
 
 TagType = TypeVar("TagType")
 
 TupleType = TypeVar("TupleType")
 
-Facts = ClassVar[typing.Generator[
-  Union[
-    Tuple[TagType, TupleType],
-    TupleType,
-  ],
-  None,
-  None,
-]]
+Facts: TypeAlias = ClassVar[
+  Generator[
+    Union[
+      Tuple[TagType, TupleType],
+      TupleType,
+    ],
+    None,
+    None,
+  ]
+]
+
 
 class ForeignPredicate:
   """
   Scallop foreign predicate
   """
+
   def __init__(
     self,
     func: Callable,
@@ -108,7 +146,7 @@ class ForeignPredicate:
     r = f"extern pred {self.name}"
     if len(self.type_params) > 0:
       r += "<"
-      for (i, type_param) in enumerate(self.type_params):
+      for i, type_param in enumerate(self.type_params):
         if i > 0:
           r += ", "
         r += f"{type_param}"
@@ -178,6 +216,7 @@ def foreign_predicate(
 
   # Get the function signature
   signature = inspect.signature(func)
+  type_hints = get_type_hints(func, include_extras=True)
 
   # Store all the type params
   if type_params is None:
@@ -190,40 +229,33 @@ def foreign_predicate(
     argument_types = []
 
     # Find argument types
-    for (arg_name, item) in signature.parameters.items():
+    for arg_name, item in signature.parameters.items():
       optional = item.default != inspect.Parameter.empty
-      if item.annotation is None or 'inspect._empty' in str(item.annotation):
-        raise Exception(f"Argument `{arg_name}`'s type annotation not provided in the foreign predicate `{func_name}`")
+      if item.annotation is inspect.Parameter.empty or arg_name not in type_hints:
+        raise TypeError(
+          f"Argument `{arg_name}`'s type annotation not provided in the foreign predicate `{func_name}`"
+        )
       if item.kind == inspect.Parameter.VAR_POSITIONAL:
-        raise Exception(f"Cannot have variable arguments in foreign predicate")
+        raise TypeError("Cannot have variable arguments in foreign predicate")
       elif not optional:
-        ty = Type(item.annotation)
+        ty = Type(type_hints[arg_name])
         argument_types.append(ty)
       else:
-        raise Exception(f"Cannot have optional argument in foreign predicate")
+        raise TypeError("Cannot have optional argument in foreign predicate")
   else:
     argument_types = [Type(t) for t in input_arg_types]
 
   # Find return type
   if output_arg_types is None:
-    if signature.return_annotation is None:
-      raise Exception(f"Return type annotation not provided")
-    elif not str(signature.return_annotation).startswith("typing.ClassVar[typing.Generator[typing.Union[typing.Tuple["):
-      raise Exception(f"Return type must be Facts")
-    else:
-      args = signature.return_annotation \
-        .__dict__["__args__"][0] \
-        .__dict__["__args__"][0] \
-        .__dict__["__args__"][0] \
-        .__dict__["__args__"]
-      if len(args) != 2:
-        raise Exception(f"Facts must have 2 type arguments")
+    if (
+      signature.return_annotation is inspect.Signature.empty
+      or "return" not in type_hints
+    ):
+      raise TypeError("Return type annotation not provided")
 
-      # Produce return tag type
-      return_tag_type = tag_types.get_tag_type(args[0])
-
-      # Produce return tuple type, and check that they are all base type
-      return_tuple_type = _extract_return_tuple_type(args[1])
+    return_tag_type, return_tuple_type = _extract_facts_return_type(
+      type_hints["return"]
+    )
   else:
     return_tag_type = tag_types.get_tag_type(tag_type)
     return_tuple_type = [Type(t) for t in output_arg_types]
@@ -240,22 +272,64 @@ def foreign_predicate(
   )
 
 
+def _extract_facts_return_type(return_type):
+  if get_origin(return_type) is not ClassVar:
+    raise TypeError("Return type must be Facts")
+
+  generator_args = get_args(return_type)
+
+  if len(generator_args) != 1:
+    raise TypeError("Return type must be Facts")
+
+  generator_type = generator_args[0]
+  if get_origin(generator_type) is not Generator:
+    raise TypeError("Return type must be Facts")
+
+  generator_type_args = get_args(generator_type)
+  if len(generator_type_args) != 3:
+    raise TypeError("Return type must be Facts")
+
+  yield_type, send_type, generator_return_type = generator_type_args
+  if not (_is_none_type(send_type) and _is_none_type(generator_return_type)):
+    raise TypeError("Return type must be Facts")
+
+  if get_origin(yield_type) is not Union:
+    raise TypeError("Return type must be Facts")
+
+  yield_type_args = get_args(yield_type)
+  if len(yield_type_args) != 2:
+    raise TypeError("Return type must be Facts")
+
+  tagged_fact_type = yield_type_args[0]
+  if get_origin(tagged_fact_type) is not tuple:
+    raise TypeError("Return type must be facts")
+
+  tagged_fact_args = get_args(tagged_fact_type)
+  if len(tagged_fact_args) != 2:
+    raise TypeError("Facts must have 2 type arguments")
+
+  tag_type, tuple_type = tagged_fact_args
+  return tag_types.get_tag_type(tag_type), _extract_return_tuple_type(tuple_type)
+
+
 def _extract_return_tuple_type(tuple_type) -> List[Type]:
   # First check if it is a None type (i.e. returning zero-tuple)
-  if tuple_type == None:
+  if _is_none_type(tuple_type):
     return []
 
   # Then try to convert it to a base type
   try:
     ty = Type(tuple_type)
     return [ty]
-  except: pass
+  except TypeError:
+    pass
 
   # If not, it must be a tuple of base types
-  if "__origin__" in tuple_type.__dict__ and tuple_type.__dict__["__origin__"] == tuple:
-    if "__args__" in tuple_type.__dict__:
-      return [Type(t) for t in tuple_type.__dict__["__args__"]]
-    else:
-      return []
+  if get_origin(tuple_type) is tuple:
+    return [Type(t) for t in get_args(tuple_type)]
   else:
-    raise Exception(f"Return tuple type must be a base type or a tuple of base types")
+    raise TypeError("Return tuple type must be a base type or a tuple of base types")
+
+
+def _is_none_type(ty):
+  return ty is None or ty is NoneType
