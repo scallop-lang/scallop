@@ -1,4 +1,4 @@
-use pyo3::types::*;
+use pyo3::prelude::*;
 
 use scallop_core::common::foreign_tensor::*;
 use scallop_core::common::input_tag::*;
@@ -6,7 +6,7 @@ use scallop_core::common::input_tag::*;
 use super::error::*;
 use super::tensor::*;
 
-pub fn from_python_input_tag(ty: &str, tag: &PyAny) -> Result<DynamicInputTag, BindingError> {
+pub fn from_python_input_tag(ty: &str, tag: &Bound<'_, PyAny>) -> Result<DynamicInputTag, BindingError> {
   match ty {
     "none" => Ok(DynamicInputTag::None),
     "natural" => Ok(DynamicInputTag::Natural(tag.extract()?)),

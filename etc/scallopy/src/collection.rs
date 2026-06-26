@@ -1,5 +1,4 @@
-use pyo3::class::iter::IterNextOutput;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, IntoPyObjectExt};
 
 use scallop_core::common;
 use scallop_core::runtime::dynamic::*;
@@ -224,21 +223,21 @@ pub struct CollectionIterator {
 
 #[pymethods]
 impl CollectionIterator {
-  fn __next__(mut slf: PyRefMut<Self>) -> IterNextOutput<Py<PyAny>, &'static str> {
+  fn __next__(mut slf: PyRefMut<Self>) -> Option<Py<PyAny>> {
     while slf.current_index < slf.collection.len() {
       let i = slf.current_index;
       slf.current_index += 1;
       if slf.collection.has_empty_tag() {
         if let Some(tuple) = to_python_tuple(slf.collection.ith_tuple(i), &slf.env) {
-          return IterNextOutput::Yield(tuple);
+          return Some(tuple);
         }
       } else {
         let tuple = to_python_tuple(slf.collection.ith_tuple(i), &slf.env);
         let tag = slf.collection.ith_tag(i);
-        let elem = Python::with_gil(|py| (tag, tuple).to_object(py));
-        return IterNextOutput::Yield(elem);
+        let elem = Python::attach(|py| (tag, tuple).into_py_any(py).unwrap());
+        return Some(elem);
       }
     }
-    IterNextOutput::Return("Ended")
+    None
   }
 }

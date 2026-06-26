@@ -105,7 +105,7 @@ impl BindingPattern {
     self.pattern.iter().all(|p| p.is_free())
   }
 
-  pub fn iter(&self) -> std::slice::Iter<Binding> {
+  pub fn iter(&self) -> std::slice::Iter<'_, Binding> {
     self.pattern.iter()
   }
 }

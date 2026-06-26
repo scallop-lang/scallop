@@ -1,5 +1,5 @@
+use pyo3::prelude::*;
 use pyo3::types::*;
-use pyo3::*;
 
 use scallop_core::common::foreign_predicate::*;
 use scallop_core::common::input_tag::*;
@@ -13,7 +13,7 @@ use super::tuple::*;
 
 #[derive(Clone)]
 pub struct PythonForeignPredicate {
-  fp: PyObject,
+  fp: Py<PyAny>,
   name: String,
   type_params: Vec<ValueType>,
   types: Vec<ValueType>,
@@ -23,8 +23,8 @@ pub struct PythonForeignPredicate {
 }
 
 impl PythonForeignPredicate {
-  pub fn new(fp: PyObject) -> Self {
-    Python::with_gil(|py| {
+  pub fn new(fp: Py<PyAny>) -> Self {
+    Python::attach(|py| {
       let name = fp
         .getattr(py, "name")
         .expect("Cannot get foreign predicate name")
@@ -38,11 +38,11 @@ impl PythonForeignPredicate {
         .expect("Foreign predicate `suppress_warning` cannot be extracted into bool");
 
       let type_params = {
-        let type_param_pyobjs: Vec<PyObject> = fp
+        let type_param_pyobjs: Vec<Py<PyAny>> = fp
           .getattr(py, "type_params")
           .expect("Cannot get all_argument_types function")
           .extract(py)
-          .expect("Cannot extract function into PyObject");
+          .expect("Cannot extract function into Py<PyAny>");
 
         // Convert the Python types into Scallop types
         type_param_pyobjs
@@ -53,14 +53,14 @@ impl PythonForeignPredicate {
 
       let types = {
         // Call `all_argument_types` function of the Python object
-        let func: PyObject = fp
+        let func: Py<PyAny> = fp
           .getattr(py, "all_argument_types")
           .expect("Cannot get all_argument_types function")
           .extract(py)
-          .expect("Cannot extract function into PyObject");
+          .expect("Cannot extract function into Py<PyAny>");
 
         // Invoke the function
-        let py_types: Vec<PyObject> = func
+        let py_types: Vec<Py<PyAny>> = func
           .call0(py)
           .expect("Cannot call function")
           .extract(py)
@@ -80,11 +80,11 @@ impl PythonForeignPredicate {
         .expect("tag_type is not a string");
 
       let num_bounded: usize = {
-        let func: PyObject = fp
+        let func: Py<PyAny> = fp
           .getattr(py, "num_bounded")
           .expect("Cannot get num_bounded function")
           .extract(py)
-          .expect("Cannot extract function into PyObject");
+          .expect("Cannot extract function into Py<PyAny>");
 
         // Invoke the function
         func
@@ -133,10 +133,10 @@ impl ForeignPredicate for PythonForeignPredicate {
   }
 
   fn evaluate_with_env(&self, env: &RuntimeEnvironment, bounded: &[Value]) -> Vec<(DynamicInputTag, Vec<Value>)> {
-    Python::with_gil(|py| {
+    Python::attach(|py| {
       // Construct the arguments
       let args: Vec<Py<PyAny>> = bounded.iter().filter_map(|v| to_python_value(v, &env.into())).collect();
-      let args_tuple = PyTuple::new(py, args);
+      let args_tuple = PyTuple::new(py, args).expect("Cannot create argument tuple");
 
       // Invoke the function
       let maybe_result = match self.fp.call1(py, args_tuple) {
@@ -153,14 +153,14 @@ impl ForeignPredicate for PythonForeignPredicate {
       // Turn the result back to Scallop values
       if let Some(result) = maybe_result {
         let output_tuple_type = self.output_tuple_type();
-        let elements: Vec<(&PyAny, &PyAny)> = result.extract(py).expect(&format!(
+        let elements: Vec<(Bound<'_, PyAny>, Bound<'_, PyAny>)> = result.extract(py).expect(&format!(
           "Cannot extract into list of elements during evaluation of {}",
           self.name
         ));
         let internal: Vec<_> = elements
           .into_iter()
           .filter_map(|(py_tag, py_tup)| {
-            let tag = match from_python_input_tag(&self.tag_type, py_tag) {
+            let tag = match from_python_input_tag(&self.tag_type, &py_tag) {
               Ok(tag) => tag,
               Err(err) => {
                 if !self.suppress_warning {
@@ -169,7 +169,7 @@ impl ForeignPredicate for PythonForeignPredicate {
                 return None;
               }
             };
-            let tuple = match from_python_tuple(py_tup, &output_tuple_type, &env.into()) {
+            let tuple = match from_python_tuple(&py_tup, &output_tuple_type, &env.into()) {
               Ok(tuple) => tuple,
               Err(err) => {
                 if !self.suppress_warning {
@@ -189,7 +189,7 @@ impl ForeignPredicate for PythonForeignPredicate {
   }
 }
 
-fn py_param_type_to_fp_param_type(obj: PyObject, py: Python<'_>) -> ValueType {
+fn py_param_type_to_fp_param_type(obj: Py<PyAny>, py: Python<'_>) -> ValueType {
   let param_type: String = obj
     .getattr(py, "type")
     .expect("Cannot get param type")

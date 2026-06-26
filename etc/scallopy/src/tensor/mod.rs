@@ -7,7 +7,7 @@ pub use torch::{TorchTensor as Tensor, TorchTensorRegistry as TensorRegistry};
 
 pub trait PyExternalTensor {
   /// Turn into tensor from a python value
-  fn from_py_value(p: &PyAny) -> Self;
+  fn from_py_value(p: &Bound<'_, PyAny>) -> Self;
 
   /// Turn the tensor into a python value
   fn to_py_value(&self) -> Py<PyAny>;

@@ -127,7 +127,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> IntentionalDatabase<Prov, Ptr> {
   }
 
   /// Get internal collection
-  pub fn get_internal_collection(&self, relation: &str) -> Option<DynamicCollectionRef<Prov>> {
+  pub fn get_internal_collection(&self, relation: &str) -> Option<DynamicCollectionRef<'_, Prov>> {
     self.intentional_relations.get(relation).map(|r| r.internal_facts.as_ref())
   }
 

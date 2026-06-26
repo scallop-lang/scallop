@@ -623,7 +623,7 @@ impl<Prov: Provenance, Ptr: PointerFamily> DynamicExecutionContext<Prov, Ptr> {
     self.edb.add_static_input_facts(relation, facts)
   }
 
-  pub fn internal_relation(&self, r: &str) -> Option<DynamicCollectionRef<Prov>> {
+  pub fn internal_relation(&self, r: &str) -> Option<DynamicCollectionRef<'_, Prov>> {
     self.idb.get_internal_collection(r)
   }
 
