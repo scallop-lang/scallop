@@ -24,7 +24,7 @@ impl TorchTensorRegistry {
   }
 
   fn eval_expr_torch(&self, value: &TensorExpr) -> TorchTensor {
-    Python::with_gil(|py| match value {
+    Python::attach(|py| match value {
       TensorExpr::Symbol(s) => self.get_torch(s),
       TensorExpr::Float(f) => {
         let builtins = PyModule::import(py, "torch").expect("Cannot import torch");

@@ -32,7 +32,7 @@ impl ADTVariantRegistry {
     self.registry.insert(variant_name, variant);
   }
 
-  pub fn iter(&self) -> std::collections::hash_map::Iter<String, ADTVariant> {
+  pub fn iter(&self) -> std::collections::hash_map::Iter<'_, String, ADTVariant> {
     self.registry.iter()
   }
 

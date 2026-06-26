@@ -1,4 +1,4 @@
-use pyo3::prelude::*;
+use pyo3::{prelude::*, IntoPyObjectExt};
 
 use scallop_core::common::foreign_tensor::*;
 
@@ -21,9 +21,11 @@ impl From<Py<PyAny>> for ExtTag {
   }
 }
 
-impl From<&PyAny> for ExtTag {
-  fn from(tag: &PyAny) -> Self {
-    Self { tag: tag.into() }
+impl From<&Bound<'_, PyAny>> for ExtTag {
+  fn from(tag: &Bound<'_, PyAny>) -> Self {
+    Self {
+      tag: tag.clone().unbind(),
+    }
   }
 }
 
@@ -46,7 +48,7 @@ impl ExtTagVec for Vec<ExtTag> {
 
   fn into_none_prepended_vec(self) -> Vec<Py<PyAny>> {
     let none: Option<Py<PyAny>> = None;
-    std::iter::once(Python::with_gil(|py| none.to_object(py)))
+    std::iter::once(Python::attach(|py| none.into_py_any(py).unwrap()))
       .chain(self.into_iter().map(|v| v.tag))
       .collect()
   }

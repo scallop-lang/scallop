@@ -20,7 +20,7 @@ use collection::*;
 use context::*;
 
 #[pymodule]
-fn scallopy(_py: Python, m: &PyModule) -> PyResult<()> {
+fn scallopy(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
   // Configurations
   m.add_function(wrap_pyfunction!(config::torch_tensor_enabled, m).unwrap())?;
 

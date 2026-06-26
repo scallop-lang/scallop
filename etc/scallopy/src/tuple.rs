@@ -1,6 +1,6 @@
 use pyo3::exceptions::*;
-use pyo3::prelude::*;
 use pyo3::types::*;
+use pyo3::{prelude::*, IntoPyObjectExt};
 
 use scallop_core::common::foreign_tensor::*;
 use scallop_core::common::tuple::Tuple;
@@ -15,9 +15,9 @@ use super::tensor::*;
 
 pub fn to_python_tuple(tup: &Tuple, env: &PythonRuntimeEnvironment) -> Option<Py<PyAny>> {
   match tup {
-    Tuple::Tuple(t) => Python::with_gil(|py| {
+    Tuple::Tuple(t) => Python::attach(|py| {
       let values = t.iter().map(|t| to_python_tuple(t, env)).collect::<Option<Vec<_>>>()?;
-      Some(PyTuple::new(py, values).into())
+      PyTuple::new(py, values).ok().map(|tuple| tuple.into_any().unbind())
     }),
     Tuple::Value(v) => to_python_value(v, env),
   }
@@ -25,47 +25,47 @@ pub fn to_python_tuple(tup: &Tuple, env: &PythonRuntimeEnvironment) -> Option<Py
 
 pub fn to_python_value(val: &Value, env: &PythonRuntimeEnvironment) -> Option<Py<PyAny>> {
   use Value::*;
-  Python::with_gil(|py| match val {
-    I8(i) => Some(i.to_object(py)),
-    I16(i) => Some(i.to_object(py)),
-    I32(i) => Some(i.to_object(py)),
-    I64(i) => Some(i.to_object(py)),
-    I128(i) => Some(i.to_object(py)),
-    ISize(i) => Some(i.to_object(py)),
-    U8(i) => Some(i.to_object(py)),
-    U16(i) => Some(i.to_object(py)),
-    U32(i) => Some(i.to_object(py)),
-    U64(i) => Some(i.to_object(py)),
-    U128(i) => Some(i.to_object(py)),
-    USize(i) => Some(i.to_object(py)),
-    F32(f) => Some(f.to_object(py)),
-    F64(f) => Some(f.to_object(py)),
-    Char(c) => Some(c.to_object(py)),
-    Bool(b) => Some(b.to_object(py)),
-    Str(s) => Some(s.to_object(py)),
-    String(s) => Some(s.to_object(py)),
-    Symbol(s) => Some(env.symbol_registry.get_symbol(*s).to_object(py)),
-    SymbolString(s) => Some(s.to_object(py)),
-    DateTime(d) => Some(d.to_string().to_object(py)),
-    Duration(d) => Some(d.to_string().to_object(py)),
-    Entity(e) => Some(e.to_object(py)),
+  Python::attach(|py| match val {
+    I8(i) => i.into_py_any(py).ok(),
+    I16(i) => i.into_py_any(py).ok(),
+    I32(i) => i.into_py_any(py).ok(),
+    I64(i) => i.into_py_any(py).ok(),
+    I128(i) => i.into_py_any(py).ok(),
+    ISize(i) => i.into_py_any(py).ok(),
+    U8(i) => i.into_py_any(py).ok(),
+    U16(i) => i.into_py_any(py).ok(),
+    U32(i) => i.into_py_any(py).ok(),
+    U64(i) => i.into_py_any(py).ok(),
+    U128(i) => i.into_py_any(py).ok(),
+    USize(i) => i.into_py_any(py).ok(),
+    F32(f) => f.into_py_any(py).ok(),
+    F64(f) => f.into_py_any(py).ok(),
+    Char(c) => c.into_py_any(py).ok(),
+    Bool(b) => b.into_py_any(py).ok(),
+    Str(s) => s.into_py_any(py).ok(),
+    String(s) => s.into_py_any(py).ok(),
+    Symbol(s) => env.symbol_registry.get_symbol(*s).into_py_any(py).ok(),
+    SymbolString(s) => s.into_py_any(py).ok(),
+    DateTime(d) => d.to_string().into_py_any(py).ok(),
+    Duration(d) => d.to_string().into_py_any(py).ok(),
+    Entity(e) => e.into_py_any(py).ok(),
     EntityString(_) => panic!("[Internal Error] Entity string could not be turned to python value"),
     Tensor(t) => tensor_to_py_object(t.clone()),
     TensorValue(v) => tensor_to_py_object(env.tensor_registry.eval(v)?),
   })
 }
 
-pub fn from_python_tuple(v: &PyAny, ty: &TupleType, env: &PythonRuntimeEnvironment) -> PyResult<Tuple> {
+pub fn from_python_tuple(v: &Bound<'_, PyAny>, ty: &TupleType, env: &PythonRuntimeEnvironment) -> PyResult<Tuple> {
   match ty {
     TupleType::Tuple(ts) => {
-      let tup: &PyTuple = v.downcast()?;
+      let tup = v.cast::<PyTuple>()?;
       if tup.len() == ts.len() {
         let elems = ts
           .iter()
           .enumerate()
           .map(|(i, t)| {
             let e = tup.get_item(i)?;
-            from_python_tuple(e, t, env)
+            from_python_tuple(&e, t, env)
           })
           .collect::<PyResult<Box<_>>>()?;
         Ok(Tuple::Tuple(elems))
@@ -77,7 +77,7 @@ pub fn from_python_tuple(v: &PyAny, ty: &TupleType, env: &PythonRuntimeEnvironme
   }
 }
 
-pub fn from_python_value(v: &PyAny, ty: &ValueType, env: &PythonRuntimeEnvironment) -> PyResult<Value> {
+pub fn from_python_value(v: &Bound<'_, PyAny>, ty: &ValueType, env: &PythonRuntimeEnvironment) -> PyResult<Value> {
   match ty {
     ValueType::I8 => Ok(Value::I8(v.extract()?)),
     ValueType::I16 => Ok(Value::I16(v.extract()?)),
@@ -122,7 +122,7 @@ pub fn from_python_value(v: &PyAny, ty: &ValueType, env: &PythonRuntimeEnvironme
   }
 }
 
-fn tensor_from_py_object(pyobj: &PyAny, env: &PythonRuntimeEnvironment) -> PyResult<Value> {
+fn tensor_from_py_object(pyobj: &Bound<'_, PyAny>, env: &PythonRuntimeEnvironment) -> PyResult<Value> {
   let py_tensor = Tensor::from_py_value(pyobj);
   let symbol = env
     .tensor_registry
@@ -131,6 +131,6 @@ fn tensor_from_py_object(pyobj: &PyAny, env: &PythonRuntimeEnvironment) -> PyRes
   Ok(Value::TensorValue(symbol.into()))
 }
 
-fn tensor_to_py_object(tensor: DynamicExternalTensor) -> Option<PyObject> {
+fn tensor_to_py_object(tensor: DynamicExternalTensor) -> Option<Py<PyAny>> {
   tensor.cast::<Tensor>().map(|t| t.to_py_value())
 }

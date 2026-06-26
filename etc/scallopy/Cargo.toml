@@ -12,11 +12,11 @@ scallop-core = { path = "../../core" }
 sclc-core = { path = "../sclc" }
 rayon = "1.5"
 serde = { version = "1.0", features = ["derive"] }
-pythonize = "0.18"
+pythonize = "0.29"
 
 [dependencies.pyo3]
-version = "0.18.2"
-features = ["extension-module"]
+version = "0.29.0"
+features = ["extension-module", "py-clone"]
 
 [features]
 default = ["torch-tensor"]

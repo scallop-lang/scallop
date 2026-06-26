@@ -179,7 +179,7 @@ impl<Prov: Provenance> ExtensionalDatabase<Prov> {
     Ok(())
   }
 
-  pub fn get_dynamic_collection(&self, relation: &str) -> Option<DynamicCollectionRef<Prov>> {
+  pub fn get_dynamic_collection(&self, relation: &str) -> Option<DynamicCollectionRef<'_, Prov>> {
     self.extensional_relations.get(relation).map(|r| r.internal.as_ref())
   }
 

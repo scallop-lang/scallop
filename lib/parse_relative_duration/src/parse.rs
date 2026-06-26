@@ -240,7 +240,7 @@ pub fn parse(input: &str) -> Result<RelativeDuration, Error> {
 
           // boosted_int is now value * 10^exp * nanoseconds
           match parse_unit(unit.as_str()) {
-            "nanoseconds" => boosted_int = boosted_int,
+            "nanoseconds" => {}
             "microseconds" => boosted_int = 1_000_i64 * boosted_int,
             "milliseconds" => boosted_int = 1_000_000_i64 * boosted_int,
             "seconds" => boosted_int = 1_000_000_000_i64 * boosted_int,
@@ -271,7 +271,7 @@ pub fn parse(input: &str) -> Result<RelativeDuration, Error> {
 
           // boosted_int is now value * 10^-exp * nanoseconds
           match parse_unit(unit.as_str()) {
-            "nanoseconds" => boosted_int = boosted_int,
+            "nanoseconds" => {}
             "microseconds" => boosted_int = 1_000_i64 * boosted_int,
             "milliseconds" => boosted_int = 1_000_000_i64 * boosted_int,
             "seconds" => boosted_int = 1_000_000_000_i64 * boosted_int,
@@ -315,7 +315,7 @@ pub fn parse(input: &str) -> Result<RelativeDuration, Error> {
 
           // boosted_int is now value * 10^-exp * nanoseconds
           match parse_unit(unit.as_str()) {
-            "nanoseconds" => boosted_int = boosted_int,
+            "nanoseconds" => {}
             "microseconds" => boosted_int *= 1_000_i64,
             "milliseconds" => boosted_int *= 1_000_000_i64,
             "seconds" => boosted_int *= 1_000_000_000_i64,

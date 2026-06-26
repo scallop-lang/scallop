@@ -1,4 +1,4 @@
-use std::collections::*;
+use std::collections::HashMap;
 
 use pyo3::prelude::*;
 use pyo3::types::*;
@@ -383,12 +383,14 @@ impl Context {
   }
 
   /// Add monitors to the system
-  fn add_monitors(&mut self, monitors: Vec<&str>) {
+  fn add_monitors(&mut self, monitors: Vec<String>) {
+    let monitors = monitors.iter().map(String::as_str).collect::<Vec<_>>();
     match_context!(&mut self.ctx, c, c.add_monitors(&monitors))
   }
 
   /// Load monitors to the system (discarding all existing ones)
-  fn load_monitors(&mut self, monitors: Vec<&str>) {
+  fn load_monitors(&mut self, monitors: Vec<String>) {
+    let monitors = monitors.iter().map(String::as_str).collect::<Vec<_>>();
     match_context!(&mut self.ctx, c, c.load_monitors(&monitors))
   }
 
@@ -403,7 +405,8 @@ impl Context {
   /// JIT compile the surface program into a python library, by invoking `sclc::pylib::create_pylib`.
   ///
   /// When succeeded, there will be a `target_file` created, which can be in turn imported by python runtime.
-  fn jit_compile(&mut self, target_relations: Vec<&str>, target_file: String) -> Result<(), BindingError> {
+  fn jit_compile(&mut self, target_relations: Vec<String>, target_file: String) -> Result<(), BindingError> {
+    let target_relations = target_relations.iter().map(String::as_str).collect::<Vec<_>>();
     // First compile the program
     match_context!(
       &mut self.ctx,
@@ -523,7 +526,7 @@ impl Context {
   fn add_relation(
     &mut self,
     relation: &str,
-    load_csv: Option<&PyAny>,
+    load_csv: Option<Bound<'_, PyAny>>,
     demand: Option<String>,
   ) -> Result<String, BindingError> {
     // Get the attributes
@@ -557,13 +560,18 @@ impl Context {
   }
 
   /// Add a list of facts to a relation
-  fn add_facts(&mut self, relation: &str, elems: &PyList) -> Result<(), BindingError> {
+  fn add_facts(&mut self, relation: &str, elems: &Bound<'_, PyList>) -> Result<(), BindingError> {
     match_context!(&mut self.ctx, c, add_py_facts(c, relation, elems))
   }
 
   /// Add a rule
   #[pyo3(signature=(rule, tag=None, demand=None))]
-  fn add_rule(&mut self, rule: &str, tag: Option<&PyAny>, demand: Option<String>) -> Result<(), BindingError> {
+  fn add_rule(
+    &mut self,
+    rule: &str,
+    tag: Option<Bound<'_, PyAny>>,
+    demand: Option<String>,
+  ) -> Result<(), BindingError> {
     // Attributes
     let mut attrs = Vec::new();
 
@@ -579,21 +587,21 @@ impl Context {
   }
 
   /// Register a foreign function
-  fn register_foreign_function(&mut self, f: PyObject) -> Result<(), BindingError> {
+  fn register_foreign_function(&mut self, f: Py<PyAny>) -> Result<(), BindingError> {
     let ff = PythonForeignFunction::new(f);
     match_context!(&mut self.ctx, c, c.register_foreign_function(ff)?);
     Ok(())
   }
 
   /// Register a foreign predicate
-  fn register_foreign_predicate(&mut self, f: PyObject) -> Result<(), BindingError> {
+  fn register_foreign_predicate(&mut self, f: Py<PyAny>) -> Result<(), BindingError> {
     let fp = PythonForeignPredicate::new(f);
     match_context!(&mut self.ctx, c, c.register_foreign_predicate(fp)?);
     Ok(())
   }
 
   /// Register a foreign attribute
-  fn register_foreign_attribute(&mut self, attr: PyObject) -> Result<(), BindingError> {
+  fn register_foreign_attribute(&mut self, attr: Py<PyAny>) -> Result<(), BindingError> {
     let py_attr = PythonForeignAttribute::new(attr);
     match_context!(&mut self.ctx, c, c.register_foreign_attribute(py_attr)?);
     Ok(())
@@ -618,14 +626,14 @@ impl Context {
   /// Check if the tuple matches the type of the queried relation.
   ///
   /// Error will be returned if the relation does not exist.
-  fn check_tuple(&self, relation: &str, tup: &PyAny) -> Result<bool, BindingError> {
+  fn check_tuple(&self, relation: &str, tup: &Bound<'_, PyAny>) -> Result<bool, BindingError> {
     match_context!(&self.ctx, c, check_py_tuple(c, relation, tup))
   }
 
   /// Check if a set of tuples match the type of the queried relation.
   ///
   /// Error will be returned if the relation does not exist.
-  fn check_tuples(&self, relation: &str, tups: Vec<&PyAny>) -> Result<bool, BindingError> {
+  fn check_tuples(&self, relation: &str, tups: Vec<Bound<'_, PyAny>>) -> Result<bool, BindingError> {
     match_context!(&self.ctx, c, check_py_tuples(c, relation, tups))
   }
 
@@ -641,8 +649,8 @@ impl Context {
   /// * `parallel` - whether the batch is to be executed in parallel
   fn run_batch(
     &self,
-    output_relations: Vec<Vec<&str>>,
-    inputs: HashMap<String, Vec<&PyList>>,
+    output_relations: Vec<Vec<String>>,
+    inputs: HashMap<String, Vec<Bound<'_, PyList>>>,
     parallel: bool,
   ) -> Result<Vec<Vec<Collection>>, BindingError> {
     // Sanity check: has input
@@ -731,14 +739,14 @@ impl Context {
 impl Context {
   fn run_batch_parallel(
     &self,
-    output_relations: Vec<Vec<&str>>,
-    inputs: HashMap<String, Vec<&PyList>>,
+    output_relations: Vec<Vec<String>>,
+    inputs: HashMap<String, Vec<Bound<'_, PyList>>>,
   ) -> Result<Vec<Vec<Collection>>, BindingError> {
     // Helper function for running batch parallel
     fn run<C>(
       c: &IntegrateContext<C, AF>,
-      output_relations: Vec<Vec<&str>>,
-      inputs: HashMap<String, Vec<&PyList>>,
+      output_relations: Vec<Vec<String>>,
+      inputs: HashMap<String, Vec<Bound<'_, PyList>>>,
     ) -> Result<Vec<Vec<Collection>>, BindingError>
     where
       C: PythonProvenance + Clone + std::marker::Sync,
@@ -757,15 +765,15 @@ impl Context {
 
   fn run_batch_serial(
     &self,
-    output_relation: Vec<Vec<&str>>,
-    inputs: HashMap<String, Vec<&PyList>>,
+    output_relation: Vec<Vec<String>>,
+    inputs: HashMap<String, Vec<Bound<'_, PyList>>>,
   ) -> Result<Vec<Vec<Collection>>, BindingError> {
     let batch_size = inputs.iter().next().unwrap().1.len();
     (0..batch_size)
       .map(|i| {
         let mut temp_ctx = self.clone();
         for (relation, relation_inputs) in &inputs {
-          temp_ctx.add_facts(relation, relation_inputs[i])?;
+          temp_ctx.add_facts(relation, &relation_inputs[i])?;
         }
         temp_ctx.run()?;
         output_relation[i].iter().map(|r| temp_ctx.relation(r)).collect()
@@ -777,7 +785,7 @@ impl Context {
 fn add_py_rule<P>(
   c: &mut IntegrateContext<P, AF>,
   rule: &str,
-  tag: Option<&PyAny>,
+  tag: Option<Bound<'_, PyAny>>,
   attrs: Vec<Attribute>,
 ) -> Result<(), BindingError>
 where
@@ -788,7 +796,11 @@ where
   Ok(())
 }
 
-fn add_py_facts<P>(c: &mut IntegrateContext<P, AF>, relation: &str, elems: &PyList) -> Result<(), BindingError>
+fn add_py_facts<P>(
+  c: &mut IntegrateContext<P, AF>,
+  relation: &str,
+  elems: &Bound<'_, PyList>,
+) -> Result<(), BindingError>
 where
   P: PythonProvenance,
 {
@@ -801,7 +813,11 @@ where
   }
 }
 
-fn check_py_tuple<P>(c: &IntegrateContext<P, AF>, relation: &str, py_tup: &PyAny) -> Result<bool, BindingError>
+fn check_py_tuple<P>(
+  c: &IntegrateContext<P, AF>,
+  relation: &str,
+  py_tup: &Bound<'_, PyAny>,
+) -> Result<bool, BindingError>
 where
   P: PythonProvenance,
 {
@@ -812,13 +828,17 @@ where
   }
 }
 
-fn check_py_tuples<C>(c: &IntegrateContext<C, AF>, relation: &str, py_tups: Vec<&PyAny>) -> Result<bool, BindingError>
+fn check_py_tuples<C>(
+  c: &IntegrateContext<C, AF>,
+  relation: &str,
+  py_tups: Vec<Bound<'_, PyAny>>,
+) -> Result<bool, BindingError>
 where
   C: PythonProvenance,
 {
   if let Some(tuple_type) = c.relation_type(relation) {
     for py_tup in py_tups {
-      if from_python_tuple(py_tup, &tuple_type, &c.runtime_environment().into()).is_err() {
+      if from_python_tuple(&py_tup, &tuple_type, &c.runtime_environment().into()).is_err() {
         return Ok(false);
       }
     }
@@ -829,7 +849,7 @@ where
 }
 
 fn process_batched_inputs<P, G>(
-  inputs: HashMap<String, Vec<&PyList>>,
+  inputs: HashMap<String, Vec<Bound<'_, PyList>>>,
   env: &RuntimeEnvironment,
   get_relation_type: G,
 ) -> PyResult<Vec<(String, Vec<Vec<(Option<P::InputTag>, Tuple)>>)>>
@@ -843,7 +863,7 @@ where
       let tuple_type = get_relation_type(&r).ok_or(BindingError::UnknownRelation(r.clone()))?;
       let batch = b
         .into_iter()
-        .map(|elems| P::process_typed_py_facts(elems, &tuple_type, env))
+        .map(|elems| P::process_typed_py_facts(&elems, &tuple_type, env))
         .collect::<PyResult<Vec<_>>>()?;
       Ok((r, batch))
     })
@@ -854,7 +874,7 @@ fn run_batch_parallel<C>(
   integrate_context: &IntegrateContext<C, AF>,
   batch_size: usize,
   inputs: Vec<(String, Vec<Vec<(Option<C::InputTag>, Tuple)>>)>,
-  batch_output_relations: Vec<Vec<&str>>,
+  batch_output_relations: Vec<Vec<String>>,
 ) -> Result<Vec<Vec<Collection>>, BindingError>
 where
   C: PythonProvenance + Clone + std::marker::Sync,

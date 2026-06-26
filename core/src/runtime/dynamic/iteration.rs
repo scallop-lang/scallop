@@ -461,7 +461,7 @@ impl<'a, Prov: Provenance> DynamicIteration<'a, Prov> {
     }
   }
 
-  fn build_dynamic_collection(&self, r: &str) -> DynamicDataflow<Prov> {
+  fn build_dynamic_collection(&self, r: &str) -> DynamicDataflow<'_, Prov> {
     let col = self.unsafe_get_input_dynamic_collection(r);
     DynamicDataflow::dynamic_collection(col, self.is_first_iteration())
   }

@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use super::*;
 use crate::runtime::provenance::*;
 
-pub fn unit<U: UnitTuple, Prov: Provenance>(ctx: &Prov, first_iteration: bool) -> Unit<U, Prov> {
+pub fn unit<U: UnitTuple, Prov: Provenance>(ctx: &Prov, first_iteration: bool) -> Unit<'_, U, Prov> {
   Unit {
     ctx,
     first_iteration,

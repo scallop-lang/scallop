@@ -9,13 +9,13 @@ use crate::foreign_predicate::PythonForeignPredicate;
 
 #[derive(Clone)]
 pub struct PythonForeignAttribute {
-  py_attr: PyObject,
+  py_attr: Py<PyAny>,
   name: String,
 }
 
 impl PythonForeignAttribute {
-  pub fn new(py_attr: PyObject) -> Self {
-    let name = Python::with_gil(|py| {
+  pub fn new(py_attr: Py<PyAny>) -> Self {
+    let name = Python::attach(|py| {
       py_attr
         .getattr(py, "name")
         .expect("Cannot get foreign predicate name")
@@ -72,20 +72,22 @@ impl AttributeProcessor for PythonForeignAttribute {
   }
 
   fn apply(&self, item: &ast::Item, attr: &ast::Attribute) -> Result<AttributeAction, AttributeError> {
-    Python::with_gil(|py| {
+    Python::attach(|py| {
       let item_py = pythonize::pythonize(py, item).map_err(|e| AttributeError::Custom {
         msg: format!("Error pythonizing item: {e}"),
       })?;
       let attr_py = pythonize::pythonize(py, attr).map_err(|e| AttributeError::Custom {
         msg: format!("Error pythonizing attribute: {e}"),
       })?;
-      let args = PyTuple::new(py, vec![item_py, attr_py]);
-      let result = self.py_attr.call_method(py, "apply", args, None).map_err(|e| {
-        e.print(py);
-        AttributeError::Custom {
-          msg: format!("Error applying attribute: {e}"),
-        }
-      })?;
+      let result = self
+        .py_attr
+        .call_method(py, "apply", (item_py, attr_py), None)
+        .map_err(|e| {
+          e.print(py);
+          AttributeError::Custom {
+            msg: format!("Error applying attribute: {e}"),
+          }
+        })?;
       Ok(self.process_action(py, result))
     })
   }

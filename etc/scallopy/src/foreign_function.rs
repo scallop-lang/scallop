@@ -14,14 +14,14 @@ use super::tuple::*;
 /// TODO: Memoization
 #[derive(Clone)]
 pub struct PythonForeignFunction {
-  ff: PyObject,
+  ff: Py<PyAny>,
   suppress_warning: bool,
 }
 
 impl PythonForeignFunction {
   /// Create a new PythonForeignFunction
-  pub fn new(ff: PyObject) -> Self {
-    let suppress_warning = Python::with_gil(|py| {
+  pub fn new(ff: Py<PyAny>) -> Self {
+    let suppress_warning = Python::attach(|py| {
       ff.getattr(py, "suppress_warning")
         .expect("Cannot get foreign function generic type parameters")
         .extract(py)
@@ -34,7 +34,7 @@ impl PythonForeignFunction {
 
 impl ForeignFunction for PythonForeignFunction {
   fn name(&self) -> String {
-    Python::with_gil(|py| {
+    Python::attach(|py| {
       self
         .ff
         .getattr(py, "name")
@@ -45,26 +45,28 @@ impl ForeignFunction for PythonForeignFunction {
   }
 
   fn num_generic_types(&self) -> usize {
-    Python::with_gil(|py| {
-      let generic_type_params: PyObject = self
+    Python::attach(|py| {
+      let generic_type_params: Py<PyAny> = self
         .ff
         .getattr(py, "generic_type_params")
         .expect("Cannot get foreign function generic type parameters");
-      let generic_type_params: &PyList = generic_type_params
-        .downcast::<PyList>(py)
+      let generic_type_params = generic_type_params
+        .bind(py)
+        .cast::<PyList>()
         .expect("Cannot cast into PyList");
       generic_type_params.len()
     })
   }
 
   fn generic_type_family(&self, i: usize) -> TypeFamily {
-    Python::with_gil(|py| {
-      let generic_type_params: PyObject = self
+    Python::attach(|py| {
+      let generic_type_params: Py<PyAny> = self
         .ff
         .getattr(py, "generic_type_params")
         .expect("Cannot get foreign function generic type parameters");
-      let generic_type_params: &PyList = generic_type_params
-        .downcast::<PyList>(py)
+      let generic_type_params = generic_type_params
+        .bind(py)
+        .cast::<PyList>()
         .expect("Cannot cast into PyList");
       let param: String = generic_type_params
         .get_item(i)
@@ -84,69 +86,65 @@ impl ForeignFunction for PythonForeignFunction {
   }
 
   fn num_static_arguments(&self) -> usize {
-    Python::with_gil(|py| {
-      let static_arg_types: PyObject = self
+    Python::attach(|py| {
+      let static_arg_types: Py<PyAny> = self
         .ff
         .getattr(py, "static_arg_types")
         .expect("Cannot get foreign function static arg types");
-      let static_arg_types: &PyList = static_arg_types
-        .downcast::<PyList>(py)
+      let static_arg_types = static_arg_types
+        .bind(py)
+        .cast::<PyList>()
         .expect("Cannot cast into PyList");
       static_arg_types.len()
     })
   }
 
   fn static_argument_type(&self, i: usize) -> ForeignFunctionParameterType {
-    Python::with_gil(|py| {
-      let static_arg_types: PyObject = self
+    Python::attach(|py| {
+      let static_arg_types: Py<PyAny> = self
         .ff
         .getattr(py, "static_arg_types")
         .expect("Cannot get foreign function static arg types");
-      let static_arg_types: &PyList = static_arg_types
-        .downcast::<PyList>(py)
+      let static_arg_types = static_arg_types
+        .bind(py)
+        .cast::<PyList>()
         .expect("Cannot cast into PyList");
-      let param_type: PyObject = static_arg_types
-        .get_item(i)
-        .expect("Cannot get i-th param")
-        .extract()
-        .expect("Cannot extract param into Object");
+      let param_type: Py<PyAny> = static_arg_types.get_item(i).expect("Cannot get i-th param").unbind();
       py_param_type_to_ff_param_type(param_type, py)
     })
   }
 
   fn num_optional_arguments(&self) -> usize {
-    Python::with_gil(|py| {
-      let optional_arg_types: PyObject = self
+    Python::attach(|py| {
+      let optional_arg_types: Py<PyAny> = self
         .ff
         .getattr(py, "optional_arg_types")
         .expect("Cannot get foreign function optional arg types");
-      let optional_arg_types: &PyList = optional_arg_types
-        .downcast::<PyList>(py)
+      let optional_arg_types = optional_arg_types
+        .bind(py)
+        .cast::<PyList>()
         .expect("Cannot cast into PyList");
       optional_arg_types.len()
     })
   }
 
   fn optional_argument_type(&self, i: usize) -> ForeignFunctionParameterType {
-    Python::with_gil(|py| {
-      let optional_arg_types: PyObject = self
+    Python::attach(|py| {
+      let optional_arg_types: Py<PyAny> = self
         .ff
         .getattr(py, "optional_arg_types")
         .expect("Cannot get foreign function optional arg types");
-      let optional_arg_types: &PyList = optional_arg_types
-        .downcast::<PyList>(py)
+      let optional_arg_types = optional_arg_types
+        .bind(py)
+        .cast::<PyList>()
         .expect("Cannot cast into PyList");
-      let param_type: PyObject = optional_arg_types
-        .get_item(i)
-        .expect("Cannot get i-th param")
-        .extract()
-        .expect("Cannot extract param into Object");
+      let param_type: Py<PyAny> = optional_arg_types.get_item(i).expect("Cannot get i-th param").unbind();
       py_param_type_to_ff_param_type(param_type, py)
     })
   }
 
   fn has_variable_arguments(&self) -> bool {
-    Python::with_gil(|py| {
+    Python::attach(|py| {
       !self
         .ff
         .getattr(py, "var_arg_types")
@@ -156,8 +154,8 @@ impl ForeignFunction for PythonForeignFunction {
   }
 
   fn variable_argument_type(&self) -> ForeignFunctionParameterType {
-    Python::with_gil(|py| {
-      let var_arg_type: PyObject = self
+    Python::attach(|py| {
+      let var_arg_type: Py<PyAny> = self
         .ff
         .getattr(py, "var_arg_types")
         .expect("Cannot get foreign function variable arg types");
@@ -166,8 +164,8 @@ impl ForeignFunction for PythonForeignFunction {
   }
 
   fn return_type(&self) -> ForeignFunctionParameterType {
-    Python::with_gil(|py| {
-      let var_arg_type: PyObject = self
+    Python::attach(|py| {
+      let var_arg_type: Py<PyAny> = self
         .ff
         .getattr(py, "return_type")
         .expect("Cannot get foreign function return type");
@@ -179,9 +177,9 @@ impl ForeignFunction for PythonForeignFunction {
     let ty = self.infer_return_type(&args);
 
     // Actually run the function
-    Python::with_gil(|py| {
+    Python::attach(|py| {
       // First obtain the function
-      let func: PyObject = self
+      let func: Py<PyAny> = self
         .ff
         .getattr(py, "func")
         .expect("Cannot get function")
@@ -190,7 +188,7 @@ impl ForeignFunction for PythonForeignFunction {
 
       // Construct the arguments
       let args: Vec<Py<PyAny>> = args.iter().filter_map(|a| to_python_value(a, &env.into())).collect();
-      let args_tuple = PyTuple::new(py, args);
+      let args_tuple = PyTuple::new(py, args).expect("Cannot create argument tuple");
 
       // Invoke the function
       let maybe_result = match func.call1(py, args_tuple) {
@@ -205,8 +203,7 @@ impl ForeignFunction for PythonForeignFunction {
 
       // Turn the result back to Scallop value
       if let Some(result) = maybe_result {
-        let result: &PyAny = result.extract(py).expect("");
-        from_python_value(result, &ty, &env.into()).ok()
+        from_python_value(result.bind(py), &ty, &env.into()).ok()
       } else {
         None
       }
@@ -214,7 +211,7 @@ impl ForeignFunction for PythonForeignFunction {
   }
 }
 
-fn py_param_type_to_ff_param_type(obj: PyObject, py: Python<'_>) -> ForeignFunctionParameterType {
+fn py_param_type_to_ff_param_type(obj: Py<PyAny>, py: Python<'_>) -> ForeignFunctionParameterType {
   let param_kind: String = obj
     .getattr(py, "kind")
     .expect("Cannot get param kind")
