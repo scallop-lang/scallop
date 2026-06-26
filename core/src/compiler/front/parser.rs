@@ -124,7 +124,7 @@ impl<'a> From<RawParserError<'a>> for ParserError {
 
     // Add location information
     match err {
-      RawParserError::UnrecognizedEOF { location, .. } => e.location_point = Some(location),
+      RawParserError::UnrecognizedEof { location, .. } => e.location_point = Some(location),
       RawParserError::InvalidToken { location, .. } => e.location_point = Some(location),
       RawParserError::UnrecognizedToken { token, .. } => e.location_span = Some((token.0, token.2)),
       _ => {}

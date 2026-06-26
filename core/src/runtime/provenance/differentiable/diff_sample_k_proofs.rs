@@ -7,7 +7,7 @@ use super::*;
 
 pub struct DiffSampleKProofsProvenance<T: FromTensor, P: PointerFamily> {
   pub k: usize,
-  pub sampler: P::Cell<StdRng>,
+  pub sampler: P::Cell<SmallRng>,
   pub storage: DiffProbStorage<T, P>,
   pub disjunctions: P::Cell<Disjunctions>,
 }
@@ -31,7 +31,7 @@ impl<T: FromTensor, P: PointerFamily> DiffSampleKProofsProvenance<T, P> {
   pub fn new_with_seed(k: usize, seed: u64) -> Self {
     Self {
       k,
-      sampler: P::new_cell(StdRng::seed_from_u64(seed)),
+      sampler: P::new_cell(SmallRng::seed_from_u64(seed)),
       storage: DiffProbStorage::new(),
       disjunctions: P::new_cell(Disjunctions::new()),
     }

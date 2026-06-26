@@ -1,7 +1,7 @@
 use std::collections::*;
 
 use itertools::Itertools;
-use rand::distributions::WeightedIndex;
+use rand::distr::weighted::WeightedIndex;
 use rand::prelude::*;
 
 use super::{Clause, DNFFormula, Literal};
@@ -40,7 +40,7 @@ pub trait DNFContextTrait {
     clauses.truncate(k);
   }
 
-  fn sample_k_clauses(&self, clauses: Vec<Clause>, k: usize, sampler: &mut StdRng) -> Vec<Clause> {
+  fn sample_k_clauses<R: Rng + ?Sized>(&self, clauses: Vec<Clause>, k: usize, sampler: &mut R) -> Vec<Clause> {
     if clauses.is_empty() {
       vec![]
     } else if clauses.len() <= k {

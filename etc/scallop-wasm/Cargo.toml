@@ -10,4 +10,4 @@ crate-type = ["cdylib"]
 [dependencies]
 wasm-bindgen = "0.2"
 scallop-core = { path = "../../core" }
-getrandom = { version = "0.2", features = ["js"] }
+getrandom = { version = "0.4.3", features = ["wasm_js"] }

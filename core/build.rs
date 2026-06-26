@@ -2,7 +2,8 @@ extern crate lalrpop;
 
 fn main() {
   lalrpop::Configuration::new()
-    .generate_in_source_tree()
+    .set_in_dir("src")
+    .set_out_dir("src")
     .process()
     .unwrap();
 }

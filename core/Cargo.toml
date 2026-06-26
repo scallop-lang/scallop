@@ -8,28 +8,28 @@ edition = "2018"
 crate-type = ["rlib"]
 
 [build-dependencies]
-lalrpop = { version = "0.19.9", features = ["lexer"] }
+lalrpop = { version = "0.23.1", features = ["lexer"] }
 
 [dependencies]
-lalrpop-util = "0.19.9"
+lalrpop-util = "0.23.1"
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
 downcast = "0.11"
 quote = "1.0"
-syn = "1.0"
+syn = "2.0"
 paste = "1.0"
-itertools = "0.10"
-colored = "2.0"
-petgraph = "0.6"
+itertools = "0.15"
+colored = "3.1"
+petgraph = "0.8"
 csv = "1.1"
 sprs = "0.11"
 chrono = { version = "0.4", features = ["serde"] }
 chronoutil = { git = "https://github.com/Liby99/chronoutil.git" }
-dateparser = "0.1.6"
+dateparser = "0.3.1"
 dyn-clone = "1.0.10"
 lazy_static = "1.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 parse_relative_duration = { path = "../lib/parse_relative_duration" }
-rand = { version = "0.8", features = ["std_rng", "small_rng", "alloc"] }
+rand = { version = "0.10.1", features = ["std_rng", "alloc"] }
 astnode-derive = { path = "../lib/astnode-derive" }
 sdd = { path = "../lib/sdd" }

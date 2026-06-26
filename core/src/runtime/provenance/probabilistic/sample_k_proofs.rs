@@ -8,7 +8,7 @@ use super::*;
 
 pub struct SampleKProofsProvenance<P: PointerFamily = RcFamily> {
   pub k: usize,
-  pub sampler: P::Cell<StdRng>,
+  pub sampler: P::Cell<SmallRng>,
   pub probs: P::Cell<Vec<f64>>,
   pub disjunctions: P::Cell<Disjunctions>,
 }
@@ -32,7 +32,7 @@ impl<P: PointerFamily> SampleKProofsProvenance<P> {
   pub fn new_with_seed(k: usize, seed: u64) -> Self {
     Self {
       k,
-      sampler: P::new_cell(StdRng::seed_from_u64(seed)),
+      sampler: P::new_cell(SmallRng::seed_from_u64(seed)),
       probs: P::new_cell(Vec::new()),
       disjunctions: P::new_cell(Disjunctions::new()),
     }

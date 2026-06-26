@@ -1,6 +1,6 @@
 use std::collections::*;
 
-use rand::distributions::WeightedIndex;
+use rand::distr::weighted::WeightedIndex;
 
 use crate::common::value_type::*;
 use crate::runtime::env::*;

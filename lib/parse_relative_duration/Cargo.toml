@@ -12,6 +12,6 @@ edition = "2018"
 [dependencies]
 regex = "1"
 lazy_static = "1"
-num = "0.2"
+num = "0.4.3"
 chronoutil = { git = "https://github.com/Liby99/chronoutil.git" }
 chrono = "0.4.26"
